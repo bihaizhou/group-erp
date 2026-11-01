@@ -1,4 +1,6 @@
 import { useSyncServerLocale } from '@nocobase/app-plugin-i18n/client';
+import { useAuthentication } from '@nocobase/app-plugin-authentication/client';
+import { ChatProvider } from '@nocobase/app-plugin-agents/client/chat';
 import type { ReactElement } from 'react';
 import type { AppClientRegisteredRoute } from '@nocobase/app-client/plugins';
 import { Outlet, useLocation } from 'react-router';
@@ -7,6 +9,8 @@ import { BrandWatermark } from '#components/brand-watermark';
 import { Breadcrumbs } from '#components/breadcrumbs';
 
 import { RouteTreeProvider } from '../routing/route-context.js';
+
+import { FloatingChat } from '../agents/floating-chat.js';
 
 import { PageBreadcrumbProvider } from '@nocobase/app-client';
 import { useTranslation } from '@nocobase/i18n/client';
@@ -36,6 +40,7 @@ export function AppLayout({ routes }: AppLayoutProps): ReactElement {
   useSyncServerLocale();
 
   const { t } = useTranslation();
+  const { session } = useAuthentication();
   const { items: menuItems, denied } = useRouteNavigation(routes);
   const selectedKey = selectedNavigationId(
     routes,
@@ -49,41 +54,44 @@ export function AppLayout({ routes }: AppLayoutProps): ReactElement {
   return (
     // The shell owns the business route tree used by its pages and navigation.
     <RouteTreeProvider routes={routes}>
-      <PageBreadcrumbProvider>
-        <CompanyScopeMemory />
-        <AppSidebarProvider>
-          <AppSidebar label={navigationLabel} footer={<AppSidebarFooter />}>
-            <NavigationMenu
-              items={menuItems}
-              label={navigationLabel}
-              selectedKey={selectedKey}
-            />
-          </AppSidebar>
-          <div className='flex min-w-0 flex-1 flex-col'>
-            <LayoutHeader className='sticky top-0 z-40 justify-between'>
-              <div className='flex min-w-0 items-center gap-3'>
-                <AppSidebarToggle />
-                <div className='md:hidden'>
-                  <AppBrand />
+      <ChatProvider available memoryScope={session?.user?.id}>
+        <PageBreadcrumbProvider>
+          <CompanyScopeMemory />
+          <AppSidebarProvider>
+            <AppSidebar label={navigationLabel} footer={<AppSidebarFooter />}>
+              <NavigationMenu
+                items={menuItems}
+                label={navigationLabel}
+                selectedKey={selectedKey}
+              />
+            </AppSidebar>
+            <div className='flex min-w-0 flex-1 flex-col'>
+              <LayoutHeader className='sticky top-0 z-40 justify-between'>
+                <div className='flex min-w-0 items-center gap-3'>
+                  <AppSidebarToggle />
+                  <div className='md:hidden'>
+                    <AppBrand />
+                  </div>
+                  <CompanySwitcher />
+                  <div className='h-5 w-px shrink-0 bg-border' />
+                  {/* The current page's trail: the route tree's, or the one the page declares (`usePageBreadcrumb`). */}
+                  <Breadcrumbs denied={denied} />
                 </div>
-                <CompanySwitcher />
-                <div className='h-5 w-px shrink-0 bg-border' />
-                {/* The current page's trail: the route tree's, or the one the page declares (`usePageBreadcrumb`). */}
-                <Breadcrumbs denied={denied} />
-              </div>
-              <HeaderActions />
-            </LayoutHeader>
-            <main className='app-brand-surface relative isolate min-w-0 flex-1 overflow-hidden'>
-              <BrandWatermark className='-z-10' />
-              {/* main only positions; the page scrolls in here, so a child page layer laid over main is neither
+                <HeaderActions />
+              </LayoutHeader>
+              <main className='app-brand-surface relative isolate min-w-0 flex-1 overflow-hidden'>
+                <BrandWatermark className='-z-10' />
+                {/* main only positions; the page scrolls in here, so a child page layer laid over main is neither
             moved by the page's scrolling nor stretched by its height. */}
-              <div className='h-full overflow-y-auto'>
-                <Outlet />
-              </div>
-            </main>
-          </div>
-        </AppSidebarProvider>
-      </PageBreadcrumbProvider>
+                <div className='h-full overflow-y-auto'>
+                  <Outlet />
+                </div>
+              </main>
+            </div>
+          </AppSidebarProvider>
+        </PageBreadcrumbProvider>
+        <FloatingChat />
+      </ChatProvider>
     </RouteTreeProvider>
   );
 }

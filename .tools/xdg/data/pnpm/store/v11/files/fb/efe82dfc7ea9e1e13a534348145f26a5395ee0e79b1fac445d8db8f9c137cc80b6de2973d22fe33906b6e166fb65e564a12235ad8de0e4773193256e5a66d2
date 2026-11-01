@@ -6,7 +6,7 @@ const path = require('path');
 const filesToCheck = ['*.h', '*.cc'];
 const FORMAT_START = process.env.FORMAT_START || 'main';
 
-function main (args) {
+function main(args) {
   let fix = false;
   while (args.length > 0) {
     switch (args[0]) {
@@ -20,9 +20,10 @@ function main (args) {
   }
 
   const clangFormatPath = path.dirname(require.resolve('clang-format'));
-  const binary = process.platform === 'win32'
-    ? 'node_modules\\.bin\\clang-format.cmd'
-    : 'node_modules/.bin/clang-format';
+  const binary =
+    process.platform === 'win32'
+      ? 'node_modules\\.bin\\clang-format.cmd'
+      : 'node_modules/.bin/clang-format';
   const options = ['--binary=' + binary, '--style=file'];
   if (fix) {
     options.push(FORMAT_START);
@@ -34,7 +35,7 @@ function main (args) {
   const result = spawn(
     'python',
     [gitClangFormatPath, ...options, '--', ...filesToCheck],
-    { encoding: 'utf-8' }
+    { encoding: 'utf-8' },
   );
 
   if (result.stderr) {

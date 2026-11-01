@@ -442,66 +442,66 @@ export default function ExecutionList() {
               )}
             </div>
             <>
-                {result.error && (
-                  <ErrorNotice
-                    error={result.error}
-                    retry={() => void result.refetch()}
-                  />
-                )}
-                {result.isStaleFallback && (
-                  <p className='text-sm text-muted-foreground'>
-                    {t(ui('previousResults'))}
-                  </p>
-                )}
-                {result.isPending ? (
-                  <Loading kind='table' />
-                ) : (
-                  !terminal && (
-                    <>
-                      <SupplyChainTable
-                        rows={rows}
-                        columns={columns}
-                        total={total}
-                        page={page}
-                        pageSize={pageSize}
-                        sorting={[
-                          {
-                            id: orderBy.replace(/^-/u, ''),
-                            desc: orderBy.startsWith('-'),
-                          },
-                        ]}
-                        onSorting={(sorting) => {
-                          const current = sorting[0];
-                          change(
-                            'orderBy',
-                            current
-                              ? `${current.desc ? '-' : ''}${current.id}`
-                              : '-updatedAt',
-                          );
-                        }}
-                        busy={result.isFetching}
-                        empty={
-                          <EmptyState type={hasFilters ? 'noMatches' : 'empty'}>
-                            {hasFilters ? (
-                              <Button variant='outline' onClick={reset}>
-                                {t(ui('clearFilters'))}
-                              </Button>
-                            ) : create.can ? (
-                              newButton
-                            ) : null}
-                          </EmptyState>
-                        }
-                      />
-                      <Pagination
-                        page={page}
-                        pageSize={pageSize}
-                        total={total}
-                        busy={result.isFetching}
-                        onPage={(value) => change('page', String(value))}
-                      />
-                    </>
-                  )
-                )}
+              {result.error && (
+                <ErrorNotice
+                  error={result.error}
+                  retry={() => void result.refetch()}
+                />
+              )}
+              {result.isStaleFallback && (
+                <p className='text-sm text-muted-foreground'>
+                  {t(ui('previousResults'))}
+                </p>
+              )}
+              {result.isPending ? (
+                <Loading kind='table' />
+              ) : (
+                !terminal && (
+                  <>
+                    <SupplyChainTable
+                      rows={rows}
+                      columns={columns}
+                      total={total}
+                      page={page}
+                      pageSize={pageSize}
+                      sorting={[
+                        {
+                          id: orderBy.replace(/^-/u, ''),
+                          desc: orderBy.startsWith('-'),
+                        },
+                      ]}
+                      onSorting={(sorting) => {
+                        const current = sorting[0];
+                        change(
+                          'orderBy',
+                          current
+                            ? `${current.desc ? '-' : ''}${current.id}`
+                            : '-updatedAt',
+                        );
+                      }}
+                      busy={result.isFetching}
+                      empty={
+                        <EmptyState type={hasFilters ? 'noMatches' : 'empty'}>
+                          {hasFilters ? (
+                            <Button variant='outline' onClick={reset}>
+                              {t(ui('clearFilters'))}
+                            </Button>
+                          ) : create.can ? (
+                            newButton
+                          ) : null}
+                        </EmptyState>
+                      }
+                    />
+                    <Pagination
+                      page={page}
+                      pageSize={pageSize}
+                      total={total}
+                      busy={result.isFetching}
+                      onPage={(value) => change('page', String(value))}
+                    />
+                  </>
+                )
+              )}
             </>
           </>
         )}

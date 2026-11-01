@@ -158,12 +158,10 @@ export const peoplePhotoContentGuard = defineRootRoutes<Application>((app) => {
       const user = c.get('auth')!.user;
       let visible = false;
       for (const kind of ['employees', 'profiles']) {
-        const decision = await c
-          .get('authz')
-          .authorize({
-            resource: { type: 'composite', id: `people.${kind}` },
-            action: 'read',
-          });
+        const decision = await c.get('authz').authorize({
+          resource: { type: 'composite', id: `people.${kind}` },
+          action: 'read',
+        });
         const policy = decision.conditions?.database?.personnelEmployees;
         if (decision.effect === 'deny' || !policy) continue;
         visible = await db
@@ -179,12 +177,10 @@ export const peoplePhotoContentGuard = defineRootRoutes<Application>((app) => {
           .repository('personnelEmployees')
           .exists({ filter: { photoId: id } }))
       ) {
-        const decision = await c
-          .get('authz')
-          .authorize({
-            resource: { type: 'composite', id: 'people.employees' },
-            action: 'update',
-          });
+        const decision = await c.get('authz').authorize({
+          resource: { type: 'composite', id: 'people.employees' },
+          action: 'update',
+        });
         visible =
           decision.effect !== 'deny' &&
           Boolean(decision.conditions?.database?.personnelEmployees);

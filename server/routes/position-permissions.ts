@@ -152,9 +152,8 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
         }
         const membersByPosition = new Map<string, number>();
         for (const employee of employees) {
-          for (const positionId of positionsByPerson.get(
-            text(employee.id),
-          ) ?? []) {
+          for (const positionId of positionsByPerson.get(text(employee.id)) ??
+            []) {
             membersByPosition.set(
               positionId,
               (membersByPosition.get(positionId) ?? 0) + 1,
@@ -242,9 +241,7 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
           db
             .repository('personnelEmployees')
             .findMany({ filter: { status: 'active' }, limit: 10000 }),
-          db
-            .repository('orgPositionPermissionSets')
-            .findMany({ limit: 10000 }),
+          db.repository('orgPositionPermissionSets').findMany({ limit: 10000 }),
           db
             .repository('authorizationPermissionSetAssignments')
             .findMany({ limit: 10000 }),
@@ -265,7 +262,8 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
           const personId = text(assignment.personId);
           const id = text(assignment.positionId);
           if (!personId || !id) continue;
-          const positions = positionsByPerson.get(personId) ?? new Set<string>();
+          const positions =
+            positionsByPerson.get(personId) ?? new Set<string>();
           positions.add(id);
           positionsByPerson.set(personId, positions);
         }

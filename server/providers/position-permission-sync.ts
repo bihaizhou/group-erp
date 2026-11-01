@@ -96,12 +96,10 @@ export async function syncAccountPositionPermissions(
       .repository('personnelAssignments')
       .findMany({ filter: { status: 'active' }, limit: 10000 }),
     db.repository('orgPositionPermissionSets').findMany({ limit: 10000 }),
-    db
-      .repository('authorizationPermissionSetAssignments')
-      .findMany({
-        filter: { subjectType: 'user', subjectId: accountId },
-        limit: 10000,
-      }),
+    db.repository('authorizationPermissionSetAssignments').findMany({
+      filter: { subjectType: 'user', subjectId: accountId },
+      limit: 10000,
+    }),
   ]);
   const desired = desiredPermissionKeys(personIds, assignments, mappings);
   const mappedKeys = new Set(

@@ -1,3 +1,4 @@
+import foundation from '@nocobase/app-plugin-foundation/client';
 import defaultAccess from '@nocobase/app-plugin-authz-default-access/client';
 import sharingRules from '@nocobase/app-plugin-authz-sharing-rules/client';
 import restrictionRules from '@nocobase/app-plugin-authz-restriction-rules/client';
@@ -16,6 +17,7 @@ import notification from '@nocobase/app-plugin-notification/client';
 import scheduler from '@nocobase/app-plugin-scheduler/client';
 import file from '@nocobase/app-plugin-file/client';
 import mail from '@nocobase/app-plugin-mail/client';
+import agents from '@nocobase/app-plugin-agents/client';
 
 // Array order is contribution order. A plugin is enabled by appearing in this
 // list; removing its entry and its import disables it.
@@ -34,6 +36,8 @@ const clientPlugins: AppClientPlugins = defineClientPlugins([
   file(),
   scheduler(),
   mail(),
+  foundation({ settingsGroup: true }),
+  agents(),
 ]);
 
 export default clientPlugins;

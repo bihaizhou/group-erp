@@ -16,6 +16,9 @@ import { reviewAudit } from './review-audit-en.js';
 import { reviewRules } from './review-rules-en.js';
 import { operations } from './operations-en.js';
 import { dashboard } from './dashboard-en.js';
+import fileUi from '../extensions/nocobase-file-component-ui/locales/en-US.js';
+import agentChat from '../extensions/nocobase-agent-chat/locales/en-US.js';
+import { pageTitles } from './page-titles-en.js';
 import type { LocaleResource } from '@nocobase/i18n';
 
 import systemEnUS from './system/en-US.js';
@@ -25,6 +28,8 @@ const enUS = {
   // The template's own copy: the shell, the sign-in pages, shared components and the homepage. Keep it in
   // `./system/` so a template upgrade can replace it without touching the application's copy below.
   ...systemEnUS,
+  ...fileUi,
+  ...agentChat,
   'status.sessionExpired': 'Your session has ended. Sign in again to continue.',
   actions: { ...systemEnUS.actions, signInAgain: 'Sign in again' },
   // The shell's lockup. The name is the brand itself and stays in its own script in every language.
@@ -53,6 +58,7 @@ const enUS = {
   dashboard,
   org,
   erp,
+  pageTitles,
   // The application's copy goes here, one group per feature. A shared group such as `navigation` is extended by
   // spreading the system one first, `navigation: { ...systemEnUS.navigation, orders: 'Orders' }`, since a group
   // written here replaces the system group of the same name rather than merging with it.

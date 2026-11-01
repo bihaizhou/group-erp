@@ -1,7 +1,11 @@
 import { useEffect } from 'react';
 import { useLocation, useSearchParams } from 'react-router';
 
-import { COMPANY_QUERY_PARAM, readCompanyId, writeCompanyId } from '#lib/company-scope';
+import {
+  COMPANY_QUERY_PARAM,
+  readCompanyId,
+  writeCompanyId,
+} from '#lib/company-scope';
 import { useCompanyScopeEndpoint } from '../../company/company-route-scope.js';
 
 /**

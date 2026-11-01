@@ -60,18 +60,18 @@ export default function PurposesPage() {
     ? params.get('orderBy')!
     : '-updatedAt';
   const result = useIssueQuery<Page<Purpose>>(
-      'purposes',
-      {
-        subjectId,
-        q: search,
-        page,
-        pageSize: 20,
-        orderBy: order,
-        ...(status ? { status } : {}),
-      },
-      !!subjectId && read.can,
-      true,
-    );
+    'purposes',
+    {
+      subjectId,
+      q: search,
+      page,
+      pageSize: 20,
+      orderBy: order,
+      ...(status ? { status } : {}),
+    },
+    !!subjectId && read.can,
+    true,
+  );
   const terminal =
     result.error instanceof ApiClientError &&
     [401, 403, 404].includes(result.error.status);
@@ -149,134 +149,126 @@ export default function PurposesPage() {
           </>
         }
       />
-        {subjectId && (
-          <div className='flex flex-wrap gap-2'>
-            <Input
-              id='issue-purpose-search'
-              className='sm:max-w-xs'
-              {...inputProps}
-              placeholder={t(pui('search'))}
-              aria-label={t(pui('search'))}
-              maxLength={200}
-            />
-            <IssueSelect
-              value={status || 'all'}
-              items={['all', 'active', 'inactive'].map((value) => ({
-                value,
-                label: t(pui(value === 'all' ? 'anyStatus' : value)),
-              }))}
-              label={t(pui('status'))}
-              onChange={(v) =>
-                set({ status: v === 'all' ? null : v, page: null })
-              }
-            />
-            {filtered && (
+      {subjectId && (
+        <div className='flex flex-wrap gap-2'>
+          <Input
+            id='issue-purpose-search'
+            className='sm:max-w-xs'
+            {...inputProps}
+            placeholder={t(pui('search'))}
+            aria-label={t(pui('search'))}
+            maxLength={200}
+          />
+          <IssueSelect
+            value={status || 'all'}
+            items={['all', 'active', 'inactive'].map((value) => ({
+              value,
+              label: t(pui(value === 'all' ? 'anyStatus' : value)),
+            }))}
+            label={t(pui('status'))}
+            onChange={(v) =>
+              set({ status: v === 'all' ? null : v, page: null })
+            }
+          />
+          {filtered && (
+            <Button variant='outline' onClick={() => resetFilters()}>
+              {t(pui('clear'))}
+            </Button>
+          )}
+        </div>
+      )}
+      {Boolean(subjectId && result.error && result.data && !terminal) && (
+        <ErrorNotice error={result.error} retry={() => void result.refetch()} />
+      )}
+      {result.isStaleFallback && (
+        <p className='text-sm text-muted-foreground'>
+          {t(ui('previousResults'))}
+        </p>
+      )}
+      {result.error && (!result.data || terminal) ? (
+        <ErrorNotice error={result.error} retry={() => void result.refetch()} />
+      ) : result.isPending ? (
+        <Loading kind='table' />
+      ) : !rows.length ? (
+        <Empty className='min-h-48 border border-dashed'>
+          <EmptyHeader>
+            <EmptyMedia variant='icon'>
+              <Tags />
+            </EmptyMedia>
+            <EmptyTitle>{t(pui(filtered ? 'noResults' : 'empty'))}</EmptyTitle>
+            <EmptyDescription>
+              {t(
+                filtered
+                  ? ui('noResultsHint')
+                  : pui(create.can ? 'emptyHint' : 'emptyReadOnly'),
+              )}
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            {filtered ? (
               <Button variant='outline' onClick={() => resetFilters()}>
                 {t(pui('clear'))}
               </Button>
+            ) : (
+              create.can && newButton
             )}
-          </div>
-        )}
-        {Boolean(subjectId && result.error && result.data && !terminal) && (
-          <ErrorNotice
-            error={result.error}
-            retry={() => void result.refetch()}
-          />
-        )}
-        {result.isStaleFallback && (
-          <p className='text-sm text-muted-foreground'>
-            {t(ui('previousResults'))}
-          </p>
-        )}
-        {result.error && (!result.data || terminal) ? (
-          <ErrorNotice
-            error={result.error}
-            retry={() => void result.refetch()}
-          />
-        ) : result.isPending ? (
-          <Loading kind='table' />
-        ) : !rows.length ? (
-          <Empty className='min-h-48 border border-dashed'>
-            <EmptyHeader>
-              <EmptyMedia variant='icon'>
-                <Tags />
-              </EmptyMedia>
-              <EmptyTitle>
-                {t(pui(filtered ? 'noResults' : 'empty'))}
-              </EmptyTitle>
-              <EmptyDescription>
-                {t(
-                  filtered
-                    ? ui('noResultsHint')
-                    : pui(create.can ? 'emptyHint' : 'emptyReadOnly'),
-                )}
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              {filtered ? (
-                <Button variant='outline' onClick={() => resetFilters()}>
-                  {t(pui('clear'))}
-                </Button>
-              ) : (
-                create.can && newButton
-              )}
-            </EmptyContent>
-          </Empty>
-        ) : (
-          <>
-            <div
-              aria-busy={result.isFetching}
-              className='overflow-hidden rounded-lg border'
-            >
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{sort('code', 'code')}</TableHead>
-                    <TableHead>{t(pui('name'))}</TableHead>
-                    <TableHead>{t(pui('status'))}</TableHead>
-                    <TableHead>{sort('updatedAt', 'updatedAt')}</TableHead>
+          </EmptyContent>
+        </Empty>
+      ) : (
+        <>
+          <div
+            aria-busy={result.isFetching}
+            className='overflow-hidden rounded-lg border'
+          >
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{sort('code', 'code')}</TableHead>
+                  <TableHead>{t(pui('name'))}</TableHead>
+                  <TableHead>{t(pui('status'))}</TableHead>
+                  <TableHead>{sort('updatedAt', 'updatedAt')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell>
+                      <Link
+                        className='font-medium text-primary underline underline-offset-4'
+                        to={{ pathname: row.id, search: location.search }}
+                      >
+                        {row.code}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <OverflowText
+                        text={row.name}
+                        className='block max-w-sm truncate'
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        tone={row.status === 'active' ? 'success' : 'neutral'}
+                      >
+                        {t(pui(row.status))}
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell>
+                      {new Date(row.updatedAt).toLocaleString(i18n.language)}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>
-                        <Link
-                          className='font-medium text-primary underline underline-offset-4'
-                          to={{ pathname: row.id, search: location.search }}
-                        >
-                          {row.code}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <OverflowText
-                          text={row.name}
-                          className='block max-w-sm truncate'
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge
-                          tone={row.status === 'active' ? 'success' : 'neutral'}
-                        >
-                          {t(pui(row.status))}
-                        </StatusBadge>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(row.updatedAt).toLocaleString(i18n.language)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            <Pagination
-              page={page}
-              total={result.data?.meta.total ?? 0}
-              onPage={(value) => set({ page: String(value) })}
-              busy={result.isFetching}
-            />
-          </>
-        )}
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <Pagination
+            page={page}
+            total={result.data?.meta.total ?? 0}
+            onPage={(value) => set({ page: String(value) })}
+            busy={result.isFetching}
+          />
+        </>
+      )}
       <Outlet />
     </PageContainer>
   );

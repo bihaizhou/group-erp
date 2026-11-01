@@ -125,39 +125,35 @@ describeMigration('202610180004_supply_chain_files', {
     },
   ],
   before: async ({ connection }) => {
-    await connection
-      .repository('orgSubjects')
-      .createOne({
-        values: {
-          id: subjectId,
-          code: randomUUID(),
-          name: 'Existing attachment company',
-          type: 'group',
-          status: 'active',
-          sortOrder: 0,
-          revision: 1,
-          createdAt: now,
-          updatedAt: now,
-        },
-      });
+    await connection.repository('orgSubjects').createOne({
+      values: {
+        id: subjectId,
+        code: randomUUID(),
+        name: 'Existing attachment company',
+        type: 'group',
+        status: 'active',
+        sortOrder: 0,
+        revision: 1,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
     await connection.repository('purchaseRequests').createOne({ values: head });
     await connection
       .repository('purchaseRequestLines')
       .createOne({ values: line });
-    await connection
-      .repository('supplyChainRequestVersions')
-      .createOne({
-        values: {
-          id: versionId,
-          kind: 'purchaseRequest',
-          requestId,
-          issueRequestId: null,
-          subjectId,
-          contentVersion: 1,
-          payload: { head, lines: [line] },
-          createdAt: now,
-        },
-      });
+    await connection.repository('supplyChainRequestVersions').createOne({
+      values: {
+        id: versionId,
+        kind: 'purchaseRequest',
+        requestId,
+        issueRequestId: null,
+        subjectId,
+        contentVersion: 1,
+        payload: { head, lines: [line] },
+        createdAt: now,
+      },
+    });
   },
   up: async ({ connection, expectCollection }) => {
     await expectCollection('supplyChainFiles').toExist();
@@ -195,11 +191,9 @@ describeMigration('202610180004_supply_chain_files', {
             .createOne({ values: { ...link, id: randomUUID(), ...patch } }),
         ),
       ).rejects.toThrow();
-    await connection
-      .repository('supplyChainFileLinks')
-      .createOne({
-        values: { ...link, id: randomUUID(), versionId, versionKey: versionId },
-      });
+    await connection.repository('supplyChainFileLinks').createOne({
+      values: { ...link, id: randomUUID(), versionId, versionKey: versionId },
+    });
     await expect(
       connection.transaction((c) =>
         c.repository('supplyChainFiles').deleteOne({ filter: { id: fileId } }),

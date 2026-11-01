@@ -191,15 +191,13 @@ describeMigration('202610180003_material_request_sources', {
     await connection
       .repository('materialRequestSources')
       .createOne({ values: source });
-    await connection
-      .repository('purchaseRequestLines')
-      .updateOne({
-        filter: { id: lineId },
-        values: {
-          activeSourceLinkId: sourceId,
-          identificationStatus: 'governing',
-        },
-      });
+    await connection.repository('purchaseRequestLines').updateOne({
+      filter: { id: lineId },
+      values: {
+        activeSourceLinkId: sourceId,
+        identificationStatus: 'governing',
+      },
+    });
     await expect(
       connection.transaction((c) =>
         c

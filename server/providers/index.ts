@@ -12,8 +12,11 @@ import HseProvider from './hse.js';
 import ProductionProvider from './production.js';
 import OperationsProvider from './operations.js';
 import AssetsProvider from './assets.js';
+import SubmissionProvider from './submission.js';
+import AgentsProvider from './agents.js';
 
 const serviceProviders: readonly ApplicationServiceProviderConstructor[] = [
+  SubmissionProvider,
   OrganizationProvider,
   PeopleProvider,
   MaterialsProvider,
@@ -27,6 +30,7 @@ const serviceProviders: readonly ApplicationServiceProviderConstructor[] = [
   ProductionProvider,
   OperationsProvider,
   AssetsProvider,
+  AgentsProvider,
 ];
 
 export default serviceProviders;

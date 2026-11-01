@@ -129,7 +129,10 @@ function mount(path = `${rootPath}?subjectId=${companyId}`) {
         element: <RequestList />,
         children: [{ path: 'new', element: <RequestForm /> }],
       },
-      { path: '/functions/requisitions/settings', element: <IssueReviewSettingsPanel /> },
+      {
+        path: '/functions/requisitions/settings',
+        element: <IssueReviewSettingsPanel />,
+      },
       {
         path: '/functions/requisitions/purposes',
         element: <Purposes />,

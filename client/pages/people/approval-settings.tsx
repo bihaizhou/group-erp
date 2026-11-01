@@ -1,6 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from '@nocobase/i18n/client';
-import { useApiClient, useToaster, ApiClientError } from '@nocobase/app-client';
+import {
+  ApiClientError,
+  createUuid,
+  useApiClient,
+  useToaster,
+} from '@nocobase/app-client';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
@@ -47,7 +52,7 @@ type Settings = {
   };
 };
 const emptyStage = (title: string): Stage => ({
-  key: crypto.randomUUID(),
+  key: createUuid(),
   title,
   mode: 'any',
   selections: [],
@@ -235,7 +240,7 @@ function ApprovalEditor({ settings }: { settings: Settings }) {
         json: {
           values: { approvalChains: chains },
           version: revision,
-          requestId: crypto.randomUUID(),
+          requestId: createUuid(),
         },
       });
       setRevision(response.data.revision);

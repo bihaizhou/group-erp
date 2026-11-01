@@ -17,12 +17,17 @@ import { reviewRules } from './review-rules-zh.js';
 import { operations } from './operations-zh.js';
 import { dashboard } from './dashboard-zh.js';
 import type { AppResource } from './en-US.js';
+import fileUi from '../extensions/nocobase-file-component-ui/locales/zh-CN.js';
+import agentChat from '../extensions/nocobase-agent-chat/locales/zh-CN.js';
+import { pageTitles } from './page-titles-zh.js';
 import systemZhCN from './system/zh-CN.js';
 import { org, erp } from './organization-zh.js';
 
 const zhCN: AppResource = {
   // The template's own copy; see `./en-US.ts`.
   ...systemZhCN,
+  ...fileUi,
+  ...agentChat,
   'status.sessionExpired': '登录会话已结束，请重新登录后继续。',
   actions: { ...systemZhCN.actions, signInAgain: '重新登录' },
   // 侧边栏顶部的品牌标识；名称本身不随语言变化。
@@ -51,6 +56,7 @@ const zhCN: AppResource = {
   dashboard,
   org,
   erp,
+  pageTitles,
 };
 
 export default zhCN;

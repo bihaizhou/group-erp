@@ -18,7 +18,7 @@ function triggerDownload(url: string, filename: string): void {
 }
 
 export function FileList(inputProps: FileListProps): ReactElement {
-  const { t, i18n } = useTranslation('@nocobase/app-plugin-file');
+  const { t, i18n } = useTranslation();
   const {
     files,
     onPreview,
@@ -33,18 +33,19 @@ export function FileList(inputProps: FileListProps): ReactElement {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
   const previewLabel =
-    labels?.preview ?? t('files.preview', { defaultValue: 'Preview' });
+    labels?.preview ?? t('fileUi.files.preview', { defaultValue: 'Preview' });
   const downloadLabel =
-    labels?.download ?? t('files.download', { defaultValue: 'Download' });
+    labels?.download ??
+    t('fileUi.files.download', { defaultValue: 'Download' });
   const removeLabel =
-    labels?.remove ?? t('files.remove', { defaultValue: 'Remove' });
+    labels?.remove ?? t('fileUi.files.remove', { defaultValue: 'Remove' });
 
   if (!files.length)
     return (
       <div role='status'>
         {emptyState ??
           labels?.empty ??
-          t('files.empty', { defaultValue: 'No files.' })}
+          t('fileUi.files.empty', { defaultValue: 'No files.' })}
       </div>
     );
 
@@ -58,7 +59,7 @@ export function FileList(inputProps: FileListProps): ReactElement {
       const url = raw ? resolveSafeFileUrl(raw) : undefined;
       if (!url)
         throw new Error(
-          t('urlNotAllowed', {
+          t('fileUi.urlNotAllowed', {
             defaultValue: 'File URL is not allowed.',
           }),
         );
@@ -68,7 +69,7 @@ export function FileList(inputProps: FileListProps): ReactElement {
         error instanceof Error
           ? error
           : new Error(
-              t('downloadFailed', {
+              t('fileUi.downloadFailed', {
                 defaultValue: 'File download failed.',
               }),
             ),

@@ -51,7 +51,7 @@ async function openKnexfile(configPath) {
     throw new KnexfileRuntimeError(
       'Failed to read config from knexfile',
       configPath,
-      err
+      err,
     );
   }
 }
@@ -62,7 +62,7 @@ async function initKnex(env, opts, useDefaultClientIfNotSpecified) {
     process.chdir(env.cwd);
     console.log(
       'Working directory changed to',
-      color.magenta(tildify(env.cwd))
+      color.magenta(tildify(env.cwd)),
     );
   }
 
@@ -77,7 +77,7 @@ async function initKnex(env, opts, useDefaultClientIfNotSpecified) {
   const resolvedConfig = resolveEnvironmentConfig(
     opts,
     env.configuration,
-    env.configPath
+    env.configPath,
   );
 
   const optionsConfig = parseConfigObj(opts);
@@ -120,21 +120,21 @@ function invoke() {
       interpret.jsVariants,
       configPath,
       cwd,
-      true
+      true,
     );
     if (autoloads instanceof Error) {
       // Only errors
       autoloads.failures.forEach(function (failed) {
         console.log(
           color.red('Failed to load external module'),
-          color.magenta(failed.moduleName)
+          color.magenta(failed.moduleName),
         );
       });
     } else if (Array.isArray(autoloads)) {
       const succeeded = autoloads[autoloads.length - 1];
       console.log(
         'Requiring external module',
-        color.magenta(succeeded.moduleName)
+        color.magenta(succeeded.moduleName),
       );
     }
   }
@@ -148,10 +148,9 @@ function invoke() {
 
   let modulePackage = {};
   try {
-    modulePackage = require(path.join(
-      path.dirname(env.modulePath),
-      'package.json'
-    ));
+    modulePackage = require(
+      path.join(path.dirname(env.modulePath), 'package.json'),
+    );
   } catch (e) {
     /* empty */
   }
@@ -178,13 +177,13 @@ function invoke() {
     .option('--migrations-table-name [path]', 'Set migrations table name.')
     .option(
       '--env [name]',
-      'environment, default: process.env.NODE_ENV || development'
+      'environment, default: process.env.NODE_ENV || development',
     )
     .option('--esm', 'Enable ESM interop.')
     .option('--specific [path]', 'Specify one seed file to execute.')
     .option(
       '--timestamp-filename-prefix',
-      'Enable a timestamp prefix on name of generated seed files.'
+      'Enable a timestamp prefix on name of generated seed files.',
     );
 
   commander
@@ -192,7 +191,7 @@ function invoke() {
     .description('        Create a fresh knexfile.')
     .option(
       `-x [${filetypes.join('|')}]`,
-      'Specify the knexfile extension (default js)'
+      'Specify the knexfile extension (default js)',
     )
     .action(() => {
       const type = (argv.x || 'js').toLowerCase();
@@ -208,7 +207,7 @@ function invoke() {
         path.dirname(env.modulePath) +
           '/lib/migrations/migrate/stub/knexfile-' +
           type +
-          '.stub'
+          '.stub',
       )
         .then((code) => {
           return writeFile(stubPath, code);
@@ -224,11 +223,11 @@ function invoke() {
     .description('        Create a named migration file.')
     .option(
       `-x [${filetypes.join('|')}]`,
-      'Specify the stub extension (default js)'
+      'Specify the stub extension (default js)',
     )
     .option(
       `--stub [<relative/path/from/knexfile>|<name>]`,
-      'Specify the migration stub to use. If using <name> the file must be located in config.migrations.directory'
+      'Specify the migration stub to use. If using <name> the file must be located in config.migrations.directory',
     )
     .action(async (name) => {
       try {
@@ -258,7 +257,7 @@ function invoke() {
     .description('        Run all migrations that have not yet been run.')
     .option(
       '--disable-transactions',
-      'run migrations without an implicit transaction'
+      'run migrations without an implicit transaction',
     )
     .option('--verbose', 'verbose')
     .action(async (cmd) => {
@@ -273,7 +272,7 @@ function invoke() {
         }
         success(
           color.green(`Batch ${batchNo} run: ${log.length} migrations`) +
-            (argv.verbose ? `\n${color.cyan(log.join('\n'))}` : '')
+            (argv.verbose ? `\n${color.cyan(log.join('\n'))}` : ''),
         );
       } catch (err) {
         exit(err);
@@ -285,7 +284,7 @@ function invoke() {
       const disableTransactions = !!cmd.disableTransactions;
       initKnex(env, commander.opts())
         .then((instance) =>
-          instance.migrate[method]({ name, disableTransactions })
+          instance.migrate[method]({ name, disableTransactions }),
         )
         .then(([batchNo, log]) => {
           if (log.length === 0) {
@@ -295,9 +294,9 @@ function invoke() {
           success(
             color.green(
               `Batch ${batchNo} ran the following migrations:\n${log.join(
-                '\n'
-              )}`
-            )
+                '\n',
+              )}`,
+            ),
           );
         })
         .catch(exit);
@@ -308,10 +307,10 @@ function invoke() {
     .command('migrate:up [<name>]')
     .option(
       '--disable-transactions',
-      'run migrations without an implicit transaction'
+      'run migrations without an implicit transaction',
     )
     .description(
-      '        Run the next or the specified migration that has not yet been run.'
+      '        Run the next or the specified migration that has not yet been run.',
     )
     .action(migrateUpAction('up'));
 
@@ -321,7 +320,7 @@ function invoke() {
     .option('--all', 'rollback all completed migrations')
     .option(
       '--disable-transactions',
-      'run migrations without an implicit transaction'
+      'run migrations without an implicit transaction',
     )
     .option('--verbose', 'verbose')
     .action((cmd) => {
@@ -331,8 +330,8 @@ function invoke() {
         .then((instance) =>
           instance.migrate.rollback(
             { disableTransactions: !!disableTransactions },
-            all
-          )
+            all,
+          ),
         )
         .then(([batchNo, log]) => {
           if (log.length === 0) {
@@ -340,8 +339,8 @@ function invoke() {
           }
           success(
             color.green(
-              `Batch ${batchNo} rolled back: ${log.length} migrations`
-            ) + (argv.verbose ? `\n${color.cyan(log.join('\n'))}` : '')
+              `Batch ${batchNo} rolled back: ${log.length} migrations`,
+            ) + (argv.verbose ? `\n${color.cyan(log.join('\n'))}` : ''),
           );
         })
         .catch(exit);
@@ -351,16 +350,16 @@ function invoke() {
     .command('migrate:down [<name>]')
     .option(
       '--disable-transactions',
-      'run migrations without an implicit transaction'
+      'run migrations without an implicit transaction',
     )
     .description(
-      '        Undo the last or the specified migration that was already run.'
+      '        Undo the last or the specified migration that was already run.',
     )
     .action((name, cmd) => {
       const disableTransactions = !!cmd.disableTransactions;
       initKnex(env, commander.opts())
         .then((instance) =>
-          instance.migrate.down({ name, disableTransactions })
+          instance.migrate.down({ name, disableTransactions }),
         )
         .then(([batchNo, log]) => {
           if (log.length === 0) {
@@ -369,9 +368,9 @@ function invoke() {
           success(
             color.green(
               `Batch ${batchNo} rolled back the following migrations:\n${log.join(
-                '\n'
-              )}`
-            )
+                '\n',
+              )}`,
+            ),
           );
         })
         .catch(exit);
@@ -381,10 +380,10 @@ function invoke() {
     .command('migrate:to <name>')
     .option(
       '--disable-transactions',
-      'run migrations without an implicit transaction'
+      'run migrations without an implicit transaction',
     )
     .description(
-      '        Run all migrations up to and including the specified migration.'
+      '        Run all migrations up to and including the specified migration.',
     )
     .action(migrateUpAction('to'));
 
@@ -392,10 +391,10 @@ function invoke() {
     .command('migrate:before <name>')
     .option(
       '--disable-transactions',
-      'run migrations without an implicit transaction'
+      'run migrations without an implicit transaction',
     )
     .description(
-      '        Run all migrations before the specified migration (exclusive).'
+      '        Run all migrations before the specified migration (exclusive).',
     )
     .action(migrateUpAction('before'));
 
@@ -434,7 +433,7 @@ function invoke() {
         .then((instance) => instance.migrate.forceFreeMigrationsLock())
         .then(() => {
           success(
-            color.green(`Succesfully unlocked the migrations lock table`)
+            color.green(`Succesfully unlocked the migrations lock table`),
           );
         })
         .catch(exit);
@@ -445,16 +444,16 @@ function invoke() {
     .description('        Create a named seed file.')
     .option(
       `-x [${filetypes.join('|')}]`,
-      'Specify the stub extension (default js)'
+      'Specify the stub extension (default js)',
     )
     .option(
       `--stub [<relative/path/from/knexfile>|<name>]`,
-      'Specify the seed stub to use. If using <name> the file must be located in config.seeds.directory'
+      'Specify the seed stub to use. If using <name> the file must be located in config.seeds.directory',
     )
     .option(
       '--timestamp-filename-prefix',
       'Enable a timestamp prefix on name of generated seed files.',
-      false
+      false,
     )
     .action(async (name) => {
       try {
@@ -497,7 +496,7 @@ function invoke() {
           }
           success(
             color.green(`Ran ${log.length} seed files`) +
-              (argv.verbose ? `\n${color.cyan(log.join('\n'))}` : '')
+              (argv.verbose ? `\n${color.cyan(log.join('\n'))}` : ''),
           );
         })
         .catch(exit);
@@ -533,7 +532,7 @@ if (argv.esm) {
       if (err && err.code === 'ERR_REQUIRE_ESM') {
         return m._compile(
           require('fs').readFileSync(fileName, 'utf8'),
-          fileName
+          fileName,
         );
       }
       throw err;

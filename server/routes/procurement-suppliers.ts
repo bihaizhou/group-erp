@@ -686,11 +686,9 @@ export function createPartnerRoutes(
           name: identity.name,
           available:
             identity.status === 'active' &&
-            !(await conn
-              .repository('partnerRolePolicies')
-              .exists({
-                filter: { partnerId: identity.id, partnerRole: role },
-              })),
+            !(await conn.repository('partnerRolePolicies').exists({
+              filter: { partnerId: identity.id, partnerRole: role },
+            })),
         });
       return c.json({ data, meta: result.meta });
     },

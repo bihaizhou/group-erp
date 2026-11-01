@@ -305,147 +305,145 @@ export default function RequestsPage() {
           <AccessDenied title={t(ui('forbidden'))} />
         ) : (
           <>
-              <div className='flex flex-wrap items-end gap-3'>
-                <Input
-                  {...inputProps}
-                  id='purchase-search'
-                  aria-label={t(ui('search'))}
-                  placeholder={t(ui('search'))}
-                  maxLength={200}
-                  className='w-full sm:max-w-sm'
-                />
-                <div className='w-full sm:w-auto'>
-                  <PurchaseSelect
-                    label={t(ui('reviewState'))}
-                    value={status || 'all'}
-                    items={[
-                      'all',
-                      'draft',
-                      'pending',
-                      'approved',
-                      'cancelled',
-                    ].map((value) => ({
-                      value,
-                      label: t(ui(value === 'all' ? 'allStatuses' : value)),
-                    }))}
-                    onChange={(v) => change('status', v === 'all' ? '' : v)}
-                  />
-                </div>
+            <div className='flex flex-wrap items-end gap-3'>
+              <Input
+                {...inputProps}
+                id='purchase-search'
+                aria-label={t(ui('search'))}
+                placeholder={t(ui('search'))}
+                maxLength={200}
+                className='w-full sm:max-w-sm'
+              />
+              <div className='w-full sm:w-auto'>
                 <PurchaseSelect
-                  label={t(ui('identificationState'))}
-                  value={identification || 'all'}
-                  items={['all', 'identified', 'unidentified'].map((value) => ({
-                    value,
-                    label: t(ui(value === 'all' ? 'allIdentification' : value)),
-                  }))}
-                  onChange={(v) =>
-                    change('identification', v === 'all' ? '' : v)
-                  }
-                />
-                <PurchaseSelect
-                  label={t(ui('allRequests'))}
-                  value={query.mine}
+                  label={t(ui('reviewState'))}
+                  value={status || 'all'}
                   items={[
-                    { value: 'false', label: t(ui('allRequests')) },
-                    { value: 'true', label: t(ui('myRequests')) },
-                  ]}
-                  onChange={(v) => change('mine', v)}
+                    'all',
+                    'draft',
+                    'pending',
+                    'approved',
+                    'cancelled',
+                  ].map((value) => ({
+                    value,
+                    label: t(ui(value === 'all' ? 'allStatuses' : value)),
+                  }))}
+                  onChange={(v) => change('status', v === 'all' ? '' : v)}
                 />
-                <DateRangePicker
-                  from={date('neededFrom')}
-                  to={date('neededTo')}
-                  businessDate={companies.data?.meta.businessDate}
-                  onChange={(from, to) =>
-                    updateParams((p) => {
-                      for (const [k, v] of [
-                        ['neededFrom', from],
-                        ['neededTo', to],
-                      ]) {
-                        if (v) p.set(k, v);
-                        else p.delete(k);
-                      }
-                      p.delete('page');
-                    })
+              </div>
+              <PurchaseSelect
+                label={t(ui('identificationState'))}
+                value={identification || 'all'}
+                items={['all', 'identified', 'unidentified'].map((value) => ({
+                  value,
+                  label: t(ui(value === 'all' ? 'allIdentification' : value)),
+                }))}
+                onChange={(v) => change('identification', v === 'all' ? '' : v)}
+              />
+              <PurchaseSelect
+                label={t(ui('allRequests'))}
+                value={query.mine}
+                items={[
+                  { value: 'false', label: t(ui('allRequests')) },
+                  { value: 'true', label: t(ui('myRequests')) },
+                ]}
+                onChange={(v) => change('mine', v)}
+              />
+              <DateRangePicker
+                from={date('neededFrom')}
+                to={date('neededTo')}
+                businessDate={companies.data?.meta.businessDate}
+                onChange={(from, to) =>
+                  updateParams((p) => {
+                    for (const [k, v] of [
+                      ['neededFrom', from],
+                      ['neededTo', to],
+                    ]) {
+                      if (v) p.set(k, v);
+                      else p.delete(k);
+                    }
+                    p.delete('page');
+                  })
+                }
+              />
+              {hasFilters && (
+                <Button variant='outline' onClick={clearFilters}>
+                  {t(ui('clearFilters'))}
+                </Button>
+              )}
+            </div>
+            {result.error && (
+              <ErrorNotice
+                error={result.error}
+                description={rows ? t(ui('refreshFailed')) : undefined}
+                retry={() => void result.refetch()}
+              />
+            )}{' '}
+            {unavailable ? null : !rows ? (
+              result.error ? null : (
+                <Loading kind='table' />
+              )
+            ) : total === 0 && !hasFilters ? (
+              <Empty className='min-h-48 border border-dashed'>
+                <EmptyHeader>
+                  <EmptyMedia variant='icon'>
+                    <ClipboardList />
+                  </EmptyMedia>
+                  <EmptyTitle>{t(ui('emptyTitle'))}</EmptyTitle>
+                  <EmptyDescription>
+                    {t(ui(create.can ? 'emptyHint' : 'emptyReadOnly'))}
+                  </EmptyDescription>
+                </EmptyHeader>
+                {create.can && <EmptyContent>{newButton}</EmptyContent>}
+              </Empty>
+            ) : (
+              <div
+                aria-busy={result.isFetching}
+                className='flex flex-col gap-4'
+              >
+                <ServerTable
+                  rows={rows}
+                  columns={columns}
+                  total={total}
+                  page={page}
+                  pageSize={pageSize}
+                  sorting={[
+                    {
+                      id: orderBy.replace('-', ''),
+                      desc: orderBy.startsWith('-'),
+                    },
+                  ]}
+                  empty={
+                    <div className='flex flex-col items-center gap-2'>
+                      <span>{t(ui('noResults'))}</span>
+                      <Button variant='link' onClick={clearFilters}>
+                        {t(ui('clearFilters'))}
+                      </Button>
+                    </div>
                   }
                 />
-                {hasFilters && (
-                  <Button variant='outline' onClick={clearFilters}>
-                    {t(ui('clearFilters'))}
-                  </Button>
-                )}
-              </div>
-              {result.error && (
-                <ErrorNotice
-                  error={result.error}
-                  description={rows ? t(ui('refreshFailed')) : undefined}
-                  retry={() => void result.refetch()}
-                />
-              )}{' '}
-              {unavailable ? null : !rows ? (
-                result.error ? null : (
-                  <Loading kind='table' />
-                )
-              ) : total === 0 && !hasFilters ? (
-                <Empty className='min-h-48 border border-dashed'>
-                  <EmptyHeader>
-                    <EmptyMedia variant='icon'>
-                      <ClipboardList />
-                    </EmptyMedia>
-                    <EmptyTitle>{t(ui('emptyTitle'))}</EmptyTitle>
-                    <EmptyDescription>
-                      {t(ui(create.can ? 'emptyHint' : 'emptyReadOnly'))}
-                    </EmptyDescription>
-                  </EmptyHeader>
-                  {create.can && <EmptyContent>{newButton}</EmptyContent>}
-                </Empty>
-              ) : (
-                <div
-                  aria-busy={result.isFetching}
-                  className='flex flex-col gap-4'
-                >
-                  <ServerTable
-                    rows={rows}
-                    columns={columns}
-                    total={total}
+                <div className='flex flex-wrap items-center justify-between gap-3'>
+                  <PurchaseSelect
+                    label={t(ui('perPage'), { size: pageSize })}
+                    value={String(pageSize)}
+                    items={[20, 50, 100].map((n) => ({
+                      value: String(n),
+                      label: t(ui('perPage'), { size: n }),
+                    }))}
+                    onChange={(v) => change('pageSize', v)}
+                  />
+                  <Pagination
                     page={page}
                     pageSize={pageSize}
-                    sorting={[
-                      {
-                        id: orderBy.replace('-', ''),
-                        desc: orderBy.startsWith('-'),
-                      },
-                    ]}
-                    empty={
-                      <div className='flex flex-col items-center gap-2'>
-                        <span>{t(ui('noResults'))}</span>
-                        <Button variant='link' onClick={clearFilters}>
-                          {t(ui('clearFilters'))}
-                        </Button>
-                      </div>
+                    total={total}
+                    busy={result.isFetching}
+                    onPage={(p) =>
+                      updateParams((next) => next.set('page', String(p)))
                     }
                   />
-                  <div className='flex flex-wrap items-center justify-between gap-3'>
-                    <PurchaseSelect
-                      label={t(ui('perPage'), { size: pageSize })}
-                      value={String(pageSize)}
-                      items={[20, 50, 100].map((n) => ({
-                        value: String(n),
-                        label: t(ui('perPage'), { size: n }),
-                      }))}
-                      onChange={(v) => change('pageSize', v)}
-                    />
-                    <Pagination
-                      page={page}
-                      pageSize={pageSize}
-                      total={total}
-                      busy={result.isFetching}
-                      onPage={(p) =>
-                        updateParams((next) => next.set('page', String(p)))
-                      }
-                    />
-                  </div>
                 </div>
-              )}
+              </div>
+            )}
           </>
         )}
       </PageContainer>

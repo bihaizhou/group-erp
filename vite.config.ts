@@ -1,18 +1,10 @@
 import { createAppViteConfig } from '@nocobase/dev-config/vite/app';
 import { loadAppVitePlugins } from '@nocobase/dev-config/vite/plugins';
-import agentAnnotations from '@gchust/agent-annotations/vite';
 import path from 'path';
 import {
   createDevClientConfigPlugin,
   createDevProxy,
 } from '@nocobase/app-cli/dev/proxy';
-
-const AGENT_ANNOTATIONS_DISABLED_VALUES = new Set(['false', '0', 'no', 'off']);
-
-function isAgentAnnotationsEnabled(value: string | undefined): boolean {
-  const normalized = value?.trim().toLowerCase();
-  return !normalized || !AGENT_ANNOTATIONS_DISABLED_VALUES.has(normalized);
-}
 
 const numberFromEnv = (value: string | undefined): number | undefined => {
   const parsed = Number(value);
@@ -32,9 +24,6 @@ export default createAppViteConfig(async (environment) => {
     command === 'serve'
       ? createDevClientConfigPlugin(appBase, env.PROXY_TARGET_URL)
       : undefined;
-  const annotationsEnabled = isAgentAnnotationsEnabled(
-    env.AGENT_ANNOTATIONS_ENABLED,
-  );
   const viteHmrHost = env.APP_VITE_HMR_HOST;
   const viteDevPort = numberFromEnv(env.APP_VITE_DEV_PORT) ?? 5173;
   const devProxy =
@@ -62,22 +51,11 @@ export default createAppViteConfig(async (environment) => {
     plugins: [
       ...(await loadAppVitePlugins({ appRoot: __dirname, environment })),
       ...(devClientConfig ? [devClientConfig] : []),
-      ...(annotationsEnabled
-        ? [
-            agentAnnotations({
-              root: __dirname,
-              clientExtensions: [
-                path.resolve(__dirname, 'client/agent-annotations-host.ts'),
-              ],
-            }),
-          ]
-        : []),
     ],
     server: {
       proxy: devProxy,
       watch: {
         ignored: [
-          '**/.agent-annotations/**',
           '**/storage/**',
           // Vite only excludes dist/client automatically. The server build and
           // vendored packages also live in dist and can exhaust file watchers.

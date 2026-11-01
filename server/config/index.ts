@@ -21,6 +21,8 @@ import app from './app.js';
 import api from './api.js';
 import database from './database.js';
 import snowflake from './snowflake.js';
+import concurrency from './concurrency.js';
+import knowledge from './knowledge.js';
 import users from './users.js';
 import people from './people.js';
 
@@ -44,6 +46,8 @@ const defaultConfigs: AppConfigFactory<{
   api: ReturnType<typeof api>;
   database: ReturnType<typeof database>;
   snowflake: ReturnType<typeof snowflake>;
+  concurrency: ReturnType<typeof concurrency>;
+  knowledge: ReturnType<typeof knowledge>;
   users: ReturnType<typeof users>;
   people: ReturnType<typeof people>;
 }> = defaultAppConfigs({
@@ -66,6 +70,8 @@ const defaultConfigs: AppConfigFactory<{
   api,
   database,
   snowflake,
+  concurrency,
+  knowledge,
   users,
   people,
 });

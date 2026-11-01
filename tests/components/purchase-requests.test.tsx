@@ -261,7 +261,10 @@ function mount(path = `${rootPath}?subjectId=${companyId}`) {
           },
         ],
       },
-      { path: '/functions/procurement/settings', element: <PurchaseReviewSettingsPanel /> },
+      {
+        path: '/functions/procurement/settings',
+        element: <PurchaseReviewSettingsPanel />,
+      },
     ],
     { initialEntries: [path] },
   );
@@ -306,8 +309,7 @@ it('opens in the first authorised company and scopes requests to it', async () =
     expect(
       api.request.mock.calls.some(
         ([v]) =>
-          v.path === 'procurement/requests' &&
-          v.query?.subjectId === companyId,
+          v.path === 'procurement/requests' && v.query?.subjectId === companyId,
       ),
     ).toBe(true),
   );
