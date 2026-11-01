@@ -16,9 +16,9 @@ services:
       retries: 20
     mem_limit: 512m
   app:
-    image: group-erp:erp-20261030-0806
+    image: group-erp:erp-20261101-1040
     build:
-      context: ../releases/erp-20261030-0806
+      context: ../releases/erp-20261101-1040
       dockerfile: deploy/Dockerfile.prebuilt
       args:
         NODE_VERSION: '24'
