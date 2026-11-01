@@ -1,0 +1,4 @@
+import { type MigrationDefinition } from '@nocobase/db';
+declare const migration: MigrationDefinition;
+export default migration;
+//# sourceMappingURL=202609200001_notification_channel_names.d.ts.map

@@ -1,0 +1,72 @@
+import { createStorage } from 'unstorage';
+import fsDriver from 'unstorage/drivers/fs';
+import memoryDriver from 'unstorage/drivers/memory';
+import nullDriver from 'unstorage/drivers/null';
+import redisDriver from 'unstorage/drivers/redis';
+export function createSessionStore(config) {
+    if (config.driver === 'memory') {
+        return createUnstorageSessionStore(createStorage({
+            driver: memoryDriver(),
+        }), config.base);
+    }
+    if (config.driver === 'fs') {
+        return createUnstorageSessionStore(createStorage({
+            driver: fsDriver({
+                base: config.base,
+            }),
+        }));
+    }
+    if (config.driver === 'redis') {
+        return createUnstorageSessionStore(createStorage({
+            driver: redisDriver(createRedisOptions(config)),
+        }), config.base);
+    }
+    return createUnstorageSessionStore(createStorage({
+        driver: nullDriver(),
+    }));
+}
+export function createUnstorageSessionStore(storage, base = '') {
+    const prefix = normalizeBase(base);
+    return {
+        async get(id) {
+            return storage.getItem(toStorageKey(prefix, id));
+        },
+        async set(id, value, options = {}) {
+            await storage.setItem(toStorageKey(prefix, id), value, options.ttl ? { ttl: options.ttl } : undefined);
+        },
+        async delete(id) {
+            await storage.removeItem(toStorageKey(prefix, id));
+        },
+        async keys() {
+            const keys = await storage.getKeys(prefix);
+            return keys.map((key) => key.slice(prefix.length));
+        },
+        async dispose() {
+            await storage.dispose();
+        },
+    };
+}
+function createRedisOptions(config) {
+    return {
+        db: config.db,
+        host: config.host,
+        keyPrefix: config.keyPrefix,
+        password: config.password,
+        port: config.port,
+        ttl: config.ttl,
+        username: config.username,
+        url: config.url,
+        tls: config.tls ? {} : undefined,
+    };
+}
+function normalizeBase(base) {
+    const value = base?.trim();
+    if (!value) {
+        return '';
+    }
+    return value.endsWith(':') || value.endsWith('/') ? value : `${value}:`;
+}
+function toStorageKey(prefix, id) {
+    return `${prefix}${id}`;
+}
+//# sourceMappingURL=stores.js.map

@@ -1,0 +1,9 @@
+import type { PermissionSetsApi } from '@nocobase/app-plugin-authorization';
+import { type UserRoleScope } from '../tokens.js';
+/**
+ * The role picker for the Permission Sets this application assigns directly.
+ * A set that confers unrestricted access is shown but never assigned or
+ * removed here.
+ */
+export declare function createApplicationUserRoleScope(permissionSets: PermissionSetsApi): UserRoleScope;
+//# sourceMappingURL=permission-set-scope.d.ts.map

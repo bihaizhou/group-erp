@@ -1,0 +1,2 @@
+export function resolveWatchEnvironment(env: any): any;
+//# sourceMappingURL=watch-environment.d.mts.map

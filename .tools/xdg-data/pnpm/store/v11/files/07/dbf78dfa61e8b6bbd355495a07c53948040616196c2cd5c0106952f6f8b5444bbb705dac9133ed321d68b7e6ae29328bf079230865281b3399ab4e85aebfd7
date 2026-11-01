@@ -1,0 +1,49 @@
+import type { ConfigProvider, ConfigValue } from '../types.js';
+export type Environment = Readonly<Record<string, string | undefined>>;
+/** How a deployment can produce a value for a variable it was not given. */
+export type EnvironmentValueGenerator = 'secret' | 'secretKeys' | 'password';
+/**
+ * What a variable means to whoever deploys the application. None of it changes how the variable is read; it is what
+ * `pnpm nocobase config variables` lists and what a deployment tool shows when it asks for a value.
+ */
+export interface EnvironmentMetadata {
+    /** One sentence saying what the variable sets. */
+    readonly description?: string;
+    /** The value is a secret: never shown back, entered masked. Inferred from the path's last word when left out. */
+    readonly secret?: boolean;
+    /** Forces whether a deployment must supply a value. Inferred from defaults and the example file when left out. */
+    readonly required?: boolean;
+    /**
+     * A deployment may generate the value instead of asking for one: `secret` is 32 random bytes in base64url,
+     * `secretKeys` a `SECRETS_KEYS` list holding one new key, `password` 16 random letters and digits.
+     */
+    readonly generate?: EnvironmentValueGenerator;
+    /** Read only on the first start, such as the initial administrator; changing it later has no effect. */
+    readonly firstStartOnly?: boolean;
+}
+export interface EnvironmentMapping extends EnvironmentMetadata {
+    readonly path: string;
+    /** The shape of the value, such as `integer` or `boolean`; the helpers set it. A string when left out. */
+    readonly type?: string;
+    readonly parse?: (value: string) => ConfigValue;
+}
+export interface EnvironmentProviderOptions {
+    readonly name?: string;
+    readonly prefix?: string;
+    readonly keyDelimiter?: string;
+    readonly pathDelimiter?: string;
+    readonly mappings?: Readonly<Record<string, EnvironmentMapping>>;
+    readonly transform?: (key: string, value: string) => readonly [path: string, value: ConfigValue] | undefined;
+}
+export declare function environmentProvider(environment: Environment, options?: EnvironmentProviderOptions): ConfigProvider;
+export declare function envString(path: string, metadata?: EnvironmentMetadata): EnvironmentMapping;
+export declare function envInteger(path: string, metadata?: EnvironmentMetadata): EnvironmentMapping;
+export declare function envBoolean(path: string, metadata?: EnvironmentMetadata): EnvironmentMapping;
+export declare function envStrings(path: string, separator?: string, metadata?: EnvironmentMetadata): EnvironmentMapping;
+/**
+ * Whether a configuration path names a secret, judged by the last word of its last segment: `password`, `secret`,
+ * `token`, `key` and the like (`auth.secret`, `users.initialAdmin.password`, `ai.apiKeys`), except names that are not
+ * secret (`publicKey`, `primaryKey`). It errs on the side of a secret.
+ */
+export declare function isSecretPath(path: string): boolean;
+//# sourceMappingURL=env.d.ts.map

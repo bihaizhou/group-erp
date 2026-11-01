@@ -1,0 +1,31 @@
+import type { AccessConstraintService, AuthorizationDecision, AuthorizationGrantService, AuthorizationRequest } from '@nocobase/authorization/core';
+import type { DatabaseAuthorizationParams, ResolveAuthorizationCollection } from './model.js';
+import { RecordAccessRegistry } from '@nocobase/authorization/core';
+/** A decision that names this reason bypassed grants and constraints entirely. */
+export declare const UNRESTRICTED_ACCESS = "UNRESTRICTED_ACCESS";
+export interface DatabaseResourceAuthorizerOptions {
+    recordAccess: RecordAccessRegistry;
+    /** Absent when the application installed the plugin without a connection. */
+    resolveCollection?: ResolveAuthorizationCollection;
+}
+export declare class DatabaseResourceAuthorizer {
+    private readonly recordAccess;
+    private readonly resolveCollection;
+    constructor(options: DatabaseResourceAuthorizerOptions);
+    /** db owns the metadata, so an unknown Collection is whatever db does not hold. */
+    private collection;
+    authorize(request: AuthorizationRequest<DatabaseAuthorizationParams>, grantsService: AuthorizationGrantService, constraintsService: AccessConstraintService): Promise<AuthorizationDecision>;
+    /**
+     * An identity with unrestricted access skips grants, Sharing Rules and
+     * Restriction Rules. Callers still bind a Policy from the returned
+     * conditions, so the decision stays conditional with an unrestricted scope
+     * and every registered field allowed. The two validity checks remain: they
+     * report a malformed request, not a permission.
+     */
+    authorizeUnrestricted(request: AuthorizationRequest<DatabaseAuthorizationParams>): Promise<AuthorizationDecision>;
+    private resolveEffectiveScope;
+    private compileConstraints;
+    private compileScopes;
+    private deny;
+}
+//# sourceMappingURL=authorizer.d.ts.map

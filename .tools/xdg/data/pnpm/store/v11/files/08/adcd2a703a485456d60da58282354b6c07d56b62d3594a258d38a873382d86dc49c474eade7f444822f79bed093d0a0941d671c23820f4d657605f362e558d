@@ -1,0 +1,47 @@
+import { databaseManagerToken } from '@nocobase/db';
+import { userAdministrationServiceToken } from '@nocobase/app-plugin-authentication';
+import { notificationExtensionRegistryToken } from '@nocobase/app-plugin-notification';
+import { ServiceProvider } from '@nocobase/service-provider';
+import { realtimeServiceToken, } from '@nocobase/app-server/realtime';
+import { createDatabaseProviderDefinition, createInAppChannelDefinition, } from '../definition.js';
+import { createRealtimeInAppStore, IN_APP_NOTIFICATION_REALTIME_TOPIC, } from '../realtime.js';
+import { createInAppStore } from '../store.js';
+import { inAppNotificationStoreToken } from '../tokens.js';
+export class InAppNotificationProvider extends ServiceProvider {
+    name = '@nocobase/app-plugin-notification-in-app';
+    realtimeTopic;
+    register() {
+        if (!this.app.container.has(databaseManagerToken)) {
+            throw new Error('In-app notifications require the application database dependency.');
+        }
+        this.app.container.singleton(inAppNotificationStoreToken, (container) => {
+            const store = createInAppStore(container.resolve(databaseManagerToken));
+            if (!container.has(realtimeServiceToken))
+                return store;
+            this.realtimeTopic = container
+                .resolve(realtimeServiceToken)
+                .defineTopic(IN_APP_NOTIFICATION_REALTIME_TOPIC, { audience: 'user' });
+            return createRealtimeInAppStore(store, this.realtimeTopic);
+        });
+    }
+    async boot() {
+        const { container } = this.app;
+        if (!container.has(notificationExtensionRegistryToken))
+            return;
+        const registry = container.resolve(notificationExtensionRegistryToken);
+        const store = container.resolve(inAppNotificationStoreToken);
+        const users = container.resolve(userAdministrationServiceToken);
+        registry.registerChannel(createInAppChannelDefinition()).registerProvider(createDatabaseProviderDefinition({
+            store,
+            async recipientExists(userId) {
+                return Boolean(await users.get(userId));
+            },
+        }));
+    }
+    shutdown() {
+        this.realtimeTopic?.close();
+        this.realtimeTopic = undefined;
+        return Promise.resolve();
+    }
+}
+//# sourceMappingURL=in-app-notification.js.map

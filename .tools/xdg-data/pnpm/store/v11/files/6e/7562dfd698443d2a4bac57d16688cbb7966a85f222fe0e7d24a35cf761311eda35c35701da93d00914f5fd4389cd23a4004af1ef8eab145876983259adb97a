@@ -1,0 +1,19 @@
+declare const TOOL_ENTRIES: {
+    readonly dev: "dev/index";
+    readonly build: "build";
+    readonly start: "start";
+    readonly retarget: "utils/retarget-native";
+    readonly verify: "utils/verify-server-deps";
+};
+export type AppTool = keyof typeof TOOL_ENTRIES;
+export interface RunAppToolOptions {
+    readonly rootDir: string;
+    readonly args?: readonly string[];
+    /** Added to the child's environment, on top of this process's. */
+    readonly env?: Readonly<Record<string, string>>;
+    /** Node options for the child, such as a loader. Defaults to this process's. */
+    readonly execArgv?: readonly string[];
+}
+export declare function runAppTool(tool: AppTool, options: RunAppToolOptions): Promise<number>;
+export {};
+//# sourceMappingURL=run-tool.d.ts.map

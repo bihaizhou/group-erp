@@ -1,0 +1,13 @@
+import type { ReactElement } from 'react';
+import type { MailProviderView } from '../mail-client.js';
+export interface MailProviderCardProps {
+    readonly provider: MailProviderView;
+    readonly connectedAccounts: number;
+    readonly connectLabel: string;
+    readonly connectedLabel: string;
+    readonly capabilityLabel: (capability: string) => string;
+    readonly connecting?: boolean;
+    readonly onConnect: (provider: MailProviderView) => void;
+}
+export declare function MailProviderCard({ provider, connectedAccounts, connectLabel, connectedLabel, capabilityLabel, connecting, onConnect, }: MailProviderCardProps): ReactElement;
+//# sourceMappingURL=mail-provider-card.d.ts.map

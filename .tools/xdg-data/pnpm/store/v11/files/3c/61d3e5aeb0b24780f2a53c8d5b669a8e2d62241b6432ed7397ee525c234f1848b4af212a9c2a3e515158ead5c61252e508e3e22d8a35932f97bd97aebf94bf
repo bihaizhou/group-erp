@@ -1,0 +1,3 @@
+/** Coalesces provider events and reconnects without coupling subscriptions to view state. */
+export declare function useMailInvalidations(refresh: () => void | boolean, onFocus: () => void): void;
+//# sourceMappingURL=use-mail-invalidations.d.ts.map

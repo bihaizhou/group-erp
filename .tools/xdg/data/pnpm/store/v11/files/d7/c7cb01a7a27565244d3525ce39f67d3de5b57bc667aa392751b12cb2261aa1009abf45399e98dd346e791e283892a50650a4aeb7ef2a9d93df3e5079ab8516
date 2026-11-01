@@ -1,0 +1,12 @@
+export interface OriginProxyOptions {
+    targetOrigin: URL;
+    unavailableMessage?: string;
+}
+export interface MountedOriginProxyOptions {
+    publicBasePath: string;
+    unavailableMessage?: string;
+}
+export declare function createOriginProxyHandler(targetOrigin: URL, options?: Omit<OriginProxyOptions, 'targetOrigin'>): (request: Request) => Promise<Response>;
+export declare function proxyToOrigin(request: Request, options: OriginProxyOptions): Promise<Response>;
+export declare function createMountedOriginProxyHandler(targetOrigin: URL, options: MountedOriginProxyOptions): (request: Request) => Promise<Response>;
+//# sourceMappingURL=origin.d.ts.map

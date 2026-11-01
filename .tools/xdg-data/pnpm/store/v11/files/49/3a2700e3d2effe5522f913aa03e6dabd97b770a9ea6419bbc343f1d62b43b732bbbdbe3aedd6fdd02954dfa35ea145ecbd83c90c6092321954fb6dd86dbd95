@@ -1,0 +1,122 @@
+import { type ConnectionCheckResult, type OfficialDialect } from '@nocobase/app-server/database';
+import type { CommandSuggestion } from '../command/errors.ts';
+/**
+ * Where the command is running, which decides both what it may offer and what it can tell the user to do about a
+ * missing driver.
+ *
+ * A source checkout has the application's TypeScript beside it and a package manager that can install into it. A
+ * deployment root is an extracted `dist/`, where the drivers were fixed when the application was built: adding one
+ * there writes into a tree the next build regenerates, and on a cross-platform build it would fetch a binary for the
+ * wrong platform. So the two differ in where the dialect list comes from and in what the error says, and in nothing
+ * else — the file this writes is identical.
+ */
+export type ConfigInitMode = 'source' | 'deployment';
+export type ConfigInitErrorReason = 'unknown-dialect' | 'no-drivers' | 'driver-missing' | 'already-configured' | 'dialect-required' | 'directory-missing' | 'cancelled' | 'application-not-found';
+export declare class ConfigInitError extends Error {
+    readonly reason: ConfigInitErrorReason;
+    /** The command that gets past this, as the executable and its arguments, when one exists. */
+    readonly suggestion?: CommandSuggestion;
+    readonly details?: Readonly<Record<string, unknown>>;
+    constructor(reason: ConfigInitErrorReason, message: string, options?: {
+        readonly suggestion?: CommandSuggestion;
+        readonly details?: Readonly<Record<string, unknown>>;
+    });
+}
+/**
+ * The stable `--json` error code for a configuration command's refusal: its reason in UPPER_SNAKE, such as
+ * `DRIVER_MISSING` for `driver-missing`.
+ */
+export declare function configErrorCode(reason: string): string;
+export interface ConfigInitOptions {
+    /** The application root the CLI was assembled with: the project directory, or `dist` in a deployment. */
+    readonly rootDir: string;
+    readonly dialect?: string;
+    /** `--config`, resolved against `rootDir` exactly as the runtime resolves `APP_CONFIG_FILE`. */
+    readonly configPath?: string;
+    readonly force?: boolean;
+    readonly environment?: NodeJS.ProcessEnv;
+    /**
+     * Asks which of several installed drivers to configure. Supplied by the command when a terminal is attached; its
+     * absence is what makes a scripted run fail with `dialect-required` instead of waiting on a read that never returns.
+     */
+    readonly selectDialect?: (available: readonly OfficialDialect[]) => Promise<OfficialDialect>;
+    /**
+     * The dialect an existing configuration uses, as the application resolves it. Asked only when the application is
+     * already configured and `--dialect` was given, to tell a repeated run from one that asks for something else.
+     */
+    readonly readConfiguredDialect?: () => Promise<string | undefined>;
+    /**
+     * Asks for the main connection's settings, starting from the generated ones. Supplied by the command when a
+     * terminal is attached; without it the generated placeholders are written and listed in `requiredSettings`.
+     */
+    readonly askConnection?: (dialect: OfficialDialect, defaults: Readonly<Record<string, unknown>>) => Promise<Readonly<Record<string, unknown>>>;
+    /**
+     * Receives the result of connecting with the settings about to be written, and decides whether to write them.
+     * Without it no connection is attempted.
+     */
+    readonly onConnectionTested?: (result: ConnectionCheckResult) => Promise<boolean>;
+}
+export interface ConfigInitResult {
+    /** `unchanged` when the application was already configured and nothing asked for a different configuration. */
+    readonly status: 'configured' | 'unchanged';
+    readonly mode: ConfigInitMode;
+    /** The dialect written, or the one an unchanged configuration uses when it could be read. */
+    readonly dialect?: OfficialDialect;
+    readonly configFile: string;
+    readonly configKey: string;
+    /** Environment variables that already carry a value this file also sets, and therefore override it. */
+    readonly overriddenByEnvironment: readonly string[];
+    /**
+     * Settings still at a generated placeholder that have to be set before the application can reach its database —
+     * with `pnpm nocobase config set`, or `pnpm nocobase config set --from-env` for the password.
+     */
+    readonly requiredSettings: readonly string[];
+    /** The commands to run next, in order. */
+    readonly nextCommands: readonly string[];
+    /** The connection attempted before writing, when one was. */
+    readonly connectionTest?: ConnectionCheckResult;
+}
+/** Detects a source checkout by the extension of the runtime module, the same signal the runtime itself uses. */
+export declare function detectConfigInitMode(rootDir: string): Promise<ConfigInitMode>;
+/**
+ * The directory configuration and storage live in, which is the application root in a checkout and the directory
+ * holding `dist` in a deployment. This mirrors `deploymentRootDir` in the application's own runtime definition.
+ */
+export declare function resolveDeploymentRootDir(rootDir: string, mode: ConfigInitMode): string;
+/**
+ * Dialects this application can actually load a driver for.
+ *
+ * In a checkout that is whatever is installed, found by walking up for `node_modules` rather than by resolving the
+ * package: `@nocobase/db-sqlite` does not export its own `package.json`, so the obvious `require.resolve` of it fails
+ * with `ERR_PACKAGE_PATH_NOT_EXPORTED` on a package that is present. Walking also gives the answer the runtime will
+ * get, which is what matters — a workspace member resolving a driver from the repository root is correctly reported
+ * as having it, even though its own manifest never declares it.
+ *
+ * In a deployment the installed tree is the build's, so the manifest is the honest source: it lists exactly the
+ * drivers `pnpm build` carried over from the application's dependencies.
+ */
+export declare function findAvailableDialects(rootDir: string, mode: ConfigInitMode): Promise<readonly OfficialDialect[]>;
+export declare function driverPackage(dialect: OfficialDialect): string;
+/**
+ * Validates everything, then writes once.
+ *
+ * The order matters more than it looks. A run that wrote the file and then reported a missing driver would leave the
+ * user unable to retry: the second run refuses because the application is already configured, and the only way out is
+ * to delete a file they were never told about. Every check therefore happens before anything is written, so a failed
+ * run leaves the directory exactly as it found it and `config init` can simply be run again.
+ */
+export declare function runConfigInit(options: ConfigInitOptions): Promise<ConfigInitResult>;
+/**
+ * The `pnpm add` for a driver, pinned to the range the installed runtime accepts, as a suggestion whose `run` holds the
+ * executable and its arguments.
+ *
+ * A bare `pnpm add @nocobase/db-postgres` installs whatever is newest, which during a prerelease can be a version the
+ * application's `@nocobase/app-server` was never built against. The runtime declares every official driver as an
+ * optional peer with the range it supports, so that range is read from the copy actually installed — no registry
+ * request, and the answer describes this application rather than the latest release. Without a readable range, or in a
+ * workspace where it is still a `workspace:` protocol, the command falls back to the bare name.
+ */
+export declare function installSuggestion(rootDir: string, packageName: string): CommandSuggestion;
+/** The same `pnpm add` as one line a shell runs as written, for the `fix` of a `config check` finding. */
+export declare function installCommand(rootDir: string, packageName: string): string;
+//# sourceMappingURL=config-init.d.ts.map

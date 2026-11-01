@@ -1,0 +1,29 @@
+node_modules/
+dist/
+coverage/
+
+# Local configuration, including the generated secrets key.
+/config.yml
+/config.toml
+/.env
+/.env.local
+
+# Local application state.
+/storage/
+/database.sqlite
+/database.sqlite-journal
+/database.sqlite-wal
+/database.sqlite-shm
+/database/*/collections/
+/.agents/*
+!/.agents/rules/
+/.claude/skills/
+/.agent-annotations/
+*.log
+
+# Deployment secrets and persistent files.
+/deploy/.env
+/deploy/config.yml
+/deploy/storage/
+/deploy/backups/
+/deploy/*.secret.json

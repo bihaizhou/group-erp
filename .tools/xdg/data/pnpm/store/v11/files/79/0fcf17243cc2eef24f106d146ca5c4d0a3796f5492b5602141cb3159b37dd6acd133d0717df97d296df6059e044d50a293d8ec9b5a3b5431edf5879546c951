@@ -1,0 +1,1 @@
+{"version":3,"file":"202609260001_add_mail_sync_retry_attempts.d.ts","sourceRoot":"","sources":["../../../database/migrations/202609260001_add_mail_sync_retry_attempts.ts"],"names":[],"mappings":"AAAA,OAAO,EAGL,KAAK,mBAAmB,EACzB,MAAM,cAAc,CAAC;AAEtB,QAAA,MAAM,SAAS,EAAE,mBAYf,CAAC;AAEH,eAAe,SAAS,CAAC"}

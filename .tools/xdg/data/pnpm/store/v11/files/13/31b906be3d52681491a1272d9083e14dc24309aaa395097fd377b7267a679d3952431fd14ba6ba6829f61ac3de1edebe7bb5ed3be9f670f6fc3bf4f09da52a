@@ -1,0 +1,1 @@
+{"version":3,"file":"concurrency.d.ts","sourceRoot":"","sources":["../../../../server/adapters/microsoft/concurrency.ts"],"names":[],"mappings":"AAAA,wBAAsB,aAAa,CAAC,CAAC,EAAE,CAAC,EACtC,MAAM,EAAE,SAAS,CAAC,EAAE,EACpB,WAAW,EAAE,MAAM,EACnB,MAAM,EAAE,CAAC,KAAK,EAAE,CAAC,KAAK,OAAO,CAAC,CAAC,CAAC,GAC/B,OAAO,CAAC,SAAS,CAAC,EAAE,CAAC,CAcvB"}

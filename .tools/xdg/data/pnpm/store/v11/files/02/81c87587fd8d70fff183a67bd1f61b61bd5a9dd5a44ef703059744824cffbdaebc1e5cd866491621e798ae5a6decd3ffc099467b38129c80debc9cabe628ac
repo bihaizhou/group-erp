@@ -1,0 +1,10 @@
+import type { MailProviderAuthorization } from '../../contracts/provider.js';
+import type { MailProviderResult } from '../../../shared/mail.js';
+import type { MicrosoftMailProviderConfig, MicrosoftTokenResponse } from './types.js';
+export declare function createAuthorization(): MailProviderAuthorization<MicrosoftMailProviderConfig>;
+export declare function exchangeToken(config: MicrosoftMailProviderConfig, body: Record<string, string>, signal?: AbortSignal): Promise<MailProviderResult<MicrosoftTokenResponse>>;
+export declare function authority(config: MicrosoftMailProviderConfig): string;
+export declare function splitScopes(value: string | undefined, fallback: readonly string[]): readonly string[];
+export declare function expiry(seconds: number | undefined): string;
+export declare function required(value: string | undefined, label: string): string;
+//# sourceMappingURL=auth.d.ts.map

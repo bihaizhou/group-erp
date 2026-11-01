@@ -1,0 +1,195 @@
+var __rewriteRelativeImportExtension = (this && this.__rewriteRelativeImportExtension) || function (path, preserveJsx) {
+    if (typeof path === "string" && /^\.\.?\//.test(path)) {
+        return path.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function (m, tsx, d, ext, cm) {
+            return tsx ? preserveJsx ? ".jsx" : ".js" : d && (!ext || !cm) ? m : (d + ext + "." + cm.toLowerCase() + "js");
+        });
+    }
+    return path;
+};
+// Finds the CLI packages an application depends on: direct dependencies whose own `package.json` names a CLI entry in
+// `nocobase.cli.entry`, and which therefore contribute commands by being installed rather than by an entry in
+// `cli/plugins.ts`.
+//
+// Finding them reads JSON and imports nothing. A run imports a package's entry only when it needs that package's
+// commands — a command under its topic, `--help`, or `commands` — so a package that is missing or broken never stops an
+// unrelated command, and the built-in commands dispatched on their own never get this far.
+//
+// Only the application's own `dependencies`, `devDependencies` and `optionalDependencies` in the `@nocobase/` scope
+// count, the rule `skills sync` follows, and each one is looked up in the application's `node_modules` rather than
+// resolved from this package. A transitive dependency contributes nothing, and removing the dependency removes its
+// commands. A built `dist/` lists only `dependencies`, so a package the application declares in `devDependencies`
+// contributes nothing there.
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { pluginTopicFor } from "../plugins/define.js";
+const PACKAGE_SCOPE = '@nocobase/';
+/** The conditions Node's `import` matches in a package's `exports`, among those a CLI entry may be published under. */
+const IMPORT_CONDITIONS = new Set([
+    'node',
+    'import',
+    'default',
+]);
+/** The CLI packages among the application's direct dependencies. Reads JSON only and never throws. */
+export function findCliPackages(location) {
+    if (location.kind === 'none')
+        return { installed: [], unavailable: [] };
+    const manifest = readManifest(path.join(location.root, 'package.json'));
+    const required = new Set([
+        ...dependencyNames(manifest?.dependencies),
+        ...dependencyNames(manifest?.devDependencies),
+    ]);
+    const names = [
+        ...new Set([
+            ...required,
+            ...dependencyNames(manifest?.optionalDependencies),
+        ]),
+    ]
+        .filter((name) => name.startsWith(PACKAGE_SCOPE))
+        .sort();
+    const installed = [];
+    const unavailable = [];
+    for (const packageName of names) {
+        const directory = path.join(location.root, 'node_modules', packageName);
+        const packageManifest = readManifest(path.join(directory, 'package.json'));
+        const topic = pluginTopicFor(packageName);
+        if (packageManifest === undefined) {
+            // An optional dependency is allowed to be absent; a required one is a dependency nobody installed yet.
+            if (required.has(packageName))
+                unavailable.push({ packageName, topic });
+            continue;
+        }
+        const entry = packageManifest.nocobase?.cli?.entry;
+        if (entry === undefined)
+            continue;
+        installed.push({
+            packageName,
+            topic,
+            directory,
+            entry,
+            exports: packageManifest.exports,
+        });
+    }
+    return { installed, unavailable };
+}
+/**
+ * The CLI packages a run with these arguments imports. A command under a package's topic imports that package; help
+ * for the whole tree and the commands that read it (`commands`) import every one. Every other run imports none and
+ * lets them claim their topics, so a collision is reported whichever command was run. A package the application also
+ * registers in `cli/plugins.ts` is left to that registration.
+ */
+export function selectCliPackages(found, options) {
+    const candidates = found.installed.filter((cliPackage) => !options.registered.has(cliPackage.packageName));
+    const load = options.head === undefined || options.wholeTree
+        ? candidates
+        : candidates.filter((cliPackage) => cliPackage.topic === options.head);
+    const claimed = {};
+    for (const cliPackage of candidates) {
+        if (!load.includes(cliPackage)) {
+            claimed[cliPackage.topic] = cliPackage.packageName;
+        }
+    }
+    return { load, claimed };
+}
+/** Imports each package's entry and checks it is the CLI plugin that package defines. */
+export async function loadCliPackages(packages) {
+    // The entries are independent, so their imports overlap; the first failure in package order is the one reported,
+    // whichever settled first.
+    const settled = await Promise.allSettled(packages.map(loadCliPackage));
+    const loaded = [];
+    for (const outcome of settled) {
+        if (outcome.status === 'rejected')
+            throw outcome.reason;
+        loaded.push(outcome.value);
+    }
+    return loaded;
+}
+async function loadCliPackage(cliPackage) {
+    const file = resolveEntry(cliPackage);
+    let module;
+    try {
+        module = (await import(__rewriteRelativeImportExtension(pathToFileURL(file).href)));
+    }
+    catch (cause) {
+        throw new Error(`Could not load the CLI entry of ${cliPackage.packageName}, ${file}.`, { cause });
+    }
+    return checkEntry(cliPackage, module.default);
+}
+function resolveEntry(cliPackage) {
+    const { packageName, directory, entry } = cliPackage;
+    if (typeof entry !== 'string' || !entry.startsWith('./')) {
+        throw new Error(`${packageName} sets nocobase.cli.entry to something other than a subpath of its exports, such as "./cli".`);
+    }
+    const target = exportTarget(cliPackage.exports, entry);
+    if (target === undefined) {
+        throw new Error(`${packageName} names "${entry}" as its CLI entry, but its package.json exports no importable "${entry}".`);
+    }
+    const file = path.resolve(directory, target);
+    const relative = path.relative(directory, file);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        throw new Error(`${packageName} exports "${entry}" from outside its own directory.`);
+    }
+    return file;
+}
+/** The file Node's `import` would resolve `subpath` of these `exports` to, relative to the package. */
+function exportTarget(exports, subpath) {
+    if (!isRecord(exports))
+        return undefined;
+    return conditionalTarget(exports[subpath]);
+}
+/** A string target, or the first of the import conditions, in the order the package lists them, that yields one. */
+function conditionalTarget(value) {
+    if (typeof value === 'string') {
+        return value.startsWith('./') ? value : undefined;
+    }
+    if (!isRecord(value))
+        return undefined;
+    for (const [condition, nested] of Object.entries(value)) {
+        if (!IMPORT_CONDITIONS.has(condition))
+            continue;
+        const target = conditionalTarget(nested);
+        if (target !== undefined)
+            return target;
+    }
+    return undefined;
+}
+function checkEntry(cliPackage, value) {
+    const { packageName } = cliPackage;
+    if (!isRecord(value) ||
+        typeof value.packageName !== 'string' ||
+        typeof value.topic !== 'string' ||
+        !isRecord(value.commands) ||
+        !isRecord(value.devCommands)) {
+        throw new Error(`The CLI entry of ${packageName} must default-export the result of defineCliPlugin({...}).`);
+    }
+    if (value.packageName !== packageName) {
+        throw new Error(`The CLI entry of ${packageName} defines the commands of ${value.packageName}; its packageName must be "${packageName}".`);
+    }
+    // The run imported this package for the topic its name gives, so that is the only topic it may mount under.
+    if (value.topic !== cliPackage.topic) {
+        throw new Error(`The CLI entry of ${packageName} mounts its commands under "${value.topic}"; its topic must be "${cliPackage.topic}", the one its package name gives.`);
+    }
+    // `pnpm build` and `pnpm dev` read hooks from `cli/plugins.ts` without assembling the command tree, which is where a
+    // package found here is loaded. Accepting hooks from one would register them and never run them.
+    if ([value.buildHooks, value.devHooks].some((hooks) => isRecord(hooks) && Object.keys(hooks).length > 0)) {
+        throw new Error(`${packageName} declares build or dev hooks. A package found through package.json contributes commands only; ` +
+            'register it in cli/plugins.ts for its hooks to run.');
+    }
+    return value;
+}
+function readManifest(file) {
+    try {
+        const parsed = JSON.parse(readFileSync(file, 'utf8'));
+        return isRecord(parsed) ? parsed : undefined;
+    }
+    catch {
+        return undefined;
+    }
+}
+function dependencyNames(value) {
+    return isRecord(value) ? Object.keys(value) : [];
+}
+function isRecord(value) {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+//# sourceMappingURL=cli-packages.js.map

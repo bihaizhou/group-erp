@@ -1,0 +1,5 @@
+import type { MailAddress } from '../../shared/mail.js';
+export declare function mailAddressName(value?: MailAddress): string;
+export declare function formatMailAddress(value: MailAddress): string;
+export declare function formatMailAddresses(values: readonly MailAddress[]): string;
+//# sourceMappingURL=mail-address.d.ts.map

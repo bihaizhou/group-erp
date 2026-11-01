@@ -1,0 +1,11 @@
+import { type JsonValueOf, type JsonValue } from './json.js';
+import type { CreateMutationValues, UpdateMutationValues, MutationValuesInput, NumericMutationJsonInput, RepositoryRecord } from './types.js';
+/** Preserve known field names while removing executable inputs from wire types. */
+export type BuiltMutationValues<T> = T extends (...args: never[]) => infer TResult ? TResult extends NumericMutationJsonInput ? JsonValueOf<TResult> : Readonly<Record<string, JsonValue>> : unknown extends T ? JsonValue : T extends Date | bigint ? string : T extends readonly unknown[] ? {
+    readonly [K in keyof T]: BuiltMutationValues<T[K]>;
+} : T extends object ? string extends keyof T ? Readonly<Record<string, JsonValue>> : {
+    readonly [K in keyof T]: BuiltMutationValues<T[K]>;
+} : T;
+export declare function buildCreateValues<T extends object = RepositoryRecord>(input: MutationValuesInput<CreateMutationValues<T>>): BuiltMutationValues<CreateMutationValues<T>>;
+export declare function buildUpdateValues<T extends object = RepositoryRecord>(input: MutationValuesInput<UpdateMutationValues<T>>): BuiltMutationValues<UpdateMutationValues<T>>;
+//# sourceMappingURL=build-values.d.ts.map

@@ -1,0 +1,4 @@
+import type { AppDriveConfig, CreateDriveManagerOptions, NocoBaseDriveManager } from './types.js';
+export declare function createDriveManager(config: AppDriveConfig, options?: CreateDriveManagerOptions): NocoBaseDriveManager;
+export declare function assertDefaultDisk(config: AppDriveConfig): void;
+//# sourceMappingURL=flydrive.d.ts.map

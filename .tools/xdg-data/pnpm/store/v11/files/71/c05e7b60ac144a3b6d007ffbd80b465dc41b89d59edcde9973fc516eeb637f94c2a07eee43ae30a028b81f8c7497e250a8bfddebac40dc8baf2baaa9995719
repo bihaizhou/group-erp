@@ -1,0 +1,11 @@
+import type { FieldDefinition } from '../collection/types.js';
+import type { RepositoryContext, RepositoryMutationScalarValue } from './types.js';
+export { DefaultValuesBuilder } from '@nocobase/repository-input/internal/value-builders';
+export declare function evaluateValues(input: unknown): unknown;
+export interface ResolvedMutationValue {
+    readonly value: unknown;
+    readonly expression: boolean;
+    readonly variable?: string;
+}
+export declare function resolveMutationValue(input: unknown, context: RepositoryContext | undefined, path: readonly (string | number)[]): ResolvedMutationValue;
+export declare function validateResolvedMutationValue(field: FieldDefinition, resolved: ResolvedMutationValue, collection: string | undefined, path: readonly (string | number)[]): RepositoryMutationScalarValue;

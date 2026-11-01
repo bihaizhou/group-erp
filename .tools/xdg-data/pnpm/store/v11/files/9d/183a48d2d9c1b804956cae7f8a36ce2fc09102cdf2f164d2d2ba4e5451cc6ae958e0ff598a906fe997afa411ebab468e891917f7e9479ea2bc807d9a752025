@@ -1,0 +1,4 @@
+import { type AppServerPlugin } from '@nocobase/app-server/plugins';
+declare const authzSharingRulesPlugin: AppServerPlugin;
+export default authzSharingRulesPlugin;
+//# sourceMappingURL=plugin.d.ts.map

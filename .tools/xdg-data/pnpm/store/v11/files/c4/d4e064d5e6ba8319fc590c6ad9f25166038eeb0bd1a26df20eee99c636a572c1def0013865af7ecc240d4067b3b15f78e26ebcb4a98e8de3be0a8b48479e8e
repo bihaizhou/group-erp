@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "files": {
+    "202608210001_create_permission_set_tables.js": {
+      "sourceChecksum": "65d2465077dfa9130598725eaff333261163204713779af209d8f54818375a8b",
+      "artifactChecksum": "f2d1589052bd1a24b627157e5e32618d85c638a0da186ba85e379807b41221a1"
+    }
+  }
+}

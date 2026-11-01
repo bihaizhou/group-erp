@@ -1,0 +1,13 @@
+import type { LocaleResource } from '@nocobase/i18n';
+declare const enUS: {
+    nav: {
+        automation: string;
+    };
+    authorization: {
+        title: string;
+        read: string;
+    };
+};
+export type SchedulerResource = LocaleResource<typeof enUS>;
+export default enUS;
+//# sourceMappingURL=en-US.d.ts.map

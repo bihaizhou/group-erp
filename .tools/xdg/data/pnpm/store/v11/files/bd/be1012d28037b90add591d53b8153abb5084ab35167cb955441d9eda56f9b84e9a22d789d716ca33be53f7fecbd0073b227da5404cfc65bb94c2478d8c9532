@@ -1,0 +1,7 @@
+export const ScheduleReceiptCode = Object.freeze({
+    Upserted: 1000,
+    Removed: 2000,
+    NotExisted: 3000,
+    HandlerRegistered: 4000,
+});
+//# sourceMappingURL=types.js.map

@@ -1,0 +1,81 @@
+import { jsx as _jsx, Fragment as _Fragment } from "react/jsx-runtime";
+/* eslint-disable react-refresh/only-export-components, react-hooks/exhaustive-deps, @eslint-react/exhaustive-deps, react-hooks/set-state-in-effect, @eslint-react/use-state */
+import { createContext, useContext, useEffect, useRef, useState, } from 'react';
+import { realtimeClientToken, useClientApplication, useService, } from '@nocobase/app-client';
+import { Navigate, useLocation } from 'react-router';
+import { authenticationClientToken } from './tokens.js';
+const AuthenticationContext = createContext(undefined);
+export function AuthenticationProvider({ children, }) {
+    const client = useService(authenticationClientToken);
+    const [session, setSession] = useState(null);
+    const [isPending, setPendingState] = useState(true);
+    const refresh = async () => {
+        setPendingState(true);
+        try {
+            setSession((await client.getSession()).data);
+        }
+        finally {
+            setPendingState(false);
+        }
+    };
+    useEffect(() => {
+        void refresh();
+    }, [client]);
+    // A realtime connection is signed in as whoever opened it: when the person changes, an open one connects again so
+    // topics for signed-in connections reach them without a reload. An application without realtime has none.
+    const services = useClientApplication().services;
+    const userId = session?.user.id ?? null;
+    const connectedAsRef = useRef(undefined);
+    useEffect(() => {
+        if (isPending)
+            return;
+        if (connectedAsRef.current !== undefined &&
+            connectedAsRef.current !== userId &&
+            services.has(realtimeClientToken))
+            services.resolveIfCreated(realtimeClientToken)?.reconnect();
+        connectedAsRef.current = userId;
+    }, [isPending, userId, services]);
+    return (_jsx(AuthenticationContext.Provider, { value: { client, session, isPending, refresh }, children: children }));
+}
+export function useAuthentication() {
+    const value = useContext(AuthenticationContext);
+    if (!value)
+        throw new Error('AuthenticationProvider is not mounted.');
+    return value;
+}
+export function useAuthenticationClient() {
+    return useAuthentication().client;
+}
+export default AuthenticationProvider;
+/**
+ * Where a guest page sends a person once they are signed in: the path in its `redirect` search parameter, such as
+ * `/login?redirect=%2Fdevice%3Fuser_code%3DWDJB-MJHT`, when it names a path in this application, and `/` otherwise.
+ */
+function signedInDestination(search) {
+    const target = new URLSearchParams(search).get('redirect');
+    return target?.startsWith('/') &&
+        !target.startsWith('//') &&
+        !target.startsWith('/\\')
+        ? target
+        : '/';
+}
+export function AuthenticationGuard({ mode, children, }) {
+    const { session, isPending } = useAuthentication();
+    const { search } = useLocation();
+    if (isPending)
+        return null;
+    if (mode === 'required' && !session) {
+        return _jsx(Navigate, { to: '/login', replace: true });
+    }
+    if (mode === 'guest' && session) {
+        return _jsx(Navigate, { to: signedInDestination(search), replace: true });
+    }
+    return _jsx(_Fragment, { children: children });
+}
+export function RequiredAuthentication({ children, }) {
+    return _jsx(AuthenticationGuard, { mode: 'required', children: children });
+}
+export function GuestAuthentication({ children, }) {
+    return _jsx(AuthenticationGuard, { mode: 'guest', children: children });
+}
+//# sourceMappingURL=auth-provider.js.map

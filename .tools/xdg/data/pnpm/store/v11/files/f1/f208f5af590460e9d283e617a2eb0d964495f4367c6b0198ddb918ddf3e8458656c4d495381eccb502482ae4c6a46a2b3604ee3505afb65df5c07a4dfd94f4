@@ -1,0 +1,17 @@
+import { Job } from '@nocobase/jobs';
+/** The handler identity stored with every Delivery task: keep it stable. */
+export const DELIVERY_JOB_NAME = 'notification.delivery';
+/**
+ * The class closes over the Channel Manager rather than receiving it: a task
+ * carries only its payload, and each executor keeps its own registry, so the
+ * Manager that registered the class is the one that executes it.
+ */
+export function createDeliveryJob(channelManager) {
+    return class DeliveryJob extends Job {
+        static jobName = DELIVERY_JOB_NAME;
+        async execute() {
+            await channelManager.send(this.payload.deliveryId);
+        }
+    };
+}
+//# sourceMappingURL=delivery-job.js.map

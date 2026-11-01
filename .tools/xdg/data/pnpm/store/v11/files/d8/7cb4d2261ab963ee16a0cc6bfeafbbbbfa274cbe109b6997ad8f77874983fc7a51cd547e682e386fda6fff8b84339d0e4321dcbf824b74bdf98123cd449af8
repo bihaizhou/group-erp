@@ -1,0 +1,15 @@
+/** Stable CID for an owned upload; only referenced image uploads become inline. */
+export function uploadedImageContentId(id) {
+    return `nocobase-${id}@mail.inline`;
+}
+export function uploadedImageMetadata(id, contentType, html) {
+    const contentId = uploadedImageContentId(id);
+    const inline = /^image\/(?:png|jpeg|gif|webp)$/iu.test(contentType) &&
+        Boolean(html?.includes(`cid:${contentId}`));
+    return inline ? { inline, contentId } : { inline };
+}
+/** Embedded image resources belong to the body, not the attachment list. */
+export function isVisibleMailAttachment(attachment) {
+    return !attachment.inline || !/^image\//iu.test(attachment.contentType);
+}
+//# sourceMappingURL=inline-images.js.map

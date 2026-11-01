@@ -1,0 +1,23 @@
+import { toMermaid } from './mermaid.js';
+/** The description a page draws a lifecycle from, as `GET <lifecycle>/lifecycle` answers it. */
+export function lifecycleDescriptionView(runtime, name) {
+    const description = runtime.describe(name);
+    return {
+        description,
+        parameters: runtime.parameters(name),
+        diagram: toMermaid(description),
+    };
+}
+/** A description with async overrides, using a server-owned preview context. */
+export async function lifecycleDescriptionViewAsync(runtime, name, context) {
+    const description = runtime.describe(name);
+    return {
+        description,
+        parameters: (await runtime.resolveParameters(name, {
+            ...context,
+            purpose: 'preview',
+        })),
+        diagram: toMermaid(description),
+    };
+}
+//# sourceMappingURL=views.js.map

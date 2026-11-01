@@ -1,0 +1,91 @@
+import { ApiClientError } from '@nocobase/app-client';
+/**
+ * A failed notification test request. `reason` is the server's standard error reason, such as
+ * `NOTIFICATION_TEST_FORBIDDEN`, or `NOTIFICATION_TEST_UNAVAILABLE` when the application does not serve the test
+ * routes at all. `message` is the server's localized message when it sent one.
+ */
+export class NotificationTestApiError extends Error {
+    reason;
+    status;
+    constructor(input, cause) {
+        super(input.message, { cause });
+        this.name = 'NotificationTestApiError';
+        this.reason = input.reason;
+        this.status = input.status;
+    }
+}
+export class NotificationClient {
+    api;
+    constructor(api) {
+        this.api = api;
+    }
+    /** The newest logs, the most the server returns in one page. */
+    listLogs() {
+        return this.api
+            .request({
+            path: 'notifications/logs',
+            query: { pageSize: 100 },
+        })
+            .then((response) => response.data);
+    }
+    listTestTargets() {
+        return this.api
+            .request({
+            path: 'notifications/testTargets',
+            headers: { 'x-nocobase-notification-test': '1' },
+        })
+            .then((response) => response.data)
+            .catch(rethrowNotificationTestError);
+    }
+    sendTest(input) {
+        return this.api
+            .request({
+            path: 'notifications/testSends',
+            method: 'POST',
+            headers: { 'x-nocobase-notification-test': '1' },
+            json: input,
+        })
+            .then((response) => response.data)
+            .catch(rethrowNotificationTestError);
+    }
+    getTestStatus(id) {
+        return this.api
+            .request({
+            path: `notifications/testSends/${encodeURIComponent(id)}`,
+            headers: { 'x-nocobase-notification-test': '1' },
+        })
+            .then((response) => response.data)
+            .catch(rethrowNotificationTestError);
+    }
+}
+function rethrowNotificationTestError(cause) {
+    if (!(cause instanceof ApiClientError))
+        throw cause;
+    // The application answers an unknown `/api` path with `ROUTE_NOT_FOUND`: it does not serve notification testing.
+    if (cause.reason === 'ROUTE_NOT_FOUND') {
+        throw new NotificationTestApiError({
+            reason: 'NOTIFICATION_TEST_UNAVAILABLE',
+            message: 'Notification testing is not available.',
+            status: cause.status,
+        }, cause);
+    }
+    if (!cause.reason)
+        throw cause;
+    throw new NotificationTestApiError({
+        reason: cause.reason,
+        message: localizedMessage(cause.payload) ?? cause.message,
+        status: cause.status,
+    }, cause);
+}
+function localizedMessage(payload) {
+    if (!isRecord(payload) || !isRecord(payload.error))
+        return undefined;
+    const localized = payload.error.localizedMessage;
+    return isRecord(localized) && typeof localized.message === 'string'
+        ? localized.message
+        : undefined;
+}
+function isRecord(value) {
+    return typeof value === 'object' && value !== null;
+}
+//# sourceMappingURL=notification-client.js.map

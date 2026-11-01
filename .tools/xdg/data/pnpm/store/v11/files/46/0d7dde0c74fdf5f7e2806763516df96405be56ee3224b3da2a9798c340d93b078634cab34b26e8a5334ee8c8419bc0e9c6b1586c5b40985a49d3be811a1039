@@ -1,0 +1,7 @@
+import type { LoadedMigration, LoadMigrationsOptions } from './types.js';
+export declare const DEFAULT_MIGRATION_EXTENSIONS: readonly string[];
+export declare const DEFAULT_MIGRATION_PACKAGE_NAME: string;
+/** Loads, validates, and deterministically orders migration definitions from configured sources. */
+export declare function loadMigrations(options: LoadMigrationsOptions): Promise<LoadedMigration[]>;
+/** Loads migration definitions without executing them. */
+export declare function validateMigrations(options: string | LoadMigrationsOptions): Promise<LoadedMigration[]>;

@@ -1,0 +1,50 @@
+import type { Logger } from '@nocobase/logging';
+import type { NotificationDeliveryRecord, NotificationStore } from './store.js';
+import type { NotificationChannel, NotificationProvider, NotificationProviderIdentity, ProviderSendResult } from './types.js';
+export interface ChannelRuntime {
+    readonly channel: NotificationChannel;
+    readonly provider: NotificationProvider;
+}
+export interface ChannelManagerOptions {
+    readonly logger: Logger;
+    readonly store: NotificationStore;
+    readonly resolveRuntime?: (type: string) => Promise<void>;
+    readonly onDeliveryChanged?: (delivery: NotificationDeliveryRecord) => void;
+    readonly leaseMs?: number;
+    readonly providerTimeoutMs?: number;
+    readonly retry?: {
+        readonly maxAttempts?: number;
+        readonly intervalMs?: number;
+    };
+}
+export declare class ChannelManager {
+    private readonly options;
+    private readonly runtimes;
+    constructor(options: ChannelManagerOptions);
+    register(type: string, runtime: ChannelRuntime): void;
+    has(type: string): boolean;
+    type(name: string): string;
+    validateMessage(name: string, message: unknown): {
+        readonly message: object;
+        readonly recipients: readonly object[];
+    };
+    providerIdentities(name: string): readonly NotificationProviderIdentity[];
+    /** A one-shot path for credentials: deliberately bypasses storage and retries. */
+    sendTransient(name: string, input: object): Promise<readonly ProviderSendResult[]>;
+    send(deliveryId: string): Promise<NotificationDeliveryRecord | undefined>;
+    close(): Promise<void>;
+    private prepare;
+    private submit;
+    private invoke;
+    private finishAttemptAndDelivery;
+    private finishDelivery;
+    private changed;
+    private startHeartbeat;
+    private retryDelay;
+    private leaseExpiry;
+    private renewHeartbeat;
+    private get leaseMs();
+    private get providerTimeoutMs();
+    private get maxAttempts();
+}
+//# sourceMappingURL=channel-manager.d.ts.map

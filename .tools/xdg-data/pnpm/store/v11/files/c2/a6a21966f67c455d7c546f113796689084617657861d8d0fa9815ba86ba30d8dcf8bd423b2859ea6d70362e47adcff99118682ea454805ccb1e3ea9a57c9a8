@@ -1,0 +1,8 @@
+import type { AppTool } from '../../tools/run-tool.ts';
+import { ToolCommand } from '../../lib/tool-command.ts';
+export default class DistRetarget extends ToolCommand {
+    static summary: string;
+    static description: string;
+    protected readonly tool: AppTool;
+}
+//# sourceMappingURL=retarget.d.ts.map

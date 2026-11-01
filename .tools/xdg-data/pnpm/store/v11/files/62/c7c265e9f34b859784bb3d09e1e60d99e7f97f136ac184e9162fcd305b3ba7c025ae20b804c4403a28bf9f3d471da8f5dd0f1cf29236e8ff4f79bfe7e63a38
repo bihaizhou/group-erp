@@ -1,0 +1,5 @@
+export declare const MAIL_REALTIME_TOPIC: string;
+export interface MailRealtimeEvent {
+    readonly kind: 'mail.changed' | (string & {});
+}
+//# sourceMappingURL=realtime.d.ts.map

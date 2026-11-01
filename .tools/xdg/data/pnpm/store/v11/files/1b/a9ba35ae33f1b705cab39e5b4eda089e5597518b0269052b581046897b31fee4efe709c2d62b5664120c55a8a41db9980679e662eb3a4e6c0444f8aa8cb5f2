@@ -1,0 +1,7 @@
+import type { Hono } from 'hono';
+import type { ServiceResolver } from '@nocobase/service-provider';
+import type { AppWebSocketHandler } from '../websocket.js';
+export declare const REALTIME_WEBSOCKET_PATH: string;
+export declare function registerRealtimeWebSocketRoutes(router: Hono): void;
+export declare function createRealtimeWebSocketHandler(container: ServiceResolver): AppWebSocketHandler;
+//# sourceMappingURL=websocket.d.ts.map

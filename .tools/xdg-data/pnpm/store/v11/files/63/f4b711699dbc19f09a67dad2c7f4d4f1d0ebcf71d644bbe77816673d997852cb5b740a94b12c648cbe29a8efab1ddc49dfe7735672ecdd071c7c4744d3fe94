@@ -1,0 +1,5 @@
+import { createServiceToken, } from '@nocobase/service-provider';
+export { apiKeyScopesToken } from './scopes.js';
+/** Keys with scopes for any user: what an application builds key pages and service-account keys on. */
+export const scopedApiKeysToken = createServiceToken('@nocobase/app-plugin-api-keys/scoped-keys');
+//# sourceMappingURL=tokens.js.map

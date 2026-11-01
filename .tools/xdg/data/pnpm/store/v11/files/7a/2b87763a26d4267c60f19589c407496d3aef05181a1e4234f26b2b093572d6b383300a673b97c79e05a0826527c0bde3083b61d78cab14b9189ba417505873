@@ -1,0 +1,50 @@
+import { type ComponentType, type PropsWithChildren, type ReactElement } from 'react';
+import type { UseTranslationOptions, UseTranslationResponse } from 'react-i18next';
+import type { I18nRuntime, Namespace } from '../core/index.js';
+export interface I18nProviderProps {
+    readonly runtime: I18nRuntime;
+}
+/**
+ * Puts the runtime and its i18next instance in context. Mounted once, above everything that translates.
+ */
+export declare function I18nProvider({ runtime, children, }: PropsWithChildren<I18nProviderProps>): ReactElement;
+export declare function useI18nRuntime(): I18nRuntime;
+/**
+ * The runtime if one is mounted, `undefined` otherwise.
+ *
+ * A component that merely offers translation — a language switcher, say — should render nothing rather than break a
+ * tree that has no i18n at all, which is what a focused test usually renders.
+ */
+export declare function useOptionalI18nRuntime(): I18nRuntime | undefined;
+export interface NamespaceScopeProps {
+    readonly ns: Namespace;
+}
+/**
+ * Makes a namespace the default for everything rendered inside it, so a plugin's own pages translate without naming it.
+ *
+ * The application host wraps each contribution in this using the package name it already records, which is what lets a
+ * plugin page call `useTranslation()` with no arguments.
+ *
+ * The scope follows the render tree rather than code ownership: a component a plugin exports for the application to
+ * render sits in the application's scope, not its own, and has to name its namespace explicitly.
+ */
+export declare function NamespaceScope({ ns, children, }: PropsWithChildren<NamespaceScopeProps>): ReactElement;
+/** The namespace in scope, if any. */
+export declare function useNamespace(): Namespace | undefined;
+/**
+ * Binds a component to a namespace regardless of where it is rendered.
+ *
+ * Use it on anything a plugin exports for reuse elsewhere in the application, where the surrounding scope would
+ * otherwise be the application's.
+ */
+export declare function withNamespace<TProps extends object>(ns: Namespace, Component: ComponentType<TProps>): ComponentType<TProps>;
+export type { UseTranslationOptions, UseTranslationResponse };
+/**
+ * Translates within the namespace in scope, or the one named.
+ *
+ * Works without a runtime mounted — a focused test, or a host that has not set i18n up — where it returns each key's
+ * declared default instead of warning. Callers therefore have to pass `defaultValue` for a string that must stay
+ * readable in that case; `t('a.b')` on its own would render as its key.
+ */
+export declare function useTranslation<KPrefix = undefined>(ns?: Namespace | readonly Namespace[], options?: UseTranslationOptions<KPrefix>): UseTranslationResponse<never, KPrefix>;
+//# sourceMappingURL=context.d.ts.map

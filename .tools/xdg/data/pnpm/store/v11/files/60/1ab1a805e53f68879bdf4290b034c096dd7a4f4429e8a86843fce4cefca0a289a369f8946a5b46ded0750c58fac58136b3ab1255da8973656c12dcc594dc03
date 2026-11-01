@@ -1,0 +1,9 @@
+export class CollectionMetadataPatchError extends Error {
+    issues;
+    code = 'COLLECTION_METADATA_PATCH_INVALID';
+    constructor(issues) {
+        super('Collection metadata patch is invalid.');
+        this.issues = issues;
+        this.name = 'CollectionMetadataPatchError';
+    }
+}

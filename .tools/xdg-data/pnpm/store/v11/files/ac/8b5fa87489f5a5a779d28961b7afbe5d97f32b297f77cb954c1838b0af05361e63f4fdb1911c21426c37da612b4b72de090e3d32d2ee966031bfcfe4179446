@@ -1,0 +1,14 @@
+export const SEED_DEFINITION_SYMBOL = Symbol.for('@nocobase/db.seed');
+export function markSeedDefinition(definition) {
+    Object.defineProperty(definition, SEED_DEFINITION_SYMBOL, {
+        value: true,
+        enumerable: false,
+        configurable: false,
+    });
+    return definition;
+}
+export function isDefinedSeed(value) {
+    return (typeof value === 'object' &&
+        value !== null &&
+        value[SEED_DEFINITION_SYMBOL] === true);
+}

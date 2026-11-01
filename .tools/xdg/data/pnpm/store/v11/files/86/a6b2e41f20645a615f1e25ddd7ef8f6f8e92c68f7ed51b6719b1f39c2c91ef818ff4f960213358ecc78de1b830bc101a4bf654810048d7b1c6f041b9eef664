@@ -1,0 +1,20 @@
+/** Which records of a collection an action reaches. */
+export type RecordSelection = {
+    readonly type: 'all';
+} | {
+    readonly type: 'records';
+    readonly ids: readonly string[];
+} | {
+    readonly type: 'recordAccess';
+    readonly key: string;
+    readonly params?: unknown;
+};
+export interface RecordSelectionHelpers {
+    all(): RecordSelection;
+    records(ids: readonly string[]): RecordSelection;
+    recordAccess(key: string, params?: unknown): RecordSelection;
+}
+export declare const selection: RecordSelectionHelpers;
+/** Validates an untrusted value, returning it as a detached selection. */
+export declare function parseRecordSelection(value: unknown): RecordSelection;
+//# sourceMappingURL=selection.d.ts.map

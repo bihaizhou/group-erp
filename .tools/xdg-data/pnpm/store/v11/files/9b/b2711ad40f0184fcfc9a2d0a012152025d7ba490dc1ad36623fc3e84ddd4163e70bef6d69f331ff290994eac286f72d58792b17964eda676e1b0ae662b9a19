@@ -1,0 +1,13 @@
+import type { PhysicalCollectionSummary } from '../types.js';
+export interface PhysicalCollectionCursorFilter {
+    readonly schemas?: readonly string[];
+    readonly tableNamePrefixes?: readonly string[];
+    readonly kinds?: readonly string[];
+}
+export interface DecodedPhysicalCollectionCursor {
+    readonly after: Pick<PhysicalCollectionSummary, 'schema' | 'tableName'>;
+    readonly filter: PhysicalCollectionCursorFilter;
+}
+export declare function encodePhysicalCollectionCursor(cursor: DecodedPhysicalCollectionCursor): string;
+export declare function decodePhysicalCollectionCursor(cursor: string): DecodedPhysicalCollectionCursor | undefined;
+export declare function sameCursorFilter(left: PhysicalCollectionCursorFilter, right: PhysicalCollectionCursorFilter): boolean;

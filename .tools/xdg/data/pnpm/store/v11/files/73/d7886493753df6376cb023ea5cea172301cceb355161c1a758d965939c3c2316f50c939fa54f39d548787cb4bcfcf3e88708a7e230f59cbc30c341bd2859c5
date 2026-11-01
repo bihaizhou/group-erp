@@ -1,0 +1,7 @@
+import { Hono } from 'hono';
+import type { NotificationLogs } from './logs.js';
+export interface NotificationRouterOptions {
+    readonly logs: Pick<NotificationLogs, 'get' | 'listDetails'>;
+}
+export declare function createNotificationRouter({ logs, }: NotificationRouterOptions): Hono;
+//# sourceMappingURL=router.d.ts.map

@@ -1,0 +1,1 @@
+{"version":3,"file":"permission-set-scope.d.ts","sourceRoot":"","sources":["../../../server/services/permission-set-scope.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,iBAAiB,EAAE,MAAM,oCAAoC,CAAC;AAC5E,OAAO,EAGL,KAAK,aAAa,EAEnB,MAAM,cAAc,CAAC;AAGtB;;;;GAIG;AACH,wBAAgB,8BAA8B,CAC5C,cAAc,EAAE,iBAAiB,GAChC,aAAa,CAmGf"}

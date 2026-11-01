@@ -1,0 +1,127 @@
+/**
+ * Conditions are built literally rather than through `FilterBuilder`, which
+ * picks `string()` or `number()` from a field's type. The Collection registry
+ * records field names only.
+ */
+export function condition(field, operator, value) {
+    return {
+        kind: 'condition',
+        path: [field],
+        operator,
+        ...(value === undefined ? {} : { value }),
+    };
+}
+/**
+ * A scope that matches no row, for a permitted action whose scope resolved to
+ * `false`. A value cannot be both empty and not empty, in any dialect.
+ */
+export function noRowsScope(primaryKey) {
+    return group('and', [
+        condition(primaryKey, '$empty'),
+        condition(primaryKey, '$notEmpty'),
+    ]);
+}
+export function anyScope(scopes) {
+    if (scopes.includes(true))
+        return true;
+    const items = scopes.filter((scope) => scope !== false);
+    if (items.length === 0)
+        return false;
+    return items.length === 1 ? items[0] : group('or', items);
+}
+export function allScopes(scopes) {
+    if (scopes.includes(false))
+        return false;
+    const items = scopes.filter((scope) => scope !== true);
+    if (items.length === 0)
+        return true;
+    return items.length === 1 ? items[0] : group('and', items);
+}
+/**
+ * Membership expands to one `$eq` per identifier because `FilterOperator` has
+ * no `$in` — `$includes` is a substring test. A negated list would expand the
+ * same way, as an `and` of `$ne`. Both collapse once db grows the operator.
+ */
+export function idsScope(field, ids) {
+    return anyScope(ids.map((id) => condition(field, '$eq', id)));
+}
+/** Attach a scope to its Collection. `true` and `false` are decided by the caller. */
+export function scopeAst(collection, scope) {
+    return {
+        kind: 'filter',
+        version: 1,
+        collection,
+        root: scope.kind === 'group' ? scope : group('and', [scope]),
+    };
+}
+function group(logic, items) {
+    return { kind: 'group', logic, items };
+}
+const operators = new Set([
+    '$includes',
+    '$notIncludes',
+    '$startsWith',
+    '$endsWith',
+    '$eq',
+    '$ne',
+    '$gt',
+    '$gte',
+    '$lt',
+    '$lte',
+    '$empty',
+    '$notEmpty',
+    '$dateOn',
+    '$dateNotOn',
+    '$dateBefore',
+    '$dateAfter',
+    '$dateNotBefore',
+    '$dateNotAfter',
+    '$dateBetween',
+    '$isTruly',
+    '$isFalsy',
+]);
+/**
+ * A Record Access policy may be configured rather than written, so what it
+ * returns is checked against the same rule db applies to a Policy scope: this
+ * Collection's own registered columns, no relation traversal, no JSON
+ * operator. The check runs here so a bad rule is a denial with a reason, not a
+ * Repository error at query time.
+ */
+export function assertDatabaseScope(value, fields) {
+    if (typeof value === 'boolean')
+        return;
+    assertScopeNode(value, new Set(fields));
+}
+function assertScopeNode(value, fields) {
+    if (!isRecord(value))
+        throw new Error('Invalid Record Access scope');
+    if (value.kind === 'group') {
+        if (value.logic !== 'and' && value.logic !== 'or') {
+            throw new Error('A Record Access scope group must be $and or $or');
+        }
+        if (!Array.isArray(value.items)) {
+            throw new Error('A Record Access scope group must have items');
+        }
+        for (const item of value.items)
+            assertScopeNode(item, fields);
+        return;
+    }
+    if (value.kind !== 'condition') {
+        throw new Error('A Record Access scope must not traverse relations');
+    }
+    const path = value.path;
+    if (!Array.isArray(path) || path.length !== 1) {
+        throw new Error('A Record Access scope must name a direct field');
+    }
+    const field = path[0];
+    if (typeof field !== 'string' || !fields.has(field)) {
+        throw new Error(`Unknown Record Access scope field: ${String(field)}`);
+    }
+    if (typeof value.operator !== 'string' || !operators.has(value.operator)) {
+        throw new Error(`Unsupported Record Access scope operator: ${String(value.operator)}`);
+    }
+}
+function isRecord(value) {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+//# sourceMappingURL=scope.js.map

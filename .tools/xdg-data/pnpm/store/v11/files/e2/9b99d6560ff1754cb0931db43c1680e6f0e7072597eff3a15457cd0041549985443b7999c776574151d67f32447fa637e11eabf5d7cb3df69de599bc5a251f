@@ -1,0 +1,15 @@
+import type { MailAccount, MailStartSyncInput, MailSyncRun } from '../../shared/mail.js';
+import type { MailStore } from '../contracts/persistence.js';
+type SyncSchedulingStore = Pick<MailStore, 'findActiveSyncRun' | 'getSyncCursor' | 'createSyncRun'>;
+/** Shared scheduling policy for user requests, automatic sweeps, and push delivery. */
+export declare class MailSyncScheduler {
+    private readonly store;
+    private readonly batchSize;
+    constructor(store: SyncSchedulingStore, batchSize: number);
+    request(account: MailAccount, requestedBy: string, input?: Pick<MailStartSyncInput, 'mode' | 'receivedAfter'>): Promise<{
+        readonly run: MailSyncRun;
+        readonly created: boolean;
+    }>;
+}
+export {};
+//# sourceMappingURL=schedule-sync.d.ts.map

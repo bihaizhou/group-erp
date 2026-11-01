@@ -1,0 +1,26 @@
+export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
+export type JsonObject = {
+    readonly [key: string]: JsonValue;
+};
+export interface ScheduleDefinition {
+    readonly key: string;
+    readonly title: string;
+    readonly description?: string;
+    readonly schedule: {
+        readonly cron: string;
+        readonly timezone?: string;
+        readonly from?: Date;
+        readonly to?: Date;
+        readonly limit?: number;
+    };
+    readonly target: {
+        readonly type: string;
+        readonly config: JsonObject;
+    };
+}
+export interface NormalizedScheduleDefinition extends Omit<ScheduleDefinition, 'schedule'> {
+    readonly schedule: Required<Pick<ScheduleDefinition['schedule'], 'cron' | 'timezone'>> & Omit<ScheduleDefinition['schedule'], 'cron' | 'timezone'>;
+    readonly definitionHash: string;
+}
+export declare function defineSchedule(definition: ScheduleDefinition): NormalizedScheduleDefinition;
+//# sourceMappingURL=define.d.ts.map

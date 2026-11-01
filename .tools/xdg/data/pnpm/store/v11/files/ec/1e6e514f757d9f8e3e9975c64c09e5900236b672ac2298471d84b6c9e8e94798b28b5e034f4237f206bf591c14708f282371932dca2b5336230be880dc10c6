@@ -1,0 +1,8 @@
+import type { RelationMutationAst } from './types.js';
+import { type FieldWritePolicy, type WritePolicy, type PolicyPath } from './write-policy.js';
+export declare function assertFieldWrites(values: Readonly<Record<string, unknown>>, policy: true | FieldWritePolicy, path: PolicyPath, relationPath?: readonly string[], operation?: string, collection?: string): void;
+/** Normalized values contain only caller-supplied fields; adapters add managed values later. */
+export declare function assertMutationWritePolicy(mutation: {
+    readonly values: Readonly<Record<string, unknown>>;
+    readonly relations?: RelationMutationAst;
+}, policy: true | WritePolicy, path?: PolicyPath, relationPath?: readonly string[], operation?: string, collection?: string): void;

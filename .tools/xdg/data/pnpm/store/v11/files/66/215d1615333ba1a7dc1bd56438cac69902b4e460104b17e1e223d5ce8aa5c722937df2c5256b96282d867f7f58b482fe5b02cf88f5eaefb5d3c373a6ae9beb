@@ -1,0 +1,17 @@
+export interface MailExecution<T> {
+    /** Settles only when the original work has ended. */
+    readonly completion: Promise<T>;
+    readonly signal: AbortSignal;
+}
+/** No queue: expired waits never create capacity for work that is still running. */
+export declare class MailExecutions {
+    private readonly limit;
+    private readonly timeoutMs;
+    private readonly active;
+    private stopped;
+    constructor(limit?: number, timeoutMs?: number);
+    get inFlight(): number;
+    submit<T>(work: (signal: AbortSignal) => Promise<T>): MailExecution<T> | undefined;
+    close(waitMs?: number): Promise<void>;
+}
+//# sourceMappingURL=execution.d.ts.map

@@ -1,0 +1,10 @@
+import { ServiceProvider } from '@nocobase/service-provider';
+import type { ClientApplication } from '@nocobase/app-client';
+import type { ClientServiceProviderConstructor } from '@nocobase/app-client/plugins';
+export declare class AuthenticationServiceProvider extends ServiceProvider<ClientApplication> {
+    readonly name: string;
+    boot(): Promise<void>;
+}
+declare const serviceProviders: readonly ClientServiceProviderConstructor[];
+export default serviceProviders;
+//# sourceMappingURL=service-provider.d.ts.map

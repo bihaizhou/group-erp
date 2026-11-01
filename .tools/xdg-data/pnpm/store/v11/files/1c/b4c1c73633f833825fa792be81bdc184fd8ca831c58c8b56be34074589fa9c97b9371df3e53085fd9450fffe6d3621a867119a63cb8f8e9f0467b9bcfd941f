@@ -1,0 +1,9 @@
+import type { MailProviderAuthorization } from '../../contracts/provider.js';
+import type { MailProviderResult } from '../../../shared/mail.js';
+import type { GmailMailProviderConfig, GmailTokenResponse } from './types.js';
+export declare function createAuthorization(): MailProviderAuthorization<GmailMailProviderConfig>;
+export declare function exchangeToken(config: GmailMailProviderConfig, body: Record<string, string>, signal?: AbortSignal): Promise<MailProviderResult<GmailTokenResponse>>;
+export declare function splitScopes(value: string | undefined, fallback: readonly string[]): readonly string[];
+export declare function expiry(seconds: number | undefined): string;
+export declare function required(value: string | undefined, label: string): string;
+//# sourceMappingURL=auth.d.ts.map

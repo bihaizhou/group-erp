@@ -1,0 +1,53 @@
+import type { CollectionBuilder } from '../../../collection/builder/builder.js';
+import type { ConnectionCollections } from '../../../collection/registry/types.js';
+import type { CollectionMetadataService } from '../../../metadata/service.js';
+import type { QueryAdapter } from '../../../query/types.js';
+import type { ExplainRepositoryEventsOptions, RepositoryEventsExplanation, RepositoryMutationListeners, RepositoryMutationSubscriptionOptions } from '../../../repository/events/types.js';
+import type { RepositoryOperationParent } from '../../../repository/internal/events/delivery.js';
+import type { NormalizedRepositoryPolicy } from '../../../repository/policy/types.js';
+import type { Repository, RepositoryRecord } from '../../../repository/types.js';
+import type { DatabaseCapabilities, SchemaAdapter } from '../../../schema/adapter.js';
+import type { SchemaInspector } from '../../../schema/inspector/types.js';
+import type { DatabaseDriver, SchemaManagementMode } from '../../config.js';
+import type { DatabaseConnection, ScopedDatabaseConnection } from '../../connection.js';
+import type { DatabaseDriverRuntime } from '../../runtime.js';
+import type { KnexDatabaseConnection } from './connection.js';
+import { type PolicyBindableConnection } from './policy-bound-connection.js';
+/**
+ * The transaction connection an `inTransaction` listener receives. It is the
+ * transaction connection of the call that emitted the event, except that the
+ * Repositories it hands out, directly, through `withPolicies` or in a
+ * savepoint, report that call as the parent of their own events. That is how
+ * `parentOperationId` and the recursion limit follow a chain of listener
+ * writes without ambient state.
+ */
+export declare class RepositoryListenerConnection implements PolicyBindableConnection {
+    private readonly inner;
+    private readonly parent;
+    constructor(inner: KnexDatabaseConnection, parent: RepositoryOperationParent);
+    get name(): string;
+    get driver(): DatabaseDriver;
+    get dialect(): string;
+    get schemaManagement(): SchemaManagementMode;
+    get capabilities(): DatabaseCapabilities;
+    get runtime(): DatabaseDriverRuntime;
+    get builder(): CollectionBuilder;
+    get collections(): ConnectionCollections;
+    get collectionMetadata(): CollectionMetadataService;
+    get query(): QueryAdapter;
+    get schema(): SchemaAdapter;
+    get schemaInspector(): SchemaInspector;
+    repository<TRecord extends object = RepositoryRecord, TCreate extends object = Partial<TRecord>, TUpdate extends object = Partial<TRecord>>(collection: string): Repository<TRecord, TCreate, TUpdate>;
+    createRepository<TRecord extends object = RepositoryRecord, TCreate extends object = Partial<TRecord>, TUpdate extends object = Partial<TRecord>>(collection: string, policy: NormalizedRepositoryPolicy | undefined): Repository<TRecord, TCreate, TUpdate>;
+    withPolicies<P>(policies: Parameters<DatabaseConnection['withPolicies']>[0], principal: P): ScopedDatabaseConnection;
+    client<T = unknown>(): Promise<T>;
+    connect(): Promise<this>;
+    disconnect(): Promise<void>;
+    reconnect(): Promise<this>;
+    resetManagedSchema(): Promise<void>;
+    transaction<T>(fn: (connection: DatabaseConnection) => Promise<T>): Promise<T>;
+    afterCommit(callback: () => void | Promise<void>): void;
+    afterRollback(callback: (error: unknown) => void | Promise<void>): void;
+    onRepositoryMutation(options: RepositoryMutationSubscriptionOptions, listeners: RepositoryMutationListeners): () => void;
+    explainRepositoryEvents(options: ExplainRepositoryEventsOptions): Promise<RepositoryEventsExplanation>;
+}

@@ -1,0 +1,20 @@
+export interface ServiceProviderLifecycle {
+    readonly name: string;
+    register(): void;
+    boot(): Promise<void>;
+    start(): Promise<void>;
+    ready(): Promise<void>;
+    shutdown(): Promise<void>;
+}
+export declare abstract class ServiceProvider<TApplication = unknown> implements ServiceProviderLifecycle {
+    protected readonly app: TApplication;
+    abstract readonly name: string;
+    constructor(app: TApplication);
+    register(): void;
+    boot(): Promise<void>;
+    start(): Promise<void>;
+    ready(): Promise<void>;
+    shutdown(): Promise<void>;
+}
+export type ServiceProviderConstructor<TApplication = unknown, TArguments extends readonly unknown[] = []> = new (app: TApplication, ...args: TArguments) => ServiceProvider<TApplication>;
+//# sourceMappingURL=provider.d.ts.map

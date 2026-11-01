@@ -1,0 +1,19 @@
+import type { AppPluginApplication, AppPluginProviderConstructor } from '@nocobase/app-server/plugins';
+import { ServiceProvider } from '@nocobase/service-provider';
+/**
+ * Binds the key-scope registry and the scoped-key service, and at boot teaches authentication and authorization to
+ * recognize a scoped key: `auth.required()` refuses one unless the route opts in, and the authorization identity of a
+ * request made with one carries its `keyScope`. Also lets a request carrying a valid API key read the application's API
+ * documentation, and adds the API key header to the document as a security scheme.
+ */
+export declare class ApiKeysProvider extends ServiceProvider<AppPluginApplication> {
+    readonly name: string;
+    private readonly releases;
+    private booted;
+    register(): void;
+    boot(): Promise<void>;
+    shutdown(): Promise<void>;
+}
+export declare const serviceProviders: readonly AppPluginProviderConstructor[];
+export default serviceProviders;
+//# sourceMappingURL=index.d.ts.map

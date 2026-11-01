@@ -1,0 +1,59 @@
+import type { Interfaces } from '@oclif/core';
+import { INVALID_USAGE, type CommandSuggestion } from './errors.ts';
+import { type CliInvocation } from './invocation.ts';
+export { INVALID_USAGE };
+/** A usage error, described for a `CommandError`. */
+export interface UsageFailure {
+    readonly message: string;
+    readonly suggestions: readonly CommandSuggestion[];
+    readonly exit: number;
+}
+/** The command a usage error was raised for. */
+export interface UsageContext {
+    /** Its id as words, such as `['db', 'apply']`. */
+    readonly words: readonly string[];
+    /** Every long flag name it accepts, without dashes, `json` and `no-` forms included. */
+    readonly flags: readonly string[];
+    /** The names of its positional arguments, in order. */
+    readonly args: readonly string[];
+    /** The values each option flag restricts itself to, by flag name. */
+    readonly options: Readonly<Record<string, readonly string[]>>;
+    /** How the help it points at is run; `cliInvocation()` when absent. */
+    readonly invocation?: CliInvocation;
+}
+/** The tree an unknown command is looked up in. */
+export interface CommandTreeNames {
+    /** Visible command ids in oclif's colon form, such as `db:apply`. */
+    readonly commandIds: readonly string[];
+    readonly topics: readonly string[];
+    /** How the suggested commands are run; `cliInvocation()` when absent. */
+    readonly invocation?: CliInvocation;
+}
+/**
+ * The usage failure behind an error oclif raised while parsing a command's arguments, or `undefined` for any other
+ * error, including a `CommandError` and a command's own `this.error()`.
+ */
+export declare function describeUsageError(error: unknown, context: UsageContext): UsageFailure | undefined;
+/**
+ * The usage failure behind oclif's "command not found", or `undefined` for any other error: the closest command ids,
+ * the topic's help when the first word is a topic, and the command that lists everything.
+ */
+export declare function describeUnknownCommand(error: unknown, tree: CommandTreeNames): UsageFailure | undefined;
+/**
+ * The command ids closest to what was typed. Each id is compared with as many leading words as it has, because oclif
+ * folds every word it cannot place into the id it reports, positional arguments included: `plugn register audit-log`
+ * arrives as `plugn:register:audit-log` and still finds `plugin register`.
+ */
+export declare function closestCommandIds(typed: readonly string[], commandIds: readonly string[]): string[];
+/** A command class as the usage context reads it. */
+export interface UsageCommand {
+    readonly flags?: Interfaces.FlagInput;
+    readonly baseFlags?: Interfaces.FlagInput;
+    readonly args?: Interfaces.ArgInput;
+    readonly enableJsonFlag?: boolean;
+}
+/** The usage context of `command`, answering to `words`. */
+export declare function usageContextFor(command: UsageCommand, words: readonly string[]): UsageContext;
+/** Every long flag name `command` accepts, as `UsageContext.flags` lists them. Hidden flags are left out. */
+export declare function acceptedFlagNames(command: UsageCommand): string[];
+//# sourceMappingURL=usage.d.ts.map

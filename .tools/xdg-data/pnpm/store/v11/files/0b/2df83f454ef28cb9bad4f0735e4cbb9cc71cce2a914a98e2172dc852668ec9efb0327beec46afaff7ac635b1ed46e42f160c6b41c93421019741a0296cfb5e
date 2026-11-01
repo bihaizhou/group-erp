@@ -1,0 +1,48 @@
+/**
+ * Declares one configuration section.
+ *
+ * A function is the shorthand for `{ defaults }`, so an existing `defineAppConfig((runtime) => ({ ... }))` keeps
+ * working unchanged.
+ */
+export function defineAppConfig(definition) {
+    if (typeof definition === 'function') {
+        return (runtime) => definition(runtime);
+    }
+    const { defaults } = definition;
+    // An object is returned as is rather than cloned: defaults may hold functions and instances, such as Better Auth
+    // plugins, and merging into the configuration copies what it keeps.
+    const factory = (runtime) => typeof defaults === 'function' ? defaults(runtime) : defaults;
+    const validators = toArray(definition.validate);
+    const publicPaths = [...(definition.public ?? [])];
+    const env = { ...definition.env };
+    if (validators.length === 0 &&
+        publicPaths.length === 0 &&
+        Object.keys(env).length === 0) {
+        return factory;
+    }
+    return Object.assign(factory, {
+        rules: Object.freeze({
+            validators: Object.freeze(validators),
+            public: Object.freeze(publicPaths),
+            env: Object.freeze(env),
+        }),
+    });
+}
+export function defaultAppConfigs(configs) {
+    const sections = new Map();
+    for (const [key, configure] of Object.entries(configs)) {
+        if (configure.rules)
+            sections.set(key, configure.rules);
+    }
+    const factory = (runtime) => Object.fromEntries(Object.entries(configs).map(([key, configure]) => [
+        key,
+        configure(runtime),
+    ]));
+    return Object.assign(factory, { sections });
+}
+function toArray(value) {
+    if (value === undefined)
+        return [];
+    return Array.isArray(value) ? [...value] : [value];
+}
+//# sourceMappingURL=define-app-config.js.map

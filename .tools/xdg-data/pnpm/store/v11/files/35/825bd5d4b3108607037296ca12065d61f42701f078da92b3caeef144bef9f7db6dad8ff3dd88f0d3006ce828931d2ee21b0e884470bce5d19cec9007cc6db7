@@ -1,0 +1,12 @@
+import { readFile } from 'node:fs/promises';
+import { injectSpaRuntimeHtml } from './runtime-html.js';
+export async function serveSpaIndex(indexPath, options = {}) {
+    const html = await readFile(indexPath, 'utf8');
+    return new Response(injectSpaRuntimeHtml(html, options), {
+        headers: {
+            'cache-control': 'no-cache',
+            'content-type': 'text/html; charset=utf-8',
+        },
+    });
+}
+//# sourceMappingURL=serve-index.js.map

@@ -1,0 +1,12 @@
+/** Initial state for a new message. */
+export const EMPTY_MAIL_COMPOSER = Object.freeze({
+    mode: 'new',
+    to: '',
+    cc: '',
+    bcc: '',
+    subject: '',
+    text: '',
+    html: '',
+    scheduledAt: '',
+});
+//# sourceMappingURL=composer.js.map

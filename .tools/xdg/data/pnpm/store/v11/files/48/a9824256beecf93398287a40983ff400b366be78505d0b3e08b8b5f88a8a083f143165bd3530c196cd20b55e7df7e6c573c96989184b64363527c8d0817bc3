@@ -1,0 +1,31 @@
+import type { Hono } from 'hono';
+import type { AuthorizationExtensionHost } from '../host.js';
+import { type SettingsRouterEnv } from './http.js';
+/** The tag every authorization settings route is listed under in the API document. */
+export declare const AUTHORIZATION_API_TAGS: string[];
+/** `/sharingRules` → `SharingRules`: the default name a route prefix gives its operation ids. */
+export declare function operationNameOf(path: string): string;
+/**
+ * `GET <prefix>/subjects/:type` and `POST <prefix>/subjects/:type/resolve`,
+ * gated by `settings:<settings>` `<action>`. `name` makes their operation ids unique, such as
+ * `authorizationListSharingRuleSubjects`.
+ */
+export declare function createSubjectRoutes(authz: Pick<AuthorizationExtensionHost, 'subjects'>, prefix: string, settings: string, action: string, name?: string): Hono<SettingsRouterEnv>;
+export interface RuleSupportRoutesOptions {
+    /** The rule's route prefix, as registered with `authz.routes.add`, such as `/sharingRules`. */
+    readonly path: string;
+    /** The rule's settings item, such as `authorization.sharing-rules`. */
+    readonly settings: string;
+    /**
+     * The PascalCase name the routes' operation ids use, such as `SharingRule` for `authorizationListSharingRuleOptions`.
+     * Defaults to `path` in PascalCase.
+     */
+    readonly name?: string;
+}
+/**
+ * `<path>/options`, `<path>/subjects/...` and `<path>/records/:collection`
+ * for a rule plugin, each gated by `settings:<settings>` `read`. The records list pages by `page` and `pageSize` and
+ * answers `404 COLLECTION_NOT_FOUND` for a name that is no Collection.
+ */
+export declare function createRuleSupportRoutes(authz: AuthorizationExtensionHost, options: RuleSupportRoutesOptions): Hono<SettingsRouterEnv>;
+//# sourceMappingURL=options.d.ts.map

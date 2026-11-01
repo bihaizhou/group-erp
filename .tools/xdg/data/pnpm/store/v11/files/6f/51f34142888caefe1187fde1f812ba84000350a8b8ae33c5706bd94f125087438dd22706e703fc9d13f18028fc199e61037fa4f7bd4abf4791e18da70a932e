@@ -1,0 +1,1 @@
+{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["../../../client/inbox/index.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,eAAe,EAAE,SAAS,EAAE,KAAK,SAAS,EAAE,MAAM,WAAW,CAAC;AACvE,OAAO,EACL,eAAe,EACf,aAAa,EACb,eAAe,EACf,mBAAmB,EACnB,KAAK,YAAY,EACjB,KAAK,UAAU,GAChB,MAAM,gBAAgB,CAAC;AACxB,YAAY,EACV,SAAS,EACT,iBAAiB,EACjB,mBAAmB,GACpB,MAAM,WAAW,CAAC"}

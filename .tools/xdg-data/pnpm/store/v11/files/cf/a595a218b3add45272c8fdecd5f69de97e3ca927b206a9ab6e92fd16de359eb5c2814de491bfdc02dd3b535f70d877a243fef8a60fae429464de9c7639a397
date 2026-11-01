@@ -1,0 +1,47 @@
+import { type NotificationTarget } from '@nocobase/app-plugin-notification';
+import { type NotificationChannelDefinition } from '@nocobase/app-plugin-notification';
+export interface ImRecipient {
+    readonly webhook: true;
+}
+export interface ImMessage {
+    readonly to?: never;
+    readonly text: string;
+    readonly title?: string;
+    readonly target?: Extract<NotificationTarget, {
+        type: 'url';
+    }>;
+    readonly format?: 'text' | 'markdown';
+    readonly payloads?: {
+        readonly feishu?: object;
+        readonly dingtalk?: object;
+    };
+}
+export interface PreparedImMessage {
+    readonly recipient: ImRecipient;
+    readonly content: ImMessage;
+}
+export interface ImProviderConfig {
+    readonly provider: string;
+    readonly enabled?: boolean;
+}
+export type ImChannelConfig = ImProviderConfig;
+export declare function createImChannelDefinition(): NotificationChannelDefinition<ImChannelConfig, ImRecipient, ImMessage, PreparedImMessage>;
+export declare function formatImText(message: ImMessage): string;
+declare module '@nocobase/app-plugin-notification' {
+    interface NotificationChannelSchemas {
+        'feishu-webhook': {
+            readonly recipient: ImRecipient;
+            readonly message: ImMessage;
+        };
+        'dingtalk-webhook': NotificationChannelSchemas['feishu-webhook'];
+    }
+}
+declare module '@nocobase/app-plugin-notification' {
+    interface NotificationChannelSchemas {
+        im: {
+            readonly recipient: ImRecipient;
+            readonly message: ImMessage;
+        };
+    }
+}
+//# sourceMappingURL=channel.d.ts.map

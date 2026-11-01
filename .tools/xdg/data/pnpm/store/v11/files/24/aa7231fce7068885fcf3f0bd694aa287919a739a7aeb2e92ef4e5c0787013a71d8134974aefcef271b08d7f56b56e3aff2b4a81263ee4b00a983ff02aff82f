@@ -1,0 +1,22 @@
+import { type DatabaseManager } from '@nocobase/db';
+import { type MailAccount, type MailProviderIdentity } from '../../shared/mail.js';
+import { type MailProviderPushSubscription } from '../contracts/provider.js';
+import { type MailStore } from '../contracts/persistence.js';
+export declare class MailPushStore {
+    private readonly database;
+    private readonly accounts;
+    constructor(database: DatabaseManager, accounts: Pick<MailStore, 'getAccount'>);
+    getPushSubscription(accountId: string): Promise<MailProviderPushSubscription | undefined>;
+    findPushSubscription(provider: MailProviderIdentity, providerSubscriptionId: string): Promise<MailProviderPushSubscription | undefined>;
+    findActiveAccountsForPush(provider: MailProviderIdentity, providerSubscriptionIds: readonly string[], accountAddresses: readonly string[]): Promise<readonly MailAccount[]>;
+    savePushSubscription(subscription: MailProviderPushSubscription, leaseToken?: string): Promise<boolean>;
+    claimPushSubscriptionMaintenance(account: MailAccount, leaseToken: string, now: string, leaseExpiresAt: string): Promise<import('../contracts/provider.js').MailPushSubscriptionMaintenanceLease | undefined>;
+    releasePushSubscriptionMaintenance(accountId: string, leaseToken: string): Promise<void>;
+    renewPushSubscriptionMaintenance(accountId: string, leaseToken: string, leaseExpiresAt: string): Promise<boolean>;
+    markPushSubscriptionReplacementNeeded(accountId: string, leaseToken: string, updatedAt: string): Promise<boolean>;
+    deletePushSubscription(accountId: string): Promise<boolean>;
+    markPushSyncPending(accountId: string, requestToken: string): Promise<void>;
+    markPushSyncPendingBatch(accountIds: readonly string[], requestToken: string): Promise<void>;
+    clearPushSyncPending(accountId: string, requestToken: string): Promise<void>;
+}
+//# sourceMappingURL=push.d.ts.map

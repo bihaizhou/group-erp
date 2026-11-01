@@ -1,0 +1,15 @@
+import { AppCommand } from '@nocobase/app-cli';
+import type { Interfaces } from '@oclif/core';
+/** What `scheduler sync` returns, and the `result` of its `--json` document. */
+export interface ScheduleSyncResult {
+    /** Whether declarations missing from the source were deactivated. */
+    readonly finalize: boolean;
+}
+export default class ScheduleSync extends AppCommand {
+    static summary: string;
+    static flags: {
+        finalize: Interfaces.BooleanFlag<boolean>;
+    };
+    run(): Promise<ScheduleSyncResult>;
+}
+//# sourceMappingURL=sync.d.ts.map

@@ -1,0 +1,19 @@
+import type { LocaleResource } from '@nocobase/i18n';
+declare const enUS: {
+    errors: {
+        logsForbidden: string;
+        logNotFound: string;
+        testHeaderRequired: string;
+        testForbidden: string;
+        testInvalidRequest: string;
+        testTargetUnavailable: string;
+        testUnknownField: string;
+        testRequiredField: string;
+        testFieldTooLong: string;
+        testFailed: string;
+        testNotFound: string;
+    };
+};
+export type NotificationServerResource = LocaleResource<typeof enUS>;
+export default enUS;
+//# sourceMappingURL=en-US.d.ts.map

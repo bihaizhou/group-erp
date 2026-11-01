@@ -1,0 +1,41 @@
+/** Owns the lifecycle of periodic notification reconciliation. */
+export class NotificationReconcileJob {
+    options;
+    timer;
+    running;
+    constructor(options) {
+        this.options = options;
+    }
+    start() {
+        if (this.timer)
+            return;
+        // Process-local on purpose. Delivery leases make a scan from every
+        // instance harmless, and a ScheduleExecutor `every` rule fires as soon as
+        // setup() writes it, which in install mode is before the notification
+        // tables exist.
+        this.timer = setInterval(() => this.execute(), this.options.intervalMs);
+        this.timer.unref?.();
+    }
+    async stop() {
+        if (this.timer) {
+            clearInterval(this.timer);
+            this.timer = undefined;
+        }
+        await this.running;
+    }
+    execute() {
+        if (this.running)
+            return;
+        const operation = this.options
+            .execute()
+            .catch((error) => {
+            this.options.logger.error({ event: 'notification.reconcile_failed', err: error }, 'Notification reconciliation failed.');
+        })
+            .finally(() => {
+            if (this.running === operation)
+                this.running = undefined;
+        });
+        this.running = operation;
+    }
+}
+//# sourceMappingURL=notification-reconcile-job.js.map

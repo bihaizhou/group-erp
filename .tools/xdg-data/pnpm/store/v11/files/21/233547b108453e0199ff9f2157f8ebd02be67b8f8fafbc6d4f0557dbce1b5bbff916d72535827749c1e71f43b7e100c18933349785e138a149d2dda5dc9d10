@@ -1,0 +1,62 @@
+import { AUTHORIZATION_NAMESPACE } from '../../shared.js';
+import { condition } from './scope.js';
+export class UserContextRequiredError extends Error {
+    constructor() {
+        super('This record access requires a user principal.');
+    }
+}
+function userId(principal) {
+    if (principal.type !== 'user')
+        throw new UserContextRequiredError();
+    return principal.id;
+}
+const title = (key) => ({ key, ns: AUTHORIZATION_NAMESPACE });
+/** The built-in record access, registered by `databasePlugin`. */
+export const builtInRecordAccess = [
+    {
+        key: 'allRecords',
+        collections: ['*'],
+        title: title('options.recordAccessPolicies.allRecords'),
+        resolve: () => true,
+    },
+    {
+        key: 'recordsIOwn',
+        collections: ['*'],
+        requiredFields: ['ownerId'],
+        title: title('options.recordAccessPolicies.recordsIOwn'),
+        resolve: ({ principal, params }) => condition(params?.field ?? 'ownerId', '$eq', userId(principal)),
+    },
+    {
+        key: 'recordsICreated',
+        collections: ['*'],
+        requiredFields: ['createdById'],
+        title: title('options.recordAccessPolicies.recordsICreated'),
+        resolve: ({ principal, params }) => condition(params?.field ?? 'createdById', '$eq', userId(principal)),
+    },
+    {
+        key: 'customFilter',
+        collections: ['*'],
+        title: title('options.recordAccessPolicies.customFilter'),
+        description: title('options.recordAccessPolicies.customFilterHint'),
+        paramsSchema: { type: 'filter-node' },
+        resolve: ({ params }) => {
+            if (!params || typeof params !== 'object' || !('filter' in params))
+                throw new Error('Custom Filter requires filter params');
+            return params.filter;
+        },
+    },
+];
+/** References to the built-in record access, for type-safe options and grants. */
+export const recordAccess = {
+    allRecords: { key: 'allRecords', collections: ['*'] },
+    recordsIOwn: { key: 'recordsIOwn', collections: ['*'] },
+    recordsICreated: { key: 'recordsICreated', collections: ['*'] },
+    customFilter: { key: 'customFilter', collections: ['*'] },
+};
+export function databaseRecordAccessApplicable(definition, fields) {
+    const required = Reflect.get(definition, 'requiredFields');
+    return (required === undefined ||
+        (Array.isArray(required) &&
+            required.every((field) => typeof field === 'string' && fields.includes(field))));
+}
+//# sourceMappingURL=record-access.js.map

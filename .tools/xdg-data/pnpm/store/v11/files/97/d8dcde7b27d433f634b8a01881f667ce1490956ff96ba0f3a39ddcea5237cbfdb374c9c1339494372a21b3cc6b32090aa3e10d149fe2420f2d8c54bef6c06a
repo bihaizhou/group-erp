@@ -1,0 +1,50 @@
+export const MAIL_PROVIDER_CAPABILITIES = [
+    'receive',
+    'send',
+    'incrementalSync',
+    'pushNotifications',
+    'folders',
+    'labels',
+    'drafts',
+    'moveMessage',
+    'aliases',
+];
+/** Folder relation used for drafts that are owned by Mail rather than a Provider. */
+export const MAIL_LOCAL_DRAFT_FOLDER_ID = '__nocobase_local_drafts__';
+export const MAIL_LABEL_COLORS = [
+    'slate',
+    'red',
+    'orange',
+    'amber',
+    'green',
+    'sky',
+    'blue',
+    'violet',
+    'pink',
+];
+export const DEFAULT_MAIL_LABEL_COLOR = 'blue';
+export function isMailLabelColor(value) {
+    return (typeof value === 'string' &&
+        MAIL_LABEL_COLORS.includes(value));
+}
+/** Stable query identifiers for standard folders spanning one or more accounts. */
+export const MAIL_VIRTUAL_FOLDER_IDS = {
+    inbox: '__nocobase_default_inbox__',
+    sent: '__nocobase_default_sent__',
+    drafts: '__nocobase_default_drafts__',
+    trash: '__nocobase_default_trash__',
+    junk: '__nocobase_default_junk__',
+    archive: '__nocobase_default_archive__',
+};
+export const MAIL_PROVIDER_ERROR_CATEGORIES = [
+    'authentication',
+    'configuration',
+    'recipient',
+    'content',
+    'rate_limit',
+    'network',
+    'timeout',
+    'provider',
+    'unknown',
+];
+//# sourceMappingURL=mail.js.map

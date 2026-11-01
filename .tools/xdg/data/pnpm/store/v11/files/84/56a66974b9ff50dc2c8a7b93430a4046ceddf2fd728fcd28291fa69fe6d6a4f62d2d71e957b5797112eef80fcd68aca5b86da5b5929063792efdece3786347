@@ -1,0 +1,31 @@
+import type { ConnectionCollections } from '../collection/registry/types.js';
+import type { CollectionDefinition, FieldDefinition } from '../collection/types.js';
+import { type FieldWritePolicy, type PolicyPath, type WritePolicy } from './write-policy.js';
+/** One way a write policy does not fit a Collection: where in the policy, and why. */
+export interface WritePolicyProblem {
+    /** The offending member, such as `['relations', 'tags', 'create', 'fields', 0]`. */
+    readonly path: readonly (string | number)[];
+    readonly message: string;
+}
+/**
+ * Whether the database or the Repository assigns a scalar field's value, so no write may name it: an `increments` or
+ * auto-increment column, a generated column, or the optimistic-lock version.
+ */
+export declare function isManagedField(collection: CollectionDefinition, field: FieldDefinition): boolean;
+/**
+ * The fields of a Collection a write may name: every scalar field the database and the Repository leave to the caller.
+ * A relation is written through a policy's `relations`, never through its field list. This is the list a write policy's
+ * `fields` must stay within.
+ */
+export declare function writableFields(collection: CollectionDefinition): string[];
+/**
+ * Every member of a write policy that does not fit the Collection metadata: a field that is missing or not a writable
+ * scalar, a relation that does not exist or whose target is missing, and `through` on anything but a `belongsToMany`.
+ * The same checks a write runs before it starts, which would refuse the policy with `INVALID_WRITE_POLICY`, collected
+ * rather than thrown so configuration can be checked when it is saved.
+ */
+export declare function writePolicyProblems(collections: Pick<ConnectionCollections, 'get'>, collection: CollectionDefinition, policy: WritePolicy): Promise<WritePolicyProblem[]>;
+/** Throws `INVALID_WRITE_POLICY` for the first field of `policy` that is not writable. */
+export declare function validatePolicyFields(collection: CollectionDefinition, policy: FieldWritePolicy, path: PolicyPath, managed?: readonly string[]): void;
+/** Throws for the first member of `policy` that does not fit the Collection metadata. */
+export declare function validateWritePolicyMetadata(collections: Pick<ConnectionCollections, 'get'>, collection: CollectionDefinition, policy: true | WritePolicy, path?: PolicyPath): Promise<void>;

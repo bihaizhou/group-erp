@@ -1,0 +1,498 @@
+import { closeDrafts } from './draft-states.js';
+import { upsertMessages } from './message-writes.js';
+import { assertDraftEditable } from './scheduled-drafts.js';
+import { lockWritableAccount } from './account-guard.js';
+import { validateLogPagination } from '../log-pagination.js';
+import { randomUUID } from 'node:crypto';
+import { toMailMessage, fromSubmissionRow } from './mappers.js';
+import { jsonOrNull, parseJson } from './serialization.js';
+import { mailFailedPrecondition, mailNotFound } from '../services/errors.js';
+export class MailSubmissionsStore {
+    database;
+    accounts;
+    constructor(database, accounts) {
+        this.database = database;
+        this.accounts = accounts;
+    }
+    async getSubmissionByIdempotencyKey(accountId, idempotencyKey) {
+        const row = await this.database
+            .query()
+            .selectFrom('mailSubmissions')
+            .selectAll()
+            .where('accountId', '=', accountId)
+            .where('idempotencyKey', '=', idempotencyKey)
+            .executeTakeFirst();
+        return row ? fromSubmissionRow(row) : undefined;
+    }
+    async countSubmissions(userId, bulkOnly = false, groupByBatch = false) {
+        const accounts = await this.accounts.listAccounts(userId);
+        if (accounts.length === 0)
+            return 0;
+        let query = this.database
+            .query()
+            .selectFrom('mailSubmissions')
+            .select(({ fn }) => [fn.countAll().as('count')])
+            .where('accountId', 'in', accounts.map((account) => account.id));
+        if (groupByBatch)
+            query = query.where('idempotencyKey', 'like', 'bulk:%:0');
+        else if (bulkOnly)
+            query = query.where('idempotencyKey', 'like', 'bulk:%');
+        const row = await query.executeTakeFirst();
+        return Number(row?.count ?? 0);
+    }
+    async listSubmissions(userId, bulkOnly = false, offset = 0, groupByBatch = false, limit = groupByBatch ? 20 : 100) {
+        validateLogPagination(offset, limit);
+        const accounts = await this.accounts.listAccounts(userId);
+        if (accounts.length === 0)
+            return [];
+        let query = this.database
+            .query()
+            .selectFrom('mailSubmissions')
+            .selectAll()
+            .where('accountId', 'in', accounts.map((account) => account.id));
+        if (groupByBatch) {
+            // sendBulk persists recipient zero first, making it the stable batch anchor.
+            const anchors = await query
+                .where('idempotencyKey', 'like', 'bulk:%:0')
+                .orderBy('createdAt', 'desc')
+                .orderBy('id', 'desc')
+                .offset(offset)
+                .limit(limit)
+                .execute();
+            if (anchors.length === 0)
+                return [];
+            const rows = await query
+                .where((builder) => builder.or(anchors.map((anchor) => {
+                const prefix = anchor.idempotencyKey.slice(0, -1);
+                return builder.and([
+                    builder('accountId', '=', anchor.accountId),
+                    builder('idempotencyKey', 'in', Array.from({ length: 100 }, (_, index) => `${prefix}${index}`)),
+                ]);
+            })))
+                .orderBy('createdAt', 'asc')
+                .orderBy('id', 'asc')
+                .execute();
+            return anchors.flatMap((anchor) => {
+                const prefix = anchor.idempotencyKey.slice(0, -1);
+                return rows
+                    .filter((row) => row.accountId === anchor.accountId &&
+                    row.idempotencyKey.startsWith(prefix))
+                    .map(fromSubmissionRow);
+            });
+        }
+        if (bulkOnly)
+            query = query.where('idempotencyKey', 'like', 'bulk:%');
+        const rows = await query
+            .orderBy('createdAt', 'desc')
+            .orderBy('id', 'desc')
+            .offset(offset)
+            .limit(limit)
+            .execute();
+        return rows.map(fromSubmissionRow);
+    }
+    async listAllSubmissions(offset, limit) {
+        validateLogPagination(offset, limit);
+        const [rows, count] = await Promise.all([
+            this.database
+                .query()
+                .selectFrom('mailSubmissions')
+                .selectAll()
+                .orderBy('createdAt', 'desc')
+                .orderBy('id', 'desc')
+                .offset(offset)
+                .limit(limit)
+                .execute(),
+            this.database
+                .query()
+                .selectFrom('mailSubmissions')
+                .select(({ fn }) => [fn.countAll().as('count')])
+                .executeTakeFirst(),
+        ]);
+        return {
+            items: rows.map(fromSubmissionRow),
+            total: Number(count?.count ?? 0),
+        };
+    }
+    async createSubmission(submission, idempotencyKey, requestFingerprint, actorId, input) {
+        const now = new Date().toISOString();
+        try {
+            await this.database.transaction(async ({ query }) => {
+                await lockWritableAccount(query, submission.accountId);
+                await query
+                    .insertInto('mailSubmissions')
+                    .values({
+                    ...submission,
+                    idempotencyKey,
+                    requestFingerprint,
+                    requestedBy: actorId,
+                    composeInput: input ? JSON.stringify(input) : null,
+                    error: jsonOrNull(submission.error),
+                    createdAt: now,
+                    updatedAt: now,
+                })
+                    .execute();
+                if (input)
+                    await closeDrafts(query, submission.accountId, input.draftMessageId, input.draftKey);
+            });
+        }
+        catch (error) {
+            const existing = await this.getSubmissionByIdempotencyKey(submission.accountId, idempotencyKey);
+            if (existing)
+                return existing;
+            throw error;
+        }
+        return {
+            ...submission,
+            requestFingerprint,
+            createdAt: now,
+            updatedAt: now,
+        };
+    }
+    async createScheduledSubmission(submission, idempotencyKey, requestFingerprint, actorId, input, draftSnapshot) {
+        const scheduledAt = submission.scheduledAt;
+        if (!scheduledAt)
+            throw new Error('Scheduled submission time is required.');
+        const now = new Date().toISOString();
+        try {
+            await this.database.transaction(async (connection) => {
+                await lockWritableAccount(connection.query, submission.accountId);
+                let deliveryInput = input;
+                if (draftSnapshot) {
+                    if (input.draftMessageId) {
+                        await assertDraftEditable(connection.query, submission.accountId, input.draftMessageId);
+                        const existingDraft = await connection.query
+                            .selectFrom('mailMessages')
+                            .selectAll()
+                            .where('id', '=', input.draftMessageId)
+                            .where('accountId', '=', submission.accountId)
+                            .where('draft', '=', true)
+                            .executeTakeFirst();
+                        if (!existingDraft)
+                            throw new Error('Mail draft was not found.');
+                        await connection.query
+                            .updateTable('mailMessages')
+                            .set({ providerMessageId: draftSnapshot.providerMessageId })
+                            .where('id', '=', existingDraft.id)
+                            .execute();
+                    }
+                    await upsertMessages(connection.query, submission.accountId, [
+                        draftSnapshot,
+                    ]);
+                    const savedDraft = await connection.query
+                        .selectFrom('mailMessages')
+                        .selectAll()
+                        .where('accountId', '=', submission.accountId)
+                        .where('providerMessageId', '=', draftSnapshot.providerMessageId)
+                        .executeTakeFirst();
+                    if (!savedDraft)
+                        throw new Error('Scheduled draft was not saved.');
+                    await connection.query
+                        .updateTable('mailMessages')
+                        .set({ scheduledSubmissionId: submission.id })
+                        .where('id', '=', savedDraft.id)
+                        .execute();
+                    deliveryInput = {
+                        ...input,
+                        draftMessageId: savedDraft.id,
+                        deliverySnapshot: input.deliverySnapshot ?? toMailMessage(savedDraft, [], []),
+                        retainedAttachmentIds: [],
+                        forwardBodyIncluded: true,
+                        replyBodyIncluded: true,
+                    };
+                }
+                await connection.query
+                    .insertInto('mailSubmissions')
+                    .values({
+                    ...submission,
+                    idempotencyKey,
+                    requestFingerprint,
+                    scheduledAt,
+                    requestedBy: actorId,
+                    composeInput: JSON.stringify(deliveryInput),
+                    error: jsonOrNull(submission.error),
+                    createdAt: now,
+                    updatedAt: now,
+                })
+                    .execute();
+                await connection.query
+                    .insertInto('mailOutbox')
+                    .values({
+                    id: randomUUID(),
+                    type: 'sendScheduledMail',
+                    aggregateId: submission.id,
+                    deduplicationKey: `scheduled-send:${submission.id}`,
+                    payload: JSON.stringify({
+                        version: 1,
+                        submissionId: submission.id,
+                    }),
+                    status: 'pending',
+                    attempts: 0,
+                    availableAt: scheduledAt,
+                    createdAt: now,
+                })
+                    .execute();
+            });
+        }
+        catch (error) {
+            const existing = await this.getSubmissionByIdempotencyKey(submission.accountId, idempotencyKey);
+            if (existing)
+                return existing;
+            throw error;
+        }
+        return {
+            ...submission,
+            requestFingerprint,
+            createdAt: now,
+            updatedAt: now,
+        };
+    }
+    async getScheduledSubmission(submissionId) {
+        const row = await this.database
+            .query()
+            .selectFrom('mailSubmissions')
+            .selectAll()
+            .where('id', '=', submissionId)
+            .executeTakeFirst();
+        if (!row?.requestedBy || !row.composeInput)
+            return undefined;
+        return {
+            actorId: row.requestedBy,
+            input: parseJson(row.composeInput, 'scheduled input'),
+            submission: fromSubmissionRow(row),
+        };
+    }
+    async clearScheduledSubmission(submissionId) {
+        await this.database
+            .query()
+            .updateTable('mailSubmissions')
+            .set({ requestedBy: null, composeInput: null })
+            .where('id', '=', submissionId)
+            .execute();
+    }
+    async failScheduledSubmission(submissionId, error) {
+        const existing = await this.getScheduledSubmission(submissionId);
+        if (!existing)
+            return;
+        await this.database.transaction(async ({ query }) => {
+            await lockWritableAccount(query, existing.submission.accountId);
+            const result = await query
+                .updateTable('mailSubmissions')
+                .set({
+                status: 'failed',
+                error: JSON.stringify(error),
+                updatedAt: new Date().toISOString(),
+            })
+                .where('id', '=', submissionId)
+                .where('status', '=', 'pending')
+                .execute();
+            if (result.updatedCount === 1)
+                await closeDrafts(query, existing.input.accountId, existing.input.draftMessageId ??
+                    existing.input.sourceDraft?.messageId, existing.input.draftKey);
+        });
+    }
+    async transitionSubmission(submissionId, action) {
+        const now = new Date().toISOString();
+        return this.database.transaction(async (connection) => {
+            const current = await connection.query
+                .selectFrom('mailSubmissions')
+                .select('accountId')
+                .where('id', '=', submissionId)
+                .executeTakeFirst();
+            if (!current)
+                throw mailNotFound('MAIL_SUBMISSION_NOT_FOUND', 'Mail submission was not found.', 'submissionId');
+            await lockWritableAccount(connection.query, current.accountId);
+            const result = await connection.query
+                .updateTable('mailSubmissions')
+                .set({
+                status: action === 'retry' ? 'pending' : 'cancelled',
+                error: null,
+                updatedAt: now,
+            })
+                .where('id', '=', submissionId)
+                .where('status', 'in', action === 'retry' ? ['failed'] : ['pending', 'failed'])
+                .where('composeInput', 'is not', null)
+                .execute();
+            if (result.updatedCount !== 1) {
+                throw mailFailedPrecondition('MAIL_SUBMISSION_STATE_INVALID', 'The mail submission cannot perform this action in its current state.');
+            }
+            if (action === 'cancel') {
+                await connection.query
+                    .updateTable('mailMessages')
+                    .set({ scheduledSubmissionId: null })
+                    .where('scheduledSubmissionId', '=', submissionId)
+                    .execute();
+            }
+            if (action === 'retry') {
+                await connection.query
+                    .insertInto('mailOutbox')
+                    .values({
+                    id: randomUUID(),
+                    type: 'sendScheduledMail',
+                    aggregateId: submissionId,
+                    deduplicationKey: `retry-send:${submissionId}:${randomUUID()}`,
+                    payload: JSON.stringify({ version: 1, submissionId }),
+                    status: 'pending',
+                    attempts: 0,
+                    availableAt: now,
+                    createdAt: now,
+                })
+                    .execute();
+            }
+            const row = await connection.query
+                .selectFrom('mailSubmissions')
+                .selectAll()
+                .where('id', '=', submissionId)
+                .executeTakeFirst();
+            if (!row)
+                throw new Error('Mail submission was not found.');
+            return fromSubmissionRow(row);
+        });
+    }
+    async claimSubmission(submissionId, leaseToken, leaseExpiresAt) {
+        return this.database.transaction(async ({ query }) => {
+            const submission = await query
+                .selectFrom('mailSubmissions')
+                .select('accountId')
+                .where('id', '=', submissionId)
+                .executeTakeFirst();
+            if (!submission)
+                return false;
+            const writable = await query
+                .updateTable('mailAccounts')
+                .set({ id: submission.accountId })
+                .where('id', '=', submission.accountId)
+                .where('status', '=', 'active')
+                .execute();
+            if (writable.updatedCount !== 1)
+                return false;
+            const result = await query
+                .updateTable('mailSubmissions')
+                .set({
+                status: 'submitting',
+                leaseToken,
+                leaseExpiresAt,
+                updatedAt: new Date().toISOString(),
+            })
+                .where('id', '=', submissionId)
+                .where('status', '=', 'pending')
+                .execute();
+            return result.updatedCount === 1;
+        });
+    }
+    async recoverExpiredSubmissions(now) {
+        const expired = await this.database
+            .query()
+            .selectFrom('mailSubmissions')
+            .selectAll()
+            .where('status', '=', 'submitting')
+            .where('leaseExpiresAt', '<=', now)
+            .execute();
+        let count = 0;
+        for (const row of expired) {
+            await this.database.transaction(async ({ query }) => {
+                await lockWritableAccount(query, row.accountId);
+                const result = await query
+                    .updateTable('mailSubmissions')
+                    .set({
+                    status: 'unknown',
+                    error: JSON.stringify({
+                        code: 'MAIL_SEND_RESULT_UNKNOWN',
+                        message: 'The Provider result is unknown after sender interruption.',
+                        category: 'unknown',
+                        retryable: false,
+                    }),
+                    leaseExpiresAt: null,
+                    leaseToken: null,
+                    updatedAt: now,
+                })
+                    .where('id', '=', row.id)
+                    .where('status', '=', 'submitting')
+                    .where('leaseExpiresAt', '<=', now)
+                    .execute();
+                if (result.updatedCount !== 1)
+                    return;
+                count++;
+                if (row.composeInput) {
+                    const input = parseJson(row.composeInput, 'outgoing content');
+                    await closeDrafts(query, row.accountId, input.draftMessageId ?? input.sourceDraft?.messageId, input.draftKey);
+                }
+            });
+        }
+        return count;
+    }
+    async finishSubmission(submission, leaseToken) {
+        const account = await this.accounts.getAccount(submission.accountId);
+        if (!account || account.status === 'removing')
+            return submission;
+        const writable = await this.database.transaction(async (connection) => {
+            const writable = await connection.query
+                .updateTable('mailAccounts')
+                .set({ id: submission.accountId })
+                .where('id', '=', submission.accountId)
+                .where('status', '!=', 'removing')
+                .execute();
+            if (writable.updatedCount !== 1)
+                return false;
+            const updated = await connection.query
+                .updateTable('mailSubmissions')
+                .set({
+                status: submission.status,
+                providerMessageId: submission.providerMessageId ?? null,
+                error: jsonOrNull(submission.error),
+                leaseToken: null,
+                leaseExpiresAt: null,
+                updatedAt: new Date().toISOString(),
+            })
+                .where('id', '=', submission.id)
+                .where('status', '=', 'submitting')
+                .where('leaseToken', '=', leaseToken)
+                .execute();
+            if (updated.updatedCount === 1 &&
+                ['accepted', 'failed', 'unknown'].includes(submission.status)) {
+                const stored = await connection.query
+                    .selectFrom('mailSubmissions')
+                    .select('composeInput')
+                    .where('id', '=', submission.id)
+                    .executeTakeFirst();
+                if (stored?.composeInput) {
+                    const input = parseJson(stored.composeInput, 'outgoing content');
+                    await closeDrafts(connection.query, submission.accountId, input.draftMessageId ?? input.sourceDraft?.messageId, input.draftKey);
+                }
+            }
+            if (updated.updatedCount === 1 && submission.status === 'accepted') {
+                // Persist refresh requests with acceptance so a restart cannot lose them.
+                const now = Date.now();
+                await connection.query
+                    .insertInto('mailOutbox')
+                    .values([0, 5_000, 30_000].map((delay) => ({
+                    id: randomUUID(),
+                    type: 'requestMailboxSync',
+                    aggregateId: submission.id,
+                    deduplicationKey: `sent-sync:${submission.id}:${delay}`,
+                    payload: JSON.stringify({
+                        version: 1,
+                        accountId: submission.accountId,
+                    }),
+                    status: 'pending',
+                    attempts: 0,
+                    availableAt: new Date(now + delay).toISOString(),
+                    createdAt: new Date(now).toISOString(),
+                })))
+                    .execute();
+            }
+            return true;
+        });
+        if (!writable)
+            return submission;
+        const row = await this.database
+            .query()
+            .selectFrom('mailSubmissions')
+            .selectAll()
+            .where('id', '=', submission.id)
+            .executeTakeFirst();
+        if (!row)
+            return submission;
+        return fromSubmissionRow(row);
+    }
+}
+//# sourceMappingURL=submissions.js.map

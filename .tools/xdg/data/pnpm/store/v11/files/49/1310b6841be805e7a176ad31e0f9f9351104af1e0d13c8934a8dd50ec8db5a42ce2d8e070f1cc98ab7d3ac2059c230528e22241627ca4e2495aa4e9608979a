@@ -1,0 +1,4 @@
+import { type MigrationDefinition } from '@nocobase/db';
+declare const migration: MigrationDefinition;
+export default migration;
+//# sourceMappingURL=202608190001_create_notification_tables.d.ts.map

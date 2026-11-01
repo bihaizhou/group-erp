@@ -1,0 +1,20 @@
+import { z } from 'zod';
+export declare const DEFAULT_INBOX_PAGE_SIZE = 20;
+export declare const MAX_INBOX_PAGE_SIZE = 100;
+/** The query of `GET /notificationInApp/messages`, a cursor-paged list, newest first. */
+export declare const InboxListQuery: z.ZodObject<{
+    pageSize: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    pageToken: z.ZodOptional<z.ZodString>;
+    unreadOnly: z.ZodOptional<z.ZodEnum<{
+        true: 'true';
+        false: 'false';
+    }>>;
+}>;
+export type InboxListQuery = z.infer<typeof InboxListQuery>;
+export declare const InboxMessageParams: z.ZodObject<{
+    messageId: z.ZodString;
+}>;
+export declare const InboxMessageSchema: z.ZodType;
+export declare const InboxUnreadCountSchema: z.ZodType;
+export declare const InboxMarkAllReadSchema: z.ZodType;
+//# sourceMappingURL=schemas.d.ts.map

@@ -1,0 +1,36 @@
+import type { ScheduleExecutionSettings } from '../executor.js';
+import type { ScheduleRule } from '../validation.js';
+/** Bumped whenever the file layout changes; unknown versions are refused, never guessed. */
+export declare const MEMORY_STATE_VERSION = 1;
+export interface MemoryJobState {
+    readonly options: ScheduleRule;
+    /** The payload as JSON reads it back, the same shape a Redis backend returns. */
+    readonly payload: unknown;
+    readonly settings: ScheduleExecutionSettings;
+    /** The next planned firing in epoch milliseconds, `null` when there is none. */
+    readonly nextRunAt: number | null;
+    /** Firings started since the rule was last written; `limit` counts against it. */
+    readonly fired: number;
+}
+export type MemoryState = ReadonlyMap<string, MemoryJobState>;
+/**
+ * File names encode both parts with `encodeURIComponent` and additionally
+ * encode `.`, so the `.` between them is unambiguous and a scope such as
+ * `@nocobase/app-plugin-scheduler` never becomes a path.
+ */
+export declare function memoryStateFileBase(namespace: string, scope: string): string;
+export declare class MemoryStateFile {
+    readonly filePath: string;
+    private readonly namespace;
+    private readonly scope;
+    constructor(filePath: string, namespace: string, scope: string);
+    /** Reads the state a previous process wrote, or nothing when there is no file yet. */
+    read(): Promise<Map<string, MemoryJobState>>;
+    /**
+     * Replaces the whole file with this state. It is written to a temporary
+     * file beside the target and renamed over it, so a crash while writing
+     * leaves either version whole.
+     */
+    write(state: MemoryState): Promise<void>;
+}
+//# sourceMappingURL=state-file.d.ts.map

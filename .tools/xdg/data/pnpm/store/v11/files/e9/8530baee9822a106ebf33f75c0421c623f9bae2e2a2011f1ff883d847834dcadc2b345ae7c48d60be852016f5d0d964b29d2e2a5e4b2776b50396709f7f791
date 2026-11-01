@@ -1,0 +1,5 @@
+export const NOTIFICATION_PROVIDERS_NAMESPACE = '@nocobase/app-plugin-notification-providers';
+export function notificationProviderText(key, defaultValue) {
+    return { ns: NOTIFICATION_PROVIDERS_NAMESPACE, key, defaultValue };
+}
+//# sourceMappingURL=i18n.js.map

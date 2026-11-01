@@ -1,0 +1,10 @@
+import { type MailAccount, type MailMessage, type MailOperationContext } from '../../shared/mail.js';
+import { type MailStore } from '../contracts/persistence.js';
+export declare function requireOwnedAccount(store: Pick<MailStore, 'getAccount'>, context: MailOperationContext, accountId: string): Promise<void>;
+export declare function requireOwnedMessage(store: Pick<MailStore, 'getAccount' | 'getMessage'>, context: MailOperationContext, accountId: string, messageId: string): Promise<OwnedMailMessage>;
+export declare function requireActiveAccount(store: Pick<MailStore, 'getAccount'>, context: MailOperationContext, accountId: string): Promise<MailAccount>;
+export interface OwnedMailMessage {
+    readonly account: MailAccount;
+    readonly message: MailMessage;
+}
+//# sourceMappingURL=access.d.ts.map

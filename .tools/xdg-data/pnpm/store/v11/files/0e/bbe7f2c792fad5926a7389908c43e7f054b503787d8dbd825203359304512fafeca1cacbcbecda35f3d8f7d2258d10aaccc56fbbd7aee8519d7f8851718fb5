@@ -1,0 +1,213 @@
+import { DEFAULT_MAIL_AUTOMATIC_SYNC_INTERVAL_MINUTES, resolveMailAutomaticSyncIntervalMinutes, resolveMailSyncBatchSize, } from './config.js';
+import { SendMailOperation } from './operations/send-mail.js';
+import { MailAccountsService } from './services/accounts.js';
+import { MailAttachmentsService } from './services/attachments.js';
+import { MailAuthorizationService } from './services/authorization.js';
+import { MailDraftsService } from './services/drafts.js';
+import { MailManagementService } from './services/management.js';
+import { MailMessagesService } from './services/messages.js';
+import { MailPreferencesService } from './services/preferences.js';
+import { MailProvidersService } from './services/providers.js';
+import { MailSubmissionsService } from './services/submissions.js';
+import { MailSyncService } from './services/sync.js';
+/** Stable application-facing facade for the internal mail services. */
+export class DefaultMailService {
+    providers;
+    authorization;
+    accounts;
+    preferences;
+    messages;
+    drafts;
+    attachments;
+    sync;
+    submissions;
+    management;
+    constructor(dependencies) {
+        const syncBatchSize = resolveMailSyncBatchSize(dependencies.syncBatchSize);
+        const defaultAutomaticSyncIntervalMinutes = resolveMailAutomaticSyncIntervalMinutes(dependencies.defaultAutomaticSyncIntervalMinutes ??
+            DEFAULT_MAIL_AUTOMATIC_SYNC_INTERVAL_MINUTES);
+        const sendMail = new SendMailOperation({
+            ...dependencies,
+            outbox: dependencies.outbox,
+        });
+        this.sync = new MailSyncService(dependencies, syncBatchSize);
+        this.providers = new MailProvidersService(dependencies);
+        this.authorization = new MailAuthorizationService(dependencies, this.sync, defaultAutomaticSyncIntervalMinutes);
+        this.accounts = new MailAccountsService(dependencies);
+        this.preferences = new MailPreferencesService(dependencies);
+        this.messages = new MailMessagesService(dependencies);
+        this.drafts = new MailDraftsService(dependencies, sendMail);
+        this.attachments = new MailAttachmentsService(dependencies);
+        this.submissions = new MailSubmissionsService(dependencies, sendMail);
+        this.management = new MailManagementService(dependencies);
+    }
+    listProviders() {
+        return this.providers.listProviders();
+    }
+    async connectAccount(context, input) {
+        return this.authorization.connectAccount(context, input);
+    }
+    async startAuthorization(context, input) {
+        return this.authorization.startAuthorization(context, input);
+    }
+    async completeAuthorization(input) {
+        return this.authorization.completeAuthorization(input);
+    }
+    async listAccounts(context) {
+        return this.accounts.listAccounts(context);
+    }
+    async updateAccount(context, input) {
+        return this.accounts.updateAccount(context, input);
+    }
+    async removeAccount(context, accountId) {
+        return this.accounts.removeAccount(context, accountId);
+    }
+    async listManagedAccounts(context) {
+        return this.management.listManagedAccounts(context);
+    }
+    listManagedSyncRunsPage(context, offset, limit) {
+        return this.management.listManagedSyncRunsPage(context, offset, limit);
+    }
+    listManagedSubmissionsPage(context, offset, limit) {
+        return this.management.listManagedSubmissionsPage(context, offset, limit);
+    }
+    listManagedFolders(_context, accountId) {
+        return this.management.listManagedFolders(_context, accountId);
+    }
+    listManagedMessages(_context, input) {
+        return this.management.listManagedMessages(_context, input);
+    }
+    getManagedMessage(context, accountId, messageId) {
+        return this.management.getManagedMessage(context, accountId, messageId);
+    }
+    getManagedAttachment(context, accountId, messageId, attachmentId) {
+        return this.attachments.getManagedAttachment(context, accountId, messageId, attachmentId);
+    }
+    async manageMessages(context, input) {
+        return this.management.manageMessages(context, input);
+    }
+    async listFolders(context, accountId) {
+        return this.messages.listFolders(context, accountId);
+    }
+    listLabels(context) {
+        return this.preferences.listLabels(context);
+    }
+    async listIdentities(context, accountId) {
+        return this.preferences.listIdentities(context, accountId);
+    }
+    async updateIdentity(context, input) {
+        return this.preferences.updateIdentity(context, input);
+    }
+    async listSignatures(context, accountId) {
+        return this.preferences.listSignatures(context, accountId);
+    }
+    async saveSignature(context, input) {
+        return this.preferences.saveSignature(context, input);
+    }
+    async updateSignature(context, input) {
+        return this.preferences.updateSignature(context, input);
+    }
+    async deleteSignature(context, accountId, signatureId) {
+        return this.preferences.deleteSignature(context, accountId, signatureId);
+    }
+    async createLabel(context, input) {
+        return this.preferences.createLabel(context, input);
+    }
+    async updateLabel(context, input) {
+        return this.preferences.updateLabel(context, input);
+    }
+    async deleteLabel(context, labelId) {
+        return this.preferences.deleteLabel(context, labelId);
+    }
+    async updateMessageLabels(context, input) {
+        return this.messages.updateMessageLabels(context, input);
+    }
+    getUnreadCount(context) {
+        return this.messages.getUnreadCount(context);
+    }
+    async startSync(context, input) {
+        return this.sync.startSync(context, input);
+    }
+    async getSyncRun(context, syncRunId) {
+        return this.sync.getSyncRun(context, syncRunId);
+    }
+    listSyncRunsPage(context, offset = 0, limit = 20) {
+        return this.sync.listSyncRunsPage(context, offset, limit);
+    }
+    async listSyncRuns(context, offset = 0, limit = 100) {
+        return this.sync.listSyncRuns(context, offset, limit);
+    }
+    async retrySyncRun(context, syncRunId) {
+        return this.sync.retrySyncRun(context, syncRunId);
+    }
+    async cancelSyncRun(context, syncRunId) {
+        return this.sync.cancelSyncRun(context, syncRunId);
+    }
+    async retrySubmission(context, submissionId) {
+        return this.submissions.transitionSubmission(context, submissionId, 'retry');
+    }
+    async cancelSubmission(context, submissionId) {
+        return this.submissions.transitionSubmission(context, submissionId, 'cancel');
+    }
+    listSubmissionsPage(context, bulkOnly = false, offset = 0, groupByBatch = false, limit = 20) {
+        return this.submissions.listSubmissionsPage(context, bulkOnly, offset, groupByBatch, limit);
+    }
+    async listSubmissions(context, bulkOnly = false, offset = 0, groupByBatch = false, limit = groupByBatch ? 20 : 100) {
+        return this.submissions.listSubmissions(context, bulkOnly, offset, groupByBatch, limit);
+    }
+    listMessages(context, input) {
+        return this.messages.listMessages(context, input);
+    }
+    retryMessageContent(context, accountId, messageId) {
+        return this.messages.retryMessageContent(context, accountId, messageId);
+    }
+    getMessage(context, accountId, messageId) {
+        return this.messages.getMessage(context, accountId, messageId);
+    }
+    async listConversationMessages(context, accountId, conversationId, input = {}) {
+        return this.messages.listConversationMessages(context, accountId, conversationId, input);
+    }
+    async sendMessage(context, input) {
+        return this.submissions.sendMessage(context, input);
+    }
+    async sendBulk(context, input) {
+        return this.submissions.sendBulk(context, input);
+    }
+    async saveDraft(context, input) {
+        return this.drafts.saveDraft(context, input);
+    }
+    async resolveDraftConflict(context, input) {
+        return this.drafts.resolveDraftConflict(context, input);
+    }
+    async getUploadedAttachment(context, attachmentId) {
+        return this.attachments.getUploadedAttachment(context, attachmentId);
+    }
+    async uploadAttachment(context, input) {
+        return this.attachments.uploadAttachment(context, input);
+    }
+    listTemplates(context) {
+        return this.preferences.listTemplates(context);
+    }
+    async saveTemplate(context, input) {
+        return this.preferences.saveTemplate(context, input);
+    }
+    async updateTemplate(context, input) {
+        return this.preferences.updateTemplate(context, input);
+    }
+    async deleteTemplate(context, templateId) {
+        return this.preferences.deleteTemplate(context, templateId);
+    }
+    async updateMessage(context, input) {
+        return this.messages.updateMessage(context, input);
+    }
+    async moveMessage(context, input) {
+        return this.messages.moveMessage(context, input);
+    }
+    async deleteMessage(context, input) {
+        return this.messages.deleteMessage(context, input);
+    }
+    async getAttachment(context, accountId, messageId, attachmentId) {
+        return this.attachments.getAttachment(context, accountId, messageId, attachmentId);
+    }
+}
+//# sourceMappingURL=service.js.map

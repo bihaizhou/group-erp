@@ -1,0 +1,102 @@
+import { createServiceToken, } from '@nocobase/service-provider';
+import { defineSchedule as buildScheduleDefinition, } from '../schedules/define.js';
+import { ScheduleNotFoundError, } from '../store.js';
+export class DefaultSchedulerService {
+    store;
+    occurrences;
+    targets;
+    manifest = [];
+    constructor(store, occurrences, targets) {
+        this.store = store;
+        this.occurrences = occurrences;
+        this.targets = targets;
+    }
+    defineSchedule(definition) {
+        this.manifest.push(Object.freeze({ definition: buildScheduleDefinition(definition) }));
+    }
+    registerTarget(target) {
+        this.targets.register(target);
+        const { type } = target;
+        return {
+            type,
+            reportCompletion: (occurrenceId, reference, completion) => this.occurrences.complete(occurrenceId, reference, completion, type),
+        };
+    }
+    async list() {
+        const [records, targets] = await Promise.all([
+            this.store.list(),
+            this.store.listTargets(),
+        ]);
+        const byId = new Map(targets.map((target) => [target.id, target]));
+        return Promise.all(records.map(async (record) => {
+            const target = byId.get(record.id);
+            return {
+                ...record,
+                targetState: target
+                    ? ((await this.targets.describe(target.type, target.config))
+                        .state ?? 'invalid')
+                    : 'missing',
+                targetSummary: target
+                    ? await this.targets.describe(target.type, target.config)
+                    : { targetLabel: record.targetType, state: 'missing' },
+            };
+        }));
+    }
+    /** One schedule with the same projection as `list()`, or `undefined` when this application has no such schedule. */
+    async get(id) {
+        return (await this.list()).find((entry) => entry.id === id);
+    }
+    async listOccurrences(scheduleId, range = {}) {
+        const occurrences = await this.store.listOccurrences(scheduleId, range);
+        return occurrences.map((occurrence) => {
+            const href = occurrence.target.reference
+                ? this.targets.referenceHref(occurrence.target.type, occurrence.target.reference)
+                : undefined;
+            return {
+                ...occurrence,
+                target: { ...occurrence.target, ...(href ? { href } : {}) },
+            };
+        });
+    }
+    async sync(finalize = false) {
+        const manifest = this.manifest;
+        const identities = new Set();
+        for (const entry of manifest) {
+            const identity = entry.definition.key;
+            if (identities.has(identity)) {
+                throw new Error(`Duplicate Schedule definition: ${entry.definition.key}`);
+            }
+            identities.add(identity);
+            const validation = this.targets.validate(entry.definition);
+            if (!validation.valid) {
+                throw new Error(`Invalid Schedule target for ${entry.definition.key}: ${validation.reason ?? 'invalid-config'}`);
+            }
+        }
+        await this.store.reconcile(manifest, finalize);
+    }
+    async setEnabled(id, enabled) {
+        await this.store.setEnabled(id, enabled);
+        const item = await this.get(id);
+        if (!item)
+            throw new ScheduleNotFoundError(id);
+        return item;
+    }
+    /** Finishes a sync that ran before the executor was set up; see `ScheduleStore.activate`. */
+    activate() {
+        return this.store.activate();
+    }
+    /** Records a firing this instance ran on its schedule's run state. */
+    recordEvent(event) {
+        return this.store.recordEvent(event);
+    }
+    /** Observes occurrences whose target completed without notifying us. */
+    reconcileOccurrences() {
+        return this.occurrences.reconcile(this.targets);
+    }
+}
+// The token is declared against the concrete service so that the code inside
+// this plugin — the provider, the HTTP routes and the CLI — reaches the
+// administration methods above. `server/tokens.ts` republishes this same
+// object narrowed to `SchedulerService`, which is all another plugin sees.
+export const schedulerServiceToken = createServiceToken('@nocobase/app-plugin-scheduler/service');
+//# sourceMappingURL=scheduler.js.map

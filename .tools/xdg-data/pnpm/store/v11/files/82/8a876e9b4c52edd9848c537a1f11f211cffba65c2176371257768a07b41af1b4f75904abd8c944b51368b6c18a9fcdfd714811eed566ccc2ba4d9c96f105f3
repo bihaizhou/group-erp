@@ -1,0 +1,21 @@
+import type { MigrationConnection } from '../../migration/types.js';
+import type { SeedHistoryRecord, SeedHistoryStatus } from '../types.js';
+export declare const DEFAULT_SEED_TABLE = "__nocobase_seeds";
+export declare function ensureSeedTable(connection: MigrationConnection, tableName?: string): Promise<void>;
+export declare function readSeedHistory(connection: MigrationConnection, tableName?: string): Promise<SeedHistoryRecord[]>;
+export declare function recordSeedCompleted(connection: MigrationConnection, options: {
+    tableName?: string;
+    packageName: string;
+    name: string;
+    checksum: string;
+    durationMs: number | null;
+    status?: SeedHistoryStatus;
+}): Promise<void>;
+/** Rewrites a recorded entry's outcome, such as a skipped sample seed that has now run. */
+export declare function updateSeedRecord(connection: MigrationConnection, options: {
+    tableName?: string;
+    name: string;
+    checksum: string;
+    durationMs: number | null;
+    status: SeedHistoryStatus;
+}): Promise<void>;

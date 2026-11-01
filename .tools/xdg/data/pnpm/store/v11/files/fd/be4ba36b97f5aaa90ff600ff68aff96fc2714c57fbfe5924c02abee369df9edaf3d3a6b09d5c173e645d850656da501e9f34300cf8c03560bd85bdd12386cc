@@ -1,0 +1,53 @@
+import { COMPOSITE_RESOURCE_TYPE, } from '../../core/composite.js';
+import { appendRuleAction } from '../internal/rules.js';
+export class RestrictionRuleBuilder {
+    resource;
+    definition;
+    constructor(resource, definition) {
+        this.resource = resource;
+        this.definition = definition;
+    }
+    scope(action, scopeKey, selection) {
+        this.resource.scope(action, scopeKey);
+        return new RestrictionRuleBuilder(this.resource, {
+            ...this.definition,
+            actions: appendRuleAction(this.definition.actions, {
+                action,
+                scopeKey,
+                selection,
+            }),
+        });
+    }
+    title(title) {
+        return new RestrictionRuleBuilder(this.resource, {
+            ...this.definition,
+            title,
+        });
+    }
+    subjects(...subjects) {
+        return new RestrictionRuleBuilder(this.resource, {
+            ...this.definition,
+            subjects: [...this.definition.subjects, ...structuredClone(subjects)],
+        });
+    }
+    reason(reason) {
+        return new RestrictionRuleBuilder(this.resource, {
+            ...this.definition,
+            reason,
+        });
+    }
+    build() {
+        return structuredClone(this.definition);
+    }
+}
+export function defineRestrictionRule(key, resource) {
+    if (!key)
+        throw new TypeError('A rule needs a key');
+    return new RestrictionRuleBuilder(resource, {
+        key,
+        resource: { type: COMPOSITE_RESOURCE_TYPE, id: resource.name },
+        actions: [],
+        subjects: [],
+    });
+}
+//# sourceMappingURL=builder.js.map

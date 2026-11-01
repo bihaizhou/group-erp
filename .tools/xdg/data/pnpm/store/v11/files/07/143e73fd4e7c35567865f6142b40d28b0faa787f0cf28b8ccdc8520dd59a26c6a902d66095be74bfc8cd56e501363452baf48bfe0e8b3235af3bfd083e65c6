@@ -1,0 +1,88 @@
+const binary = {
+    type: 'string',
+    format: 'binary',
+    description: 'The file content. Its name and type become `filename`, `ext` and `mimeType`.',
+};
+/**
+ * The URL a file record's content is served at. It is added to every record a file exposure returns, the data endpoints'
+ * included, where it is declared as a computed field.
+ */
+export const contentUrlSchema = {
+    type: 'string',
+    description: "The stable URL that serves the content: the application's public base path, the exposure's access path, then `{id}.{ext}` (or `{id}` without an extension). It is derived, never persisted, and present when the record carries `id` and `ext`.",
+};
+/** The file record an upload creates, with the content URL the response adds. */
+export const fileRecordSchema = {
+    type: 'object',
+    required: [
+        'id',
+        'disk',
+        'key',
+        'filename',
+        'ext',
+        'mimeType',
+        'size',
+        'createdAt',
+        'updatedAt',
+        'contentUrl',
+    ],
+    properties: {
+        id: { type: 'string', format: 'uuid' },
+        disk: {
+            type: 'string',
+            description: 'The storage disk the object was written to.',
+        },
+        key: { type: 'string', description: 'The object key on `disk`.' },
+        filename: { type: 'string', description: 'The original file name.' },
+        ext: {
+            type: 'string',
+            description: 'The lowercase extension without a dot; empty for a file without one.',
+        },
+        mimeType: { type: 'string' },
+        size: { type: 'integer', minimum: 0, description: 'The size in bytes.' },
+        createdAt: { type: 'string', description: 'An ISO 8601 timestamp.' },
+        updatedAt: { type: 'string', description: 'An ISO 8601 timestamp.' },
+        contentUrl: contentUrlSchema,
+    },
+};
+/** The multipart body of `uploadOne`: exactly one `file` field. */
+export const uploadOneBodySchema = {
+    type: 'object',
+    required: ['file'],
+    properties: { file: binary },
+};
+/** The multipart body of `uploadMany`: one or more `file` fields. */
+export const uploadManyBodySchema = {
+    type: 'object',
+    required: ['file'],
+    properties: {
+        file: {
+            type: 'array',
+            items: binary,
+            minItems: 1,
+            description: 'Repeat the `file` field once per file.',
+        },
+    },
+};
+export const uploadOneResultSchema = {
+    type: 'object',
+    required: ['record', 'createdTargets'],
+    properties: {
+        record: fileRecordSchema,
+        createdTargets: {
+            type: 'array',
+            items: { type: 'object', additionalProperties: true },
+            description: 'Related records the write created; always empty for an upload.',
+        },
+        version: { anyOf: [{ type: 'string' }, { type: 'integer' }] },
+    },
+};
+export const uploadManyResultSchema = {
+    type: 'object',
+    required: ['createdCount', 'records'],
+    properties: {
+        createdCount: { type: 'integer', minimum: 1 },
+        records: { type: 'array', items: fileRecordSchema },
+    },
+};
+//# sourceMappingURL=schemas.js.map

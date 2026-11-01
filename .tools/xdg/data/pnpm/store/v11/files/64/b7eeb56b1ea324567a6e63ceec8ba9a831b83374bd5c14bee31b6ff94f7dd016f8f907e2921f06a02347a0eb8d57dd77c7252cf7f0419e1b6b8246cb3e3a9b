@@ -1,0 +1,36 @@
+export function createAuthorizationMiddlewareRequest(http) {
+    const values = [];
+    const keys = new Set();
+    return {
+        http,
+        subjects: {
+            add(subject) {
+                const key = `${subject.type}\u0000${subject.id}`;
+                if (keys.has(key))
+                    return;
+                keys.add(key);
+                values.push(subject);
+            },
+            values() {
+                return [...values];
+            },
+        },
+    };
+}
+export async function runAuthorizationMiddlewares(middlewares, request, complete) {
+    let current = -1;
+    const dispatch = async (index) => {
+        if (index <= current) {
+            throw new Error('Authorization middleware called next() more than once');
+        }
+        current = index;
+        const middleware = middlewares[index];
+        if (!middleware) {
+            await complete();
+            return;
+        }
+        await middleware(request, () => dispatch(index + 1));
+    };
+    await dispatch(0);
+}
+//# sourceMappingURL=middleware.js.map

@@ -1,0 +1,4 @@
+import { type AppServerPlugin } from '@nocobase/app-server/plugins';
+declare const authzDefaultAccessPlugin: AppServerPlugin;
+export default authzDefaultAccessPlugin;
+//# sourceMappingURL=plugin.d.ts.map

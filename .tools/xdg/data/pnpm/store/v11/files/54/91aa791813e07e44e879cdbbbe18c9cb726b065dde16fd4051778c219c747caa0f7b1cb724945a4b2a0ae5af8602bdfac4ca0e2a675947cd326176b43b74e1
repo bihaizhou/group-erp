@@ -1,0 +1,11 @@
+export { AppCommand } from './context.ts';
+export type { AppCommandApp, AppCommandEnv } from './context.ts';
+export { CommandError } from './command/errors.ts';
+export type { CommandErrorOptions } from './command/errors.ts';
+export { COMMAND_JSON_SCHEMA_VERSION } from '@nocobase/cli-envelope';
+export type { CommandErrorJson, CommandFailureJson, CommandJson, CommandSuccessJson, CommandSuccessStatus, CommandSuggestion, } from '@nocobase/cli-envelope';
+export { appPath } from './command/flags.ts';
+export type { AppPathFlagOptions } from './command/flags.ts';
+export { APP_BUILD_HOOK_STAGES, APP_DEV_HOOK_STAGES, defineCliPlugin, defineCliPlugins, pluginTopicFor, } from './plugins/index.ts';
+export type { AppBuildHooks, AppBuildHookStage, AppCliCommand, AppCliCommands, AppCliHook, AppCliPlugin, AppCliPluginDefinition, AppCliPlugins, AppDevHooks, AppDevHookStage, } from './plugins/index.ts';
+//# sourceMappingURL=index.d.ts.map

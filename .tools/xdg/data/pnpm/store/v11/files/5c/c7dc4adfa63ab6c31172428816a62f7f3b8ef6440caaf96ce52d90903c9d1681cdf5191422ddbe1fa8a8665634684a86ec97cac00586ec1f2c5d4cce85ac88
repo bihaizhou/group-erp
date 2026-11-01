@@ -1,0 +1,17 @@
+/**
+ * Connections that can hand out a Repository whose writes are neither
+ * recorded nor delivered and never change how a bulk write executes. Kept off
+ * the public connection interface, so application code cannot switch events
+ * off; migration and seed tasks reach it through their repository accessor.
+ */
+const factories = new WeakMap();
+export function registerUnobservedRepositories(connection, factory) {
+    factories.set(connection, factory);
+}
+/** A Repository that emits no events, or an ordinary one where the connection cannot provide that. */
+export function unobservedRepository(connection, collection) {
+    const factory = factories.get(connection);
+    return factory
+        ? factory(collection)
+        : connection.repository(collection);
+}

@@ -1,0 +1,178 @@
+import { lockWritableAccount } from './account-guard.js';
+import { randomUUID } from 'node:crypto';
+import { replaceAccountIdentities, saveSignature } from './account-writes.js';
+import { fromFolderRow, fromIdentityRow, fromLabelRow, fromSignatureRow, } from './mappers.js';
+import { upsertFolders } from './message-writes.js';
+export class MailMetadataStore {
+    database;
+    constructor(database) {
+        this.database = database;
+    }
+    async listIdentities(accountId) {
+        const rows = await this.database
+            .query()
+            .selectFrom('mailIdentities')
+            .selectAll()
+            .where('accountId', '=', accountId)
+            .orderBy('address', 'asc')
+            .execute();
+        return rows.map(fromIdentityRow);
+    }
+    async replaceIdentities(accountId, identities) {
+        await this.database.transaction(async (connection) => {
+            await lockWritableAccount(connection.query, accountId);
+            await replaceAccountIdentities(connection.query, accountId, identities);
+        });
+    }
+    async getIdentity(identityId) {
+        const row = await this.database
+            .query()
+            .selectFrom('mailIdentities')
+            .selectAll()
+            .where('id', '=', identityId)
+            .executeTakeFirst();
+        return row ? fromIdentityRow(row) : undefined;
+    }
+    async updateIdentity(identityId, patch) {
+        await this.database.transaction(async ({ query }) => {
+            const identity = await query
+                .selectFrom('mailIdentities')
+                .select('accountId')
+                .where('id', '=', identityId)
+                .executeTakeFirst();
+            if (!identity)
+                return;
+            await lockWritableAccount(query, identity.accountId);
+            await query
+                .updateTable('mailIdentities')
+                .set({
+                displayName: patch.displayName ?? null,
+            })
+                .where('id', '=', identityId)
+                .execute();
+        });
+        return this.getIdentity(identityId);
+    }
+    async listSignatures(accountId) {
+        const rows = await this.database
+            .query()
+            .selectFrom('mailSignatures')
+            .selectAll()
+            .where('accountId', '=', accountId)
+            .orderBy('name', 'asc')
+            .orderBy('id', 'asc')
+            .execute();
+        return rows.map(fromSignatureRow);
+    }
+    async getSignature(signatureId) {
+        const row = await this.database
+            .query()
+            .selectFrom('mailSignatures')
+            .selectAll()
+            .where('id', '=', signatureId)
+            .executeTakeFirst();
+        return row ? fromSignatureRow(row) : undefined;
+    }
+    async saveSignature(signature) {
+        await this.database.transaction(async (connection) => {
+            await lockWritableAccount(connection.query, signature.accountId);
+            await saveSignature(connection.query, signature);
+        });
+        return signature;
+    }
+    async deleteSignature(accountId, signatureId) {
+        const result = await this.database
+            .query()
+            .deleteFrom('mailSignatures')
+            .where('id', '=', signatureId)
+            .where('accountId', '=', accountId)
+            .execute();
+        return result.deletedCount === 1;
+    }
+    async listFolders(accountId) {
+        const rows = await this.database
+            .query()
+            .selectFrom('mailFolders')
+            .selectAll()
+            .where('accountId', '=', accountId)
+            .orderBy('name', 'asc')
+            .execute();
+        return rows.map(fromFolderRow);
+    }
+    async listLabels(ownerId) {
+        const rows = await this.database
+            .query()
+            .selectFrom('mailLabels')
+            .selectAll()
+            .where('ownerId', '=', ownerId)
+            .orderBy('name', 'asc')
+            .execute();
+        return rows.map(fromLabelRow);
+    }
+    async createLabel(ownerId, name, color) {
+        const now = new Date().toISOString();
+        const row = {
+            id: randomUUID(),
+            ownerId,
+            name,
+            color,
+            createdAt: now,
+            updatedAt: now,
+        };
+        await this.database
+            .query()
+            .insertInto('mailLabels')
+            .values(row)
+            .execute();
+        return fromLabelRow(row);
+    }
+    async updateLabel(ownerId, labelId, patch) {
+        const result = await this.database
+            .query()
+            .updateTable('mailLabels')
+            .set({
+            name: patch.name,
+            color: patch.color,
+            updatedAt: new Date().toISOString(),
+        })
+            .where('id', '=', labelId)
+            .where('ownerId', '=', ownerId)
+            .execute();
+        if (result.updatedCount !== 1)
+            return undefined;
+        const row = await this.database
+            .query()
+            .selectFrom('mailLabels')
+            .selectAll()
+            .where('id', '=', labelId)
+            .where('ownerId', '=', ownerId)
+            .executeTakeFirst();
+        return row ? fromLabelRow(row) : undefined;
+    }
+    async deleteLabel(ownerId, labelId) {
+        const result = await this.database
+            .query()
+            .deleteFrom('mailLabels')
+            .where('id', '=', labelId)
+            .where('ownerId', '=', ownerId)
+            .execute();
+        return result.deletedCount === 1;
+    }
+    async saveFolder(accountId, folder) {
+        await this.database.transaction(async ({ query }) => {
+            await lockWritableAccount(query, accountId);
+            await upsertFolders(query, accountId, [folder]);
+        });
+        const row = await this.database
+            .query()
+            .selectFrom('mailFolders')
+            .selectAll()
+            .where('accountId', '=', accountId)
+            .where('providerFolderId', '=', folder.providerFolderId)
+            .executeTakeFirst();
+        if (!row)
+            throw new Error('Saved mail label was not found.');
+        return fromFolderRow(row);
+    }
+}
+//# sourceMappingURL=metadata.js.map

@@ -1,0 +1,7 @@
+import type { MailProviderResult } from '../../../shared/mail.js';
+import type { NormalizedMailFolder, NormalizedMailMessage } from '../../contracts/provider.js';
+import type { GmailMessageResource } from './types.js';
+export declare function normalizeMessage(message: GmailMessageResource): MailProviderResult<NormalizedMailMessage>;
+export declare function gmailFolderType(id: string): NormalizedMailFolder['type'];
+export declare function decodeBase64Url(value: string): Uint8Array;
+//# sourceMappingURL=normalize.d.ts.map

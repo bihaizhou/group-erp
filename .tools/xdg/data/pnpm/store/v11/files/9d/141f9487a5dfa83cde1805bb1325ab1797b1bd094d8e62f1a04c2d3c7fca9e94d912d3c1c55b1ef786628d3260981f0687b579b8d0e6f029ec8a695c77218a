@@ -1,0 +1,3 @@
+import type { FieldDefinition } from '../collection/types.js';
+/** Normalize only after the driver has preserved the exact stored integer. */
+export declare function decodeIntegerValue(field: FieldDefinition, value: unknown): string | number | null;

@@ -1,0 +1,8 @@
+export function resolveConfigWatch(rootDir: any, configuredPath: any): {
+    directory: string;
+    filenames: Set<string>;
+};
+export function watchConfigFiles(config: any, onChange: any): {
+    close(): void;
+};
+//# sourceMappingURL=config-watch.d.mts.map

@@ -1,0 +1,29 @@
+import type { Dirent } from 'node:fs';
+/**
+ * Loading a migration source and loading a seed source differ only in what a
+ * definition must contain. Reading the directory, choosing the files,
+ * importing a module, and rejecting a duplicate name are the same work, so
+ * they live here once and each loader names the kind for its messages.
+ */
+export type TaskKind = 'Migration' | 'Seed';
+export declare const DEFAULT_TASK_EXTENSIONS: readonly [".js", ".mjs", ".cjs", ".ts"];
+export declare const DEFAULT_TASK_PACKAGE_NAME = "app";
+/** A directory and a source array are two ways to say the same thing. */
+export declare function assertTaskSourceForm(kind: TaskKind, options: {
+    readonly directory?: unknown;
+    readonly sources?: unknown;
+}): void;
+export declare function validateTaskDirectory(kind: TaskKind, directory: unknown): string;
+export declare function validateTaskPackageName(kind: TaskKind, packageName: unknown): string;
+/** A source that does not exist holds no tasks; it is not an error. */
+export declare function readTaskDirectory(directory: string): Promise<Dirent[]>;
+export declare function isTaskFile(fileName: string, extensions: Set<string>): boolean;
+export declare function taskNameFromFileName(fileName: string): string;
+/** The mtime query keeps a re-read after an edit from serving a cached module. */
+export declare function importTaskDefinition(filePath: string, mtimeMs: number): Promise<unknown>;
+export declare function validateUniqueTaskNames(kind: TaskKind, tasks: readonly {
+    readonly name: string;
+    readonly filePath: string;
+}[]): void;
+export declare function isNonEmptyString(value: unknown): value is string;
+export declare function isValidTransactionMode(value: unknown): boolean;

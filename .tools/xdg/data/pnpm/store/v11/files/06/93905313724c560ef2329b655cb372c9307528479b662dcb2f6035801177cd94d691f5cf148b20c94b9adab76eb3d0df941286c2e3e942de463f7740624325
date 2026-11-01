@@ -1,0 +1,174 @@
+import { encodeAuthorizationTitle, decodeAuthorizationTitle, } from '@nocobase/authorization/core';
+const COLLECTION = 'authorizationRestrictionRules';
+const ASSIGNMENTS = 'authorizationRestrictionRuleAssignments';
+export class DatabaseRestrictionRuleStore {
+    connection;
+    constructor(connection) {
+        this.connection = connection;
+    }
+    withTransaction(connection) {
+        return new DatabaseRestrictionRuleStore(() => connection);
+    }
+    async create(rule) {
+        const now = new Date();
+        const id = crypto.randomUUID();
+        await this.connection().transaction(async (connection) => {
+            await connection.query
+                .insertInto(COLLECTION)
+                .values(this.toValues(rule, id, now, now))
+                .execute();
+            await this.replaceAssignments(connection, id, rule.subjects);
+        });
+        return rule;
+    }
+    async update(key, rule) {
+        await this.connection().transaction(async (connection) => {
+            const row = await connection.query
+                .selectFrom(COLLECTION)
+                .select('id')
+                .where('key', '=', key)
+                .executeTakeFirst();
+            if (!row)
+                throw new Error(`Unknown Restriction Rule: ${key}`);
+            const id = String(row.id);
+            await connection.query
+                .updateTable(COLLECTION)
+                .set({ ...this.toUpdateValues(rule), updatedAt: new Date() })
+                .where('id', '=', id)
+                .execute();
+            await connection.query
+                .deleteFrom(ASSIGNMENTS)
+                .where('restrictionRuleId', '=', id)
+                .execute();
+            await this.replaceAssignments(connection, id, rule.subjects);
+        });
+        return rule;
+    }
+    async delete(key) {
+        await this.connection().transaction(async (connection) => {
+            const row = await connection.query
+                .selectFrom(COLLECTION)
+                .select('id')
+                .where('key', '=', key)
+                .executeTakeFirst();
+            if (!row)
+                return;
+            await connection.query
+                .deleteFrom(ASSIGNMENTS)
+                .where('restrictionRuleId', '=', String(row.id))
+                .execute();
+            await connection.query
+                .deleteFrom(COLLECTION)
+                .where('id', '=', String(row.id))
+                .execute();
+        });
+    }
+    async get(key) {
+        const row = await this.connection()
+            .query.selectFrom(COLLECTION)
+            .select([
+            'id',
+            'key',
+            'title',
+            'resourceType',
+            'resourceId',
+            'actions',
+            'reason',
+        ])
+            .where('key', '=', key)
+            .executeTakeFirst();
+        if (!row)
+            return undefined;
+        return this.fromRow(row, await this.loadAssignments([String(row.id)]));
+    }
+    async list() {
+        const rows = await this.connection()
+            .query.selectFrom(COLLECTION)
+            .select([
+            'id',
+            'key',
+            'title',
+            'resourceType',
+            'resourceId',
+            'actions',
+            'reason',
+        ])
+            .orderBy('key', 'asc')
+            .execute();
+        const ids = rows.map((row) => String(row.id));
+        const assignments = await this.loadAssignments(ids);
+        return rows.map((row) => this.fromRow(row, assignments));
+    }
+    toValues(rule, id, createdAt, updatedAt) {
+        return { id, ...this.toUpdateValues(rule), createdAt, updatedAt };
+    }
+    toUpdateValues(rule) {
+        return {
+            key: rule.key,
+            title: encodeAuthorizationTitle(rule.title),
+            resourceType: rule.resource.type,
+            resourceId: rule.resource.id,
+            actions: JSON.stringify(rule.actions),
+            reason: rule.reason ?? null,
+        };
+    }
+    async replaceAssignments(connection, ruleId, subjects) {
+        if (subjects.length > 0)
+            await connection.query
+                .insertInto(ASSIGNMENTS)
+                .values(subjects.map((subject) => ({
+                id: crypto.randomUUID(),
+                restrictionRuleId: ruleId,
+                subjectType: subject.type,
+                subjectId: subject.id,
+                createdAt: new Date(),
+            })))
+                .execute();
+    }
+    async loadAssignments(ids) {
+        if (ids.length === 0)
+            return new Map();
+        const rows = await this.connection()
+            .query.selectFrom(ASSIGNMENTS)
+            .select(['restrictionRuleId', 'subjectType', 'subjectId'])
+            .where('restrictionRuleId', 'in', ids)
+            .execute();
+        const result = new Map();
+        for (const row of rows) {
+            const id = String(row.restrictionRuleId);
+            const values = result.get(id) ?? [];
+            values.push({ type: String(row.subjectType), id: String(row.subjectId) });
+            result.set(id, values);
+        }
+        return result;
+    }
+    fromRow(row, assignments) {
+        const value = row;
+        const title = decodeAuthorizationTitle(value.title);
+        const reason = optionalString(value.reason, 'restriction rule reason');
+        return {
+            key: String(value.key),
+            ...(title === undefined ? {} : { title }),
+            resource: {
+                type: String(value.resourceType),
+                id: String(value.resourceId),
+            },
+            actions: parseJson(value.actions, []),
+            subjects: assignments.get(String(value.id)) ?? [],
+            ...(reason === undefined ? {} : { reason }),
+        };
+    }
+}
+function parseJson(value, fallback) {
+    if (value == null)
+        return fallback;
+    return typeof value === 'string' ? JSON.parse(value) : value;
+}
+function optionalString(value, label) {
+    if (value == null)
+        return undefined;
+    if (typeof value === 'string')
+        return value;
+    throw new Error(`Invalid ${label}`);
+}
+//# sourceMappingURL=restriction-rules.js.map

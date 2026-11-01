@@ -1,0 +1,36 @@
+import type { ConfigMap } from '@nocobase/config';
+import type { AppConfigRules } from './define-app-config.js';
+export interface ConfigIssue {
+    readonly level: 'error' | 'warning';
+    /** The full path, such as `auth.emailAndPassword.disableSignUp`. */
+    readonly path: string;
+    readonly message: string;
+    readonly fix?: string;
+}
+/**
+ * The configuration breaks a rule its sections declare.
+ *
+ * Carries every issue found, warnings included, so a caller can report all of them at once rather than one per start.
+ * Recognised by `name` as well as by class, so a second copy of this package in the process is still recognised.
+ */
+export declare class AppConfigInvalidError extends Error {
+    readonly issues: readonly ConfigIssue[];
+    constructor(issues: readonly ConfigIssue[]);
+}
+/** Whether `error`, or anything in its cause chain, is an {@link AppConfigInvalidError}. */
+export declare function findAppConfigInvalid(error: unknown): AppConfigInvalidError | undefined;
+export declare function formatConfigIssues(issues: readonly ConfigIssue[]): string;
+/**
+ * Runs every section's validators against the merged configuration, and checks each section's public paths.
+ *
+ * Issues are collected rather than thrown, so one run reports everything that is wrong.
+ */
+export declare function validateConfigSections(current: ConfigMap, overrides: ConfigMap, sections: ReadonlyMap<string, AppConfigRules>): Promise<ConfigIssue[]>;
+/**
+ * The values sections publish, nested under their section name. A path with no value is left out, so the browser
+ * sees `undefined` and falls back to its own default.
+ */
+export declare function collectPublicConfig(current: ConfigMap, sections: ReadonlyMap<string, AppConfigRules>): ConfigMap;
+/** Every published path, in full, such as `auth.emailAndPassword.disableSignUp`. */
+export declare function listPublicPaths(sections: ReadonlyMap<string, AppConfigRules>): string[];
+//# sourceMappingURL=validation.d.ts.map

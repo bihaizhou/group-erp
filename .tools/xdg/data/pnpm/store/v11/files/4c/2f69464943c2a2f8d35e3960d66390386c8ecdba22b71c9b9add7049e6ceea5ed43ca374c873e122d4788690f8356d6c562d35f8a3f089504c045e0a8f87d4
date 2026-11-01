@@ -1,0 +1,1 @@
+{"version":3,"file":"concurrency.d.ts","sourceRoot":"","sources":["../../../../server/adapters/gmail/concurrency.ts"],"names":[],"mappings":"AAAA,wBAAsB,aAAa,CAAC,CAAC,EAAE,CAAC,EACtC,MAAM,EAAE,SAAS,CAAC,EAAE,EACpB,WAAW,EAAE,MAAM,EACnB,GAAG,EAAE,CAAC,KAAK,EAAE,CAAC,KAAK,OAAO,CAAC,CAAC,CAAC,GAC5B,OAAO,CAAC,SAAS,CAAC,EAAE,CAAC,CAYvB"}

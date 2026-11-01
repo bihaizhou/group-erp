@@ -1,0 +1,14 @@
+import type { MigrationSource, SeedSource } from '@nocobase/db';
+import type { AppDatabaseTaskContributions } from '../database/index.js';
+import type { AppServerPlugins, ResolvedAppPlugin, ResolvedAppServerPlugins } from './types.js';
+export interface ResolveAppServerPluginsOptions {
+    readonly defaultAppPackageName?: string;
+}
+export declare function resolveAppServerPlugins(rootDir: string, serverPlugins: AppServerPlugins, options?: ResolveAppServerPluginsOptions): ResolvedAppServerPlugins;
+/** The application identity and plugin task sources that database planning needs. */
+export declare function createAppDatabaseTaskContributions(resolved: ResolvedAppServerPlugins): AppDatabaseTaskContributions;
+export declare function createPluginMigrationSources(plugins: readonly ResolvedAppPlugin[]): MigrationSource[];
+export declare function createPluginSeedSources(plugins: readonly ResolvedAppPlugin[]): SeedSource[];
+/** @deprecated Always returns an empty list: Job modules are no longer discovered. */
+export declare function createPluginJobLocations(plugins: readonly ResolvedAppPlugin[]): string[];
+//# sourceMappingURL=resolve.d.ts.map

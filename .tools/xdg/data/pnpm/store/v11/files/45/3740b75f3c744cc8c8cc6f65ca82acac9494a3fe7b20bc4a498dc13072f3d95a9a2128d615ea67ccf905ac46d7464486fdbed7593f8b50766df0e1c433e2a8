@@ -1,0 +1,11 @@
+/** A navigation destination, independent of the application deployment prefix. */
+export type NotificationTarget = {
+    readonly type: 'route';
+    readonly path: string;
+} | {
+    readonly type: 'url';
+    readonly url: string;
+};
+export declare function isNotificationTarget(value: unknown): value is NotificationTarget;
+export declare function validateNotificationTarget(value: unknown): NotificationTarget | undefined;
+//# sourceMappingURL=target.d.ts.map

@@ -1,0 +1,4 @@
+import type { NotificationChannelMap, NotificationSendInput } from './types.js';
+export declare function validateNotificationIdempotencyKey(value: string): void;
+export declare function notificationRequestFingerprint<TChannels extends NotificationChannelMap>(input: NotificationSendInput<TChannels>): string;
+//# sourceMappingURL=idempotency.d.ts.map

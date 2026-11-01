@@ -1,0 +1,3 @@
+export { default } from './plugin.js';
+export { restrictionRules, type RestrictionRulesOptions, } from './authorization.js';
+//# sourceMappingURL=index.d.ts.map

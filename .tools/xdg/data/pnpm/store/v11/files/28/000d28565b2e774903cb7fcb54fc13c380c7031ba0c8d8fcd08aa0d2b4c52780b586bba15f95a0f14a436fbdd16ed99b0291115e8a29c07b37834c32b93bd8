@@ -1,0 +1,22 @@
+export type CollectionMetadataStoreErrorCode = 'METADATA_CONFLICT' | 'METADATA_STORE_READ_ONLY' | 'METADATA_STORE_INVALID_OPTIONS' | 'METADATA_STORE_INVALID_CURSOR' | 'LEGACY_METADATA_TRANSITION_FAILED';
+export declare class CollectionMetadataConflictError extends Error {
+    readonly collection: string;
+    readonly expectedRevision: string | number | null;
+    readonly actualRevision: string | number | null;
+    readonly code: "METADATA_CONFLICT";
+    constructor(collection: string, expectedRevision: string | number | null, actualRevision: string | number | null);
+}
+export declare class CollectionMetadataStoreReadOnlyError extends Error {
+    readonly operation: 'put' | 'delete';
+    readonly source?: string | undefined;
+    readonly code: "METADATA_STORE_READ_ONLY";
+    constructor(operation: 'put' | 'delete', source?: string | undefined);
+}
+export declare class CollectionMetadataStoreOptionsError extends Error {
+    readonly code: "METADATA_STORE_INVALID_OPTIONS";
+    constructor(message: string);
+}
+export declare class CollectionMetadataStoreCursorError extends Error {
+    readonly code: "METADATA_STORE_INVALID_CURSOR";
+    constructor();
+}

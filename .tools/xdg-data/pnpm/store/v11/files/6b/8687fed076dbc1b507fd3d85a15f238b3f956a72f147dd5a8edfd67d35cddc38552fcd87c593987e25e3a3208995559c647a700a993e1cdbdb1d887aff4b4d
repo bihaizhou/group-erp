@@ -1,0 +1,77 @@
+import type { Command, Interfaces } from '@oclif/core';
+import { AppCommand } from '../../context.ts';
+import { type PluginRegistrationPlan } from '../../lib/plugin-registration.ts';
+import { type PluginCommandInvocation, type PluginCommandIssue, type PluginPlanJson } from '../../lib/plugin-json.ts';
+import { type SkillsSyncPlan } from '../../lib/skills-sync.ts';
+/** The plugin was already registered exactly as asked; status `success-noop`. */
+export interface PluginRegisterNoopResult {
+    readonly appRoot: string;
+    readonly packageName: string;
+    readonly checked: readonly string[];
+    readonly notChecked: readonly string[];
+}
+/**
+ * A dry run for a plugin that is not installed yet. Its exports decide the registration plan, so the preview stops at
+ * the install command; status `partial-success`.
+ */
+export interface PluginRegisterInstallRequiredResult {
+    readonly appRoot: string;
+    readonly packageName: string;
+    readonly state: 'requires-installation';
+    readonly commands: readonly PluginCommandInvocation[];
+    readonly nextSteps: readonly string[];
+}
+/** Why the plugin's Skills were not copied. */
+export interface PluginRegisterSkillsSkipped {
+    readonly skipped: true;
+    readonly reason: '--no-skills';
+}
+/**
+ * What a registration did, or with `mode: 'dry-run'` would do. Status `partial-success` when a composition root has to
+ * be edited by hand, or when the registration stands but its Skills could not be copied (`issues`).
+ */
+export interface PluginRegisterPlanResult {
+    readonly mode: 'dry-run' | 'register';
+    readonly appRoot: string;
+    readonly packageName: string;
+    readonly plan: PluginPlanJson<PluginRegistrationPlan>;
+    /** The Skills copied, or planned in a dry run; absent when copying them failed. */
+    readonly skills?: SkillsSyncPlan | PluginRegisterSkillsSkipped;
+    /** Commands a dry run would still run; always empty, because the plugin is already installed. */
+    readonly commands?: readonly PluginCommandInvocation[];
+    readonly issues?: readonly PluginCommandIssue[];
+}
+export type PluginRegisterResult = PluginRegisterNoopResult | PluginRegisterInstallRequiredResult | PluginRegisterPlanResult;
+export default class PluginRegister extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static args: {
+        name: Interfaces.Arg<string>;
+    };
+    static flags: {
+        dir: Interfaces.OptionFlag<string | undefined>;
+        app: Interfaces.OptionFlag<string | undefined>;
+        'workspace-root': Interfaces.OptionFlag<string | undefined>;
+        version: Interfaces.OptionFlag<string | undefined>;
+        disabled: Interfaces.BooleanFlag<boolean>;
+        'no-install': Interfaces.BooleanFlag<boolean>;
+        'no-skills': Interfaces.BooleanFlag<boolean>;
+        'dry-run': Interfaces.BooleanFlag<boolean>;
+    };
+    run(): Promise<PluginRegisterResult>;
+    private register;
+    /**
+     * The range to record in the manifest. After an install the package manager has already written one, so it wins;
+     * otherwise the installed version supplies a caret range. A package with no readable version records `*`, which is
+     * honest about not knowing rather than inventing a range the registry would reject.
+     */
+    private dependencyRange;
+    /**
+     * Ensures the package is present and returns where it lives. A dry run for a package that is not installed returns
+     * the result that reports the install instead, because without the package there is nothing to plan from.
+     */
+    private install;
+    private describe;
+}
+//# sourceMappingURL=register.d.ts.map

@@ -1,0 +1,15 @@
+import { emptyDatabaseTaskContainer } from '../../task-container.js';
+import { emptyDatabaseTaskConfig, } from '../../task-config.js';
+import { createMigrationConnection, createTaskRepositoryAccessor, } from '../../migration/internal/context.js';
+export function createSeedContext(connection, config = emptyDatabaseTaskConfig, container = emptyDatabaseTaskContainer) {
+    return {
+        config,
+        container,
+        repository: createTaskRepositoryAccessor(connection),
+        query: connection.query,
+        connection: createSeedConnection(connection),
+    };
+}
+export function createSeedConnection(connection) {
+    return createMigrationConnection(connection);
+}

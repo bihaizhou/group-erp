@@ -1,0 +1,25 @@
+import type { QueryAdapter, Row } from '@nocobase/db';
+export interface MailParticipantSource {
+    readonly id: string;
+    readonly accountId: string;
+    readonly sender?: unknown;
+    readonly recipients: unknown;
+}
+export interface MailMessageParticipantRow extends Row {
+    messageId: string;
+    accountId: string;
+    role: 'from' | 'to' | 'cc';
+    address: string;
+    domain: string;
+}
+export interface MailParticipantCollection {
+    readonly rows: readonly MailMessageParticipantRow[];
+    readonly malformedValues: number;
+    readonly invalidAddresses: number;
+}
+/** Persisted address JSON is the source of truth; search text and Bcc are not. */
+export declare function collectMessageParticipants(message: MailParticipantSource): MailParticipantCollection;
+/** Use the caller's message-write transaction, never an independent connection. */
+export declare function replaceMessageParticipants(query: QueryAdapter, messages: readonly MailParticipantSource[]): Promise<void>;
+export declare function deleteMessageParticipants(query: QueryAdapter, messageIds: readonly string[], accountId?: string): Promise<void>;
+//# sourceMappingURL=message-participants.d.ts.map

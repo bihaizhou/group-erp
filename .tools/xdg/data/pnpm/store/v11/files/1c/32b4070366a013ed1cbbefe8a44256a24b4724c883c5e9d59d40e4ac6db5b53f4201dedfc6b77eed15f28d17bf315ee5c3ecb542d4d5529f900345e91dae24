@@ -1,0 +1,3 @@
+import type { SessionDuration } from './types.js';
+export declare function parseSessionDuration(value: SessionDuration, label: string): number;
+//# sourceMappingURL=duration.d.ts.map

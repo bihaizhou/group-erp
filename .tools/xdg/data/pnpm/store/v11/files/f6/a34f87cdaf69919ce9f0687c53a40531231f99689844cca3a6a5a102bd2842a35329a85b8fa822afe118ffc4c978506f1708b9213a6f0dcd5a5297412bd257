@@ -1,0 +1,68 @@
+import type { Command, Interfaces } from '@oclif/core';
+import { AppCommand } from '../../context.ts';
+import { type PluginUnregistrationPlan } from '../../lib/plugin-registration.ts';
+import { type PluginCommandInvocation, type PluginCommandIssue, type PluginPlanJson } from '../../lib/plugin-json.ts';
+export interface PluginUnregisterOptions {
+    readonly app?: string;
+    readonly dependencySections?: readonly string[];
+    readonly dir?: string;
+    readonly dryRun: boolean;
+    readonly noInstall: boolean;
+    readonly workspaceRoot?: string;
+}
+/** The plugin was neither registered, declared, nor had Skills in the App; status `success-noop`. */
+export interface PluginUnregisterNoopResult {
+    readonly appRoot: string;
+    readonly packageName: string;
+    readonly removedFrom: readonly string[];
+    readonly skillRemovals: readonly string[];
+}
+/** What an unregistration would do. Status `partial-success` when a composition root has to be edited by hand. */
+export interface PluginUnregisterDryRunResult {
+    readonly mode: 'dry-run';
+    readonly appRoot: string;
+    readonly packageName: string;
+    readonly plan: PluginPlanJson<PluginUnregistrationPlan>;
+    readonly skillRemovals: readonly string[];
+    readonly commands: readonly PluginCommandInvocation[];
+}
+/**
+ * What an unregistration did. Status `partial-success` when a composition root has to be edited by hand, or when the
+ * package manager did not remove the dependency (`issues`).
+ */
+export interface PluginUnregisterRemovedResult {
+    readonly mode: 'unregister';
+    readonly appRoot: string;
+    readonly packageName: string;
+    readonly removedFrom: readonly string[];
+    readonly removedSkills: readonly string[];
+    readonly plan: PluginPlanJson<PluginUnregistrationPlan>;
+    readonly issues?: readonly PluginCommandIssue[];
+}
+export type PluginUnregisterResult = PluginUnregisterNoopResult | PluginUnregisterDryRunResult | PluginUnregisterRemovedResult;
+/** Removing a plugin from an application, shared by `plugin unregister` and `package remove`. */
+export declare abstract class PluginUnregistrationCommand extends AppCommand {
+    protected unregisterPlugin(packageName: string, options: PluginUnregisterOptions): Promise<PluginUnregisterResult>;
+    /**
+     * Runs the package manager and returns its exit code. Under --json its output is collected rather than shown, because
+     * it would corrupt the one document on stdout.
+     */
+    private removeDependency;
+}
+export default class PluginUnregister extends PluginUnregistrationCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static args: {
+        name: Interfaces.Arg<string>;
+    };
+    static flags: {
+        dir: Interfaces.OptionFlag<string | undefined>;
+        app: Interfaces.OptionFlag<string | undefined>;
+        'workspace-root': Interfaces.OptionFlag<string | undefined>;
+        'no-install': Interfaces.BooleanFlag<boolean>;
+        'dry-run': Interfaces.BooleanFlag<boolean>;
+    };
+    run(): Promise<PluginUnregisterResult>;
+}
+//# sourceMappingURL=unregister.d.ts.map

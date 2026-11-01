@@ -1,0 +1,9 @@
+/** Whether `NOCOBASE_CLI_DEBUG` asks for diagnostics: set to anything but empty, `0` or `false`. */
+export declare function debugEnabled(env?: Readonly<Record<string, string | undefined>>): boolean;
+/** Records that the diagnostics behind `error` are on stderr already, so whatever rethrows it does not print them again. */
+export declare function markDiagnosed(error: unknown): void;
+/** Whether `markDiagnosed()` recorded `error`. */
+export declare function wasDiagnosed(error: unknown): boolean;
+/** The failure and everything behind it, redacted, as lines for stderr. */
+export declare function describeForDebugging(error: unknown): Promise<string>;
+//# sourceMappingURL=diagnostics.d.ts.map

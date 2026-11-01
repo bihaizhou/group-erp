@@ -1,0 +1,151 @@
+import type { Hono } from 'hono';
+import { type DescribeRouteOptions } from 'hono-openapi';
+import type { OpenAPIV3_1 } from 'openapi-types';
+export type ApiDocument = OpenAPIV3_1.Document;
+export interface ApiDocumentInfo {
+    readonly title: string;
+    readonly version: string;
+    readonly description?: string;
+}
+/**
+ * Paths, components and tags a plugin contributes to the document for routes it does not declare with
+ * `describeRoute()`, such as Better Auth's. Paths are full paths below the application's base path, starting with
+ * `/api/`.
+ */
+export interface ApiDocumentFragment {
+    /** Who contributes the fragment, such as a plugin's package name. Named in warnings. */
+    readonly owner: string;
+    /**
+     * camelCase prefix for an `operationId` or component name that collides with one already in the document. Defaults
+     * to the owner's package name without its scope and `app-plugin-`, in camelCase.
+     */
+    readonly namespace?: string;
+    readonly paths?: OpenAPIV3_1.PathsObject;
+    readonly components?: OpenAPIV3_1.ComponentsObject;
+    readonly tags?: readonly OpenAPIV3_1.TagObject[];
+    /**
+     * Security requirements the fragment adds to the document's top-level `security`, naming schemes declared in its
+     * `components.securitySchemes`. The document lists every contributed requirement, each one an alternative: a
+     * request satisfying any of them is authenticated, such as `[{ cookieAuth: [] }, { apiKeyAuth: [] }]`. A route that
+     * needs no credential declares `security: []` in its `describeRoute()`. With nothing contributed the document has no
+     * top-level `security`.
+     */
+    readonly security?: readonly OpenAPIV3_1.SecurityRequirementObject[];
+}
+export interface GenerateApiDocumentOptions {
+    readonly info: ApiDocumentInfo;
+    /** The path the router is mounted at. Defaults to `/api`. */
+    readonly prefix?: string;
+    readonly servers?: readonly OpenAPIV3_1.ServerObject[];
+    readonly fragments?: readonly ApiDocumentFragment[];
+    /**
+     * Routes behind runtime dispatchers, documented like declared routes at their own prefix. Defaults to the source's
+     * `forwardedApiRoutes`.
+     */
+    readonly forwarded?: ApiForwardedRoutes;
+    /** Receives what the merge had to drop or rename, such as a fragment operation colliding with a declared route. */
+    readonly onWarning?: (message: string) => void;
+}
+/** One endpoint of an API router and what `describeRoute()` declared for it. */
+export interface ApiRouteDeclaration {
+    readonly method: string;
+    /** The Hono path including the prefix, such as `/api/users/:userId`. */
+    readonly path: string;
+    /** Whether a `describeRoute()` applies to it, including `describeRoute({ hide: true })`. */
+    readonly declared: boolean;
+    readonly hidden: boolean;
+    /** The `operationId` the declaration names; absent when the document would have to invent one. */
+    readonly operationId?: string;
+    readonly tags?: readonly string[];
+    readonly summary?: string;
+    /** For an endpoint registered with `addUndeclaredApiRoute`, why it cannot be described. */
+    readonly reason?: string;
+}
+/**
+ * A Hono router a runtime dispatcher forwards requests to. The dispatcher is a single catch-all on the `/api` router,
+ * so the router's routes are invisible there; registering it lets the document and the route inspection treat them
+ * exactly like routes mounted on `/api`.
+ */
+export interface ApiForwardedRouter {
+    /** Who registers the router, such as a plugin's package name. Named in warnings and duplicate-route errors. */
+    readonly owner: string;
+    /** The full path the router's own paths are appended to, `/api` or below it, such as `/api/authorization`. */
+    readonly prefix: string;
+    /**
+     * The sub-path below `prefix` the dispatcher actually forwards to this router, such as `/sharingRules`, when the
+     * router's paths include it. A route the router declares outside `prefix` + `scope` is never reached: it is left out
+     * of the document and the duplicate-route check and reported as undeclared. Defaults to all of `prefix`.
+     */
+    readonly scope?: string;
+    readonly router: Hono;
+}
+/**
+ * An endpoint a runtime dispatcher forwards to that the framework cannot see into, such as a plain function handler.
+ * It always counts as undeclared and never appears in the document.
+ */
+export interface ApiUndeclaredRoute {
+    /** Who registers the endpoint, such as a plugin's package name. */
+    readonly owner: string;
+    /** The HTTP method, or `ALL` for a handler answering every method. */
+    readonly method: string;
+    /** The full path, such as `/api/authorization/handWritten`. */
+    readonly path: string;
+    /** Why the endpoint cannot be described, reported with it. */
+    readonly reason?: string;
+}
+/** What runtime dispatchers forward to, as registered on the `ApiDocsService`. */
+export interface ApiForwardedRoutes {
+    readonly routers: readonly ApiForwardedRouter[];
+    readonly undeclared: readonly ApiUndeclaredRoute[];
+}
+/** An application whose API router can be inspected once its routes are registered. */
+export interface ApiRouterSource {
+    readonly apiRouter: Hono | undefined;
+    /** Routes behind runtime dispatchers, inspected and documented along with `apiRouter`'s own. */
+    readonly forwardedApiRoutes?: ApiForwardedRoutes;
+}
+/** The `describeRoute()` declaration a handler carries, if it is one. */
+export declare function describeSpecOf(handler: unknown): DescribeRouteOptions | undefined;
+/**
+ * Every endpoint of an API router with what `describeRoute()` declares for it, in registration order. The application's
+ * catch-all for unknown paths is not an endpoint and is left out. A declaration applied with `router.use()` counts for
+ * the paths below it, as it does in the document.
+ *
+ * For an application, or anything else carrying `forwardedApiRoutes`, the routes of every router registered with
+ * `addApiRouter` follow at their own prefix, judged the same way, and every endpoint registered with
+ * `addUndeclaredApiRoute` follows as undeclared.
+ */
+export declare function inspectApiRoutes(source: Hono | ApiRouterSource, prefix?: string): ApiRouteDeclaration[];
+/** The full path a dispatcher forwards to a registered router: its prefix followed by its scope. */
+export declare function forwardedPath(registration: ApiForwardedRouter): string;
+/** Whether the dispatcher forwards a request for `path`, a full path such as `/api/authorization/x`, to the router. */
+export declare function isForwardedTo(registration: ApiForwardedRouter, path: string): boolean;
+/**
+ * The endpoints that declare nothing: neither `describeRoute({...})` nor `describeRoute({ hide: true })`. For an
+ * application this includes the routes behind runtime dispatchers, and every endpoint registered with
+ * `addUndeclaredApiRoute`. Each is a defect the API document check reports.
+ */
+export declare function findUndeclaredApiRoutes(source: Hono | ApiRouterSource, prefix?: string): {
+    readonly method: string;
+    readonly path: string;
+}[];
+/**
+ * Generate the OpenAPI 3.1 document for an API router: every route declared with `describeRoute()` and not hidden,
+ * data endpoints expanded from their Collections, and the fragments merged in.
+ */
+export declare function generateApiDocument(source: Hono | ApiRouterSource, options: GenerateApiDocumentOptions): Promise<ApiDocument>;
+/**
+ * Merge one fragment into a document in place.
+ *
+ * - A component whose name is free is added; one identical to an existing component is shared; one that differs is
+ *   renamed with the fragment's namespace in PascalCase as prefix (`AuthSession`; a security scheme takes it in
+ *   camelCase, `authCookieAuth`), and every `$ref` and security requirement in the fragment follows the rename.
+ * - An operation whose method and path the document already has is dropped with a warning: a declared route is what
+ *   actually answers.
+ * - An `operationId` already in use is prefixed with the namespace (`authSignIn`), then numbered if still taken.
+ * - Tags merge by name; a description already in the document wins.
+ * - Security requirements are appended to the document's top-level `security` unless an identical one is already
+ *   there, following any rename of the security schemes they name.
+ */
+export declare function mergeApiDocumentFragment(document: ApiDocument, fragment: ApiDocumentFragment, onWarning?: (message: string) => void): void;
+//# sourceMappingURL=document.d.ts.map

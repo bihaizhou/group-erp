@@ -1,0 +1,98 @@
+import { fromOutboxRow } from './mappers.js';
+export class MailOutboxStore {
+    database;
+    constructor(database) {
+        this.database = database;
+    }
+    async claimOutbox(now, leaseToken, leaseExpiresAt, limit) {
+        const candidates = await this.database
+            .query()
+            .selectFrom('mailOutbox')
+            .selectAll()
+            .where('availableAt', '<=', now)
+            .where((builder) => builder.or([
+            builder.eb('status', '=', 'pending'),
+            builder.eb.and([
+                builder.eb('status', '=', 'publishing'),
+                builder.eb('leaseExpiresAt', '<=', now),
+            ]),
+        ]))
+            .orderBy('createdAt', 'asc')
+            .limit(limit)
+            .execute();
+        const claimed = [];
+        for (const candidate of candidates) {
+            const result = await this.database
+                .query()
+                .updateTable('mailOutbox')
+                .set({
+                status: 'publishing',
+                attempts: candidate.attempts + 1,
+                leaseToken,
+                leaseExpiresAt,
+            })
+                .where('id', '=', candidate.id)
+                .where('availableAt', '<=', now)
+                .where((builder) => builder.or([
+                builder.eb('status', '=', 'pending'),
+                builder.eb.and([
+                    builder.eb('status', '=', 'publishing'),
+                    builder.eb('leaseExpiresAt', '<=', now),
+                ]),
+            ]))
+                .execute();
+            if (result.updatedCount === 1) {
+                claimed.push(fromOutboxRow({
+                    ...candidate,
+                    status: 'publishing',
+                    attempts: candidate.attempts + 1,
+                    leaseToken,
+                    leaseExpiresAt,
+                }));
+            }
+        }
+        return claimed;
+    }
+    async markOutboxPublished(outboxId, leaseToken, publishedAt) {
+        const result = await this.database
+            .query()
+            .updateTable('mailOutbox')
+            .set({
+            status: 'published',
+            leaseToken: null,
+            leaseExpiresAt: null,
+            publishedAt,
+        })
+            .where('id', '=', outboxId)
+            .where('status', '=', 'publishing')
+            .where('leaseToken', '=', leaseToken)
+            .execute();
+        return result.updatedCount === 1;
+    }
+    async deletePublishedOutboxBefore(before) {
+        const result = await this.database
+            .query()
+            .deleteFrom('mailOutbox')
+            .where('status', '=', 'published')
+            .where('publishedAt', '<=', before)
+            .execute();
+        return result.deletedCount ?? 0;
+    }
+    async releaseOutbox(outboxId, leaseToken, availableAt) {
+        const result = await this.database
+            .query()
+            .updateTable('mailOutbox')
+            .set({
+            status: 'pending',
+            availableAt,
+            leaseToken: null,
+            leaseExpiresAt: null,
+        })
+            .where('id', '=', outboxId)
+            .where('status', '=', 'publishing')
+            .where('leaseToken', '=', leaseToken)
+            .execute();
+        return result.updatedCount === 1;
+    }
+}
+//# sourceMappingURL=outbox.js.map

@@ -1,0 +1,5 @@
+export const IN_APP_NOTIFICATION_NAMESPACE = '@nocobase/app-plugin-notification-in-app';
+export function inAppNotificationText(key, defaultValue) {
+    return { ns: IN_APP_NOTIFICATION_NAMESPACE, key, defaultValue };
+}
+//# sourceMappingURL=i18n.js.map

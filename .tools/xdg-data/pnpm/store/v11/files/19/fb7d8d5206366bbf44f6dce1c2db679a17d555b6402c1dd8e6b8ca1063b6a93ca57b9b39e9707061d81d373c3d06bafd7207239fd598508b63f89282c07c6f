@@ -1,0 +1,22 @@
+import type { OfficialDialect } from '@nocobase/app-server/database';
+/** Thrown when the user aborts a prompt with Ctrl+C, so the caller can exit quietly rather than print a stack. */
+export declare class PromptCancelledError extends Error {
+    constructor();
+}
+/**
+ * Asks which installed driver to configure.
+ *
+ * Only drivers that are actually installed are offered, so the prompt cannot produce a dialect the application is
+ * unable to load — the "driver missing" path exists for `--dialect` and for scripted runs, not for this one.
+ */
+export declare function selectDialect(available: readonly OfficialDialect[]): Promise<OfficialDialect>;
+/**
+ * Asks for the main connection's settings, offering the generated ones as defaults.
+ *
+ * The password is read without echo. That is why it is asked for here rather than accepted as a flag: a flag stays in
+ * the shell history, and an answer typed into a masked prompt does not.
+ */
+export declare function promptConnection(dialect: OfficialDialect, defaults: Readonly<Record<string, unknown>>): Promise<Readonly<Record<string, unknown>>>;
+/** Asks whether to write a configuration whose connection failed; the safe answer is no. */
+export declare function confirmWriteAnyway(): Promise<boolean>;
+//# sourceMappingURL=prompts.d.ts.map

@@ -1,0 +1,6 @@
+/** Read-only runtime configuration supplied by the task owner. */
+export interface DatabaseTaskConfig {
+    get<T = unknown>(key: string): T | undefined;
+}
+/** Standalone runners remain usable without application configuration. */
+export declare const emptyDatabaseTaskConfig: DatabaseTaskConfig;

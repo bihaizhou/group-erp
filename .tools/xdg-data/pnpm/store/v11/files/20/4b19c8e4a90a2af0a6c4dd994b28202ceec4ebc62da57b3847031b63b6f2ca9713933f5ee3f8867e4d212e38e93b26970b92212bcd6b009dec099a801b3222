@@ -1,0 +1,19 @@
+import { defineMigration } from '@nocobase/db';
+const migration = defineMigration({
+    name: '202609170002_add_user_deletion_record',
+    async up({ builder }) {
+        await builder.alterCollection('user', (collection) => {
+            collection.datetime('deletedAt').nullable();
+            collection.string('deletedBy', { length: 64 }).nullable();
+        });
+    },
+    async down({ builder }) {
+        await builder.alterCollection('user', (collection) => {
+            collection.dropField('deletedBy');
+            collection.dropField('deletedAt');
+        });
+    },
+});
+export default migration;
+//# sourceMappingURL=202609170002_add_user_deletion_record.js.map
+// @nocobase/task-manifest v1

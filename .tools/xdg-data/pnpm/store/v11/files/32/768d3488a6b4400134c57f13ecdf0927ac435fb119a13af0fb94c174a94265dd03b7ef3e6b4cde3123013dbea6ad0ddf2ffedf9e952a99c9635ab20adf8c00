@@ -1,0 +1,25 @@
+import { ApiError, type ApiErrorStatus } from '@nocobase/app-server/router';
+import type { Context, ErrorHandler } from 'hono';
+import enUS from './locales/en-US.js';
+/** The error domain of the inbox routes: the plugin's URL namespace. */
+export declare const IN_APP_NOTIFICATION_ERROR_DOMAIN = "notificationInApp";
+type InAppErrorKey = keyof (typeof enUS)['errors'];
+export interface InAppNotificationApiErrorOptions {
+    readonly status: ApiErrorStatus;
+    readonly reason: string;
+    /** Key under `errors` in this plugin's server locale resources. */
+    readonly key: InAppErrorKey;
+    readonly field?: string;
+}
+/**
+ * Builds an `ApiError` whose developer `message` is the English text of `key` and whose `localizedMessage` is the same
+ * text translated into the request's locale, when the i18n middleware resolved one.
+ */
+export declare function inAppNotificationApiError(context: Context, options: InAppNotificationApiErrorOptions): ApiError;
+/**
+ * The inbox router's `onError`: the framework's handler renders what it recognizes, such as `ApiError`, in the standard
+ * body, so the router answers the same way mounted on a bare Hono, and rethrows everything else to the application.
+ */
+export declare const inAppNotificationErrorHandler: ErrorHandler;
+export {};
+//# sourceMappingURL=http-errors.d.ts.map

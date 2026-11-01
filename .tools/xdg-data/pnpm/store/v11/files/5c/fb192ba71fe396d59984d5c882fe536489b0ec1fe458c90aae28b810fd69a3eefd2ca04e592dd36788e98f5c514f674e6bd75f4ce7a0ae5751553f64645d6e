@@ -1,0 +1,12 @@
+/** Stable CID for an owned upload; only referenced image uploads become inline. */
+export declare function uploadedImageContentId(id: string): string;
+export declare function uploadedImageMetadata(id: string, contentType: string, html: string | undefined): {
+    inline: boolean;
+    contentId?: string;
+};
+/** Embedded image resources belong to the body, not the attachment list. */
+export declare function isVisibleMailAttachment(attachment: {
+    readonly inline: boolean;
+    readonly contentType: string;
+}): boolean;
+//# sourceMappingURL=inline-images.d.ts.map

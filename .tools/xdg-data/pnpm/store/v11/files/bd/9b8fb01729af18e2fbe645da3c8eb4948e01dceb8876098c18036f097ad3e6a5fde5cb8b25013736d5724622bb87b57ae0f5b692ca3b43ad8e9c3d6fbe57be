@@ -1,0 +1,22 @@
+export const IMAP_SMTP_CAPABILITIES = {
+    receive: true,
+    send: true,
+    incrementalSync: true,
+    pushNotifications: false,
+    folders: true,
+    labels: false,
+    drafts: false,
+    moveMessage: false,
+    aliases: false,
+};
+export const CONNECTION_TIMEOUT_MS = 30 * 1_000;
+export const SOCKET_TIMEOUT_MS = 60 * 1_000;
+export const MAX_IMAP_BODY_BYTES = 2 * 1024 * 1024;
+export const MAX_IMAP_DETAIL_BODY_BYTES = 16 * 1024 * 1024;
+/** Raw MIME bytes compared to reuse an RFC Message-ID identity. */
+export const MAX_IMAP_RAW_COMPARE_BYTES = 2 * 1024 * 1024;
+export const MAX_IMAP_RAW_COMPARE_BUDGET = 8 * 1024 * 1024;
+export const MAX_IMAP_PROVIDER_ID_LENGTH = 500;
+export const MAX_IMAP_VERIFY_STATE_BYTES = 1024 * 1024;
+export const MAX_IMAP_VERIFY_ATTEMPTS = 5;
+//# sourceMappingURL=constants.js.map

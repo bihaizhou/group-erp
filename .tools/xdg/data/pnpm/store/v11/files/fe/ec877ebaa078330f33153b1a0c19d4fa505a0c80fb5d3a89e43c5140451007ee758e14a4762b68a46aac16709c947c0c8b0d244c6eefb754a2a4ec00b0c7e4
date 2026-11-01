@@ -1,0 +1,303 @@
+import { invalid, isPlainRecord } from '../internal/guards.js';
+/**
+ * Resolve the read node, rejecting the call outright when reading is forbidden.
+ * Returns `undefined` when no Policy is bound and `true` when it adds no limits.
+ */
+export function resolveReadNode(policy, collection) {
+    const node = policy?.read;
+    if (node === false) {
+        invalid('READ_FORBIDDEN', 'Reading from this Repository is forbidden by Policy.', { collection: collection.name });
+    }
+    return node;
+}
+/** The scalar field allowlist of the bound read node, or `undefined` when unbound. */
+export function policyReadFields(policy) {
+    const node = policy?.read;
+    return node && typeof node === 'object' ? node.fields : undefined;
+}
+/** The relation allowlist of the bound read node, or `undefined` when unbound. */
+export function policyReadRelations(policy) {
+    const node = policy?.read;
+    return node && typeof node === 'object' ? node.relations : undefined;
+}
+/**
+ * Resolve the node behind an `update` or `delete`, rejecting the call outright
+ * when the operation is forbidden.
+ */
+export function resolveMutationNode(policy, operation, collection) {
+    const node = operation === 'update' ? policy?.update : policy?.delete;
+    if (node === false) {
+        invalid('WRITE_FORBIDDEN', `${operation} is forbidden by Policy.`, {
+            collection: collection.name,
+        });
+    }
+    return node;
+}
+/**
+ * Resolve the node behind a `create` or `update` write shape, rejecting the
+ * call outright when the operation is forbidden.
+ */
+export function resolveWriteShapeNode(policy, operation, collection) {
+    const node = operation === 'create' ? policy?.create : policy?.update;
+    if (node === false) {
+        invalid('WRITE_FORBIDDEN', `${operation} is forbidden by Policy.`, {
+            collection: collection.name,
+        });
+    }
+    return node;
+}
+/**
+ * Apply `create.defaults` to caller values. Caller-provided fields win; the
+ * fields the server assigned that the caller may not write itself are reported
+ * so the write-shape check can let them through.
+ */
+export function applyCreateDefaults(policy, input) {
+    const node = policy?.create;
+    if (!node || node === true || !isPlainRecord(input)) {
+        return { values: input, protectedFields: [] };
+    }
+    const protectedFields = Object.keys(node.defaults).filter((field) => !node.fields.includes(field) && !Object.hasOwn(input, field));
+    const defaults = Object.fromEntries(Object.entries(node.defaults).map(([field, value]) => [
+        field,
+        value instanceof Date ? new Date(value) : value,
+    ]));
+    return { values: { ...defaults, ...input }, protectedFields };
+}
+/** Intersect the caller filter with a Policy scope without flattening either side. */
+export function combinePolicyFilter(caller, policy, collection) {
+    if (!caller)
+        return policy;
+    if (!policy)
+        return caller;
+    return {
+        kind: 'filter',
+        version: 1,
+        collection,
+        root: {
+            kind: 'group',
+            logic: 'and',
+            items: [caller.root, policy.root],
+        },
+    };
+}
+/**
+ * Project a normalized write node onto the legacy `WritePolicy` shape so the
+ * existing mutation checks can run unchanged.
+ *
+ * This bridge is deliberately temporary. `RelationWriteNode.scope` has nowhere
+ * to live in the legacy structure, so it comes apart when relation write
+ * targets land; see decision 0.9 in the policy roadmap.
+ */
+export function toWritePolicy(policy) {
+    return {
+        fields: policy.fields,
+        relations: Object.fromEntries(Object.entries(policy.relations).map(([name, relation]) => [
+            name,
+            toRelationWritePolicy(relation),
+        ])),
+    };
+}
+export function toRelationWritePolicy(policy) {
+    const shape = (node) => ({
+        fields: node.fields,
+        relations: Object.fromEntries(Object.entries(node.relations).map(([name, relation]) => [
+            name,
+            toRelationWritePolicy(relation),
+        ])),
+    });
+    const through = (node) => node.through === false
+        ? { through: false }
+        : node.through === undefined
+            ? {}
+            : { through: { fields: node.through.fields } };
+    return {
+        ...(policy.create
+            ? { create: { ...shape(policy.create), ...through(policy.create) } }
+            : {}),
+        ...(policy.update ? { update: shape(policy.update) } : {}),
+        ...(policy.upsert
+            ? {
+                upsert: {
+                    create: shape(policy.upsert.create),
+                    update: shape(policy.upsert.update),
+                },
+            }
+            : {}),
+        ...(policy.connect ? { connect: through(policy.connect) } : {}),
+        ...(policy.set ? { set: through(policy.set) } : {}),
+        ...(policy.disconnect ? { disconnect: {} } : {}),
+        ...(policy.delete ? { delete: {} } : {}),
+    };
+}
+export const UNRESTRICTED_READ = Object.freeze({
+    kind: 'unrestricted',
+});
+/** Build the root read context, rejecting the call when reading is forbidden. */
+export function rootReadContext(policy, collection) {
+    const node = resolveReadNode(policy, collection);
+    return node === undefined || node === true
+        ? UNRESTRICTED_READ
+        : restrictedReadContext(collection, node);
+}
+/**
+ * Build a restricted context, widening the nameable fields by the foreign keys
+ * the authorized relations already expose.
+ */
+export function restrictedReadContext(collection, node) {
+    return {
+        kind: 'restricted',
+        fields: node.fields,
+        readableFields: withImpliedForeignKeys(collection, node),
+        relations: node.relations,
+        scope: node.scope,
+    };
+}
+function withImpliedForeignKeys(collection, node) {
+    const implied = [];
+    for (const [name, child] of Object.entries(node.relations)) {
+        if ('kind' in child)
+            continue;
+        const relation = collection.fields?.find((field) => field.name === name && 'target' in field);
+        const foreignKey = relation && 'foreignKey' in relation ? relation.foreignKey : undefined;
+        if (!foreignKey || node.fields.includes(foreignKey))
+            continue;
+        // The key is only given away when the relation actually returns the value
+        // the foreign key points at.
+        const targetKey = relation && 'targetKey' in relation ? relation.targetKey : undefined;
+        const revealsKey = targetKey
+            ? child.fields.includes(targetKey)
+            : child.fields.length > 0;
+        if (revealsKey)
+            implied.push(foreignKey);
+    }
+    return implied.length > 0 ? [...node.fields, ...implied] : node.fields;
+}
+/**
+ * Descend into a relation, rejecting the expansion when the Policy does not
+ * authorize it. Returns the context that governs the relation target, which is
+ * the target collection's allowlist — never the parent's.
+ */
+export function relationReadContext(parent, collection, relation, path, target) {
+    if (parent.kind === 'unrestricted')
+        return UNRESTRICTED_READ;
+    const node = parent.relations[relation];
+    if (node === undefined) {
+        invalid('RELATION_READ_FORBIDDEN', `Relation "${relation}" is not readable by Policy.`, { collection: collection.name, relation, path });
+    }
+    if ('kind' in node) {
+        invalid('RELATION_READ_FORBIDDEN', `Relation "${relation}" is not resolved by Policy.`, { collection: collection.name, relation, path });
+    }
+    // The node governs the target, so its own relations are resolved there.
+    return restrictedReadContext(target, node);
+}
+/** The scalar allowlist, or `undefined` when this context adds no limits. */
+export function readableFields(policy) {
+    return policy.kind === 'restricted' ? policy.fields : undefined;
+}
+/**
+ * Reject a caller reference to a field outside the read allowlist. Used by
+ * every surface that names a field without returning it — filter, sort,
+ * distinct, cursor, group by, aggregate — because each of them leaks the
+ * value just as surely as selecting it would.
+ */
+export function assertReadableField(policy, collection, field, path) {
+    if (policy.kind === 'unrestricted' || policy.readableFields.includes(field)) {
+        return;
+    }
+    invalid('FIELD_READ_FORBIDDEN', `Field "${field}" is not readable by Policy.`, { collection: collection.name, field, path });
+}
+/**
+ * Collect the root-level fields a scope reads.
+ *
+ * A write that touches none of them cannot move a record out of that scope,
+ * which is what lets the ordinary update path stay free of extra statements.
+ * Relation nodes contribute nothing: a scope may not traverse relations, so
+ * one appearing here is a normalization bug rather than a field to watch.
+ */
+export function scopeFieldNames(scope) {
+    const names = new Set();
+    const visit = (node) => {
+        if (node.kind === 'condition') {
+            if (node.path.length === 1)
+                names.add(node.path[0]);
+            return;
+        }
+        if (node.kind === 'group') {
+            node.items.forEach(visit);
+            return;
+        }
+        for (const item of node.filter?.items ?? [])
+            visit(item);
+    };
+    scope.root.items.forEach(visit);
+    return [...names];
+}
+/**
+ * Refuse a `create` node whose scope references a field the operation can
+ * never give a value to.
+ *
+ * `scope: <status ne 'archived'>` with `fields: ['title']` and no default for
+ * `status` describes a create that can never succeed: the column takes
+ * whatever the database supplies, the record is judged against a condition
+ * nobody could influence, and every call inserts, fails the check and rolls
+ * back — reporting an error about `values`, which the caller cannot fix.
+ *
+ * The three inputs are all static, so this is worth catching before the first
+ * insert rather than once per call. A field that has a column default is
+ * accepted: whether that default satisfies the condition is a comparison only
+ * the database can make, and the write-back check makes it.
+ *
+ * This runs when the Collection first resolves rather than at `withPolicy`,
+ * because binding is synchronous and the Collection is not.
+ */
+export function assertCreateScopeSatisfiable(collection, node) {
+    if (node.scope === true)
+        return;
+    for (const name of scopeFieldNames(node.scope)) {
+        if (node.fields.includes(name) || Object.hasOwn(node.defaults, name)) {
+            continue;
+        }
+        const field = collection.fields?.find((item) => item.name === name);
+        if (!field || 'target' in field)
+            continue;
+        const hasValueSource = field.defaultValue !== undefined ||
+            field.db?.generated !== undefined ||
+            field.autoIncrement === true ||
+            field.type === 'increments' ||
+            collection.optimisticLock?.field === name;
+        if (hasValueSource)
+            continue;
+        invalid('INVALID_POLICY', `create.scope reads Field "${name}", which this create can never set: it is absent from create.fields and create.defaults, and the Collection gives it no default.`, {
+            collection: collection.name,
+            field: name,
+            path: ['policy', 'create', 'scope'],
+        });
+    }
+}
+/**
+ * Hand a Policy out without a live reference to anything mutable.
+ *
+ * Every other value in a normalized Policy is frozen or a primitive, but
+ * `Object.freeze` does not reach a Date's internal time: `setTime` still works
+ * on one. Since `explainPolicy` returns the very object `applyCreateDefaults`
+ * reads from, a caller could change a server-assigned default after binding.
+ * Copying on the way out is what actually closes that.
+ */
+export function detachPolicy(policy) {
+    const node = policy.create;
+    if (node === true || node === false)
+        return policy;
+    const entries = Object.entries(node.defaults);
+    if (!entries.some(([, value]) => value instanceof Date))
+        return policy;
+    return Object.freeze({
+        ...policy,
+        create: Object.freeze({
+            ...node,
+            defaults: Object.freeze(Object.fromEntries(entries.map(([field, value]) => [
+                field,
+                value instanceof Date ? new Date(value) : value,
+            ]))),
+        }),
+    });
+}

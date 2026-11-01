@@ -1,0 +1,82 @@
+import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { Env, MiddlewareHandler, ValidationTargets } from 'hono';
+import { type ResolverReturnType, type ResponsesWithResolver } from 'hono-openapi';
+import type { InferInput } from 'hono/validator';
+import type { OpenAPIV3_1 } from 'openapi-types';
+import { type ApiErrorResponseCode } from './components.js';
+import { type ApiSchemaDirection } from './schema.js';
+/**
+ * Route metadata for the API document. Plugins take these from `@nocobase/app-server/router` and never import
+ * `hono-openapi` themselves: the metadata is attached to middleware under a symbol that module owns, so a second copy
+ * of it would attach metadata the document generator cannot see.
+ */
+export { describeRoute, type DescribeRouteOptions, type ResolverReturnType, } from 'hono-openapi';
+export type { OpenAPIV3_1 } from 'openapi-types';
+/** One entry of `describeRoute({ responses })`: a response object whose schemas may be `resolver()` results. */
+export type ApiResponseObject = ResponsesWithResolver[string];
+/** A schema a response helper accepts: a Standard Schema such as a zod schema, or an OpenAPI schema or reference. */
+export type ApiSchema = StandardSchemaV1 | OpenAPIV3_1.SchemaObject | OpenAPIV3_1.ReferenceObject;
+type HasUndefined<T> = undefined extends T ? true : false;
+/** The input `apiValidator(target, schema)` adds to a route, so `context.req.valid(target)` is typed by the schema. */
+export interface ApiValidatorInput<Schema extends StandardSchemaV1, Target extends keyof ValidationTargets> {
+    in: HasUndefined<StandardSchemaV1.InferInput<Schema>> extends true ? {
+        [K in Target]?: [StandardSchemaV1.InferInput<Schema>] extends [
+            ValidationTargets[K]
+        ] ? StandardSchemaV1.InferInput<Schema> : InferInput<StandardSchemaV1.InferInput<Schema>, K>;
+    } : {
+        [K in Target]: [StandardSchemaV1.InferInput<Schema>] extends [
+            ValidationTargets[K]
+        ] ? StandardSchemaV1.InferInput<Schema> : InferInput<StandardSchemaV1.InferInput<Schema>, K>;
+    };
+    out: {
+        [K in Target]: StandardSchemaV1.InferOutput<Schema>;
+    };
+}
+export interface ApiValidatorOptions {
+    /** The request media type to document for a `json` or `form` body, when it is not the default. */
+    readonly media?: string;
+}
+/**
+ * A Standard Schema prepared for `describeRoute({ responses })` or `requestBody`, converted under the document's
+ * conventions: definitions become components under stable names, a property keeps its own description next to the
+ * `$ref` of a shared schema, and a response object is open unless the schema is strict. The response helpers use it
+ * already; reach for it only for content they do not cover, such as a streaming media type.
+ */
+export declare function resolver(schema: StandardSchemaV1, direction?: ApiSchemaDirection): ResolverReturnType;
+/**
+ * Validate one part of the request — `param`, `query`, `json`, `header`, `form` or `cookie` — against a Standard Schema
+ * such as a zod schema, and declare that schema in the API document. An invalid request is answered `400
+ * INVALID_ARGUMENT` with reason `INVALID_INPUT`, domain `app`, and a field violation per issue before the handler
+ * runs, exactly as `parseApiInput()` answers; the handler reads the parsed value from `context.req.valid(target)`.
+ * Because of that, the document lists the 400 for invalid input on every route with a validator, without the route
+ * declaring it.
+ *
+ * ```ts
+ * router.post('/orders/:orderId/cancel', describeRoute({ ... }), apiValidator('param', OrderParams), apiValidator('json', CancelOrderInput), handler);
+ * ```
+ */
+export declare function apiValidator<Schema extends StandardSchemaV1, Target extends keyof ValidationTargets, E extends Env = Env, P extends string = string>(target: Target, schema: Schema, options?: ApiValidatorOptions): MiddlewareHandler<E, P, ApiValidatorInput<Schema, Target>>;
+/** A `200`-style JSON response whose body is `{ data }`, `data` being described by `schema`. */
+export declare function dataResponse(schema: ApiSchema, description?: string): ApiResponseObject;
+/**
+ * A JSON list response, `{ data: [...], meta }`. `itemSchema` describes one element; `metaSchema` defaults to the
+ * shared `ApiListMeta` (`total`, `page`, `pageSize`, `nextPageToken`).
+ */
+export declare function listResponse(itemSchema: ApiSchema, metaSchema?: ApiSchema, description?: string): ApiResponseObject;
+/** A response without a body, such as a `204`. */
+export declare function emptyResponse(description?: string): ApiResponseObject;
+/**
+ * The shared error response for one HTTP status, in the standard error body. Without `description` it refers to the
+ * shared component; with one it describes when this route answers that status.
+ */
+export declare function apiErrorResponse(code: ApiErrorResponseCode, description?: string): ApiResponseObject;
+/**
+ * The error responses of an authenticated route that checks a permission: no session or API key, refused permission
+ * and an unexpected failure. Spread them into `responses` and add the route's own, such as `apiErrorResponse(404)`. A
+ * route without a permission check lists `apiErrorResponse(401)` and `apiErrorResponse(500)` instead, and a public one
+ * only `apiErrorResponse(500)`. There is no 400 here: a route with an `apiValidator()` gets the 400 for invalid input
+ * in the document automatically, and lists `apiErrorResponse(400, description)` itself only for another reason, such
+ * as a failed precondition.
+ */
+export declare const apiErrorResponses: Readonly<Record<'401' | '403' | '500', ApiResponseObject>>;
+//# sourceMappingURL=describe.d.ts.map

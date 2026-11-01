@@ -1,0 +1,33 @@
+import type { LocaleResource } from '@nocobase/i18n';
+declare const enUS: {
+    errors: {
+        authenticationRequired: string;
+        invalidPageToken: string;
+        notFound: string;
+    };
+    test: {
+        channels: {
+            inApp: string;
+        };
+        providers: {
+            builtIn: string;
+        };
+        fields: {
+            route: string;
+            url: string;
+            recipientUserId: string;
+            title: string;
+            message: string;
+        };
+        placeholders: {
+            currentUser: string;
+        };
+        defaults: {
+            title: string;
+            body: string;
+        };
+    };
+};
+export type InAppNotificationResource = LocaleResource<typeof enUS>;
+export default enUS;
+//# sourceMappingURL=en-US.d.ts.map

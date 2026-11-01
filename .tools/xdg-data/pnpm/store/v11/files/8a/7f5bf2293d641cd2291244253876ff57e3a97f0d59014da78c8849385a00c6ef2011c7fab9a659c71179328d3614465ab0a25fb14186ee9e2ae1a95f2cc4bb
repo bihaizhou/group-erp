@@ -1,0 +1,9 @@
+import type { Logger } from '@nocobase/logging';
+import type { RealtimeService } from './types.js';
+export interface RealtimeServiceOptions {
+    logger?: Pick<Logger, 'error'>;
+    maxSubscriptionsPerConnection?: number;
+}
+export type { RealtimeConnection, RealtimeConnectionContext, RealtimePublishResult, RealtimeService, RealtimeSubscription, } from './types.js';
+export declare function createRealtimeService(options?: RealtimeServiceOptions): RealtimeService;
+//# sourceMappingURL=service.d.ts.map

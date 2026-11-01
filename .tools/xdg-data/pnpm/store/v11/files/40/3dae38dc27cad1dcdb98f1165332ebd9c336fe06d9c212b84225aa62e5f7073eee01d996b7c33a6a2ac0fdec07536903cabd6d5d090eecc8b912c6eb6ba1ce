@@ -1,0 +1,162 @@
+{
+  "name": "@poppinss/utils",
+  "version": "7.1.2",
+  "description": "Handy utilities for repetitive work",
+  "main": "build/index.js",
+  "type": "module",
+  "files": [
+    "build",
+    "!build/tests",
+    "!build/bin",
+    "lodash"
+  ],
+  "exports": {
+    ".": "./build/index.js",
+    "./lodash": {
+      "types": "./lodash/lodash.types.d.ts",
+      "node": "./build/lodash/main.cjs",
+      "default": "./build/lodash/main.cjs"
+    },
+    "./fs": "./build/modules/fs/main.js",
+    "./json": "./build/modules/json/main.js",
+    "./string": "./build/modules/string/main.js",
+    "./string_builder": "./build/modules/string/string_builder.js",
+    "./assert": "./build/modules/assert.js",
+    "./base64": "./build/modules/base64.js",
+    "./exception": "./build/modules/exception.js",
+    "./number": "./build/modules/number.js",
+    "./types": "./build/modules/types.js"
+  },
+  "scripts": {
+    "pretest": "npm run lint",
+    "test": "npm run build:lodash && npm run quick:test",
+    "build:lodash": "lodash include=\"pick,pickBy,omit,omitBy,has,get,set,unset,mergeWith,merge,size,clone,cloneWith,cloneDeep,cloneDeepWith,toPath\" --production && move-file ./lodash.custom.min.js build/lodash/main.cjs",
+    "lint": "eslint",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit",
+    "precompile": "npm run lint",
+    "compile": "tsdown && tsc --emitDeclarationOnly --declaration",
+    "build": "npm run compile && npm run build:lodash",
+    "version": "npm run build",
+    "prepublishOnly": "npm run build",
+    "release": "release-it",
+    "quick:test": "node --import=@poppinss/ts-exec bin/test.ts"
+  },
+  "devDependencies": {
+    "@adonisjs/eslint-config": "^3.1.0",
+    "@adonisjs/logger": "^7.1.1",
+    "@adonisjs/prettier-config": "^1.5.0",
+    "@adonisjs/tsconfig": "^2.0.0",
+    "@japa/assert": "^4.2.0",
+    "@japa/expect-type": "^2.0.4",
+    "@japa/runner": "^5.3.0",
+    "@poppinss/ts-exec": "^1.4.4",
+    "@release-it/conventional-changelog": "^12.0.0",
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^26.4.1",
+    "c8": "^12.0.0",
+    "eslint": "^10.10.0",
+    "fs-extra": "^11.4.0",
+    "lodash": "^4.18.1",
+    "lodash-cli": "^4.17.5",
+    "move-file-cli": "^3.0.0",
+    "prettier": "^3.9.6",
+    "release-it": "^21.0.2",
+    "safe-stable-stringify": "^2.5.0",
+    "secure-json-parse": "^4.1.0",
+    "tsdown": "^0.23.0",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@poppinss/exception": "^1.2.3",
+    "@poppinss/object-builder": "^1.1.0",
+    "@poppinss/string": "^1.7.2",
+    "@poppinss/types": "^1.2.1",
+    "flattie": "^1.1.1"
+  },
+  "homepage": "https://github.com/poppinss/utils#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/poppinss/utils.git"
+  },
+  "bugs": {
+    "url": "https://github.com/poppinss/utils/issues"
+  },
+  "keywords": [
+    "toolkit",
+    "utilities"
+  ],
+  "author": "Harminder Virk <virk@adonisjs.com>",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "tsdown": {
+    "entry": [
+      "./index.ts",
+      "./modules/fs/main.ts",
+      "./modules/json/main.ts",
+      "./modules/string/main.ts",
+      "./modules/string/string_builder.ts",
+      "./modules/assert.ts",
+      "./modules/base64.ts",
+      "./modules/exception.ts",
+      "./modules/number.ts",
+      "./modules/types.ts"
+    ],
+    "external": [
+      "@poppinss/utils/lodash"
+    ],
+    "inlineOnly": false,
+    "noExternal": [
+      "secure-json-parse",
+      "safe-stable-stringify"
+    ],
+    "outDir": "./build",
+    "clean": true,
+    "format": "esm",
+    "minify": "dce-only",
+    "fixedExtension": false,
+    "dts": false,
+    "treeshake": false,
+    "sourcemaps": false,
+    "target": "esnext"
+  },
+  "release-it": {
+    "git": {
+      "requireCleanWorkingDir": true,
+      "requireUpstream": true,
+      "commitMessage": "chore(release): ${version}",
+      "tagAnnotation": "v${version}",
+      "push": true,
+      "tagName": "v${version}"
+    },
+    "github": {
+      "release": true
+    },
+    "npm": {
+      "publish": true,
+      "skipChecks": true
+    },
+    "plugins": {
+      "@release-it/conventional-changelog": {
+        "preset": {
+          "name": "angular"
+        }
+      }
+    }
+  },
+  "c8": {
+    "reporter": [
+      "text",
+      "html"
+    ],
+    "exclude": [
+      "**/build/lodash/**",
+      "tests/**",
+      "test_helpers/**"
+    ]
+  },
+  "prettier": "@adonisjs/prettier-config"
+}

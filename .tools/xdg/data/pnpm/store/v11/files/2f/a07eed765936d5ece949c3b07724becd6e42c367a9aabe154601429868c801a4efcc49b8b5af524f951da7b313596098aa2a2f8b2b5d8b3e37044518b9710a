@@ -1,0 +1,62 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { useTranslation } from '@nocobase/i18n/client';
+import { MAIL_PLUGIN_NS } from '../namespace.js';
+import { Button } from './ui/button.js';
+import { Input } from './ui/input.js';
+import { NativeSelect } from './ui/native-select.js';
+export const MAIL_PAGE_SIZE = 20;
+const MAIL_PAGE_SIZES = [20, 50, 100];
+export function MailPagination({ page, pageSize, total, hasNext, disabled, onPageChange, onPageSizeChange, }) {
+    const { t } = useTranslation(MAIL_PLUGIN_NS);
+    const [draft, setDraft] = useState();
+    const pageCount = total === undefined ? undefined : Math.max(1, Math.ceil(total / pageSize));
+    const lastPage = pageCount ?? (hasNext ? undefined : page);
+    const value = draft?.page === page ? draft.value : String(page);
+    const target = Number(value);
+    const valid = Number.isSafeInteger(target) &&
+        target >= 1 &&
+        target <= Math.floor(Number.MAX_SAFE_INTEGER / pageSize) &&
+        (lastPage === undefined || target <= lastPage);
+    const pages = [
+        ...new Set([
+            1,
+            page - 1,
+            page,
+            page + 1,
+            ...(pageCount === undefined ? [] : [pageCount]),
+        ]),
+    ]
+        .filter((number) => number >= 1 && number <= (lastPage ?? page + 1))
+        .sort((a, b) => a - b);
+    const changePage = (next) => {
+        if (disabled || next === page)
+            return;
+        setDraft(undefined);
+        onPageChange(next);
+    };
+    return (_jsxs("nav", { "aria-label": t('pagination.label', { defaultValue: 'Pagination' }), className: 'flex shrink-0 flex-wrap items-center justify-end gap-2 border-t p-3', children: [_jsxs("span", { className: 'mr-auto text-sm tabular-nums text-muted-foreground', role: 'status', children: [_jsx("span", { children: t('pagination.page', {
+                            defaultValue: `Page ${page} · ${pageSize} per page`,
+                            page,
+                            pageSize,
+                        }) }), total !== undefined
+                        ? ` · ${t('pagination.total', { defaultValue: `${total} records`, count: total })}`
+                        : null] }), _jsx(NativeSelect, { "aria-label": t('pagination.pageSize', { defaultValue: 'Rows per page' }), className: 'w-auto', disabled: disabled, value: pageSize, onChange: (event) => {
+                    setDraft(undefined);
+                    onPageSizeChange(Number(event.target.value));
+                }, children: MAIL_PAGE_SIZES.map((size) => (_jsx("option", { value: size, children: t('pagination.perPage', {
+                        defaultValue: `${size} per page`,
+                        count: size,
+                    }) }, size))) }), _jsx(Button, { variant: 'outline', className: 'h-8 min-w-8 px-2', "aria-label": t('workspace.previousPage', {
+                    defaultValue: 'Previous page',
+                }), disabled: disabled || page <= 1, onClick: () => changePage(page - 1), children: _jsx(ChevronLeft, { "aria-hidden": 'true', className: 'size-4' }) }), pages.map((number, index) => (_jsxs("span", { className: 'flex items-center gap-2', children: [index > 0 && number - pages[index - 1] > 1 ? (_jsx("span", { "aria-hidden": 'true', className: 'text-muted-foreground', children: "\u2026" })) : null, _jsx(Button, { variant: number === page ? 'default' : 'outline', className: 'h-8 min-w-8 px-2', "aria-label": t('pagination.selectPage', {
+                            defaultValue: `Page ${number}`,
+                            page: number,
+                        }), "aria-current": number === page ? 'page' : undefined, disabled: disabled, onClick: () => changePage(number), children: number })] }, number))), _jsx(Button, { variant: 'outline', className: 'h-8 min-w-8 px-2', "aria-label": t('workspace.nextPage', { defaultValue: 'Next page' }), disabled: disabled || (pageCount === undefined ? !hasNext : page >= pageCount), onClick: () => changePage(page + 1), children: _jsx(ChevronRight, { "aria-hidden": 'true', className: 'size-4' }) }), _jsxs("form", { className: 'flex items-center gap-2', onSubmit: (event) => {
+                    event.preventDefault();
+                    if (valid)
+                        changePage(target);
+                }, children: [_jsx(Input, { "aria-label": t('pagination.jumpTo', { defaultValue: 'Go to page' }), className: 'h-8 w-16', type: 'number', min: 1, max: lastPage, step: 1, disabled: disabled, value: value, onChange: (event) => setDraft({ page, value: event.target.value }) }), _jsx(Button, { type: 'submit', variant: 'outline', className: 'h-8 min-w-8 px-2', disabled: disabled || !valid || target === page, children: t('pagination.go', { defaultValue: 'Go' }) })] })] }));
+}
+//# sourceMappingURL=mail-pagination.js.map

@@ -1,0 +1,24 @@
+import type { JsonValue } from '@nocobase/repository-input';
+import type { FieldDefinition } from './collection/types.js';
+export type { JsonValue };
+/**
+ * How a driver hands back a `json` column. Declared by the dialect through
+ * `jsonResults`, because the returned value carries no evidence of which it is.
+ */
+export type JsonResultForm = 'parsed' | 'text';
+/**
+ * JSON columns use the same structured value contract at the public API
+ * boundary: a caller passes a JSON value and reads one back, and every
+ * non-null value is stored as valid JSON text.
+ *
+ * `null` encodes to SQL NULL rather than to the JSON literal `null`. The
+ * write side has no way to express the difference, so `$jsonNull` and
+ * `$jsonAnyNull` only ever match rows written outside this API.
+ */
+export declare function encodeJsonValue(value: JsonValue): string | null;
+/**
+ * Decoding never guesses. A `parsed` driver has already produced the value;
+ * a `text` driver hands back the stored JSON, which must parse or the row is
+ * reported as corrupt rather than silently read back as a string.
+ */
+export declare function decodeJsonValue(value: unknown, form?: JsonResultForm, field?: FieldDefinition): JsonValue;

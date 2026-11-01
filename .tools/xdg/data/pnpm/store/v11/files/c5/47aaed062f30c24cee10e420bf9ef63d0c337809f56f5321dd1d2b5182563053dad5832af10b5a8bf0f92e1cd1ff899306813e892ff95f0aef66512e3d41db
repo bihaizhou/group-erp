@@ -1,0 +1,33 @@
+import { type DatabaseManager } from '@nocobase/db';
+import { type MailOffsetPage, type MailProviderError, type MailSyncCursor, type MailSyncRun } from '../../shared/mail.js';
+import { type MailCreateSyncRunInput, type MailStore, type MailSyncBatch, type MailSyncStepCommit } from '../contracts/persistence.js';
+import type { ImapLocationPersistence, ImapSyncEvidence } from '../adapters/imap-smtp/types.js';
+export declare class MailSyncStore {
+    private readonly database;
+    private readonly accounts;
+    constructor(database: DatabaseManager, accounts: Pick<MailStore, 'getAccount' | 'listAccounts'>);
+    commitSyncBatch(batch: MailSyncBatch): Promise<void>;
+    getSyncCursor(accountId: string): Promise<MailSyncCursor | undefined>;
+    getLastSyncedAt(accountId: string): Promise<string | undefined>;
+    clearSyncCursor(accountId: string): Promise<void>;
+    createSyncRun(input: MailCreateSyncRunInput): Promise<MailSyncRun>;
+    findActiveSyncRun(accountId: string): Promise<MailSyncRun | undefined>;
+    getSyncRun(syncRunId: string): Promise<MailSyncRun | undefined>;
+    countSyncRuns(userId: string): Promise<number>;
+    listSyncRuns(userId: string, offset?: number, limit?: number): Promise<readonly MailSyncRun[]>;
+    listAllSyncRuns(offset: number, limit: number): Promise<MailOffsetPage<MailSyncRun>>;
+    /** Recreate lost queue deliveries from durable checkpoints, fenced by revision and lease. */
+    recoverSyncRuns(now: string): Promise<number>;
+    cancelSyncRun(syncRunId: string): Promise<MailSyncRun | undefined>;
+    claimSyncRun(syncRunId: string, expectedRevision: number, expectedPhase: MailSyncRun['phase'], leaseToken: string, leaseExpiresAt: string): Promise<MailSyncRun | undefined>;
+    renewSyncRunLease(syncRunId: string, leaseToken: string, leaseExpiresAt: string): Promise<boolean>;
+    commitSyncStep(input: MailSyncStepCommit, imap?: ImapSyncEvidence): Promise<MailSyncRun>;
+    failSyncRun(run: MailSyncRun, error: MailProviderError): Promise<MailSyncRun>;
+    releaseSyncRun(run: MailSyncRun, error: MailProviderError, availableAt: string): Promise<MailSyncRun>;
+}
+/**
+ * Narrow persistence for one account's IMAP adapter. Reads are scoped to the
+ * account; every commit locks it and rechecks the copy inside its transaction.
+ */
+export declare function createImapLocationPersistence(database: DatabaseManager, accountId: string): ImapLocationPersistence;
+//# sourceMappingURL=sync.d.ts.map

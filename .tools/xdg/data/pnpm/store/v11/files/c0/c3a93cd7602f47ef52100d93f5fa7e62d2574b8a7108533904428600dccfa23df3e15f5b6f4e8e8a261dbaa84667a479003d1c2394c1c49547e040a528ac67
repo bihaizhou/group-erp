@@ -1,0 +1,17 @@
+import type { BloomFilter, Cache, CacheOptions, CacheProvider, Counter, MemoryCacheProviderOptions, NamespacedOptions } from './types.js';
+export declare class MemoryCacheProvider implements CacheProvider {
+    private readonly maxSize;
+    private readonly defaultTtl?;
+    private readonly maxTtl?;
+    private readonly checkInterval?;
+    private readonly useClone;
+    private readonly caches;
+    private readonly counters;
+    private readonly bloomFilters;
+    constructor(options?: MemoryCacheProviderOptions);
+    createCache(options: CacheOptions): Cache;
+    createCounter(options: NamespacedOptions): Counter;
+    createBloomFilter(options: NamespacedOptions): BloomFilter;
+    dispose(): Promise<void>;
+}
+//# sourceMappingURL=memory-provider.d.ts.map

@@ -1,0 +1,6 @@
+const enUS = {
+    nav: { automation: 'Automation' },
+    authorization: { title: 'Schedules', read: 'Read' },
+};
+export default enUS;
+//# sourceMappingURL=en-US.js.map

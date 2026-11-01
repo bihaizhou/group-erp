@@ -1,0 +1,23 @@
+import type { AuthEnv } from '@nocobase/app-plugin-authentication';
+import { Hono, type MiddlewareHandler } from 'hono';
+import type { InAppStore } from './store.js';
+export interface CreateInAppRouterOptions {
+    /**
+     * Authenticates every inbox request and sets `auth` on the context, answering 401 itself when nobody is signed in.
+     * The plugin passes the authentication plugin's `auth.required()`, which also rejects a cookie-authenticated write from an
+     * untrusted origin (`INVALID_CSRF_ORIGIN`); the inbox has no CSRF mechanism of its own.
+     */
+    readonly authenticate: MiddlewareHandler<AuthEnv>;
+}
+type InAppRouterEnv = {
+    Variables: AuthEnv['Variables'] & {
+        notificationUserId: string;
+    };
+};
+/**
+ * The current user's inbox, mounted at `/notificationInApp`. Fixed segments are registered before `/messages/:messageId`
+ * so they are never read as a message id.
+ */
+export declare function createInAppRouter(store: InAppStore, options: CreateInAppRouterOptions): Hono<InAppRouterEnv>;
+export {};
+//# sourceMappingURL=router.d.ts.map

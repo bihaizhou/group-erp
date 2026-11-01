@@ -1,0 +1,16 @@
+/** The shared application logger, narrowed to the levels Mail uses. */
+export interface MailLogger {
+    info?(data: object, message: string): void;
+    warn?(data: object, message: string): void;
+    error?(data: object, message: string): void;
+}
+export interface MailLogError {
+    readonly type?: string;
+    readonly message: string;
+    readonly stack?: string;
+}
+/** Keep Error details JSON-safe without copying arbitrary SDK request payloads. */
+export declare function mailLogError(error: unknown): MailLogError;
+/** A failed logging transport must never change a delivery or persistence result. */
+export declare function writeMailLog(logger: MailLogger | undefined, level: keyof MailLogger, data: object, message: string): void;
+//# sourceMappingURL=logging.d.ts.map

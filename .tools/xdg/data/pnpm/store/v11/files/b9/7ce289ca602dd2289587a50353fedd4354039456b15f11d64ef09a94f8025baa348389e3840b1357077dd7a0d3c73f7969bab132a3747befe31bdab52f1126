@@ -1,0 +1,81 @@
+import { parseAuthorizationTitle, parseRecordSelection, } from '@nocobase/authorization/core';
+function object(value, label) {
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+        throw new TypeError(`${label} must be an object`);
+    return value;
+}
+function string(value, label) {
+    if (typeof value !== 'string' || !value.trim())
+        throw new TypeError(`${label} must be a non-empty string`);
+    return value.trim();
+}
+function strings(value, label) {
+    if (!Array.isArray(value))
+        throw new TypeError(`${label} must be an array`);
+    return value.map((item) => string(item, label));
+}
+function resource(value) {
+    const item = object(value, 'resource');
+    return {
+        type: string(item.type, 'resource type'),
+        id: string(item.id, 'resource id'),
+    };
+}
+function subjects(value) {
+    if (!Array.isArray(value))
+        throw new TypeError('subjects must be an array');
+    return value.map((item) => {
+        const subject = object(item, 'subject');
+        return {
+            type: string(subject.type, 'subject type'),
+            id: string(subject.id, 'subject id'),
+        };
+    });
+}
+function ruleActions(value) {
+    if (!Array.isArray(value))
+        throw new TypeError('actions must be an array');
+    return value.map((entry) => {
+        const item = object(entry, 'action');
+        return {
+            action: string(item.action, 'action'),
+            ...(item.scopeKey === undefined
+                ? {}
+                : { scopeKey: string(item.scopeKey, 'scopeKey') }),
+            selection: parseRecordSelection(item.selection),
+        };
+    });
+}
+/**
+ * Request body parsers for authorization settings routes. Each failure is a
+ * TypeError, which `createSettingsRouter` answers as `400`.
+ */
+export const parse = {
+    object,
+    string,
+    strings,
+    title: (value) => value === undefined || value === null || value === ''
+        ? undefined
+        : parseAuthorizationTitle(value),
+    resource,
+    subjects,
+    selection: parseRecordSelection,
+    ruleActions,
+    rule(value, options = {}) {
+        const input = object(value, 'rule');
+        const title = parse.title(input.title);
+        return {
+            key: string(input.key, 'key'),
+            resource: resource(input.resource),
+            actions: ruleActions(input.actions),
+            ...(options.withSubjects
+                ? {
+                    ...(title === undefined ? {} : { title }),
+                    subjects: subjects(input.subjects),
+                    ...(input.reason ? { reason: string(input.reason, 'reason') } : {}),
+                }
+                : {}),
+        };
+    },
+};
+//# sourceMappingURL=parsing.js.map

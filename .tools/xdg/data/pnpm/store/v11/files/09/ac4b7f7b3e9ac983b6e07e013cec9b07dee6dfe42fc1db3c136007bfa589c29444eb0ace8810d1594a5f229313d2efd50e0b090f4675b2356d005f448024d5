@@ -1,0 +1,3 @@
+import { type Knex } from 'knex';
+import type { KnexConnectionConfig } from './config.js';
+export declare function createKnexClient(config: KnexConnectionConfig): Knex;

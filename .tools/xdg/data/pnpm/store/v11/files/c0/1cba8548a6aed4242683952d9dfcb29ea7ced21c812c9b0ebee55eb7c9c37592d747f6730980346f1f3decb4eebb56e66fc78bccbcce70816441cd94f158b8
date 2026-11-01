@@ -1,0 +1,88 @@
+import { resolveJobsConfig, selectJobsConfig, } from './config.js';
+import { assertValidScope } from './validation.js';
+import { BackendJobExecutor } from './job/executor.js';
+import { MemoryJobBackend } from './job/memory/backend.js';
+import { jobStateFilePath } from './job/memory/state-file.js';
+import { RedisJobBackend } from './job/redis/backend.js';
+const defaultJobFactories = {
+    memory: (config, { logger }) => new BackendJobExecutor(new MemoryJobBackend(config), logger),
+    redis: (config, { logger }) => new BackendJobExecutor(new RedisJobBackend(config, logger), logger),
+};
+export function createJobExecutorServiceWith(config, dependencies, factories, jobFactories = defaultJobFactories) {
+    const executors = new Map();
+    const jobs = new Map();
+    const memoryJobs = new Map();
+    let shutdownPromise;
+    return {
+        getScheduleExecutor(scope, name) {
+            if (shutdownPromise) {
+                throw new Error('The jobs service has been shut down.');
+            }
+            assertValidScope(scope);
+            const selection = selectJobsConfig(config, name);
+            // Cache identity includes the selected key. Existing Schedule queues do
+            // not: equal connections, namespaces and scopes share physical firings.
+            const identity = JSON.stringify([selection.key, scope]);
+            const existing = executors.get(identity);
+            if (existing)
+                return existing;
+            const resolved = resolveJobsConfig(selection, scope, dependencies);
+            const executor = resolved.adapter === 'memory'
+                ? factories.memory(resolved, dependencies)
+                : factories.redis(resolved, dependencies);
+            executors.set(identity, executor);
+            if (resolved.builtIn) {
+                dependencies.onFallback?.({
+                    scope,
+                    ...(name !== undefined ? { name } : {}),
+                });
+            }
+            return executor;
+        },
+        getJobExecutor(scope, name) {
+            if (shutdownPromise)
+                throw new Error('The jobs service has been shut down.');
+            assertValidScope(scope);
+            const selection = selectJobsConfig(config, name);
+            const identity = JSON.stringify([selection.key, scope]);
+            const existing = jobs.get(identity);
+            if (existing)
+                return existing;
+            const resolved = resolveJobsConfig(selection, scope, dependencies);
+            // Memory keys naming the same file share one executor: two in-process
+            // writers would overwrite each other's pending snapshot at shutdown.
+            const file = resolved.adapter === 'memory' ? jobStateFilePath(resolved) : undefined;
+            const shared = file === undefined ? undefined : memoryJobs.get(file);
+            if (shared) {
+                if (shared.config.concurrency !== resolved.concurrency ||
+                    shared.config.attempts !== resolved.attempts) {
+                    throw new Error(`Jobs configurations "${shared.config.key}" and "${resolved.key}" share the memory task file ${file} for scope "${scope}" but set different concurrency or attempts.`);
+                }
+                jobs.set(identity, shared.executor);
+                return shared.executor;
+            }
+            const executor = resolved.adapter === 'memory'
+                ? jobFactories.memory(resolved, dependencies)
+                : jobFactories.redis(resolved, dependencies);
+            jobs.set(identity, executor);
+            if (file !== undefined)
+                memoryJobs.set(file, { config: resolved, executor });
+            if (resolved.builtIn)
+                dependencies.onFallback?.({
+                    scope,
+                    ...(name !== undefined ? { name } : {}),
+                });
+            return executor;
+        },
+        shutdown() {
+            shutdownPromise ??= Promise.allSettled([...executors.values(), ...new Set(jobs.values())].map((executor) => Promise.resolve().then(() => executor.shutdown()))).then((results) => {
+                const failures = results.flatMap((result) => result.status === 'rejected' ? [result.reason] : []);
+                if (failures.length > 0) {
+                    throw new AggregateError(failures, 'Some jobs executors failed to shut down.');
+                }
+            });
+            return shutdownPromise;
+        },
+    };
+}
+//# sourceMappingURL=service.js.map

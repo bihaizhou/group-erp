@@ -1,0 +1,42 @@
+import type { MailAttachmentContent, MailProviderResult, MailSyncCursor } from '../../../shared/mail.js';
+import type { MailProviderAdapter, MailProviderAccount, MailProviderChangePage, MailProviderContext, MailProviderFolderPage, MailProviderListChangesInput, MailProviderListFoldersInput, MailProviderListMessagesInput, MailProviderMessagePage, MailProviderSendInput, MailProviderSendResult, MailProviderUpsertPushSubscriptionInput, MailProviderUpsertPushSubscriptionResult, NormalizedMailMessage } from '../../contracts/provider.js';
+import type { MicrosoftMailProviderConfig } from './types.js';
+export declare class MicrosoftMailProviderAdapter implements MailProviderAdapter {
+    private readonly context;
+    private readonly config;
+    private readonly account;
+    readonly identity: MailProviderAccount['provider'];
+    readonly capabilities: MailProviderAdapter['capabilities'];
+    constructor(context: MailProviderContext, config: MicrosoftMailProviderConfig, account: MailProviderAccount);
+    upsertPushSubscription(input: MailProviderUpsertPushSubscriptionInput): Promise<MailProviderResult<MailProviderUpsertPushSubscriptionResult>>;
+    deletePushSubscription(providerSubscriptionId: string, signal?: AbortSignal): Promise<MailProviderResult<void>>;
+    getCurrentSyncCursor(): Promise<MailProviderResult<MailSyncCursor>>;
+    listFolders(input: MailProviderListFoldersInput): Promise<MailProviderResult<MailProviderFolderPage>>;
+    reconcileSyncCursor(syncCursor: MailSyncCursor | undefined, providerFolderIds: readonly string[]): MailProviderResult<MailSyncCursor>;
+    listMessages(input: MailProviderListMessagesInput): Promise<MailProviderResult<MailProviderMessagePage>>;
+    listChanges(input: MailProviderListChangesInput): Promise<MailProviderResult<MailProviderChangePage>>;
+    getMessage(providerMessageId: string, signal?: AbortSignal): Promise<MailProviderResult<NormalizedMailMessage>>;
+    getAttachment(providerMessageId: string, providerAttachmentId: string, signal?: AbortSignal): Promise<MailProviderResult<MailAttachmentContent>>;
+    sendMessage(input: MailProviderSendInput): Promise<MailProviderSendResult>;
+    saveDraft(input: MailProviderSendInput): Promise<MailProviderResult<NormalizedMailMessage>>;
+    updateDraft(providerMessageId: string, input: MailProviderSendInput): Promise<MailProviderResult<NormalizedMailMessage>>;
+    setRead(providerMessageId: string, read: boolean, signal?: AbortSignal): Promise<MailProviderResult<void>>;
+    setStarred(providerMessageId: string, starred: boolean, signal?: AbortSignal): Promise<MailProviderResult<void>>;
+    moveMessage(providerMessageId: string, providerFolderId: string, signal?: AbortSignal): Promise<MailProviderResult<{
+        readonly providerMessageId: string;
+    }>>;
+    deleteMessage(providerMessageId: string, permanently: boolean, signal?: AbortSignal): Promise<MailProviderResult<void>>;
+    private updateMessage;
+    private sendRelatedMessage;
+    private saveRelatedDraft;
+    private deleteDraftAttachment;
+    private addAttachment;
+    private normalizePage;
+    private attachments;
+    private deltaUrl;
+    private latestDeltaUrl;
+    private messageListUrl;
+    private request;
+    private accessToken;
+}
+//# sourceMappingURL=adapter.d.ts.map

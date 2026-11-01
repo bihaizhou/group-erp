@@ -1,0 +1,17 @@
+import type { OpenAPIV3_1 } from '@nocobase/app-server/router';
+type SchemaObject = OpenAPIV3_1.SchemaObject;
+/**
+ * The URL a file record's content is served at. It is added to every record a file exposure returns, the data endpoints'
+ * included, where it is declared as a computed field.
+ */
+export declare const contentUrlSchema: SchemaObject;
+/** The file record an upload creates, with the content URL the response adds. */
+export declare const fileRecordSchema: SchemaObject;
+/** The multipart body of `uploadOne`: exactly one `file` field. */
+export declare const uploadOneBodySchema: SchemaObject;
+/** The multipart body of `uploadMany`: one or more `file` fields. */
+export declare const uploadManyBodySchema: SchemaObject;
+export declare const uploadOneResultSchema: SchemaObject;
+export declare const uploadManyResultSchema: SchemaObject;
+export {};
+//# sourceMappingURL=schemas.d.ts.map

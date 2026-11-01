@@ -1,0 +1,14 @@
+import { SendMailOperation } from '../operations/send-mail.js';
+import { type MailOperationContext, type MailOffsetPage, type MailSubmissionLogView, type MailSubmissionView } from '../../shared/mail.js';
+import { type MailServiceDependencies } from './dependencies.js';
+export declare class MailSubmissionsService {
+    private readonly dependencies;
+    private readonly sendMail;
+    constructor(dependencies: MailServiceDependencies<'countSubmissions' | 'getAccount' | 'getMessage' | 'closeDraft' | 'getScheduledSubmission' | 'getSubmissionByIdempotencyKey' | 'listSubmissions' | 'transitionSubmission', 'outbox' | 'messageChangeNotifier' | 'logger'>, sendMail: SendMailOperation);
+    listSubmissionsPage(context: MailOperationContext, bulkOnly?: boolean, offset?: number, groupByBatch?: boolean, limit?: number): Promise<MailOffsetPage<MailSubmissionLogView>>;
+    listSubmissions(context: MailOperationContext, bulkOnly?: boolean, offset?: number, groupByBatch?: boolean, limit?: number): Promise<readonly MailSubmissionLogView[]>;
+    transitionSubmission(context: MailOperationContext, submissionId: string, action: 'retry' | 'cancel'): Promise<MailSubmissionLogView>;
+    sendMessage(context: MailOperationContext, input: import('../../shared/mail.js').MailComposeInput): Promise<MailSubmissionView>;
+    sendBulk(context: MailOperationContext, input: import('../../shared/mail.js').MailBulkComposeInput): Promise<readonly MailSubmissionView[]>;
+}
+//# sourceMappingURL=submissions.d.ts.map

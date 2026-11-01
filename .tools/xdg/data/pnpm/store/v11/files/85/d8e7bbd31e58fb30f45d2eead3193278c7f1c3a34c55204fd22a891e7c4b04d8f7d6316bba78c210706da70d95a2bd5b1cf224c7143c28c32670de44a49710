@@ -1,0 +1,80 @@
+import { defineMigration, } from '@nocobase/db';
+/**
+ * Notification timestamps are UTC instants, not zone-free wall clocks.
+ * Existing rows were written as UTC wall-clock values, so PostgreSQL must
+ * perform the type conversion with its session time zone pinned to UTC.
+ */
+const DISPATCH_INSTANTS = ['createdAt', 'updatedAt'];
+const DELIVERY_INSTANTS = [
+    'nextRunAt',
+    'leaseExpiresAt',
+    'createdAt',
+    'updatedAt',
+];
+const ATTEMPT_INSTANTS = ['startedAt', 'finishedAt'];
+async function pinPostgresSessionToUtc(connection) {
+    if (connection.dialect !== 'postgres')
+        return;
+    const client = await connection.client();
+    await client.raw("SET LOCAL TIME ZONE 'UTC'");
+    const result = await client.raw('SHOW TIME ZONE');
+    const pinned = result.rows?.[0]?.TimeZone;
+    if (pinned !== 'UTC')
+        throw new Error(`Migration 202609130001 needs the session time zone pinned to UTC to convert these columns, but it is "${String(pinned)}". Run it inside a transaction.`);
+}
+const migration = defineMigration({
+    name: '202609130001_notification_instant_columns',
+    async up({ builder, connection }) {
+        await pinPostgresSessionToUtc(connection);
+        for (const name of DISPATCH_INSTANTS) {
+            await builder.alterField('notificationDispatches', name, {
+                type: 'datetimeTz',
+                nullable: false,
+            });
+        }
+        for (const name of DELIVERY_INSTANTS) {
+            await builder.alterField('notificationDeliveries', name, {
+                type: 'datetimeTz',
+                nullable: name === 'nextRunAt' || name === 'leaseExpiresAt',
+            });
+        }
+        for (const name of ATTEMPT_INSTANTS) {
+            await builder.alterField('notificationDeliveryAttempts', name, {
+                type: 'datetimeTz',
+                nullable: name === 'finishedAt',
+            });
+        }
+        await builder.alterField('notificationDeliveryRetryAudits', 'createdAt', {
+            type: 'datetimeTz',
+            nullable: false,
+        });
+    },
+    async down({ builder, connection }) {
+        await pinPostgresSessionToUtc(connection);
+        await builder.alterField('notificationDeliveryRetryAudits', 'createdAt', {
+            type: 'datetime',
+            nullable: false,
+        });
+        for (const name of ATTEMPT_INSTANTS) {
+            await builder.alterField('notificationDeliveryAttempts', name, {
+                type: 'datetime',
+                nullable: name === 'finishedAt',
+            });
+        }
+        for (const name of DELIVERY_INSTANTS) {
+            await builder.alterField('notificationDeliveries', name, {
+                type: 'datetime',
+                nullable: name === 'nextRunAt' || name === 'leaseExpiresAt',
+            });
+        }
+        for (const name of DISPATCH_INSTANTS) {
+            await builder.alterField('notificationDispatches', name, {
+                type: 'datetime',
+                nullable: false,
+            });
+        }
+    },
+});
+export default migration;
+//# sourceMappingURL=202609130001_notification_instant_columns.js.map
+// @nocobase/task-manifest v1

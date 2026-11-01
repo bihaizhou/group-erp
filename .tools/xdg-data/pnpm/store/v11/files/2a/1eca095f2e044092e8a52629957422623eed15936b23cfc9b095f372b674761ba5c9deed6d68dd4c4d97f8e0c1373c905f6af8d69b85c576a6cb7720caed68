@@ -1,0 +1,15 @@
+import type { AppDriveDiskConfig } from './types.js';
+/**
+ * Thrown for a disk configuration that no driver can use. The message names the offending field and never the
+ * configured value, so credentials cannot leak into logs.
+ */
+export declare class DriveDiskConfigError extends Error {
+    readonly field: string;
+    constructor(field: string, message: string);
+}
+/**
+ * Validates a disk configuration and returns a copy holding only the fields the drivers read. Optional fields that
+ * are absent stay absent, so the driver applies its own defaults, as `createDriveManager` does.
+ */
+export declare function parseDriveDiskConfig(value: unknown): AppDriveDiskConfig;
+//# sourceMappingURL=validate.d.ts.map

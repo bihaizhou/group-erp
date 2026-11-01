@@ -1,0 +1,20 @@
+import { type PluginSourceEditor } from './client-plugins.ts';
+export interface ServerPluginsFile {
+    readonly exists: boolean;
+    readonly filePath: string;
+    readonly sourceText: string;
+}
+export interface ManualServerPluginEdit {
+    readonly entry: string;
+    readonly filePath: string;
+    readonly importStatement: string;
+    readonly localName: string;
+}
+export declare function serverPluginsPath(appRoot: string): string;
+export declare function serverPluginEntrySpecifier(packageName: string): string;
+export declare function readServerPlugins(appRoot: string): Promise<ServerPluginsFile>;
+export declare function writeServerPlugins(appRoot: string, sourceText: string): Promise<string>;
+export declare function describeServerPluginEdit(appRoot: string, packageName: string): ManualServerPluginEdit;
+export declare function createServerPluginsEditor(appRoot: string): Promise<PluginSourceEditor>;
+export declare function formatServerPlugins(appRoot: string, sourceText: string, filePath: string): Promise<string>;
+//# sourceMappingURL=server-plugins.d.ts.map

@@ -1,0 +1,18 @@
+import { AppCommand } from '../../context.ts';
+import { type Command } from '@oclif/core';
+import type { Interfaces } from '@oclif/core';
+import { type DatabaseCommandResult } from '../../database-command.ts';
+export default class AppDbRedo extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static flags: {
+        all: Interfaces.BooleanFlag<boolean>;
+        connection: Interfaces.OptionFlag<string | undefined>;
+        collections: Interfaces.BooleanFlag<boolean>;
+        force: Interfaces.BooleanFlag<boolean>;
+        'dry-run': Interfaces.BooleanFlag<boolean>;
+    };
+    run(): Promise<DatabaseCommandResult>;
+}
+//# sourceMappingURL=redo.d.ts.map

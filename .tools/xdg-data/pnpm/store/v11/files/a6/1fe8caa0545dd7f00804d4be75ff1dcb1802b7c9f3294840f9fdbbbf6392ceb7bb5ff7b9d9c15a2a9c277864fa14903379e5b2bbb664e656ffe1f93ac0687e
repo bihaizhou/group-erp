@@ -1,0 +1,66 @@
+// Reads and edits an application's explicit `server/plugins.ts` composition root.
+//
+// The shared source editor performs narrow text splices around imports and the
+// `defineServerPlugins([...])` array, preserving application-authored comments,
+// ordering, generics, and surrounding source byte for byte.
+import { existsSync, statSync } from 'node:fs';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { createPluginSourceEditor, formatPluginsFile, localNameFor, } from "./client-plugins.js";
+const SERVER_SOURCE_DEFINITION = {
+    entryKind: 'value',
+    entrySpecifierSuffix: '/server',
+    entrySuffixes: ['/server/plugin', '/server'],
+    fileLabel: 'server/plugins.ts',
+    registerCallName: 'defineServerPlugins',
+};
+const EMPTY_FILE = `import {
+  defineServerPlugins,
+  type AppServerPlugins,
+} from '@nocobase/app-server/plugins';
+
+// Array order is server composition order. A plugin is enabled by appearing
+// in this list; removing its entry and import disables its server behavior.
+const serverPlugins: AppServerPlugins = defineServerPlugins([]);
+
+export default serverPlugins;
+`;
+export function serverPluginsPath(appRoot) {
+    return path.join(appRoot, 'server', 'plugins.ts');
+}
+export function serverPluginEntrySpecifier(packageName) {
+    return `${packageName}/server`;
+}
+export async function readServerPlugins(appRoot) {
+    const filePath = serverPluginsPath(appRoot);
+    if (!existsSync(filePath) || !statSync(filePath).isFile()) {
+        return { exists: false, filePath, sourceText: EMPTY_FILE };
+    }
+    return {
+        exists: true,
+        filePath,
+        sourceText: await readFile(filePath, 'utf8'),
+    };
+}
+export async function writeServerPlugins(appRoot, sourceText) {
+    const filePath = serverPluginsPath(appRoot);
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, sourceText);
+    return filePath;
+}
+export function describeServerPluginEdit(appRoot, packageName) {
+    const localName = localNameFor(packageName);
+    return {
+        entry: `${localName},`,
+        filePath: serverPluginsPath(appRoot),
+        importStatement: `import ${localName} from '${serverPluginEntrySpecifier(packageName)}';`,
+        localName,
+    };
+}
+export async function createServerPluginsEditor(appRoot) {
+    return createPluginSourceEditor(appRoot, SERVER_SOURCE_DEFINITION);
+}
+export async function formatServerPlugins(appRoot, sourceText, filePath) {
+    return formatPluginsFile(appRoot, sourceText, filePath);
+}
+//# sourceMappingURL=server-plugins.js.map

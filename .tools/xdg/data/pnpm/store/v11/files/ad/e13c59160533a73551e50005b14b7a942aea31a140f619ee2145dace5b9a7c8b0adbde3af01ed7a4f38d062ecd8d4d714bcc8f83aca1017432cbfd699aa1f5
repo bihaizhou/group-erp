@@ -1,0 +1,13 @@
+import { type DatabaseManager } from '@nocobase/db';
+import { type MailOutboundAttachment } from '../../shared/mail.js';
+export declare class MailAttachmentsStore {
+    private readonly database;
+    constructor(database: DatabaseManager);
+    createOutboundAttachment(attachment: MailOutboundAttachment): Promise<void>;
+    getOutboundAttachment(userId: string, attachmentId: string): Promise<MailOutboundAttachment | undefined>;
+    extendOutboundAttachments(userId: string, attachmentIds: readonly string[], expiresAt: string): Promise<void>;
+    listExpiredOutboundAttachments(now: string, limit: number, after?: Pick<MailOutboundAttachment, 'expiresAt' | 'id'>): Promise<readonly MailOutboundAttachment[]>;
+    private findDraftUploadReferences;
+    deleteOutboundAttachment(attachmentId: string): Promise<boolean>;
+}
+//# sourceMappingURL=attachments.d.ts.map

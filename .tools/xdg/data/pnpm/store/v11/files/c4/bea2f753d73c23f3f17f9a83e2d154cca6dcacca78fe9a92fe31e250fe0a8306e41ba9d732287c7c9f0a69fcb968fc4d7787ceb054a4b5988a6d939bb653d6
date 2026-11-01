@@ -1,0 +1,16 @@
+import { type ConnectionConfig, type DatabaseDriverDefinition, type DatabaseDriverRegistration, type DatabaseManager } from '@nocobase/db';
+import type { AppPaths } from '../config/index.js';
+import type { AppDatabaseConfig } from './types.js';
+/**
+ * Builds the manager from the application's own database config.
+ *
+ * Call resolveDatabaseConfig before this synchronous factory when using official
+ * drivers without explicit registrations. Application runtime preparation and
+ * standalone database tasks perform that asynchronous step.
+ */
+export declare function createAppDatabaseManager<TConfig extends AppDatabaseConfig>(config: TConfig, paths?: AppPaths, drivers?: Record<string, DatabaseDriverRegistration>): DatabaseManager | undefined;
+export declare function resolveConnections(connections: AppDatabaseConfig['connections'], paths: AppPaths | undefined, drivers?: Record<string, DatabaseDriverRegistration>, sharedMetadataStore?: AppDatabaseConfig['metadataStore'], 
+/** The top-level task configuration, whose legacy `migrations`/`seeds` apply to the default connection. */
+tasks?: Pick<AppDatabaseConfig, 'default' | 'migrations' | 'seeds'>): Record<string, ConnectionConfig>;
+export declare function resolveAppDatabaseDriver(dialect: string, drivers?: Record<string, DatabaseDriverRegistration>): DatabaseDriverDefinition | undefined;
+//# sourceMappingURL=manager.d.ts.map

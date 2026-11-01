@@ -1,0 +1,76 @@
+import { type MailProviderError, type MailProviderErrorCategory, type MailProviderReasonCode } from '../../shared/mail.js';
+/** The canonical statuses a Mail domain error may report; the API maps each one to its HTTP status. */
+export type MailErrorStatus = 'INVALID_ARGUMENT' | 'FAILED_PRECONDITION' | 'NOT_FOUND' | 'ALREADY_EXISTS' | 'ABORTED';
+export interface MailErrorOptions {
+    readonly status: MailErrorStatus;
+    /** Stable UPPER_SNAKE_CASE reason within the `mail` domain. */
+    readonly reason: string;
+    readonly message: string;
+    /**
+     * The identifier a NOT_FOUND error is about, such as `accountId`. The API answers 404 when the request path names
+     * it and 400 with a field violation when the request body or query refers to it.
+     */
+    readonly field?: string;
+    readonly cause?: unknown;
+}
+/**
+ * A failure Mail reports to its caller: a missing resource, a state that forbids the operation, or a conflict. Every
+ * other error escaping Mail is an unexpected failure.
+ */
+export declare class MailError extends Error {
+    readonly status: MailErrorStatus;
+    readonly reason: string;
+    readonly field: string | undefined;
+    constructor(options: MailErrorOptions);
+}
+export declare function mailNotFound(reason: string, message: string, field: string): MailError;
+/**
+ * A request Mail cannot act on because its input is invalid, such as an unreadable page token or too many
+ * attachments. The API answers 400 `INVALID_MAIL_REQUEST`, with a field violation when `field` names the input.
+ * Unexpected failures must not use this: they stay ordinary errors and become an opaque 500.
+ */
+export declare function mailInvalidArgument(message: string, field?: string, cause?: unknown): MailError;
+export declare function mailFailedPrecondition(reason: string, message: string): MailError;
+export declare const mailAccountNotFound: (field?: string) => MailError;
+export declare const mailMessageNotFound: (field?: string) => MailError;
+export declare const mailAccountRemoving: () => MailError;
+export declare const mailAccountInactive: () => MailError;
+export declare const mailAttachmentStorageUnavailable: () => MailError;
+/** Whether a value carries a Provider error, such as a `MailProviderRequestError` raised through `assertProviderResult`. */
+export declare function isMailProviderError(value: unknown): value is import('../../shared/mail.js').MailProviderError;
+/**
+ * How the HTTP API answers a Provider failure a route met while it waited for the Provider:
+ *
+ * - `RATE_LIMITED`: the Provider throttled the request or a quota ran out; `429 RESOURCE_EXHAUSTED`, with `Retry-After`
+ *   when the Provider said how long to wait.
+ * - `UNAVAILABLE`: the Provider could not be reached, timed out, or failed on its side (an HTTP 5xx, a transient SMTP
+ *   4xx reply); `503 UNAVAILABLE`.
+ * - `REAUTHORIZATION_REQUIRED`: the account's authorization was revoked or has expired and only reconnecting the
+ *   account restores it; `400 FAILED_PRECONDITION` with reason `MAIL_ACCOUNT_REAUTHORIZATION_REQUIRED`.
+ * - `REJECTED`: the Provider refused this request, such as a recipient or content it does not accept or an operation
+ *   its configuration forbids; `400 FAILED_PRECONDITION` with reason `MAIL_PROVIDER_REQUEST_FAILED`.
+ */
+export type MailProviderFailureKind = 'RATE_LIMITED' | 'UNAVAILABLE' | 'REAUTHORIZATION_REQUIRED' | 'REJECTED';
+/** Classify a Provider failure by the category and retryability the Provider adapter assigned to it. */
+export declare function classifyMailProviderError(error: MailProviderError): MailProviderFailureKind;
+/**
+ * A Provider failure thrown to the caller of a synchronous operation. It carries the adapter's `MailProviderError`
+ * fields on itself, so code that reads `code`, `category` or `retryable` off a caught error keeps working, and the
+ * HTTP API answers it by its `kind` rather than with an opaque 500.
+ */
+export declare class MailProviderRequestError extends Error implements MailProviderError {
+    readonly code: string;
+    readonly category: MailProviderErrorCategory;
+    readonly retryable: boolean;
+    readonly retryAfterMs: number | undefined;
+    readonly reasonCode: MailProviderReasonCode | undefined;
+    readonly recipients: MailProviderError['recipients'] | undefined;
+    readonly kind: MailProviderFailureKind;
+    constructor(error: MailProviderError, options?: {
+        readonly cause?: unknown;
+    });
+}
+export declare function assertProviderResult<T>(result: import('../../shared/mail.js').MailProviderResult<T>): T;
+export declare function toManagementActionError(cause: unknown): import('../../shared/mail.js').MailPublicError;
+export declare function toPublicError(error: import('../../shared/mail.js').MailProviderError): import('../../shared/mail.js').MailPublicError;
+//# sourceMappingURL=errors.d.ts.map

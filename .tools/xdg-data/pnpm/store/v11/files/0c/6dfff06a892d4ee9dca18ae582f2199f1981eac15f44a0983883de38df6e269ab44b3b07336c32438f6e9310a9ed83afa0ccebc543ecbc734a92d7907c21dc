@@ -1,0 +1,8 @@
+import type { AggregateAst, AggregateOptions, FilterAst, RepositoryFilter, RepositoryRecord, RepositorySelect, RepositorySort, SelectAst, SortAst } from './types.js';
+/** Materialize a filter callback, shorthand, or AST without a database schema. */
+export declare function buildFilter<TRecord extends object = RepositoryRecord>(input: RepositoryFilter<TRecord>): FilterAst;
+export declare function buildSort<TRecord extends object = RepositoryRecord>(input: RepositorySort<TRecord>): SortAst;
+export declare function buildAggregate<TRecord extends object = RepositoryRecord>(input: AggregateOptions<TRecord>['aggregate']): AggregateAst;
+/** Includes and combine branches may contain their own filter/sort callbacks. */
+export declare function buildSelect<TRecord extends object = RepositoryRecord>(input: RepositorySelect<TRecord>): SelectAst;
+//# sourceMappingURL=build-query.d.ts.map

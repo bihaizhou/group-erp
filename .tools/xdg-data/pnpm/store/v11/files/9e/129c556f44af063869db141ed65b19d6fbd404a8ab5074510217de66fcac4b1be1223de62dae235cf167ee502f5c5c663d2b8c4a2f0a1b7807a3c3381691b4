@@ -1,0 +1,10 @@
+import type { PhysicalColumnSchema } from '../types.js';
+export interface NumericCapabilityStrategy {
+    readonly ignore?: (base: string) => boolean;
+    readonly special?: (type: string, base: string) => Pick<PhysicalColumnSchema, 'integerBits' | 'binaryPrecision' | 'unsigned'> | undefined;
+    readonly unsigned?: (type: string, base: string) => boolean;
+}
+type NumericCapabilities = Pick<PhysicalColumnSchema, 'integerBits' | 'binaryPrecision' | 'unsigned'>;
+export declare function numericCapabilities(strategy: NumericCapabilityStrategy, nativeType: string): NumericCapabilities;
+export declare function sqliteAffinity(declaration: string): NonNullable<PhysicalColumnSchema['affinity']>;
+export {};

@@ -1,0 +1,17 @@
+import { defineMigration } from '@nocobase/db';
+const migration = defineMigration({
+    name: '202609200002_notification_in_app_target',
+    async up({ builder }) {
+        await builder.alterCollection('notificationInAppItems', (table) => {
+            table.json('target').nullable();
+        });
+    },
+    async down({ builder }) {
+        await builder.alterCollection('notificationInAppItems', (table) => {
+            table.dropField('target');
+        });
+    },
+});
+export default migration;
+//# sourceMappingURL=202609200002_notification_in_app_target.js.map
+// @nocobase/task-manifest v1

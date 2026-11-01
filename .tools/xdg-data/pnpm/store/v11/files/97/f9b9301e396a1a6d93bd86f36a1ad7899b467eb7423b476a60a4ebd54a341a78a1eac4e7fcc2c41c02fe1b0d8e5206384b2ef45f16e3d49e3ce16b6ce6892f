@@ -1,0 +1,70 @@
+import type { CollectionBuilder } from '../../../collection/builder/builder.js';
+import type { ConnectionCollections } from '../../../collection/registry/types.js';
+import type { CollectionMetadataService } from '../../../metadata/service.js';
+import type { QueryAdapter } from '../../../query/types.js';
+import type { NormalizedRepositoryPolicy, RepositoryPolicy } from '../../../repository/policy/types.js';
+import type { ExplainRepositoryEventsOptions, RepositoryEventsExplanation, RepositoryMutationListeners, RepositoryMutationSubscriptionOptions } from '../../../repository/events/types.js';
+import type { Repository, RepositoryRecord } from '../../../repository/types.js';
+import type { DatabaseCapabilities, SchemaAdapter } from '../../../schema/adapter.js';
+import type { SchemaInspector } from '../../../schema/inspector/types.js';
+import type { DatabaseConnection, ScopedDatabaseConnection } from '../../connection.js';
+import type { DatabaseDriver, SchemaManagementMode } from '../../config.js';
+import type { DatabaseDriverRuntime } from '../../runtime.js';
+/** What a policy-bound connection needs from the connection underneath it. */
+export interface PolicyBindableConnection extends DatabaseConnection {
+    createRepository<TRecord extends object = RepositoryRecord, TCreate extends object = Partial<TRecord>, TUpdate extends object = Partial<TRecord>>(collection: string, policy: NormalizedRepositoryPolicy | undefined): Repository<TRecord, TCreate, TUpdate>;
+}
+/**
+ * A connection that hands out policy-bound repositories.
+ *
+ * It delegates to the connection it was derived from rather than building a
+ * second one. That is not only tidier: a second connection would carry its own
+ * empty collection registry, so every request that bound a policy would
+ * re-introspect the schema, and it would open its own pool the first time it
+ * was used because the original had not connected yet. Delegating keeps one
+ * connection, one registry cache and one pool, and leaves transactions to the
+ * connection that knows how to run them.
+ */
+export declare class PolicyBoundConnection implements ScopedDatabaseConnection {
+    private readonly inner;
+    private readonly policies;
+    constructor(inner: PolicyBindableConnection, policies: Readonly<Record<string, NormalizedRepositoryPolicy>>);
+    get name(): string;
+    get driver(): DatabaseDriver;
+    get dialect(): string;
+    get schemaManagement(): SchemaManagementMode;
+    get capabilities(): DatabaseCapabilities;
+    get runtime(): DatabaseDriverRuntime;
+    get builder(): CollectionBuilder;
+    get collections(): ConnectionCollections;
+    get collectionMetadata(): CollectionMetadataService;
+    get query(): QueryAdapter;
+    get schema(): SchemaAdapter;
+    get schemaInspector(): SchemaInspector;
+    /**
+     * A collection the map does not cover returns an unbound Repository, which
+     * is why this cannot promise a ScopedRepository. Tightening that is what
+     * `requireScope` on the Collection is for.
+     */
+    repository<TRecord extends object = RepositoryRecord, TCreate extends object = Partial<TRecord>, TUpdate extends object = Partial<TRecord>>(collection: string): Repository<TRecord, TCreate, TUpdate>;
+    /** The policies this connection binds, by collection name. */
+    explainPolicies(): Readonly<Record<string, NormalizedRepositoryPolicy>>;
+    client<T = unknown>(): Promise<T>;
+    connect(): Promise<this>;
+    disconnect(): Promise<void>;
+    reconnect(): Promise<this>;
+    resetManagedSchema(): Promise<void>;
+    afterCommit(callback: () => void | Promise<void>): void;
+    afterRollback(callback: (error: unknown) => void | Promise<void>): void;
+    /** Registers on the connection underneath; bindings do not narrow what is observed. */
+    onRepositoryMutation(options: RepositoryMutationSubscriptionOptions, listeners: RepositoryMutationListeners): () => void;
+    explainRepositoryEvents(options: ExplainRepositoryEventsOptions): Promise<RepositoryEventsExplanation>;
+    /**
+     * Transactions run on the connection underneath, so everything it sets up
+     * for one — the deferred invalidation collector above all — stays in place.
+     * The bindings ride along into the transaction.
+     */
+    transaction<T>(fn: (connection: ScopedDatabaseConnection) => Promise<T>): Promise<T>;
+}
+/** Bind normalized Policies, per Collection, to a connection for one principal. */
+export declare function bindPolicies<P>(connection: PolicyBindableConnection, policies: Readonly<Record<string, RepositoryPolicy | ((principal: P) => RepositoryPolicy)>>, principal: P): ScopedDatabaseConnection;

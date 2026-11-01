@@ -1,0 +1,14 @@
+import type { MailTemplate } from '../mail-client.js';
+import type { MailTemplateVariables } from '../contracts/composer.js';
+export type { MailTemplateVariables } from '../contracts/composer.js';
+export interface RenderedMailTemplate {
+    readonly subject: string;
+    readonly text: string;
+    readonly html: string;
+}
+export declare function renderMailTemplate(template: Pick<MailTemplate, 'subject' | 'text' | 'html'>, variables?: MailTemplateVariables): RenderedMailTemplate;
+export declare function interpolateMailTemplate(source: string, variables: MailTemplateVariables, encode?: (value: string) => string): string;
+export declare function plainTextToMailHtml(text: string): string;
+export declare function htmlToPlainText(html: string): string;
+export declare function sanitizeMailHtml(html: string): string;
+//# sourceMappingURL=mail-template.d.ts.map

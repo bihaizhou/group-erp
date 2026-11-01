@@ -1,0 +1,11 @@
+export type CollectionResolutionIssueCode = 'COLLECTION_SCHEMA_INCOMPLETE' | 'COLLECTION_SCHEMA_DRIFT' | 'COLLECTION_NAME_CONFLICT' | 'COLLECTION_FIELD_CONFLICT' | 'COLLECTION_OPTIMISTIC_LOCK_INVALID' | 'COLLECTION_PHYSICAL_REFERENCE_INVALID' | 'COLLECTION_RELATION_INVALID';
+export interface CollectionResolutionIssue {
+    readonly code: CollectionResolutionIssueCode;
+    readonly path: readonly (string | number)[];
+    readonly message: string;
+}
+export declare class CollectionResolutionError extends Error {
+    readonly issues: readonly CollectionResolutionIssue[];
+    readonly code: "COLLECTION_RESOLUTION_FAILED";
+    constructor(issues: readonly CollectionResolutionIssue[]);
+}

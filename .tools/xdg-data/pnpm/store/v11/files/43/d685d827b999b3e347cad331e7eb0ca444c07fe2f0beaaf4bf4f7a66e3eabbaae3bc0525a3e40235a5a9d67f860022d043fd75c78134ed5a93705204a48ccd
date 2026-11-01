@@ -1,0 +1,17 @@
+import type { Logger } from '@nocobase/logging';
+export interface NotificationReconcileJobOptions {
+    readonly intervalMs: number;
+    readonly logger: Logger;
+    readonly execute: () => Promise<void>;
+}
+/** Owns the lifecycle of periodic notification reconciliation. */
+export declare class NotificationReconcileJob {
+    private readonly options;
+    private timer?;
+    private running?;
+    constructor(options: NotificationReconcileJobOptions);
+    start(): void;
+    stop(): Promise<void>;
+    private execute;
+}
+//# sourceMappingURL=notification-reconcile-job.d.ts.map

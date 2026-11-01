@@ -1,0 +1,5 @@
+import { Checkbox as CheckboxPrimitive } from '@base-ui/react/checkbox';
+import type { ReactElement } from 'react';
+export type CheckboxProps = CheckboxPrimitive.Root.Props;
+export declare function Checkbox({ className, indeterminate, ...props }: CheckboxProps): ReactElement;
+//# sourceMappingURL=checkbox.d.ts.map

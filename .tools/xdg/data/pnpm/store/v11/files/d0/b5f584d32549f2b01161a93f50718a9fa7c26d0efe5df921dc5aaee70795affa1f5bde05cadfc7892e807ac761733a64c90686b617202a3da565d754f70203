@@ -1,0 +1,8 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { cn } from '../lib/utils.js';
+import { Button } from './ui/button.js';
+export function MailManagementListItem({ selected, onSelect, children, actions, ariaLabel, }) {
+    return (_jsxs("div", { className: cn('flex min-w-0 items-center border-l-2 border-transparent transition-colors hover:bg-muted/30', selected &&
+            'border-b-transparent border-l-primary bg-primary/10 hover:bg-primary/15'), children: [_jsx(Button, { "aria-current": selected ? 'true' : undefined, "aria-label": ariaLabel, className: 'h-auto min-w-0 flex-1 justify-start gap-3 px-4 py-2.5 text-left text-sm hover:bg-transparent focus-visible:ring-2 focus-visible:ring-inset', onClick: onSelect, type: 'button', variant: 'ghost', children: children }), actions ? (_jsx("div", { className: 'flex shrink-0 items-center gap-1 pr-2', children: actions })) : null] }));
+}
+//# sourceMappingURL=mail-management-list-item.js.map

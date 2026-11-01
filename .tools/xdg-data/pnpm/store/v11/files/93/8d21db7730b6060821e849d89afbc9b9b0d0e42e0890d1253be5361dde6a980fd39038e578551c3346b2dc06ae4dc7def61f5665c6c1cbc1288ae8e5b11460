@@ -1,0 +1,8 @@
+import type { ConfigMap } from './types.js';
+export interface MergeConfigMapsOptions {
+    readonly delimiter: string;
+    readonly strict: boolean;
+    readonly path?: readonly string[];
+}
+export declare function mergeConfigMaps(destination: ConfigMap, source: ConfigMap, options: MergeConfigMapsOptions): ConfigMap;
+//# sourceMappingURL=merge.d.ts.map

@@ -1,0 +1,11 @@
+import { mkdir } from 'node:fs/promises';
+export async function prepareDriveStorage(config) {
+    const directories = Array.from(new Set(Object.values(config.disks)
+        .filter((disk) => typeof disk !== 'function' && disk.driver === 'fs')
+        .map((disk) => disk.location)));
+    for (const directory of directories) {
+        await mkdir(directory, { recursive: true });
+    }
+    return { directories };
+}
+//# sourceMappingURL=prepare.js.map

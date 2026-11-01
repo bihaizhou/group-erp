@@ -1,0 +1,3 @@
+import type { MigrationDefinition } from './types.js';
+/** Marks and returns a migration definition for discovery by the migration loader. */
+export declare function defineMigration<T extends MigrationDefinition>(definition: T): T;

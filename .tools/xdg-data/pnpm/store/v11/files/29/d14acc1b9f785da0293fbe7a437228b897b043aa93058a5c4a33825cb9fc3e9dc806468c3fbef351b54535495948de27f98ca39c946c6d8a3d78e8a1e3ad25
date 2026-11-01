@@ -1,0 +1,16 @@
+import type { LoggingConfig, FileLogOptions, ConsoleLogOptions } from '@nocobase/logging';
+export interface AppLoggingConfig extends LoggingConfig {
+    readonly pretty?: boolean;
+}
+export interface AppRuntimeLogging {
+    readonly file?: FileLogOptions;
+    readonly enabled?: boolean;
+    readonly level?: string;
+    readonly retentionDays?: number;
+    readonly maxSizeMB?: number;
+    readonly console?: boolean | ConsoleLogOptions;
+    readonly bindings?: Readonly<Record<string, string>>;
+}
+/** Normalize legacy Host policy fields once at the App/Host boundary. */
+export declare function normalizeRuntimeLogging(policy?: AppRuntimeLogging): AppRuntimeLogging;
+//# sourceMappingURL=config.d.ts.map

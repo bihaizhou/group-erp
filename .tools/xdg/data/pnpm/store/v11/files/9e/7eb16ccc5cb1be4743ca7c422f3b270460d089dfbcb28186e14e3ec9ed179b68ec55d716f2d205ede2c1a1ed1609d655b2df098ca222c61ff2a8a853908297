@@ -1,0 +1,15 @@
+import { apiClientToken } from '@nocobase/app-client';
+import { ServiceProvider } from '@nocobase/service-provider';
+import { ClientFileRepositoryManager } from '../manager.js';
+import { clientFileRepositoryManagerToken } from '../token.js';
+export class ClientFileRepositoryServiceProvider extends ServiceProvider {
+    name = '@nocobase/app-plugin-file';
+    register() {
+        this.app.container.singleton(clientFileRepositoryManagerToken, (container) => new ClientFileRepositoryManager(container.resolve(apiClientToken)));
+    }
+}
+const serviceProviders = [
+    ClientFileRepositoryServiceProvider,
+];
+export default serviceProviders;
+//# sourceMappingURL=index.js.map

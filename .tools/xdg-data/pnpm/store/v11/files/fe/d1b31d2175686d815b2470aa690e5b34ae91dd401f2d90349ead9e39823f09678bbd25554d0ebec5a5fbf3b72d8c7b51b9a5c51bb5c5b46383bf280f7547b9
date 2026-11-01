@@ -1,0 +1,21 @@
+import { Command } from '@oclif/core';
+import { type AppTool } from '../tools/run-tool.ts';
+export interface ToolCommandOptions {
+    /** Hand the plugins' build and dev hooks to the script. */
+    readonly hooks?: boolean;
+    /** Node options for the script, such as a loader. */
+    readonly execArgv?: readonly string[];
+}
+/**
+ * A command that forwards its arguments untouched to one script.
+ *
+ * The scripts parse their own options — `build --target`, `dist retarget --node-version` — and print their own
+ * usage, so the command does not declare flags it would only have to keep in step with them.
+ */
+export declare abstract class ToolCommand extends Command {
+    static strict: boolean;
+    protected abstract readonly tool: AppTool;
+    protected readonly toolOptions: ToolCommandOptions;
+    run(): Promise<void>;
+}
+//# sourceMappingURL=tool-command.d.ts.map

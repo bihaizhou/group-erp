@@ -1,0 +1,17 @@
+import type { NamingOptions } from '../collection/types.js';
+import type { CollectionMetadataDocument } from './document.js';
+export type LegacyMetadataExtractionDiagnosticCode = 'LEGACY_METADATA_INVALID' | 'LEGACY_METADATA_PROPERTY_REMOVED' | 'LEGACY_METADATA_VIRTUAL_FIELD_UNSUPPORTED' | 'LEGACY_METADATA_PHYSICAL_MAPPING_INCOMPATIBLE';
+export interface LegacyMetadataExtractionDiagnostic {
+    severity: 'warning' | 'error';
+    code: LegacyMetadataExtractionDiagnosticCode;
+    path: readonly (string | number)[];
+    message: string;
+}
+export interface LegacyMetadataExtractionResult {
+    document?: CollectionMetadataDocument;
+    diagnostics: readonly LegacyMetadataExtractionDiagnostic[];
+}
+export interface LegacyMetadataExtractionOptions {
+    naming?: NamingOptions;
+}
+export declare function extractLegacyCollectionMetadata(input: unknown, options?: LegacyMetadataExtractionOptions): LegacyMetadataExtractionResult;

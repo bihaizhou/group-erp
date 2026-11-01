@@ -1,0 +1,11 @@
+import { type MailLogger } from './logging.js';
+import type { RealtimeUserTopic } from '@nocobase/app-server/realtime';
+import type { MailRealtimeEvent } from '../shared/realtime.js';
+export { MAIL_REALTIME_TOPIC, type MailRealtimeEvent, } from '../shared/realtime.js';
+export interface MailMessageChangeNotifier {
+    notify(userId: string): void;
+}
+export type MailRealtimeTopic = Pick<RealtimeUserTopic<MailRealtimeEvent>, 'publishFor'>;
+export declare function createMailMessageChangeNotifier(topic: MailRealtimeTopic): MailMessageChangeNotifier;
+export declare function notifyMailMessageChange(notifier: MailMessageChangeNotifier | undefined, userId: string, logger?: MailLogger): void;
+//# sourceMappingURL=realtime.d.ts.map

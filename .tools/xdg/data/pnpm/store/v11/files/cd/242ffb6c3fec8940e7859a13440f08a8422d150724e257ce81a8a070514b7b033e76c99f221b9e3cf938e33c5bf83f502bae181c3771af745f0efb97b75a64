@@ -1,0 +1,8 @@
+import { type JWTPayload } from 'jose';
+export interface SessionCookiePayload extends JWTPayload {
+    sid: string;
+}
+export declare function generateSessionId(): string;
+export declare function encryptSessionCookie(payload: SessionCookiePayload, secret: string, expiresAt: number): Promise<string>;
+export declare function decryptSessionCookie(token: string, secrets: string[]): Promise<SessionCookiePayload | null>;
+//# sourceMappingURL=crypto.d.ts.map

@@ -1,0 +1,291 @@
+import { Args, Flags } from '@oclif/core';
+import { createHash } from 'node:crypto';
+import { readFile, readdir } from 'node:fs/promises';
+import path from 'node:path';
+import { createCliPluginsEditor, readCliPlugins, } from "../../lib/cli-plugins.js";
+import { createClientPluginsEditor, readClientPlugins, } from "../../lib/client-plugins.js";
+import { installedPluginDirectory } from "../../lib/plugin-install.js";
+import { hasCliPluginEntry, hasClientPluginEntry, hasServerPluginEntry, pluginPackageName, } from "../../lib/plugin-registration.js";
+import { classifyPluginError } from "../../lib/plugin-json.js";
+import { createServerPluginsEditor, readServerPlugins, } from "../../lib/server-plugins.js";
+import { collectPluginSkills } from "../../lib/skills-sync.js";
+import { resolveAppRoot } from "../../lib/workspace-app.js";
+import { AppCommand } from "../../context.js";
+export default class PluginInspect extends AppCommand {
+    static summary = "Inspect a plugin's static registration state.";
+    static description = 'Reads the installed package, dependency records, Client and Server composition roots, and synchronized Skills without modifying the App.';
+    static examples = [
+        '<%= config.bin %> <%= command.id %> audit-log --json',
+        '<%= config.bin %> <%= command.id %> audit-log --workspace-root . --app app-template-default --json',
+    ];
+    static args = {
+        name: Args.string({
+            description: 'Plugin short name or full @nocobase/app-plugin-* name.',
+            required: true,
+        }),
+    };
+    static flags = {
+        dir: Flags.string({
+            description: 'App directory. Defaults to the current directory.',
+        }),
+        app: Flags.string({
+            description: 'Workspace app directory or package name. Requires --workspace-root.',
+        }),
+        'workspace-root': Flags.string({
+            description: 'Monorepo root. Selects app-template-default unless --app is provided.',
+        }),
+    };
+    async run() {
+        const { args, flags } = await this.parse(PluginInspect);
+        let result;
+        try {
+            const appRoot = await resolveAppRoot({
+                app: flags.app,
+                dir: flags.dir,
+                workspaceRoot: flags['workspace-root'],
+            });
+            result = await inspectPlugin(appRoot, pluginPackageName(args.name), targetArgs(flags));
+        }
+        catch (error) {
+            throw classifyPluginError(error);
+        }
+        const { issues, plugin } = result;
+        this.log(`${plugin.packageName}: ${issues.length === 0 ? 'registration state is consistent' : `${issues.length} issue(s) found`}`);
+        for (const issue of issues) {
+            this.log(`  ${issue.severity}: ${issue.message}`);
+        }
+        return result;
+    }
+}
+async function inspectPlugin(appRoot, packageName, target) {
+    const manifest = JSON.parse(await readFile(path.join(appRoot, 'package.json'), 'utf8'));
+    const pluginDirectory = await installedPluginDirectory(appRoot, packageName);
+    const dependencyField = manifest.dependencies?.[packageName]
+        ? 'dependencies'
+        : manifest.devDependencies?.[packageName]
+            ? 'devDependencies'
+            : undefined;
+    const dependencyRange = manifest.dependencies?.[packageName] ??
+        manifest.devDependencies?.[packageName];
+    const clientExport = pluginDirectory
+        ? await hasClientPluginEntry(pluginDirectory)
+        : false;
+    const serverExport = pluginDirectory
+        ? await hasServerPluginEntry(pluginDirectory)
+        : false;
+    const cliExport = pluginDirectory
+        ? await hasCliPluginEntry(pluginDirectory)
+        : false;
+    const issues = [];
+    if (!pluginDirectory)
+        issues.push({
+            code: 'PLUGIN_NOT_INSTALLED',
+            message: `${packageName} is not installed in the App.`,
+            severity: 'error',
+        });
+    if (!dependencyRange)
+        issues.push({
+            code: 'DEPENDENCY_MISSING',
+            message: `${packageName} is not declared as an App dependency.`,
+            severity: 'error',
+        });
+    const client = await inspectComposition(appRoot, packageName, 'client');
+    const server = await inspectComposition(appRoot, packageName, 'server');
+    const cli = await inspectComposition(appRoot, packageName, 'cli');
+    const enabled = client.registered || server.registered || cli.registered;
+    if (client.registered && !clientExport)
+        issues.push({
+            code: 'CLIENT_ENTRY_UNEXPECTED',
+            message: 'Client registration has no matching package export.',
+            severity: 'error',
+        });
+    if (server.registered && !serverExport)
+        issues.push({
+            code: 'SERVER_ENTRY_UNEXPECTED',
+            message: 'Server registration has no matching package export.',
+            severity: 'error',
+        });
+    if (cli.registered && !cliExport)
+        issues.push({
+            code: 'CLI_ENTRY_UNEXPECTED',
+            message: 'CLI registration has no matching package export.',
+            severity: 'error',
+        });
+    const skills = pluginDirectory
+        ? await inspectSkills(appRoot, packageName, pluginDirectory)
+        : {
+            checked: false,
+            reason: 'plugin-not-installed',
+            source: [],
+            synchronized: [],
+            missing: [],
+            stale: [],
+            contentMatches: false,
+        };
+    if (skills.checked &&
+        (skills.missing.length > 0 ||
+            skills.stale.length > 0 ||
+            !skills.contentMatches))
+        issues.push({
+            code: 'SKILLS_OUT_OF_DATE',
+            message: `Synchronized Skills do not match ${packageName}.`,
+            severity: 'warning',
+        });
+    return {
+        app: { packageName: manifest.name ?? appRoot, appRoot },
+        plugin: {
+            packageName,
+            installed: pluginDirectory !== undefined,
+            pluginDirectory,
+            exports: {
+                client: clientExport,
+                serverPlugin: serverExport,
+                cli: cliExport,
+            },
+        },
+        dependency: { field: dependencyField, range: dependencyRange },
+        registration: { enabled },
+        composition: {
+            client,
+            server,
+            cli,
+        },
+        skills,
+        consistent: issues.length === 0,
+        issues,
+        suggestions: suggestionsFor(issues, packageName, target),
+    };
+}
+async function inspectComposition(appRoot, packageName, kind) {
+    const file = kind === 'client'
+        ? await readClientPlugins(appRoot)
+        : kind === 'server'
+            ? await readServerPlugins(appRoot)
+            : await readCliPlugins(appRoot);
+    if (!file.exists)
+        return { registered: false };
+    const editor = kind === 'client'
+        ? await createClientPluginsEditor(appRoot)
+        : kind === 'server'
+            ? await createServerPluginsEditor(appRoot)
+            : await createCliPluginsEditor(appRoot);
+    const entries = editor.list(file.sourceText);
+    const order = entries.findIndex((entry) => entry.packageName === packageName);
+    return order === -1
+        ? { registered: false }
+        : { registered: true, order: order + 1 };
+}
+async function inspectSkills(appRoot, packageName, pluginDirectory) {
+    const source = await collectPluginSkills({ packageName, pluginDirectory });
+    const targetRoot = path.join(appRoot, '.agents', 'skills');
+    const synchronized = await safeDirectoryNames(targetRoot);
+    const owned = synchronized.filter((name) => name === source.prefix || name.startsWith(`${source.prefix}-`));
+    const sourceNames = source.skills.map((skill) => skill.name);
+    const missing = sourceNames.filter((name) => !owned.includes(name));
+    const stale = owned.filter((name) => !sourceNames.includes(name));
+    let contentMatches = missing.length === 0 && stale.length === 0;
+    if (contentMatches) {
+        for (const skill of source.skills) {
+            if ((await hashDirectory(skill.sourcePath)) !==
+                (await hashDirectory(path.join(targetRoot, skill.name)))) {
+                contentMatches = false;
+                break;
+            }
+        }
+    }
+    return {
+        checked: true,
+        source: sourceNames,
+        synchronized: owned,
+        missing,
+        stale,
+        contentMatches,
+    };
+}
+async function safeDirectoryNames(directory) {
+    try {
+        return (await readdir(directory, { withFileTypes: true }))
+            .filter((entry) => entry.isDirectory())
+            .map((entry) => entry.name)
+            .sort();
+    }
+    catch (error) {
+        const code = error.code;
+        if (code === 'ENOENT' || code === 'ENOTDIR')
+            return [];
+        throw error;
+    }
+}
+async function hashDirectory(directory) {
+    const hash = createHash('sha256');
+    const visit = async (current, relative = '') => {
+        const entries = await readdir(current, { withFileTypes: true });
+        for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+            const childRelative = path.join(relative, entry.name);
+            const child = path.join(current, entry.name);
+            if (entry.isDirectory())
+                await visit(child, childRelative);
+            else if (entry.isFile()) {
+                hash.update(childRelative);
+                hash.update(await readFile(child));
+            }
+        }
+    };
+    await visit(directory);
+    return hash.digest('hex');
+}
+/**
+ * The flags that located the application, repeated on every suggestion so it acts on the same App from the same
+ * working directory.
+ */
+function targetArgs(flags) {
+    if (flags['workspace-root'] !== undefined) {
+        return [
+            '--workspace-root',
+            flags['workspace-root'],
+            ...(flags.app === undefined ? [] : ['--app', flags.app]),
+        ];
+    }
+    return flags.dir === undefined ? [] : ['--dir', flags.dir];
+}
+function suggestionFor(code, packageName, target) {
+    const shortName = packageName.replace('@nocobase/app-plugin-', '');
+    if (code === 'PLUGIN_NOT_INSTALLED')
+        return {
+            command: 'pnpm',
+            args: ['nocobase', 'plugin', 'register', shortName, ...target],
+        };
+    if (code === 'SKILLS_OUT_OF_DATE')
+        return {
+            command: 'pnpm',
+            // `--package` with the full name, not the compatibility `--plugin`: agents copy suggested commands as they are.
+            args: ['nocobase', 'skills', 'sync', '--package', packageName, ...target],
+        };
+    return {
+        command: 'pnpm',
+        args: [
+            'nocobase',
+            'plugin',
+            'register',
+            shortName,
+            '--no-install',
+            ...target,
+        ],
+    };
+}
+function suggestionsFor(issues, packageName, target) {
+    const notInstalled = issues.find(({ code }) => code === 'PLUGIN_NOT_INSTALLED');
+    const actionableIssues = notInstalled ? [notInstalled] : issues;
+    return uniqueSuggestions(actionableIssues.map((issue) => suggestionFor(issue.code, packageName, target)));
+}
+function uniqueSuggestions(suggestions) {
+    const seen = new Set();
+    return suggestions.filter((suggestion) => {
+        const key = JSON.stringify([suggestion.command, suggestion.args]);
+        if (seen.has(key))
+            return false;
+        seen.add(key);
+        return true;
+    });
+}
+//# sourceMappingURL=inspect.js.map

@@ -1,0 +1,1 @@
+{"version":3,"file":"provider.d.ts","sourceRoot":"","sources":["../../src/id-generator/provider.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,eAAe,EAAE,MAAM,4BAA4B,CAAC;AAE7D,OAAO,KAAK,EAAE,oBAAoB,EAAE,MAAM,qBAAqB,CAAC;AAIhE,qBAAa,mBAAoB,SAAQ,eAAe,CAAC,oBAAoB,CAAC;IAC5E,SAAgB,IAAI,EAAE,MAAM,CAAuC;IAEnD,QAAQ,IAAI,IAAI;CAQjC"}

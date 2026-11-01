@@ -1,0 +1,2 @@
+export const MAIL_REALTIME_TOPIC = 'mail:messages';
+//# sourceMappingURL=realtime.js.map

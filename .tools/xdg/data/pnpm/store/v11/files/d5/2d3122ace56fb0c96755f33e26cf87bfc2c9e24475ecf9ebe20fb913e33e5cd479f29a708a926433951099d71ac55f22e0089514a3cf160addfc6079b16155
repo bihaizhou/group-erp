@@ -1,0 +1,75 @@
+import type { RepositoryRecord } from '@nocobase/repository-input';
+import type { PolicyRef, PolicyScalarValue, PolicyScope, RepositoryPolicy } from './types.js';
+export interface ReadPolicyNodeBuilder<TRecord extends object = RepositoryRecord> {
+    /** Rows this node may read. Required, as it is when the node is written out. */
+    scope(scope: true | PolicyScope<TRecord>): this;
+    /** Scalar allowlist. Fields never named stay unreadable. */
+    fields(...fields: readonly string[]): this;
+    /** Expand a relation, either with its own rules or by referring to another. */
+    relation(relation: string, configure: PolicyRef | ((read: ReadPolicyNodeBuilder) => ReadPolicyNodeBuilder)): this;
+}
+export interface WritePolicyNodeBuilder<TRecord extends object = RepositoryRecord> {
+    scope(scope: true | PolicyScope<TRecord>): this;
+    fields(...fields: readonly string[]): this;
+    relation(relation: string, configure: (write: RelationPolicyNodeBuilder) => RelationPolicyNodeBuilder): this;
+}
+export interface CreatePolicyNodeBuilder<TRecord extends object = RepositoryRecord> extends WritePolicyNodeBuilder<TRecord> {
+    /** Values the server assigns. A caller-supplied field of the same name wins. */
+    defaults(values: Readonly<Record<string, PolicyScalarValue>>): this;
+}
+export interface DeletePolicyNodeBuilder<TRecord extends object = RepositoryRecord> {
+    scope(scope: true | PolicyScope<TRecord>): this;
+}
+export interface RelationShapePolicyBuilder {
+    fields(...fields: readonly string[]): this;
+    relation(relation: string, configure: (write: RelationPolicyNodeBuilder) => RelationPolicyNodeBuilder): this;
+}
+export interface RelationCreateShapePolicyBuilder extends RelationShapePolicyBuilder {
+    /** Many-to-many payload carried on the join row. */
+    through(configure: (through: ThroughFieldsPolicyBuilder) => ThroughFieldsPolicyBuilder): this;
+}
+export interface ThroughFieldsPolicyBuilder {
+    fields(...fields: readonly string[]): this;
+}
+export interface ThroughPolicyBuilder {
+    through(configure: (through: ThroughFieldsPolicyBuilder) => ThroughFieldsPolicyBuilder): this;
+}
+export interface RelationUpsertPolicyBuilder {
+    create(configure: (shape: RelationShapePolicyBuilder) => RelationShapePolicyBuilder): this;
+    update(configure: (shape: RelationShapePolicyBuilder) => RelationShapePolicyBuilder): this;
+}
+export interface RelationPolicyNodeBuilder {
+    /** Targets this relation may reach. Omitted leaves the target unscoped. */
+    scope(scope: true | PolicyScope): this;
+    create(configure: (shape: RelationCreateShapePolicyBuilder) => RelationCreateShapePolicyBuilder): this;
+    update(configure: (shape: RelationShapePolicyBuilder) => RelationShapePolicyBuilder): this;
+    upsert(configure: (branches: RelationUpsertPolicyBuilder) => RelationUpsertPolicyBuilder): this;
+    connect(configure?: (edge: ThroughPolicyBuilder) => ThroughPolicyBuilder): this;
+    set(configure?: (edge: ThroughPolicyBuilder) => ThroughPolicyBuilder): this;
+    disconnect(): this;
+    delete(): this;
+}
+export interface RepositoryPolicyBuilder<TRecord extends object = RepositoryRecord> {
+    read(node: boolean | ((read: ReadPolicyNodeBuilder<TRecord>) => ReadPolicyNodeBuilder<TRecord>)): this;
+    create(node: boolean | ((create: CreatePolicyNodeBuilder<TRecord>) => CreatePolicyNodeBuilder<TRecord>)): this;
+    update(node: boolean | ((update: WritePolicyNodeBuilder<TRecord>) => WritePolicyNodeBuilder<TRecord>)): this;
+    delete(node: boolean | ((remove: DeletePolicyNodeBuilder<TRecord>) => DeletePolicyNodeBuilder<TRecord>)): this;
+}
+/**
+ * Build a Repository Policy from a callback.
+ *
+ * A node the callback never mentions is `false`, so the four-node requirement
+ * costs nothing to satisfy while the default stays refusal. `scope` is not
+ * defaulted the same way: a node that is declared without one is refused,
+ * exactly as a hand-written Policy is, because a missing scope reads as
+ * configured while leaving every row reachable.
+ *
+ * The result is normalized and frozen here, so a malformed Policy fails where
+ * it is written rather than where it is bound. Normalization is idempotent, so
+ * binding it later normalizes a second time without changing it.
+ *
+ * Note that a Policy built this way loses its literal type, so `withPolicy`
+ * degrades the record type to `Partial<TRecord>` even when `read` is `true`.
+ * Write the object out when that precision matters.
+ */
+export declare function buildRepositoryPolicy<TRecord extends object = RepositoryRecord>(configure: (policy: RepositoryPolicyBuilder<TRecord>) => RepositoryPolicyBuilder<TRecord>): RepositoryPolicy<TRecord>;

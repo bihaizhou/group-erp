@@ -1,0 +1,4 @@
+import { type MigrationDefinition } from '@nocobase/db';
+declare const migration: MigrationDefinition;
+export default migration;
+//# sourceMappingURL=202608210002_create_default_access_rules.d.ts.map

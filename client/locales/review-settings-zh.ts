@@ -1,0 +1,17 @@
+export const reviewSettings = {
+  title: '流程与审核规则',
+  description: '按业务域配置审核人、并行审批和适用范围。',
+  procurement: '采购审核配置',
+  procurementHint: '采购申请与采购订单的审核人、并行审批。',
+  requisitions: '领用规则',
+  requisitionsHint: '领用申请的审核人和适用范围。',
+  sales: '销售审核设置',
+  salesHint: '销售订单的审核人和并行审批。',
+  warehouse: '仓库审核设置',
+  warehouseHint: '入库、出库、调拨、盘点的审核人和并行审批。',
+  unsavedTitle: '放弃未保存的修改？',
+  unsavedHint: '离开后这些修改不会保存。',
+  discard: '放弃修改',
+  keepEditing: '继续编辑',
+  retry: '重试',
+};

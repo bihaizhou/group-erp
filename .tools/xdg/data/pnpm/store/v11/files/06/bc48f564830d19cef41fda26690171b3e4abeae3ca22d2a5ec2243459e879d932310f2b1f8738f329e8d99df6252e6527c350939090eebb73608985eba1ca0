@@ -1,0 +1,73 @@
+import './subjects.js';
+import { createAuthorization, } from '@nocobase/authorization/core';
+import { permissionSetsPlugin, } from '@nocobase/authorization/permission-sets';
+import { AUTHORIZATION_NAMESPACE } from '../shared.js';
+import { databasePlugin } from './database/plugin.js';
+import { pagesPlugin, } from './pages-authorization.js';
+import { installAuthorizationAdministration } from './routes/administration.js';
+import { settingsPlugin } from './settings.js';
+import { uiPlugin } from './ui.js';
+import { DatabaseConnectionHandle } from './stores/connection.js';
+import { DatabasePermissionSetStore } from './stores/permission-sets.js';
+const DEFAULT_ROOT_SET = 'root';
+const DEFAULT_DEFAULT_SET = 'member';
+const text = (key) => ({ key, ns: AUTHORIZATION_NAMESPACE });
+export function createAppAuthorization(options) {
+    const sets = options.config?.permissionSets;
+    const connection = new DatabaseConnectionHandle('Permission Sets', options.connection);
+    const authz = createAuthorization({
+        connection: options.connection,
+        onInvalidGrant: (grant) => options.onInvalidGrant?.(grant),
+        plugins: [
+            permissionSetsPlugin({
+                store: new DatabasePermissionSetStore(connection.resolve),
+                rootSet: {
+                    key: sets?.rootSet ?? DEFAULT_ROOT_SET,
+                    // `user` is this host's principal type: a superuser is an account.
+                    assignableTo: ['user'],
+                },
+                defaultSet: sets?.defaultSet ?? DEFAULT_DEFAULT_SET,
+            }),
+            databasePlugin(options.database),
+            pagesPlugin(),
+            settingsPlugin(),
+            uiPlugin(),
+            ...(options.config?.plugins ?? []),
+        ],
+    });
+    authz.subjects.add('authenticated', {
+        filterActive: async (ids) => ids.filter((id) => id === '*'),
+        administration: {
+            title: text('options.subjectTypes.authenticated'),
+            selection: { type: 'fixed', id: '*' },
+        },
+    });
+    authz.use(async (request, next) => {
+        const userId = readSessionUserId(request.http.var.auth);
+        request.principal = { type: 'user', id: userId };
+        request.subjects.add({ type: 'authenticated', id: '*' });
+        for (const subject of await authz.subjects.resolveFor(request.principal))
+            request.subjects.add(subject);
+        await next();
+    });
+    authz.onGrantsChanged(async (subject) => {
+        if (subject.type === 'user')
+            await options.onUserPermissionsChanged?.(subject.id);
+        // Any other subject reaches users through membership, which only its
+        // owner can enumerate, so every client refreshes.
+        else
+            await options.onAuthenticatedPermissionsChanged?.();
+    });
+    installAuthorizationAdministration(authz);
+    return authz;
+}
+function readSessionUserId(value) {
+    const user = value && typeof value === 'object' ? Reflect.get(value, 'user') : undefined;
+    if (!user || typeof user !== 'object')
+        throw new Error('Authorization requires an authenticated session');
+    const id = Reflect.get(user, 'id');
+    if (typeof id !== 'string' || id.length === 0)
+        throw new Error('Authorization session user must have an id');
+    return id;
+}
+//# sourceMappingURL=authorization.js.map

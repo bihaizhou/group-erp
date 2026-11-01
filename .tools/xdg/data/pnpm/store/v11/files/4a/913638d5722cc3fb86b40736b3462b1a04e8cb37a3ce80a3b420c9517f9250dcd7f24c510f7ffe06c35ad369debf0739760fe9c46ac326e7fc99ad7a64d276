@@ -1,0 +1,8 @@
+import { SchedulerAuthorizationProvider } from '../authorization.js';
+import { SchedulerProvider } from './scheduler.js';
+export const serviceProviders = [
+    SchedulerAuthorizationProvider,
+    SchedulerProvider,
+];
+export default serviceProviders;
+//# sourceMappingURL=index.js.map

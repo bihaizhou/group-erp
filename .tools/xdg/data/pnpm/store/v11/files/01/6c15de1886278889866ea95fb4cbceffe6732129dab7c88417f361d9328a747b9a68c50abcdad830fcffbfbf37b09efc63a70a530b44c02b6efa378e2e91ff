@@ -1,0 +1,412 @@
+import { ApiClientError } from '@nocobase/app-client';
+export class MailClient {
+    client;
+    constructor(client) {
+        this.client = client;
+    }
+    listProviders() {
+        return this.client
+            .request({
+            path: 'mail/providers',
+        })
+            .then((response) => response.data);
+    }
+    listAccounts() {
+        return this.client
+            .request({
+            path: 'mail/accounts',
+        })
+            .then((response) => response.data);
+    }
+    updateAccount(input) {
+        const { accountId, ...json } = input;
+        return this.client
+            .request({
+            path: `mail/accounts/${encodeURIComponent(accountId)}`,
+            method: 'PATCH',
+            json,
+        })
+            .then((response) => response.data);
+    }
+    /**
+     * Start removing an account. The server answers 202 with the account in its `removing` state, or with no body when
+     * the removal already finished.
+     */
+    removeAccount(accountId) {
+        return this.client
+            .request({
+            path: `mail/accounts/${encodeURIComponent(accountId)}`,
+            method: 'DELETE',
+        })
+            .then((response) => response?.data);
+    }
+    listManagedAccounts() {
+        return this.client
+            .request({
+            path: 'mail/settings/accounts',
+        })
+            .then((response) => response.data);
+    }
+    listManagementAccounts() {
+        return this.client
+            .request({
+            path: 'mail/management/accounts',
+        })
+            .then((response) => response.data);
+    }
+    listManagedFolders(accountId) {
+        return this.client
+            .request({
+            path: `mail/management/accounts/${encodeURIComponent(accountId)}/folders`,
+        })
+            .then((response) => response.data);
+    }
+    /** Every user's sync runs, for administrators, paged by page number. */
+    listManagedSyncRunsPage(request = {}) {
+        return this.client
+            .request({
+            path: 'mail/settings/syncRuns',
+            query: { page: request.page, pageSize: request.pageSize },
+        })
+            .then(toOffsetPage);
+    }
+    /** Every user's submissions, for administrators, paged by page number. */
+    listManagedSubmissionsPage(request = {}) {
+        return this.client
+            .request({
+            path: 'mail/settings/submissions',
+            query: { page: request.page, pageSize: request.pageSize },
+        })
+            .then(toOffsetPage);
+    }
+    getUnreadCount() {
+        return this.client
+            .request({ path: 'mail/messages/countUnread' })
+            .then((response) => response.data);
+    }
+    startAuthorization(input) {
+        return this.post('mail/authorizations', input);
+    }
+    connectAccount(input) {
+        const { type, name, ...json } = input;
+        return this.post('mail/accounts/connect', {
+            type,
+            name,
+            ...json,
+        });
+    }
+    listIdentities(accountId) {
+        return this.client
+            .request({
+            path: `mail/accounts/${encodeURIComponent(accountId)}/identities`,
+        })
+            .then((response) => response.data);
+    }
+    updateIdentity(input) {
+        const { accountId, identityId, ...json } = input;
+        return this.client
+            .request({
+            path: `mail/accounts/${encodeURIComponent(accountId)}/identities/${encodeURIComponent(identityId)}`,
+            method: 'PATCH',
+            json,
+        })
+            .then((response) => response.data);
+    }
+    listSignatures(accountId) {
+        return this.client
+            .request({
+            path: `mail/accounts/${encodeURIComponent(accountId)}/signatures`,
+        })
+            .then((response) => response.data);
+    }
+    saveSignature(input) {
+        const { id, accountId, ...json } = input;
+        return this.client
+            .request({
+            path: `mail/accounts/${encodeURIComponent(accountId)}/signatures${id ? `/${encodeURIComponent(id)}` : ''}`,
+            method: id ? 'PATCH' : 'POST',
+            json,
+        })
+            .then((response) => response.data);
+    }
+    deleteSignature(accountId, signatureId) {
+        return this.client.request({
+            path: `mail/accounts/${encodeURIComponent(accountId)}/signatures/${encodeURIComponent(signatureId)}`,
+            method: 'DELETE',
+        });
+    }
+    listFolders(accountId) {
+        return this.client
+            .request({
+            path: `mail/accounts/${encodeURIComponent(accountId)}/folders`,
+        })
+            .then((response) => response.data);
+    }
+    listLabels() {
+        return this.client
+            .request({
+            path: 'mail/labels',
+        })
+            .then((response) => response.data);
+    }
+    createLabel(name, color) {
+        return this.post('mail/labels', { name, color });
+    }
+    updateLabel(input) {
+        const { id, ...json } = input;
+        return this.client
+            .request({
+            path: `mail/labels/${encodeURIComponent(id)}`,
+            method: 'PATCH',
+            json,
+        })
+            .then((response) => response.data);
+    }
+    deleteLabel(labelId) {
+        return this.client.request({
+            path: `mail/labels/${encodeURIComponent(labelId)}`,
+            method: 'DELETE',
+        });
+    }
+    startSync(input) {
+        const { accountId, ...body } = input;
+        return this.post(`mail/accounts/${encodeURIComponent(accountId)}/sync`, body);
+    }
+    getSyncRun(syncRunId) {
+        return this.client
+            .request({
+            path: `mail/syncRuns/${encodeURIComponent(syncRunId)}`,
+        })
+            .then((response) => response.data);
+    }
+    listSyncRunsPage(request = {}) {
+        return this.client
+            .request({
+            path: 'mail/syncRuns',
+            query: { page: request.page, pageSize: request.pageSize },
+        })
+            .then(toOffsetPage);
+    }
+    listSubmissionsPage(request = {}) {
+        return this.client
+            .request({
+            path: 'mail/submissions',
+            query: {
+                bulkOnly: request.bulkOnly,
+                groupByBatch: request.groupByBatch,
+                page: request.page,
+                pageSize: request.pageSize,
+            },
+        })
+            .then(toOffsetPage);
+    }
+    retrySyncRun(syncRunId) {
+        return this.post(`mail/syncRuns/${encodeURIComponent(syncRunId)}/retry`, {});
+    }
+    cancelSyncRun(syncRunId) {
+        return this.post(`mail/syncRuns/${encodeURIComponent(syncRunId)}/cancel`, {});
+    }
+    retrySubmission(submissionId) {
+        return this.post(`mail/submissions/${encodeURIComponent(submissionId)}/retry`, {});
+    }
+    cancelSubmission(submissionId) {
+        return this.post(`mail/submissions/${encodeURIComponent(submissionId)}/cancel`, {});
+    }
+    listMessages(input = {}) {
+        return this.client
+            .request({
+            path: 'mail/messages',
+            query: { ...input },
+        })
+            .then(toCursorPage);
+    }
+    listManagedMessages(input = {}) {
+        return this.client
+            .request({
+            path: 'mail/management/messages',
+            query: { ...input },
+        })
+            .then(toOffsetPage);
+    }
+    manageMessages(input) {
+        return this.post('mail/management/messages/batchApply', input);
+    }
+    getManagedMessage(accountId, messageId) {
+        return this.client
+            .request({
+            path: `mail/management/accounts/${encodeURIComponent(accountId)}/messages/${encodeURIComponent(messageId)}`,
+        })
+            .then((response) => response.data);
+    }
+    downloadManagedAttachment(accountId, messageId, attachmentId) {
+        return this.client.stream({
+            path: `mail/management/accounts/${encodeURIComponent(accountId)}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`,
+        });
+    }
+    retryMessageContent(accountId, messageId) {
+        return this.post(`mail/accounts/${encodeURIComponent(accountId)}/messages/${encodeURIComponent(messageId)}/retryContent`, {});
+    }
+    getMessage(accountId, messageId) {
+        return this.client
+            .request({
+            path: `mail/accounts/${encodeURIComponent(accountId)}/messages/${encodeURIComponent(messageId)}`,
+        })
+            .then((response) => response.data);
+    }
+    downloadAttachment(accountId, messageId, attachmentId) {
+        return this.client.stream({
+            path: `mail/accounts/${encodeURIComponent(accountId)}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`,
+        });
+    }
+    listConversationMessages(accountId, conversationId, input = {}) {
+        return this.client
+            .request({
+            path: `mail/accounts/${encodeURIComponent(accountId)}/conversations/${encodeURIComponent(conversationId)}/messages`,
+            query: { ...input },
+        })
+            .then(toCursorPage);
+    }
+    sendMessage(input) {
+        return this.post('mail/messages/send', input);
+    }
+    sendBulk(input) {
+        return this.post('mail/messages/sendBulk', input);
+    }
+    uploadAttachment(file) {
+        const body = new FormData();
+        body.append('file', file);
+        return this.client
+            .request({
+            path: 'mail/attachments',
+            method: 'POST',
+            body,
+        })
+            .then((response) => response.data);
+    }
+    listTemplates() {
+        return this.client
+            .request({
+            path: 'mail/templates',
+        })
+            .then((response) => response.data);
+    }
+    saveTemplate(input) {
+        const { id, ...json } = input;
+        return this.client
+            .request({
+            path: id
+                ? `mail/templates/${encodeURIComponent(id)}`
+                : 'mail/templates',
+            method: id ? 'PATCH' : 'POST',
+            json,
+        })
+            .then((response) => response.data);
+    }
+    deleteTemplate(templateId) {
+        return this.client
+            .request({
+            path: `mail/templates/${encodeURIComponent(templateId)}`,
+            method: 'DELETE',
+        })
+            .then(() => undefined);
+    }
+    saveDraft(input) {
+        return this.post('mail/messages/saveDraft', input);
+    }
+    resolveDraftConflict(input) {
+        const { accountId, messageId, action } = input;
+        return this.post(`mail/accounts/${encodeURIComponent(accountId)}/messages/${encodeURIComponent(messageId)}/resolveDraftConflict`, { action });
+    }
+    updateMessage(input) {
+        const { accountId, messageId, ...json } = input;
+        return this.client
+            .request({
+            path: `mail/accounts/${encodeURIComponent(accountId)}/messages/${encodeURIComponent(messageId)}`,
+            method: 'PATCH',
+            json,
+        })
+            .then((response) => response.data);
+    }
+    updateMessageLabels(input) {
+        const { accountId, messageId, ...json } = input;
+        return this.client
+            .request({
+            path: `mail/accounts/${encodeURIComponent(accountId)}/messages/${encodeURIComponent(messageId)}/modifyLabels`,
+            method: 'POST',
+            json,
+        })
+            .then((response) => response.data);
+    }
+    moveMessage(input) {
+        const { accountId, messageId, ...json } = input;
+        return this.client
+            .request({
+            path: `mail/accounts/${encodeURIComponent(accountId)}/messages/${encodeURIComponent(messageId)}/move`,
+            method: 'POST',
+            json,
+        })
+            .then((response) => response.data);
+    }
+    deleteMessage(accountId, messageId, permanently = false) {
+        return this.client.request({
+            path: `mail/accounts/${encodeURIComponent(accountId)}/messages/${encodeURIComponent(messageId)}`,
+            method: 'DELETE',
+            query: { permanently },
+        });
+    }
+    post(path, body) {
+        return this.client
+            .request({
+            path,
+            method: 'POST',
+            json: body,
+        })
+            .then((response) => response.data);
+    }
+}
+/**
+ * Text to show a user for a failed Mail call: the translation the server attached to its error, or `fallback`. An
+ * error thrown in the browser carries its own, already translated, message. A server's `message` is developer text and
+ * is never shown.
+ */
+export function mailErrorMessage(cause, fallback) {
+    if (cause instanceof ApiClientError) {
+        const localized = readLocalizedMessage(cause.payload);
+        return localized?.trim() ? localized : fallback;
+    }
+    return cause instanceof Error && cause.message.trim()
+        ? cause.message
+        : fallback;
+}
+function readLocalizedMessage(payload) {
+    if (!payload || typeof payload !== 'object')
+        return undefined;
+    const error = payload.error;
+    if (!error || typeof error !== 'object')
+        return undefined;
+    const localized = error
+        .localizedMessage;
+    if (!localized || typeof localized !== 'object')
+        return undefined;
+    const message = localized.message;
+    return typeof message === 'string' ? message : undefined;
+}
+function toOffsetPage(response) {
+    return {
+        items: response.data,
+        total: response.meta?.total ?? response.data.length,
+    };
+}
+/** A feed page; `nextCursor` carries `meta.nextPageToken`, which the next request sends back as `pageToken`. */
+function toCursorPage(response) {
+    return {
+        items: response.data,
+        ...(response.meta?.total !== undefined
+            ? { total: response.meta.total }
+            : {}),
+        ...(response.meta?.nextPageToken
+            ? { nextCursor: response.meta.nextPageToken }
+            : {}),
+    };
+}
+//# sourceMappingURL=mail-client.js.map

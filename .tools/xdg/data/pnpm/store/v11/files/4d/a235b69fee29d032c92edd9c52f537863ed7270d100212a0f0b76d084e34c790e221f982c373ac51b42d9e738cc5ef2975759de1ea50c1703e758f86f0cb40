@@ -1,0 +1,20 @@
+import type { CollectionDefinition } from '../../../collection/types.js';
+import type { DatabaseDriverRuntime } from '../../../database/runtime.js';
+import type { RepositoryEventsExplanation, RepositoryEventStrategy, RepositoryMutationOperation } from '../../events/types.js';
+import type { RepositoryMutationSubscription } from './registry.js';
+/**
+ * Fields that identify every row of a Collection, or nothing when a row may
+ * have none: a keyless Collection, or one whose identifying unique key allows
+ * null. A bulk write on such a Collection cannot report keys. The fields are
+ * the ones bulk writes lock rows by: the primary key, else the first unique
+ * key.
+ */
+export declare function eventIdentityFields(collection: CollectionDefinition): readonly string[] | undefined;
+/**
+ * How a bulk write executes for these subscriptions. Keys are needed when a
+ * subscription asks for them and the Collection can supply them; otherwise
+ * the write keeps its single statement and reports a count.
+ */
+export declare function bulkStrategy(collection: CollectionDefinition, subscriptions: readonly RepositoryMutationSubscription[], operation: 'createMany' | 'updateMany' | 'deleteMany', runtime: DatabaseDriverRuntime | undefined): Exclude<RepositoryEventStrategy, 'unchanged'>;
+/** What a call on the root Collection does, judged from the subscriptions matching it. */
+export declare function explainStrategy(collection: CollectionDefinition, operation: RepositoryMutationOperation, subscriptions: readonly RepositoryMutationSubscription[], runtime: DatabaseDriverRuntime | undefined): RepositoryEventsExplanation;

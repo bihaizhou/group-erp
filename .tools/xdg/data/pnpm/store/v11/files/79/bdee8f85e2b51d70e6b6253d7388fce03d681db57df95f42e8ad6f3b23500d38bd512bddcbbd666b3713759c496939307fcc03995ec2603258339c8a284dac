@@ -1,0 +1,6 @@
+import type { ResolvedRedisJobsConfig } from '../../config.js';
+import type { JobExecutorServiceDependencies } from '../../service.js';
+import type { ScheduleExecutor } from '../types.js';
+import { type RedisScheduleBackendFactories } from './backend.js';
+export declare function createRedisScheduleExecutor(config: ResolvedRedisJobsConfig, dependencies: Pick<JobExecutorServiceDependencies, 'logger'>, factories?: RedisScheduleBackendFactories): ScheduleExecutor;
+//# sourceMappingURL=index.d.ts.map

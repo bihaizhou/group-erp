@@ -1,0 +1,5 @@
+import type { ReactElement } from 'react';
+export declare function MailTextBody({ text, }: {
+    readonly text: string;
+}): ReactElement;
+//# sourceMappingURL=mail-text-body.d.ts.map

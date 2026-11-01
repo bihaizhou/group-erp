@@ -1,0 +1,7 @@
+import type { MailPublicError } from '../../shared/mail.js';
+export interface MailErrorDescription {
+    readonly key: string;
+    readonly defaultValue: string;
+}
+export declare function mailErrorDescription(error: Pick<MailPublicError, 'category' | 'reasonCode'>): MailErrorDescription;
+//# sourceMappingURL=mail-error-description.d.ts.map

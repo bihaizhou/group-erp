@@ -1,0 +1,14 @@
+/**
+ * Version of the on-disk Collection artifact format. Bump it when the shape of
+ * any artifact file changes in a way a reader has to know about; the types it
+ * embeds (`CollectionDefinition`, `PhysicalCollectionSchema`,
+ * `CollectionMetadataDocument`) are still evolving.
+ */
+export const COLLECTION_ARTIFACT_FORMAT_VERSION = 1;
+export const COLLECTION_ARTIFACT_FILE_NAMES = Object.freeze({
+    collection: 'collection.json',
+    metadata: 'metadata.json',
+    schema: 'schema.json',
+});
+/** Connection-level manifest; the underscore keeps it apart from Collection directories. */
+export const COLLECTION_ARTIFACT_MANIFEST_FILE_NAME = '_manifest.json';

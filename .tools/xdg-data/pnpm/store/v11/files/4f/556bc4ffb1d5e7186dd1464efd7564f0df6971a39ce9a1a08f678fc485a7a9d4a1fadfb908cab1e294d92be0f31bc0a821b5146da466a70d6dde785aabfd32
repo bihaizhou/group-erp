@@ -1,0 +1,13 @@
+export function mailErrorCode(error) {
+    let current = error;
+    const seen = new Set();
+    while (current && typeof current === 'object' && !seen.has(current)) {
+        seen.add(current);
+        const code = Reflect.get(current, 'code');
+        if (typeof code === 'string' && /^[A-Z_]{1,40}$/u.test(code))
+            return code;
+        current = Reflect.get(current, 'cause');
+    }
+    return undefined;
+}
+//# sourceMappingURL=error.js.map

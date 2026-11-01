@@ -1,0 +1,6 @@
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+import { type AppApiRouteContribution } from '@nocobase/app-server/router';
+export declare const apiRoutes: AppApiRouteContribution<AppPluginApplication>;
+declare const routes: readonly AppApiRouteContribution<AppPluginApplication>[];
+export default routes;
+//# sourceMappingURL=index.d.ts.map

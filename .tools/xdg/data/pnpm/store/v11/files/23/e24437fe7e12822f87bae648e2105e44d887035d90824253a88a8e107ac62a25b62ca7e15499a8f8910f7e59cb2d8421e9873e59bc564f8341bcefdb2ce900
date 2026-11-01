@@ -1,0 +1,18 @@
+import type { CollectionDefinition } from '../../../collection/types.js';
+import type { Knex } from 'knex';
+import type { NamingStrategy } from '../../../naming/strategy.js';
+import { type DatabaseDriverRuntime } from '../../../database/runtime.js';
+import type { DeleteQuery, InsertQuery, QueryAdapter, Row, SelectQuery, UpdateQuery } from '../../types.js';
+type CollectionLookup = (name: string) => Promise<CollectionDefinition | undefined>;
+export declare class KnexQueryAdapter implements QueryAdapter {
+    private readonly getClient;
+    private readonly naming;
+    private readonly lookup;
+    readonly runtime: DatabaseDriverRuntime | undefined;
+    constructor(getClient: () => Knex, naming: NamingStrategy, lookup?: CollectionLookup | undefined, runtime?: DatabaseDriverRuntime | undefined);
+    selectFrom<TRecord extends Row = Row>(table: string): SelectQuery<TRecord, Row>;
+    insertInto<TRecord extends Row = Row>(table: string): InsertQuery<TRecord>;
+    updateTable<TRecord extends Row = Row>(table: string): UpdateQuery<TRecord>;
+    deleteFrom<TRecord extends Row = Row>(table: string): DeleteQuery<TRecord>;
+}
+export {};

@@ -1,0 +1,18 @@
+import type { ServiceToken } from './token.js';
+export interface ServiceResolver {
+    has<T>(token: ServiceToken<T>): boolean;
+    resolve<T>(token: ServiceToken<T>): T;
+    resolveIfCreated<T>(token: ServiceToken<T>): T | undefined;
+}
+export type ServiceFactory<T> = (resolver: ServiceResolver) => T;
+export declare class ServiceContainer implements ServiceResolver {
+    private readonly bindings;
+    private readonly resolving;
+    instance<T>(token: ServiceToken<T>, value: T): void;
+    singleton<T>(token: ServiceToken<T>, factory: ServiceFactory<T>): void;
+    has<T>(token: ServiceToken<T>): boolean;
+    resolve<T>(token: ServiceToken<T>): T;
+    resolveIfCreated<T>(token: ServiceToken<T>): T | undefined;
+    private assertAvailable;
+}
+//# sourceMappingURL=container.d.ts.map

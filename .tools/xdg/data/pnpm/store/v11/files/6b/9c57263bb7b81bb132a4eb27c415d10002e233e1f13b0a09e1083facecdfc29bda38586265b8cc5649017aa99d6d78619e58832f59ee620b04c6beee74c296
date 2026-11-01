@@ -1,0 +1,54 @@
+// What another package's tests import to act as a signed-in user of an application that runs this plugin. It signs
+// in through the application's own sign-in route, so the session it returns is the one a browser would hold.
+/**
+ * The administrator the plugin's default-administrator seed creates when `users.initialAdmin` is not configured, as an
+ * application started with its seeds holds it.
+ */
+export const DEFAULT_ADMIN_CREDENTIALS = Object.freeze({
+    username: 'nocobase',
+    email: 'admin@nocobase.com',
+    password: 'admin123',
+});
+/** The origin requests are addressed to; the application routes by path, so any origin reaches it. */
+const TEST_ORIGIN = 'http://localhost';
+/**
+ * Signs in through the application's sign-in route — by username when the credentials name one, which needs the
+ * Better Auth `username` plugin the application templates configure, and by email otherwise — and returns the session.
+ * Throws with the route's answer when the sign-in is refused.
+ */
+export async function signIn(app, credentials) {
+    const apiRoot = `${TEST_ORIGIN}${trimTrailingSlash(app.publicBasePath)}/api`;
+    const byUsername = 'username' in credentials;
+    const response = await app.fetch(new Request(`${apiRoot}/auth/sign-in/${byUsername ? 'username' : 'email'}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(credentials),
+    }));
+    if (!response.ok) {
+        throw new Error(`Sign-in as "${byUsername ? credentials.username : credentials.email}" failed with ${response.status}: ${await response.text()}`);
+    }
+    const body = (await response.json());
+    if (!body.user) {
+        throw new Error('Sign-in succeeded without returning the signed-in user.');
+    }
+    const cookie = response.headers
+        .getSetCookie()
+        .map((header) => header.split(';')[0])
+        .join('; ');
+    return {
+        user: body.user,
+        cookie,
+        fetch: async (path, init = {}) => {
+            const headers = new Headers(init.headers);
+            headers.set('cookie', [headers.get('cookie'), cookie].filter(Boolean).join('; '));
+            return app.fetch(new Request(path.startsWith('/') ? `${apiRoot}${path}` : path, {
+                ...init,
+                headers,
+            }));
+        },
+    };
+}
+function trimTrailingSlash(path) {
+    return path.endsWith('/') ? path.slice(0, -1) : path;
+}
+//# sourceMappingURL=testing.js.map

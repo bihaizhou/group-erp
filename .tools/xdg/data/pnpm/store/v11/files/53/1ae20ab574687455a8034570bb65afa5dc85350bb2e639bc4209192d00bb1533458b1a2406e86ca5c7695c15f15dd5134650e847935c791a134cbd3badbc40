@@ -1,0 +1,10 @@
+import type { MailMessage, MailOutboundAttachmentView } from '../mail-client.js';
+/** Preview URLs stay in the editor DOM; persisted HTML keeps portable CID references. */
+export declare function editorImageHtml(html: string, sources: Readonly<Record<string, string>>): string;
+export declare function serializeEditorImages(editor: HTMLElement): string;
+export declare function composerImageSources(accountId: string, messageId: string | undefined, uploads: readonly MailOutboundAttachmentView[], retained: MailMessage['attachments']): Readonly<Record<string, string>>;
+export declare function removeEditorImage(html: string, contentId: string | undefined): string;
+/** Match actual body images, including quoted content, rather than text containing a CID. */
+export declare function referencedImageIds(html: string): ReadonlySet<string>;
+export declare function normalizeImageId(value: string): string;
+//# sourceMappingURL=mail-editor-images.d.ts.map

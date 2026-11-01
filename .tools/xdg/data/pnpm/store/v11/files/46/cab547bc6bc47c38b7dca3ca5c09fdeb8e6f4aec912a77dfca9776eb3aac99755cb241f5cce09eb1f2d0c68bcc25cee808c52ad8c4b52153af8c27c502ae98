@@ -1,0 +1,11 @@
+import type { ProviderSendResult } from '@nocobase/app-plugin-notification';
+export declare function postJson(url: string, body: object, input: {
+    readonly signal: AbortSignal;
+}, options?: {
+    readonly headers?: Readonly<Record<string, string>>;
+    readonly evaluateSuccess?: (response: Response) => Promise<ProviderSendResult>;
+}): Promise<ProviderSendResult>;
+export declare function validateHttpUrl(url: string, options?: {
+    readonly allowedHosts?: readonly string[];
+}): void;
+//# sourceMappingURL=http.d.ts.map

@@ -1,0 +1,5 @@
+import { markMigrationDefinition } from './internal/marker.js';
+/** Marks and returns a migration definition for discovery by the migration loader. */
+export function defineMigration(definition) {
+    return markMigrationDefinition(definition);
+}

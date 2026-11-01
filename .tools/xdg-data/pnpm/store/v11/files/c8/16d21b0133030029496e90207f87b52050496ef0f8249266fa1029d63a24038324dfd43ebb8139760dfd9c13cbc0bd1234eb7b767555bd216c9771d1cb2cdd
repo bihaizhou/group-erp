@@ -1,0 +1,29 @@
+import { AppCommand } from '@nocobase/app-cli';
+import { Flags } from '@oclif/core';
+export default class ScheduleSync extends AppCommand {
+    static summary = 'Synchronize declared application schedules.';
+    static flags = {
+        finalize: Flags.boolean({
+            default: false,
+            description: 'Deactivate declarations missing from the source.',
+        }),
+    };
+    async run() {
+        const { flags } = await this.parse(ScheduleSync);
+        // Loaded here rather than at the top of the file: the command tree imports this module for `--help` too.
+        const { schedulerStartupModeToken } = await import('../server/providers/scheduler.js');
+        await this.withApp(async ({ app }) => {
+            // Starting in sync-only mode reconciles the manifest without leaving a worker behind.
+            app.container.instance(schedulerStartupModeToken, {
+                kind: 'sync-only',
+                finalize: flags.finalize,
+            });
+            await app.start();
+        });
+        this.log(flags.finalize
+            ? 'Schedule manifest synchronized and missing definitions deactivated.'
+            : 'Schedule manifest synchronized.');
+        return { finalize: flags.finalize };
+    }
+}
+//# sourceMappingURL=sync.js.map

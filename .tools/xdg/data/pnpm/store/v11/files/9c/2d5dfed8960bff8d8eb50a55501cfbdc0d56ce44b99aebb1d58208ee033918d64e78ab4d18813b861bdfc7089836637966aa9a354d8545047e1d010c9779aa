@@ -1,0 +1,662 @@
+import { z } from 'zod';
+import { parseMailParticipant } from '../../shared/participant.js';
+import { MAIL_LABEL_COLORS, MAIL_PROVIDER_CAPABILITIES, } from '../../shared/mail.js';
+const MAX_MAIL_BODY_LENGTH = 4 * 1024 * 1024;
+const MAX_MAIL_STRING_LENGTH = 4000;
+const MAX_MAIL_SUBJECT_LENGTH = 2000;
+const MAX_MAIL_IDEMPOTENCY_KEY_LENGTH = 255;
+const MAX_MAIL_ADDRESS_LENGTH = 320;
+const MAX_MAIL_NAME_LENGTH = 255;
+const MAX_MAIL_DRAFT_KEY_LENGTH = 100;
+const MAX_MAIL_ARRAY_ITEMS = 100;
+const MAX_MAIL_ATTACHMENT_IDS = 100;
+const MAX_MAIL_DRAFT_REVISION = 2147483647;
+const MAX_PAGE_SIZE = 100;
+const DEFAULT_PAGE_SIZE = 20;
+const participant = z
+    .string()
+    .max(MAX_MAIL_ADDRESS_LENGTH)
+    .refine((value) => parseMailParticipant(value) !== undefined, {
+    message: 'Must be a full email address or @domain.',
+})
+    .optional()
+    .meta({
+    description: 'A full email address or @domain, matched case-insensitively against From, To and Cc addresses only. Domains match exactly, excluding subdomains. Combined with other filters by intersection; conversation counts and full thread details remain unchanged.',
+});
+function requiredText(maxLength = MAX_MAIL_STRING_LENGTH) {
+    return z
+        .string()
+        .max(maxLength)
+        .refine((value) => value.trim().length > 0, {
+        message: 'Must be a non-empty string.',
+    });
+}
+const optionalText = (maxLength = MAX_MAIL_STRING_LENGTH) => z.string().max(maxLength).optional();
+const id = z.string().min(1);
+const idList = (maxItems = MAX_MAIL_ARRAY_ITEMS) => z.array(requiredText()).max(maxItems);
+/** An RFC 3339 date-time, such as `2026-01-31T00:00:00Z` or `2026-01-31T08:00:00+08:00`. */
+const dateTime = z.iso.datetime({ offset: true });
+const Address = z.strictObject({
+    address: requiredText(MAX_MAIL_ADDRESS_LENGTH),
+    name: optionalText(MAX_MAIL_NAME_LENGTH),
+});
+const addressList = z.array(Address).max(MAX_MAIL_ARRAY_ITEMS);
+/** A boolean query parameter, written `true` or `false`. */
+const queryBoolean = z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional();
+const pageSize = z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PAGE_SIZE)
+    .default(DEFAULT_PAGE_SIZE);
+/** Page-number paging, for the administrative log tables. */
+const PageQuery = z.object({
+    page: z.coerce.number().int().min(1).max(1_000_000).default(1),
+    pageSize,
+});
+/** Cursor paging, for message feeds. The token is the opaque value of `meta.nextPageToken`. */
+const CursorQuery = z.object({
+    pageSize,
+    pageToken: z.string().min(1).optional(),
+});
+// ---------------------------------------------------------------------------------------------------------------------
+// Path parameters
+export const AccountParams = z.object({ accountId: id });
+export const AccountMessageParams = z.object({
+    accountId: id,
+    messageId: id,
+});
+export const AccountMessageAttachmentParams = z.object({
+    accountId: id,
+    messageId: id,
+    attachmentId: id,
+});
+export const AccountConversationParams = z.object({
+    accountId: id,
+    conversationId: id,
+});
+export const IdentityParams = z.object({ accountId: id, identityId: id });
+export const SignatureParams = z.object({ accountId: id, signatureId: id });
+export const TemplateParams = z.object({ templateId: id });
+export const LabelParams = z.object({ labelId: id });
+export const AttachmentParams = z.object({ attachmentId: id });
+export const SyncRunParams = z.object({ syncRunId: id });
+export const SubmissionParams = z.object({ submissionId: id });
+// ---------------------------------------------------------------------------------------------------------------------
+// Queries
+export const SyncRunsQuery = PageQuery;
+/** Every user's sync runs or submissions, for administrators. */
+export const ManagedLogsQuery = PageQuery;
+export const SubmissionsQuery = PageQuery.extend({
+    bulkOnly: queryBoolean,
+    groupByBatch: queryBoolean,
+});
+export const MessagesQuery = CursorQuery.extend({
+    accountId: id.optional(),
+    folderId: id.optional(),
+    labelId: id.optional(),
+    conversationId: id.optional(),
+    q: z.string().max(MAX_MAIL_STRING_LENGTH).optional(),
+    participant,
+    unread: queryBoolean,
+    starred: queryBoolean,
+});
+export const ManagementMessagesQuery = PageQuery.extend({
+    accountId: id.optional(),
+    folderId: id.optional(),
+    q: z.string().max(MAX_MAIL_STRING_LENGTH).optional(),
+    participant,
+    unread: queryBoolean,
+    starred: queryBoolean,
+});
+export const ConversationMessagesQuery = CursorQuery;
+export const DeleteMessageQuery = z.object({ permanently: queryBoolean });
+// ---------------------------------------------------------------------------------------------------------------------
+// Bodies
+export const UpdateAccountInput = z.strictObject({
+    status: z.enum(['active', 'suspended']).optional(),
+});
+export const SaveTemplateInput = z.strictObject({
+    name: requiredText(MAX_MAIL_NAME_LENGTH),
+    subject: optionalText(MAX_MAIL_SUBJECT_LENGTH),
+    text: optionalText(MAX_MAIL_BODY_LENGTH),
+    html: optionalText(MAX_MAIL_BODY_LENGTH),
+});
+/** A template update: every field is optional, and an omitted one keeps its stored value. */
+export const UpdateTemplateInput = SaveTemplateInput.partial();
+export const StartAuthorizationInput = z.strictObject({
+    type: requiredText(),
+    name: requiredText(MAX_MAIL_NAME_LENGTH),
+    scopes: idList().optional(),
+    initialSyncReceivedAfter: dateTime,
+});
+export const ConnectAccountInput = z.strictObject({
+    type: requiredText(),
+    name: requiredText(MAX_MAIL_NAME_LENGTH),
+    address: requiredText(MAX_MAIL_ADDRESS_LENGTH),
+    displayName: optionalText(MAX_MAIL_NAME_LENGTH),
+    username: optionalText(),
+    password: requiredText(),
+    initialSyncReceivedAfter: dateTime,
+});
+export const UpdateIdentityInput = z.strictObject({
+    displayName: z.string().max(MAX_MAIL_STRING_LENGTH).nullable().optional(),
+});
+export const SaveSignatureInput = z.strictObject({
+    name: requiredText(MAX_MAIL_NAME_LENGTH),
+    text: optionalText(MAX_MAIL_BODY_LENGTH),
+    html: z.string().max(MAX_MAIL_BODY_LENGTH).nullable().optional(),
+    isDefault: z.boolean().optional(),
+});
+/** A signature update: every field is optional, and an omitted one keeps its stored value. */
+export const UpdateSignatureInput = SaveSignatureInput.partial();
+export const SaveLabelInput = z.strictObject({
+    name: requiredText(MAX_MAIL_NAME_LENGTH),
+    color: z.enum(MAIL_LABEL_COLORS).optional(),
+});
+/** A label update: every field is optional, and an omitted one keeps its stored value. */
+export const UpdateLabelInput = SaveLabelInput.partial();
+const composeFields = {
+    accountId: requiredText(),
+    identityId: requiredText(),
+    /** Omitted selects the default signature; null keeps the body without signature processing. */
+    signatureId: z.string().max(MAX_MAIL_STRING_LENGTH).nullable().optional(),
+    subject: optionalText(MAX_MAIL_SUBJECT_LENGTH),
+    text: optionalText(MAX_MAIL_BODY_LENGTH),
+    html: optionalText(MAX_MAIL_BODY_LENGTH),
+    attachmentIds: idList(MAX_MAIL_ATTACHMENT_IDS).optional(),
+    retainedAttachmentIds: idList(MAX_MAIL_ATTACHMENT_IDS).optional(),
+    inReplyToMessageId: optionalText(),
+    forwardOfMessageId: optionalText(),
+    forwardBodyIncluded: z.boolean().optional(),
+    idempotencyKey: requiredText(MAX_MAIL_IDEMPOTENCY_KEY_LENGTH),
+};
+const singleComposeFields = {
+    ...composeFields,
+    cc: addressList.optional(),
+    bcc: addressList.optional(),
+    replyBodyIncluded: z.boolean().optional(),
+    draftMessageId: optionalText(),
+    draftKey: optionalText(MAX_MAIL_DRAFT_KEY_LENGTH),
+    draftRevision: z
+        .number()
+        .int()
+        .min(1)
+        .max(MAX_MAIL_DRAFT_REVISION)
+        .optional(),
+};
+const hasBody = (value) => Boolean(value.text?.trim() || value.html?.trim());
+const bodyRequired = {
+    message: 'Mail body must contain text or HTML.',
+    path: ['text'],
+};
+export const SendMessageInput = z
+    .strictObject({
+    ...singleComposeFields,
+    to: addressList.min(1),
+    scheduledAt: dateTime.optional(),
+})
+    .refine(hasBody, bodyRequired);
+export const SaveDraftInput = z.strictObject({
+    ...singleComposeFields,
+    to: addressList.optional(),
+});
+export const SendBulkInput = z
+    .strictObject({
+    ...composeFields,
+    recipients: addressList.min(1),
+    draftKey: optionalText(MAX_MAIL_DRAFT_KEY_LENGTH),
+    sourceDraftMessageId: optionalText(),
+    scheduledAt: dateTime.optional(),
+})
+    .refine(hasBody, bodyRequired);
+export const ResolveDraftConflictInput = z.strictObject({
+    action: z.enum(['useRemote', 'keepLocal']),
+});
+export const StartSyncInput = z.strictObject({
+    mode: z.enum(['initial', 'incremental']).optional(),
+    receivedAfter: dateTime.optional(),
+});
+export const UpdateMessageInput = z.strictObject({
+    read: z.boolean().optional(),
+    starred: z.boolean().optional(),
+    note: z.string().max(MAX_MAIL_STRING_LENGTH).nullable().optional(),
+    todo: z.boolean().optional(),
+});
+export const ModifyMessageLabelsInput = z.strictObject({
+    addLabelIds: idList().optional(),
+    removeLabelIds: idList().optional(),
+});
+export const MoveMessageInput = z.strictObject({
+    providerFolderId: requiredText(),
+});
+export const ManageMessagesInput = z.strictObject({
+    action: z.enum([
+        'markRead',
+        'markUnread',
+        'star',
+        'unstar',
+        'archive',
+        'move',
+        'delete',
+    ]),
+    items: z
+        .array(z.strictObject({ accountId: requiredText(), messageId: requiredText() }))
+        .min(1)
+        .max(MAX_MAIL_ARRAY_ITEMS),
+    providerFolderId: optionalText(),
+    permanently: z.boolean().optional(),
+});
+// ---------------------------------------------------------------------------------------------------------------------
+// Responses. Each schema is typed against the view the service returns, so a field added to a view without being
+// documented here, or documented with another type, fails type checking.
+const timestamp = z.string().meta({
+    description: 'An RFC 3339 date-time.',
+    format: 'date-time',
+});
+const MailAddressSchema = z
+    .object({
+    address: z.string().meta({ description: 'The email address.' }),
+    name: z.string().optional().meta({ description: 'The display name.' }),
+})
+    .meta({ ref: 'MailAddress' });
+const MailPublicErrorSchema = z
+    .object({
+    code: z.string().meta({ description: 'The Provider-neutral error code.' }),
+    category: z.string().meta({
+        description: 'One of `authentication`, `configuration`, `recipient`, `content`, `rate_limit`, `network`, `timeout`, `provider` or `unknown`; a newer server may report another.',
+    }),
+    retryable: z.boolean(),
+    retryAfterMs: z.number().optional(),
+    reasonCode: z.string().optional().meta({
+        description: 'An allowlisted Provider reason that explains how to fix the failure.',
+    }),
+    recipients: z
+        .object({ accepted: z.array(z.string()), rejected: z.array(z.string()) })
+        .optional()
+        .meta({
+        description: 'Per-recipient SMTP results after a partial acceptance.',
+    }),
+})
+    .meta({
+    ref: 'MailPublicError',
+    description: "Why a Provider operation failed, without the Provider's own message.",
+});
+const providerIdentity = z.object({
+    type: z.string().meta({
+        description: 'The Provider implementation, such as `gmail`, `microsoft` or `imap-smtp`.',
+    }),
+    name: z.string().meta({
+        description: 'The configured Provider name from `mail.providers`.',
+    }),
+});
+const capabilityShape = Object.fromEntries(MAIL_PROVIDER_CAPABILITIES.map((capability) => [
+    capability,
+    z.boolean().optional(),
+]));
+export const MailProviderSchema = z
+    .object({
+    type: z.string().meta({ description: 'The Provider implementation.' }),
+    name: z.string().meta({ description: 'The configured Provider name.' }),
+    label: z.string().meta({ description: 'A human-readable name.' }),
+    capabilities: z.object(capabilityShape).catchall(z.boolean()).meta({
+        description: 'What the Provider supports. Unknown capabilities may appear and can be ignored.',
+    }),
+    connection: z.enum(['oauth', 'credentials']).optional().meta({
+        description: '`oauth` connects through `POST /api/mail/authorizations`; `credentials` through `POST /api/mail/accounts/connect`.',
+    }),
+    configured: z.boolean().optional().meta({
+        description: 'False when the Provider is registered but has no `mail.providers` entry.',
+    }),
+})
+    .meta({ ref: 'MailProvider' });
+const accountFields = {
+    id: z.string(),
+    userId: z.string().meta({ description: 'The user who owns the account.' }),
+    provider: providerIdentity,
+    address: z.string(),
+    displayName: z.string().optional(),
+    scopes: z.array(z.string()).meta({
+        description: 'The OAuth scopes granted, empty for a credentials account.',
+    }),
+    status: z.string().meta({
+        description: 'One of `connecting`, `active`, `reauthorizationRequired`, `suspended`, `revoked` or `removing`; a newer server may report another.',
+    }),
+    removalFailed: z.boolean().optional(),
+    initialSyncReceivedAfter: timestamp.optional().meta({
+        description: 'The earliest received time the first synchronization imported.',
+    }),
+    automaticSyncIntervalMinutes: z.number().optional(),
+};
+export const MailAccountSchema = z
+    .object(accountFields)
+    .meta({ ref: 'MailAccount' });
+export const MailManagedAccountSchema = z
+    .object({
+    ...accountFields,
+    ownerName: z.string().optional(),
+    canMoveMessages: z.boolean().optional(),
+    canSync: z.boolean(),
+})
+    .meta({ ref: 'MailManagedAccount' });
+export const MailAuthorizationSchema = z
+    .object({
+    authorizationUrl: z.string().meta({
+        description: 'Open this URL in a browser; the Provider redirects back to the Mail OAuth callback, which creates the account.',
+    }),
+    state: z
+        .string()
+        .meta({ description: 'The one-time state of this authorization.' }),
+    expiresAt: timestamp.optional(),
+})
+    .meta({ ref: 'MailAuthorization' });
+export const MailIdentitySchema = z
+    .object({
+    id: z.string(),
+    accountId: z.string(),
+    address: z.string(),
+    displayName: z.string().optional(),
+    isPrimary: z.boolean(),
+    canSend: z.boolean(),
+})
+    .meta({
+    ref: 'MailIdentity',
+    description: 'An address the account can send from.',
+});
+export const MailSignatureSchema = z
+    .object({
+    id: z.string(),
+    accountId: z.string(),
+    name: z.string(),
+    text: z.string(),
+    html: z.string().optional(),
+    isDefault: z.boolean(),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+})
+    .meta({ ref: 'MailSignature' });
+export const MailFolderSchema = z
+    .object({
+    id: z.string(),
+    accountId: z.string(),
+    providerFolderId: z
+        .string()
+        .meta({ description: 'Pass this to `move` as `providerFolderId`.' }),
+    type: z.string().meta({
+        description: 'One of `inbox`, `sent`, `drafts`, `trash`, `junk`, `archive` or `custom`; a Provider may report another.',
+    }),
+    name: z.string(),
+    unreadCount: z.number().optional(),
+    kind: z.enum(['folder', 'label']).meta({
+        description: 'Gmail labels and Outlook folders share this model.',
+    }),
+})
+    .meta({ ref: 'MailFolder' });
+export const MailSyncRunSchema = z
+    .object({
+    historyComplete: z.boolean().optional(),
+    recovering: z.boolean().optional(),
+    pendingMessages: z.number().optional(),
+    id: z.string(),
+    accountId: z.string(),
+    mode: z.enum(['initial', 'incremental']),
+    phase: z.string().meta({
+        description: 'One of `preparing`, `history`, `catchUp`, `incremental` or `completed`; a newer server may report another.',
+    }),
+    status: z.string().meta({
+        description: 'One of `pending`, `running`, `completed`, `partial`, `failed` or `cancelled`; a newer server may report another.',
+    }),
+    policy: z.object({
+        receivedAfter: timestamp.optional(),
+        maxMessages: z
+            .number()
+            .optional()
+            .meta({ description: 'Deprecated and ignored.' }),
+        batchSize: z.number(),
+    }),
+    processedMessages: z.number(),
+    processedPages: z.number(),
+    error: MailPublicErrorSchema.optional(),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    completedAt: timestamp.optional(),
+    canManage: z
+        .boolean()
+        .optional()
+        .meta({ description: 'Whether the caller may retry or cancel the run.' }),
+})
+    .meta({ ref: 'MailSyncRun' });
+export const MailTemplateSchema = z
+    .object({
+    id: z.string(),
+    name: z.string(),
+    subject: z.string(),
+    text: z.string().optional(),
+    html: z.string(),
+    ownerId: z.string().optional(),
+})
+    .meta({ ref: 'MailTemplate' });
+export const MailLabelSchema = z
+    .object({
+    id: z.string(),
+    name: z.string(),
+    color: z.enum(MAIL_LABEL_COLORS),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+})
+    .meta({
+    ref: 'MailLabel',
+    description: 'A label stored in NocoBase, never synchronized to a Provider.',
+});
+export const MailOutboundAttachmentSchema = z
+    .object({
+    id: z.string().meta({
+        description: 'Pass this in `attachmentIds` when sending or saving a draft.',
+    }),
+    fileName: z.string(),
+    contentType: z.string(),
+    size: z.number().meta({ description: 'The size in bytes.' }),
+    expiresAt: timestamp.meta({
+        description: 'When an unused upload is deleted.',
+    }),
+})
+    .meta({ ref: 'MailOutboundAttachment' });
+const submissionFields = {
+    id: z.string(),
+    accountId: z.string(),
+    status: z.string().meta({
+        description: 'One of `pending`, `submitting`, `accepted`, `failed`, `unknown` or `cancelled`; a newer server may report another.',
+    }),
+    providerMessageId: z.string().optional(),
+    scheduledAt: timestamp.optional(),
+    error: MailPublicErrorSchema.optional(),
+};
+export const MailSubmissionSchema = z
+    .object(submissionFields)
+    .meta({
+    ref: 'MailSubmission',
+    description: 'One message handed to the outbox.',
+});
+export const MailSubmissionLogSchema = z
+    .object({
+    ...submissionFields,
+    text: z.string().optional(),
+    html: z.string().optional(),
+    cc: z.array(MailAddressSchema).optional(),
+    bcc: z.array(MailAddressSchema).optional(),
+    attachmentIds: z.array(z.string()).optional(),
+    attachmentContentIds: z.record(z.string(), z.string()).optional(),
+    recipients: z.array(MailAddressSchema).optional(),
+    subject: z.string().optional(),
+    bulk: z.boolean().optional(),
+    batchId: z.string().optional(),
+    canRetry: z.boolean().optional(),
+    canCancel: z.boolean().optional(),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+})
+    .meta({ ref: 'MailSubmissionLog' });
+const normalizedAttachmentFields = {
+    outboundAttachmentId: z
+        .string()
+        .optional()
+        .meta({ description: 'The upload backing a draft attachment.' }),
+    providerAttachmentId: z.string(),
+    fileName: z.string(),
+    contentType: z.string(),
+    size: z.number(),
+    contentId: z.string().optional(),
+    inline: z.boolean(),
+};
+const MailDraftConflictSchema = z
+    .object({
+    detectedAt: timestamp,
+    remote: z
+        .object({
+        providerMessageId: z.string(),
+        providerDraftId: z.string().optional(),
+        providerConversationId: z.string().optional(),
+        from: MailAddressSchema.optional(),
+        to: z.array(MailAddressSchema),
+        cc: z.array(MailAddressSchema),
+        bcc: z.array(MailAddressSchema),
+        subject: z.string(),
+        text: z.string().optional(),
+        html: z.string().optional(),
+        attachments: z.array(z.object(normalizedAttachmentFields)),
+    })
+        .meta({ description: 'The draft as the Provider holds it.' }),
+})
+    .meta({
+    ref: 'MailDraftConflict',
+    description: 'The draft was changed at the Provider while it was edited here; resolve it with `resolveDraftConflict`.',
+});
+const messageSummaryFields = {
+    scheduledSend: MailSubmissionSchema.optional().meta({
+        description: 'A scheduled delivery of this draft; cancel it before editing the draft.',
+    }),
+    contentStatus: z.enum(['complete', 'deferred', 'failed']).optional().meta({
+        description: '`deferred` or `failed` when the body has not been downloaded; see `retryContent`.',
+    }),
+    contentError: z.string().optional(),
+    size: z.number().optional(),
+    id: z.string(),
+    accountId: z.string(),
+    providerMessageId: z.string(),
+    providerDraftId: z.string().optional(),
+    providerDraftMessageId: z.string().optional(),
+    internetMessageId: z.string().optional(),
+    conversationId: z.string().optional(),
+    folderIds: z.array(z.string()),
+    labelIds: z
+        .array(z.string())
+        .meta({ description: 'Labels stored in NocoBase.' }),
+    from: MailAddressSchema.optional(),
+    to: z.array(MailAddressSchema),
+    cc: z.array(MailAddressSchema),
+    bcc: z.array(MailAddressSchema),
+    subject: z.string(),
+    subjectCount: z
+        .number()
+        .optional()
+        .meta({ description: 'The number of messages in the conversation.' }),
+    preview: z.string().optional(),
+    receivedAt: timestamp.optional(),
+    sentAt: timestamp.optional(),
+    read: z.boolean(),
+    starred: z.boolean(),
+    draft: z.boolean(),
+    draftConflict: MailDraftConflictSchema.optional(),
+    draftRevision: z
+        .number()
+        .optional()
+        .meta({ description: 'Send the next revision with the next `saveDraft`.' }),
+    hasAttachments: z.boolean(),
+    note: z.string().optional().meta({
+        description: 'A private note, never synchronized to the Provider.',
+    }),
+    todo: z.boolean(),
+};
+export const MailMessageSummarySchema = z
+    .object(messageSummaryFields)
+    .meta({
+    ref: 'MailMessageSummary',
+    description: 'A message in a list, without its body.',
+});
+export const MailMessageSchema = z
+    .object({
+    ...messageSummaryFields,
+    updatedAt: timestamp.optional(),
+    draftSource: z
+        .object({
+        replyToMessageId: z.string().optional(),
+        forwardOfMessageId: z.string().optional(),
+    })
+        .optional(),
+    remoteDraftFingerprint: z.string().optional(),
+    replyTo: z.array(MailAddressSchema),
+    inReplyTo: z.string().optional(),
+    references: z.array(z.string()),
+    text: z.string().optional(),
+    html: z.string().optional(),
+    attachments: z.array(z.object({
+        ...normalizedAttachmentFields,
+        id: z.string().meta({
+            description: 'Download it from `.../attachments/{attachmentId}`.',
+        }),
+        messageId: z.string(),
+        fileReference: z.string().optional(),
+    })),
+})
+    .meta({
+    ref: 'MailMessage',
+    description: 'A message with its body and attachments.',
+});
+export const MailManagementActionResultSchema = z
+    .object({
+    items: z.array(z.object({
+        accountId: z.string(),
+        messageId: z.string(),
+        status: z.enum(['succeeded', 'failed']),
+        error: MailPublicErrorSchema.optional(),
+    })),
+    succeeded: z.number(),
+    failed: z.number(),
+})
+    .meta({
+    ref: 'MailManagementActionResult',
+    description: 'The outcome for each message, in request order.',
+});
+export const MailUnreadCountSchema = z
+    .number()
+    .int()
+    .meta({ description: "Unread messages across the caller's accounts." });
+/** `meta` of a list answered whole. */
+export const MailBoundedListMeta = z
+    .object({ total: z.number().int() })
+    .meta({ ref: 'MailBoundedListMeta' });
+/** `meta` of a cursor-paged message feed. */
+export const MailCursorListMeta = z
+    .object({
+    nextPageToken: z.string().optional().meta({
+        description: 'Pass as `pageToken` for the next page; absent on the last page.',
+    }),
+    total: z
+        .number()
+        .int()
+        .optional()
+        .meta({ description: 'The number of matching messages.' }),
+})
+    .meta({ ref: 'MailCursorListMeta' });
+/** `meta` of a page-numbered log or table. */
+export const MailPageListMeta = z
+    .object({
+    page: z.number().int(),
+    pageSize: z.number().int(),
+    total: z.number().int(),
+})
+    .meta({ ref: 'MailPageListMeta' });
+//# sourceMappingURL=schemas.js.map

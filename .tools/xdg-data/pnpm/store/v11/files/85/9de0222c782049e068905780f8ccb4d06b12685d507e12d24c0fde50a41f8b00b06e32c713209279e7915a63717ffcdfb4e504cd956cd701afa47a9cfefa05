@@ -1,0 +1,14 @@
+import { type AppConfigDefinition, type AppConfigFactory, type EnvironmentMapping } from '@nocobase/app-server/config';
+import type { UsersConfig } from './tokens.js';
+export type { InitialAdminConfig, UsersConfig } from './tokens.js';
+/**
+ * The environment variables that set `users` fields. All three are read once, while the user table is still empty,
+ * so a deployment may generate the password and changing any of them later changes nothing.
+ */
+export declare const USERS_ENVIRONMENT: Readonly<Record<string, EnvironmentMapping>>;
+/**
+ * Declares the `users` section with this plugin's environment variables, in place of `defineAppConfig`. Variables
+ * given in `env` are added to the plugin's own.
+ */
+export declare function defineUsersConfig(definition?: Partial<AppConfigDefinition<UsersConfig>>): AppConfigFactory<UsersConfig>;
+//# sourceMappingURL=config.d.ts.map

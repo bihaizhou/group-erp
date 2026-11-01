@@ -1,0 +1,9 @@
+import { type ReactElement } from 'react';
+import type { MailMessage } from '../mail-client.js';
+export declare function MailHtmlBody({ message, title, scope, collapseQuotes, }: {
+    readonly message: Pick<MailMessage, 'accountId' | 'id' | 'attachments' | 'html'>;
+    readonly title: string;
+    readonly scope?: 'personal' | 'management';
+    readonly collapseQuotes?: boolean;
+}): ReactElement;
+//# sourceMappingURL=mail-html-body.d.ts.map

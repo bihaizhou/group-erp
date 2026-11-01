@@ -1,0 +1,60 @@
+import { type ConfigMap } from '@nocobase/config';
+import type { Logger } from '@nocobase/logging';
+import { type EnvironmentMapping } from '@nocobase/config/providers/env';
+import type { AppConfigChangeListener, AppConfigFileOptions, AppConfigLayers, AppConfigReloadResult, AppConfigSource } from './app-config-types.js';
+import type { AppPaths } from './types.js';
+import type { AppConfigRules } from './define-app-config.js';
+import { type ConfigIssue } from './validation.js';
+export declare class AppConfig {
+    private readonly sources;
+    private readonly listeners;
+    private current;
+    private defaults;
+    private overrides;
+    private readonly sections;
+    private reloadPromise;
+    private logger?;
+    private loadDurationMs?;
+    /** Attach diagnostics after the logging configuration has been resolved. */
+    setLogger(logger: Pick<Logger, 'debug'>): void;
+    load(provider: AppConfigSource['provider'], parser?: AppConfigSource['parser'], options?: AppConfigSource['options']): this;
+    loadFile(filePath: string, options?: AppConfigFileOptions): this;
+    loadAll(): Promise<void>;
+    get<TValue = unknown>(key: string): TValue | undefined;
+    mergeDefaults(values: ConfigMap): void;
+    /**
+     * Registers the validators and public paths sections declare, as collected by `defaultAppConfigs`. A section
+     * registered twice keeps both sets: every validator runs and the public paths are combined.
+     */
+    defineSections(sections: ReadonlyMap<string, AppConfigRules>): void;
+    /**
+     * Adds the environment variables sections declare, as one more source above everything already loaded, and
+     * recomputes the configuration. Called once the sections are known, which is after the application's own sources
+     * were loaded; a variable an application also maps itself to the same field is harmless.
+     */
+    loadSectionEnvironment(environment: Readonly<Record<string, string | undefined>>): Promise<void>;
+    /** Every environment variable the sections declare, with the absolute path it sets, such as `{ AUTH_SECRET: 'auth.secret' }`. */
+    sectionEnvironmentVariables(): Readonly<Record<string, string>>;
+    /**
+     * Every environment variable the sections declare, with its mapping and the path made absolute, such as
+     * `{ AUTH_SECRET: { path: 'auth.secret', type: 'string', generate: 'secret' } }`.
+     */
+    environmentVariableMappings(): Readonly<Record<string, EnvironmentMapping>>;
+    /** Every issue the declared rules find in the current configuration, warnings included. Throws nothing. */
+    validate(): Promise<readonly ConfigIssue[]>;
+    /** The values sections publish to the browser, nested under their section names. */
+    publicValues(): ConfigMap;
+    /** Every published path in full, such as `auth.emailAndPassword.disableSignUp`. */
+    publicPaths(): readonly string[];
+    raw(): ConfigMap;
+    /** The defaults and the values the application's own sources supply, kept apart. See {@link AppConfigLayers}. */
+    layers(): AppConfigLayers;
+    subscribe<TValue>(namespace: string, listener: AppConfigChangeListener<TValue>): () => void;
+    reload(): Promise<AppConfigReloadResult>;
+    private performReload;
+    private loadConfig;
+    private requireCurrent;
+}
+/** Resolve deployment configuration independently of the compiled code directory. */
+export declare function resolveDefaultAppConfigFile(paths: Pick<AppPaths, 'deploymentRootDir'>): string;
+//# sourceMappingURL=app-config.d.ts.map

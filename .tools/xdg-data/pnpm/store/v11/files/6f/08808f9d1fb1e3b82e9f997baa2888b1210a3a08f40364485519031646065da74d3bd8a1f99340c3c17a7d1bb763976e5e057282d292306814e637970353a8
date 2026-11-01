@@ -1,0 +1,28 @@
+import type { ApiKey } from '@better-auth/api-key';
+import type { Auth } from '@nocobase/app-plugin-authentication/server';
+import type { DatabaseConnection } from '@nocobase/db';
+export type ServerApiKeySummary = Omit<ApiKey, 'key'>;
+export interface CreateServerApiKeyInput {
+    readonly userId: string;
+    readonly name: string;
+    readonly expiresIn?: number | null;
+}
+/** Trusted, database-backed operations. Callers must enforce their own authorization. */
+export declare class ApiKeyService {
+    private readonly auth;
+    private readonly configId;
+    constructor(auth: Pick<Auth, 'pluginApi' | 'forConnection'>, configId: string);
+    withConnection(connection: DatabaseConnection): ApiKeyService;
+    private runtime;
+    create(input: CreateServerApiKeyInput): Promise<{
+        key: ServerApiKeySummary;
+        secret: string;
+    }>;
+    verify(secret: string): Promise<ServerApiKeySummary | null>;
+    get(id: string): Promise<ServerApiKeySummary | null>;
+    disable(id: string): Promise<void>;
+    remove(id: string): Promise<void>;
+}
+/** Remove database-backed user credentials in the caller's deletion transaction. */
+export declare function removeUserApiKeys(connection: DatabaseConnection, userId: string, configIds: readonly string[]): Promise<void>;
+//# sourceMappingURL=service.d.ts.map

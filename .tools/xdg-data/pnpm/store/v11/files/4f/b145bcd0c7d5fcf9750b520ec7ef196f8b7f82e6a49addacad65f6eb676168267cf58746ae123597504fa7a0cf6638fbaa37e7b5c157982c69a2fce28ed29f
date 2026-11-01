@@ -1,0 +1,8 @@
+import { type MailProviderView } from '../../shared/mail.js';
+import { type DefaultMailServiceDependencies } from './dependencies.js';
+export declare class MailProvidersService {
+    private readonly dependencies;
+    constructor(dependencies: Pick<DefaultMailServiceDependencies, 'registry' | 'listProviderConfigs'>);
+    listProviders(): Promise<readonly MailProviderView[]>;
+}
+//# sourceMappingURL=providers.d.ts.map

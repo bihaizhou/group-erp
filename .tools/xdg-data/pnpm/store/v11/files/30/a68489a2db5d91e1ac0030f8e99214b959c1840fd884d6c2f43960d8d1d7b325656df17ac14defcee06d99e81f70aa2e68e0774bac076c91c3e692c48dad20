@@ -1,0 +1,29 @@
+import { z } from 'zod';
+/** Rows a page holds unless the caller asks otherwise, and the most it may ask for. */
+export declare const DEFAULT_PAGE_SIZE = 20;
+export declare const MAX_PAGE_SIZE = 100;
+export declare const ScheduleParams: z.ZodObject<{
+    scheduleId: z.ZodString;
+}>;
+export type ScheduleParams = z.infer<typeof ScheduleParams>;
+/** The administration table pages by number, so it can show a total. */
+export declare const ScheduleListQuery: z.ZodObject<{
+    page: z.ZodDefault<z.ZodCoercedNumber>;
+    pageSize: z.ZodDefault<z.ZodCoercedNumber>;
+}>;
+export type ScheduleListQuery = z.infer<typeof ScheduleListQuery>;
+/**
+ * The page token is opaque to clients: it encodes how many of the newest occurrences earlier pages already returned.
+ * History grows at the head, so an offset can repeat a row a new firing pushed down; it never skips one.
+ */
+export declare function encodeOccurrencePageToken(offset: number): string;
+/** History is a feed, so it pages by cursor. */
+export declare const OccurrenceListQuery: z.ZodObject<{
+    pageSize: z.ZodDefault<z.ZodCoercedNumber>;
+    pageToken: z.ZodPipe<z.ZodOptional<z.ZodString>, z.ZodTransform<number, string | undefined>>;
+}>;
+export type OccurrenceListQuery = z.infer<typeof OccurrenceListQuery>;
+export declare const ScheduleSchema: z.ZodType;
+export declare const SchedulePageMeta: z.ZodType;
+export declare const ScheduleOccurrenceSchema: z.ZodType;
+//# sourceMappingURL=schemas.d.ts.map

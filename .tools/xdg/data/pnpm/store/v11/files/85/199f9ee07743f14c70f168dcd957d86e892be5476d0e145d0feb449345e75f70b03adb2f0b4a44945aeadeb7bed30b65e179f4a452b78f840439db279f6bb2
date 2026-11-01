@@ -1,0 +1,11 @@
+import { ServiceProvider } from '@nocobase/service-provider';
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+export type InAppNotificationProviderApplication = AppPluginApplication;
+export declare class InAppNotificationProvider<TApplication extends InAppNotificationProviderApplication = InAppNotificationProviderApplication> extends ServiceProvider<TApplication> {
+    readonly name: string;
+    private realtimeTopic;
+    register(): void;
+    boot(): Promise<void>;
+    shutdown(): Promise<void>;
+}
+//# sourceMappingURL=in-app-notification.d.ts.map

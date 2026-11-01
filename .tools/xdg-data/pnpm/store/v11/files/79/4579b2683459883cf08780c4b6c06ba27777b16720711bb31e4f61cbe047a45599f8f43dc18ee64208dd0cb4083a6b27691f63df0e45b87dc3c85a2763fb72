@@ -1,0 +1,34 @@
+import { type BackendFactory } from 'bullmq';
+import { type PreparedJob } from '../message.js';
+import type { QueueRuntime, QueueRuntimeContext } from '../runtime.js';
+import type { RateLimitOptions } from '../types.js';
+/**
+ * One logical queue on BullMQ, through public Queue and Worker APIs only.
+ * Both are built with the configuration's backend factory, passed
+ * explicitly: no process-wide default factory is involved.
+ */
+export declare class RedisQueueRuntime implements QueueRuntime {
+    private readonly context;
+    private readonly factory;
+    private queue;
+    private worker;
+    private workerClosing;
+    private concurrency;
+    private readonly prefix;
+    private readonly name;
+    constructor(context: QueueRuntimeContext, factory: BackendFactory);
+    open(): Promise<void>;
+    add(jobs: readonly PreparedJob[]): Promise<string[]>;
+    startConsuming(concurrency: number): Promise<void>;
+    pauseConsuming(): Promise<void>;
+    setConcurrency(concurrency: number): void;
+    setRateLimit(rateLimit: RateLimitOptions | null): Promise<void>;
+    drain(delayed: boolean): Promise<void>;
+    stopConsuming(): Promise<void>;
+    close(): Promise<void>;
+    private process;
+    private connection;
+    private requireQueue;
+    private report;
+}
+//# sourceMappingURL=runtime.d.ts.map

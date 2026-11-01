@@ -1,0 +1,48 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuthorizationClient } from './use-authorization-client.js';
+import { useAuthorizationRevision } from './use-authorization-revision.js';
+/**
+ * Checks feature visibility against the current session's permission snapshot.
+ * `'unrestricted'` passes only for identities with unrestricted access, such as root.
+ */
+export function useCan(check, { enabled = true } = {}) {
+    const client = useAuthorizationClient();
+    const revision = useAuthorizationRevision();
+    const unrestricted = check === 'unrestricted';
+    const type = unrestricted ? undefined : check?.resource.type;
+    const id = unrestricted ? undefined : check?.resource.id;
+    const action = unrestricted ? undefined : check?.action;
+    const active = enabled && check !== undefined;
+    const request = useMemo(() => ({ client, revision, unrestricted, type, id, action, active }), [client, revision, unrestricted, type, id, action, active]);
+    const [result, setResult] = useState();
+    useEffect(() => {
+        const { client, unrestricted, type, id, action, active } = request;
+        if (!active)
+            return;
+        let requirement;
+        if (unrestricted)
+            requirement = 'unrestricted';
+        else if (type !== undefined && id !== undefined && action !== undefined)
+            requirement = { resource: { type, id }, action };
+        else
+            return;
+        let current = true;
+        const finish = (can, error) => {
+            if (current)
+                setResult({ request, can, error });
+        };
+        void client.can(requirement).then((can) => finish(can), (error) => finish(false, error));
+        return () => {
+            current = false;
+        };
+    }, [request]);
+    const fresh = result?.request === request;
+    const retry = useCallback(() => client.invalidate(), [client]);
+    return {
+        can: active && fresh && result.can,
+        isPending: active && !fresh,
+        error: active && fresh ? result.error : undefined,
+        retry,
+    };
+}
+//# sourceMappingURL=use-can.js.map

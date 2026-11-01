@@ -1,0 +1,92 @@
+import { BASE_LOCALE } from '../core/registry.js';
+import { I18nRuntime } from '../core/runtime.js';
+/**
+ * Thrown by a strict test runtime when a translation lookup finds nothing, so the test fails at the call that asked for
+ * the key rather than at an assertion on text that merely looks wrong.
+ */
+export class MissingTranslationError extends Error {
+    key;
+    namespace;
+    locales;
+    constructor(key, namespace, locales) {
+        super(`Missing translation "${key}" in namespace "${namespace}" (${locales.join(', ')}). ` +
+            'Add it to the locale file, fix the key, or bind the component to the namespace that owns it.');
+        this.name = 'MissingTranslationError';
+        this.key = key;
+        this.namespace = namespace;
+        this.locales = locales;
+    }
+}
+function unwrapDefault(value) {
+    const inner = value.default;
+    return typeof inner === 'object' && inner !== null ? inner : value;
+}
+/**
+ * Tells a loader map from a resource. Both are open records, but a resource's leaves are strings and nested records,
+ * never functions, while every entry of a loader map is one.
+ */
+function isLocalesModule(value) {
+    const entries = Object.values(unwrapDefault(value));
+    return (entries.length > 0 && entries.every((entry) => typeof entry === 'function'));
+}
+function toLocalesModule(value, locale) {
+    if (isLocalesModule(value))
+        return value;
+    // Wrapped under `default` so a resource that happens to own a `default` key is not mistaken for a module.
+    const resource = { default: unwrapDefault(value) };
+    return { [locale]: () => Promise.resolve(resource) };
+}
+function declaredLocales(module) {
+    return Object.keys(unwrapDefault(module));
+}
+/**
+ * Builds a real `I18nRuntime` from in-memory resources and loads the test's locale, so the first render is already
+ * translated.
+ *
+ * It exercises the same lookup a running application does — nested keys, interpolation, plurals, the namespace and
+ * language fallback chains — which a hand-written `vi.mock` of `useTranslation` does not. Mount the result with
+ * `TestI18nProvider`.
+ */
+export async function createTestI18nRuntime(options = {}) {
+    const locale = options.locale ?? BASE_LOCALE;
+    const defaultLocale = options.defaultLocale ?? BASE_LOCALE;
+    const application = options.application
+        ? {
+            namespace: options.application.namespace,
+            module: toLocalesModule(options.application.resources, locale),
+        }
+        : undefined;
+    const namespaces = Object.entries(options.namespaces ?? {}).map(([namespace, resources]) => ({
+        namespace,
+        module: toLocalesModule(resources, locale),
+    }));
+    const runtime = new I18nRuntime({
+        defaultLocale,
+        locales: application
+            ? undefined
+            : [
+                ...new Set([
+                    locale,
+                    ...namespaces.flatMap((entry) => declaredLocales(entry.module)),
+                ]),
+            ],
+        applicationNamespace: application?.namespace,
+        initOptions: options.strict === false
+            ? undefined
+            : {
+                saveMissing: true,
+                missingKeyHandler: (locales, namespace, key) => {
+                    throw new MissingTranslationError(key, namespace, locales);
+                },
+            },
+    });
+    if (application) {
+        runtime.registerApplicationNamespace(application.namespace, application.module);
+    }
+    for (const entry of namespaces) {
+        runtime.registerNamespace(entry.namespace, entry.module);
+    }
+    await runtime.init(locale);
+    return runtime;
+}
+//# sourceMappingURL=runtime.js.map

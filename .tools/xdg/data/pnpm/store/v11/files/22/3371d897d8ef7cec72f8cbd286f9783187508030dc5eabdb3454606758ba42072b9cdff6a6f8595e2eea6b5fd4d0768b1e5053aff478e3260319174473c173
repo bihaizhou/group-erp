@@ -1,0 +1,25 @@
+import { z } from 'zod';
+export declare const DEFAULT_LOG_PAGE_SIZE = 20;
+export declare const MAX_LOG_PAGE_SIZE = 100;
+/** The query of `GET /notifications/logs`, a cursor-paged list, newest first. */
+export declare const NotificationLogListQuery: z.ZodObject<{
+    pageSize: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    pageToken: z.ZodOptional<z.ZodString>;
+}>;
+export type NotificationLogListQuery = z.infer<typeof NotificationLogListQuery>;
+export declare const NotificationLogParams: z.ZodObject<{
+    logId: z.ZodString;
+}>;
+export declare const NotificationTestSendParams: z.ZodObject<{
+    testSendId: z.ZodString;
+}>;
+/** The body of `POST /notifications/testSends`. */
+export declare const NotificationTestSendBody: z.ZodObject<{
+    channel: z.ZodString;
+    values: z.ZodRecord<z.ZodString, z.ZodString>;
+}, z.core.$strict>;
+export type NotificationTestSendBody = z.infer<typeof NotificationTestSendBody>;
+export declare const NotificationLogDetailsSchema: z.ZodType;
+export declare const NotificationTestTargetSchema: z.ZodType;
+export declare const NotificationSendResultSchema: z.ZodType;
+//# sourceMappingURL=schemas.d.ts.map

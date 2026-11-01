@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "files": {
+    "202608210004_create_restriction_rules.js": {
+      "sourceChecksum": "6b372b081e740a9dd9c53b9bdb39e4ac8164bf2a48af44626eb4c077d3cd24ac",
+      "artifactChecksum": "5e104240ee240a5839ed55d4a44e5cf3996e59ab3096b6ebe66602e5fb7d1b65"
+    }
+  }
+}

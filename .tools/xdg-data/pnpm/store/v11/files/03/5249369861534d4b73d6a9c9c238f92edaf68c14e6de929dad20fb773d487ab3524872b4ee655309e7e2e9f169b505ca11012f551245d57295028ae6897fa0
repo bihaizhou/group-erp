@@ -1,0 +1,6 @@
+import { KnexDatabaseConnection } from './connection.js';
+export class KnexConnectionAdapter {
+    createConnection(context) {
+        return new KnexDatabaseConnection(context.name, context.config, context.metadataStore, undefined, undefined, context.config.databaseDriver);
+    }
+}

@@ -1,0 +1,37 @@
+import type { CommandSuggestion } from '../command/errors.ts';
+import type { AppCommandRuntime } from '../context.ts';
+export type ConfigSetErrorReason = 'invalid-assignment' | 'unknown-key' | 'environment-variable-missing' | 'not-configured' | 'unsupported-format' | 'not-a-section';
+export declare class ConfigSetError extends Error {
+    readonly reason: ConfigSetErrorReason;
+    /** The command that gets past this, as the executable and its arguments, when one exists. */
+    readonly suggestion?: CommandSuggestion;
+    readonly details?: Readonly<Record<string, unknown>>;
+    constructor(reason: ConfigSetErrorReason, message: string, options?: {
+        readonly suggestion?: CommandSuggestion;
+        readonly details?: Readonly<Record<string, unknown>>;
+    });
+}
+export interface ConfigSetOptions {
+    readonly rootDir: string;
+    /** `key=value`, as given on the command line. */
+    readonly assignments: readonly string[];
+    /** Read each value as the name of an environment variable, so a secret never appears on the command line. */
+    readonly fromEnv?: boolean;
+    readonly loadRuntime: () => Promise<AppCommandRuntime>;
+    readonly environment?: NodeJS.ProcessEnv;
+}
+export interface ConfigSetResult {
+    readonly configFile: string;
+    readonly changed: readonly string[];
+    readonly warnings: readonly string[];
+}
+/**
+ * Sets configuration values in the file the application reads, keeping its comments and layout.
+ *
+ * Everything is parsed and validated before the file is touched, and the file is written once, so a rejected
+ * assignment leaves it exactly as it was. Afterwards the configuration is loaded again and each key compared with what
+ * was written: a key the environment overrides, or a file the application does not read, looks like a successful edit
+ * and changes nothing, and saying so is the difference between a working configuration and a confusing one.
+ */
+export declare function runConfigSet(options: ConfigSetOptions): Promise<ConfigSetResult>;
+//# sourceMappingURL=config-set.d.ts.map

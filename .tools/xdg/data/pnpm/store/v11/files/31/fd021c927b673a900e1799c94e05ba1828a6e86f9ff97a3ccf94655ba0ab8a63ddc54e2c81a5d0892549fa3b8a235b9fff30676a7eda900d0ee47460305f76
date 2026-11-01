@@ -1,0 +1,54 @@
+export declare const COMMAND_JSON_SCHEMA_VERSION = 1;
+/** How a successful run went. A failed run is always `failure`. */
+export type CommandSuccessStatus = 'success' | 'success-noop' | 'partial-success';
+/** A step the reader can take next: a sentence, and optionally the exact command that takes it. */
+export interface CommandSuggestion {
+    readonly message: string;
+    /** The executable and its arguments, never a shell string, so no quoting is involved in running it. */
+    readonly run?: CommandLine;
+}
+/** A command to run: the executable and its arguments. */
+export interface CommandLine {
+    readonly command: string;
+    readonly args: readonly string[];
+}
+/** The `error` member of a failed `--json` document. */
+export interface CommandErrorJson {
+    /** A stable, machine-readable name for the failure, such as `CONNECTION_FAILED`. Agents branch on it. */
+    readonly code: string;
+    readonly message: string;
+    readonly suggestions: readonly CommandSuggestion[];
+    /** What a caller needs to act on the failure, beyond the message. Plain data, never a secret. */
+    readonly details?: unknown;
+}
+export interface CommandSuccessJson<TResult = unknown> {
+    readonly schemaVersion: typeof COMMAND_JSON_SCHEMA_VERSION;
+    readonly ok: true;
+    /** The command's id as typed, such as `db apply`, or the tool's name where it has one command. */
+    readonly command: string;
+    readonly status: CommandSuccessStatus;
+    /** What the command produced; `null` when it produced nothing. */
+    readonly result: TResult | null;
+    readonly warnings: readonly string[];
+}
+export interface CommandFailureJson {
+    readonly schemaVersion: typeof COMMAND_JSON_SCHEMA_VERSION;
+    readonly ok: false;
+    readonly command: string;
+    readonly status: 'failure';
+    readonly error: CommandErrorJson;
+    readonly warnings: readonly string[];
+}
+export type CommandJson<TResult = unknown> = CommandSuccessJson<TResult> | CommandFailureJson;
+/** Whether `value` was built by `commandSuccessJson` or `commandFailureJson`, from any copy of this package. */
+export declare function isCommandEnvelope(value: unknown): boolean;
+export declare function commandSuccessJson<TResult>(command: string, status: CommandSuccessStatus, result: TResult | undefined, warnings: readonly string[]): CommandSuccessJson<TResult>;
+/** A failure document. `error.details` is left out when it is `undefined`, so a reader can test for its presence. */
+export declare function commandFailureJson(command: string, error: CommandErrorJson, warnings: readonly string[]): CommandFailureJson;
+/** Quotes an argument for a POSIX shell when it would otherwise split or be interpreted, so the line can be pasted. */
+export declare function quoteForShell(argument: string): string;
+/** A suggestion's command as one line a person can paste into a shell, each argument quoted where it needs to be. */
+export declare function formatCommandLine(line: CommandLine): string;
+/** A suggestion as one line for a person: its message, followed by its command where it has one. */
+export declare function renderSuggestion(suggestion: CommandSuggestion): string;
+//# sourceMappingURL=index.d.ts.map

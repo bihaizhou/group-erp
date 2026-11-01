@@ -1,0 +1,44 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { useState } from 'react';
+import { useTranslation } from '@nocobase/i18n/client';
+import { useMailClient } from '../runtime.js';
+import { MAIL_PLUGIN_NS } from '../namespace.js';
+import { Button } from './ui/button.js';
+import { MailTextBody } from './mail-text-body.js';
+import { MailHtmlBody } from './mail-html-body.js';
+export function MailMessageContent(props) {
+    if (props.message.contentStatus === 'deferred' ||
+        props.message.contentStatus === 'failed')
+        return _jsx(IncompleteContent, { ...props }, props.message.id);
+    return props.message.html ? (_jsx(MailHtmlBody, { message: props.message, title: props.title })) : (_jsx(MailTextBody, { text: props.message.text ?? props.message.preview ?? '' }));
+}
+function IncompleteContent({ message, title, }) {
+    const mail = useMailClient();
+    const { t } = useTranslation(MAIL_PLUGIN_NS);
+    const [loaded, setLoaded] = useState();
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState(false);
+    const current = loaded?.id === message.id ? loaded : message;
+    const incomplete = current.contentStatus === 'deferred' || current.contentStatus === 'failed';
+    const retry = async () => {
+        setBusy(true);
+        setError(false);
+        try {
+            setLoaded(await mail.retryMessageContent(message.accountId, message.id));
+        }
+        catch {
+            setError(true);
+        }
+        finally {
+            setBusy(false);
+        }
+    };
+    return (_jsxs("div", { className: 'space-y-3', children: [incomplete ? (_jsxs("div", { className: 'rounded-lg border border-border bg-muted p-3 text-sm', role: 'status', children: [_jsx("p", { children: t(current.contentError === 'IMAP_DETAIL_BODY_TOO_LARGE'
+                            ? 'content.tooLarge'
+                            : current.contentStatus === 'deferred'
+                                ? 'content.deferred'
+                                : 'content.failed') }), current.size !== undefined ? (_jsx("p", { className: 'text-muted-foreground', children: t('content.size', {
+                            size: (current.size / 1024 / 1024).toFixed(1),
+                        }) })) : null, _jsx(Button, { className: 'mt-2', disabled: busy || current.contentError === 'IMAP_DETAIL_BODY_TOO_LARGE', onClick: () => void retry(), variant: 'outline', children: t(busy ? 'content.loading' : 'content.retry') }), error ? (_jsx("p", { className: 'mt-2 text-destructive', role: 'alert', children: t('content.retryFailed') })) : null] })) : null, current.html ? (_jsx(MailHtmlBody, { message: current, title: title })) : (_jsx(MailTextBody, { text: current.text ?? current.preview ?? '' }))] }));
+}
+//# sourceMappingURL=mail-message-content.js.map

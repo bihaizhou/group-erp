@@ -1,0 +1,110 @@
+export class DefaultSortBuilder {
+    field(path) {
+        return new DefaultSortFieldBuilder(normalizePath(path));
+    }
+    relation(path) {
+        return new DefaultSortRelationBuilder(normalizePath(path));
+    }
+}
+class DefaultSortFieldBuilder {
+    constructor(path) {
+        this.path = path;
+    }
+    asc() {
+        return new DefaultSortExpression({
+            kind: 'field',
+            path: this.path,
+            direction: 'asc',
+        });
+    }
+    desc() {
+        return new DefaultSortExpression({
+            kind: 'field',
+            path: this.path,
+            direction: 'desc',
+        });
+    }
+}
+class DefaultSortRelationBuilder {
+    constructor(relation) {
+        this.relation = relation;
+    }
+    count() {
+        return new DefaultSortAggregateBuilder(this.relation, 'count');
+    }
+    sum(field) {
+        return new DefaultSortAggregateBuilder(this.relation, 'sum', field);
+    }
+    avg(field) {
+        return new DefaultSortAggregateBuilder(this.relation, 'avg', field);
+    }
+    min(field) {
+        return new DefaultSortAggregateBuilder(this.relation, 'min', field);
+    }
+    max(field) {
+        return new DefaultSortAggregateBuilder(this.relation, 'max', field);
+    }
+}
+class DefaultSortAggregateBuilder {
+    constructor(relation, aggregate, field) {
+        this.relation = relation;
+        this.aggregate = aggregate;
+        this.field = field;
+    }
+    asc() {
+        return new DefaultSortExpression(this.node('asc'));
+    }
+    desc() {
+        return new DefaultSortExpression(this.node('desc'));
+    }
+    node(direction) {
+        return this.aggregate === 'count'
+            ? {
+                kind: 'aggregate',
+                relation: this.relation,
+                aggregate: 'count',
+                direction,
+            }
+            : {
+                kind: 'aggregate',
+                relation: this.relation,
+                aggregate: this.aggregate,
+                field: requiredAggregateField(this.field),
+                direction,
+            };
+    }
+}
+class DefaultSortExpression {
+    constructor(node) {
+        this.node = node;
+        this.kind = 'sortExpression';
+    }
+    nullsFirst() {
+        return new DefaultSortExpression(withNulls(this.node, 'first'));
+    }
+    nullsLast() {
+        return new DefaultSortExpression(withNulls(this.node, 'last'));
+    }
+    toNode() {
+        return this.node;
+    }
+}
+export function sortExpressionToNode(expression) {
+    if (!(expression instanceof DefaultSortExpression)) {
+        throw new TypeError('Sort callbacks must return Sort Builder expressions.');
+    }
+    return expression.toNode();
+}
+function withNulls(node, nulls) {
+    return { ...node, nulls };
+}
+function normalizePath(path) {
+    return typeof path === 'string' ? path.split('.') : [...path];
+}
+function requiredAggregateField(field) {
+    if (field === undefined) {
+        throw new TypeError('Value aggregate sorts require a Field.');
+    }
+    return field;
+}
+//# sourceMappingURL=sort-builder.js.map

@@ -1,0 +1,6 @@
+import { AuthorizationProvider } from './authorization.js';
+const serviceProviders = [
+    AuthorizationProvider,
+];
+export default serviceProviders;
+//# sourceMappingURL=index.js.map

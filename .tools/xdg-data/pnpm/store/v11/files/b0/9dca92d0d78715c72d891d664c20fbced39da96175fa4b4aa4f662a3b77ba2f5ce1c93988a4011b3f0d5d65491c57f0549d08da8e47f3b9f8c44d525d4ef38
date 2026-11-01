@@ -1,0 +1,3 @@
+import type { NotificationExtensionRegistry } from '@nocobase/app-plugin-notification';
+export declare function registerBuiltInNotificationProviders(registry: NotificationExtensionRegistry): void;
+//# sourceMappingURL=bootstrap.d.ts.map

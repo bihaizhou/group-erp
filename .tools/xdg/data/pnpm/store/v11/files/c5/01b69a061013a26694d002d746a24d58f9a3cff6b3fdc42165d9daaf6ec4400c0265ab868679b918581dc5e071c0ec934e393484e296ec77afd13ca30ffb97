@@ -1,0 +1,55 @@
+import type { AppCliCommand, AppCliPlugins } from '../plugins/types.ts';
+export declare const APP_TOPIC = "app";
+export declare const PLUGIN_TOPIC = "plugin";
+/** Who contributed a command or topic to the assembled tree. */
+export type CommandSource = 'builtin' | 'app' | 'plugin';
+/** Where a topic in the assembled tree came from. */
+export interface TopicOrigin {
+    readonly source: CommandSource;
+    /** The plugin package that contributed it, for `source: 'plugin'`. */
+    readonly package?: string;
+}
+/** Where a command in the assembled tree came from, and whether a deployment has it. */
+export interface CommandOrigin extends TopicOrigin {
+    /** Registered only in a source checkout: a development built-in, or an entry of a plugin's `devCommands`. */
+    readonly developmentOnly: boolean;
+}
+export interface AssembledCli {
+    readonly commands: Record<string, AppCliCommand>;
+    readonly topics: Record<string, {
+        description: string;
+    }>;
+    /**
+     * Where each command came from, keyed like `commands`. Kept beside the classes rather than on them: a plugin may
+     * register one class under several names, and the class is the plugin's, not this package's to mark.
+     */
+    readonly commandOrigins: Record<string, CommandOrigin>;
+    /** Where each topic came from, keyed like `topics`. */
+    readonly topicOrigins: Record<string, TopicOrigin>;
+}
+export interface AssembleCliOptions {
+    /** Commands the app itself contributes, keyed by name; they mount under the `app` topic. */
+    readonly commands?: Readonly<Record<string, AppCliCommand>>;
+    readonly plugins?: AppCliPlugins;
+    /** Built-in commands, already fully qualified. Defaults to this package's plugin management commands. */
+    readonly builtinCommands: Readonly<Record<string, AppCliCommand>>;
+    readonly builtinTopics: Readonly<Record<string, {
+        description: string;
+    }>>;
+    /** Assembling for a built `dist/`: plugins' `devCommands` are left out. */
+    readonly deployment?: boolean;
+    /**
+     * Names no plugin may take even when no built-in command under them is registered in this run, so that whether a
+     * plugin loads never depends on where the CLI happens to run.
+     */
+    readonly reservedTopics?: readonly string[];
+    /** First segments of built-in commands a deployment does not register, which marks them development-only. */
+    readonly developmentTopics?: readonly string[];
+    /**
+     * Topics of CLI packages the application depends on but this run did not import, each keyed to the package that
+     * owns it. They are claimed as a loaded plugin's topic is, so a collision does not depend on which command was run.
+     */
+    readonly claimedTopics?: Readonly<Record<string, string>>;
+}
+export declare function assembleCli({ builtinCommands, builtinTopics, commands, plugins, deployment, reservedTopics, developmentTopics, claimedTopics, }: AssembleCliOptions): AssembledCli;
+//# sourceMappingURL=assemble.d.ts.map

@@ -1,0 +1,39 @@
+import type { ScheduleEvent } from '@nocobase/jobs';
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { ScheduleOccurrenceStore } from '../occurrences.js';
+import { type JsonObject, type ScheduleDefinition } from '../schedules/define.js';
+import type { ScheduleTargetHandle, ScheduleTargetRegistry, ScheduleTargetSummary, ScheduleTargetType } from '../schedules/registry.js';
+import { type ScheduleOccurrenceRange, type ScheduleStore } from '../store.js';
+import type { SchedulerService } from '../tokens.js';
+export type ScheduleOccurrenceView = Awaited<ReturnType<ScheduleStore['listOccurrences']>>[number] & {
+    readonly target: Awaited<ReturnType<ScheduleStore['listOccurrences']>>[number]['target'] & {
+        readonly href?: string;
+    };
+};
+export type ScheduleListItem = Awaited<ReturnType<ScheduleStore['list']>>[number] & {
+    readonly targetState: 'ready' | 'disabled' | 'missing' | 'invalid';
+    readonly targetSummary: ScheduleTargetSummary;
+};
+export declare class DefaultSchedulerService implements SchedulerService {
+    private readonly store;
+    private readonly occurrences;
+    private readonly targets;
+    private readonly manifest;
+    constructor(store: ScheduleStore, occurrences: ScheduleOccurrenceStore, targets: ScheduleTargetRegistry);
+    defineSchedule(definition: ScheduleDefinition): void;
+    registerTarget<TConfig extends JsonObject>(target: ScheduleTargetType<TConfig>): ScheduleTargetHandle;
+    list(): Promise<readonly ScheduleListItem[]>;
+    /** One schedule with the same projection as `list()`, or `undefined` when this application has no such schedule. */
+    get(id: string): Promise<ScheduleListItem | undefined>;
+    listOccurrences(scheduleId: string, range?: ScheduleOccurrenceRange): Promise<readonly ScheduleOccurrenceView[]>;
+    sync(finalize?: boolean): Promise<void>;
+    setEnabled(id: string, enabled: boolean): Promise<ScheduleListItem>;
+    /** Finishes a sync that ran before the executor was set up; see `ScheduleStore.activate`. */
+    activate(): Promise<void>;
+    /** Records a firing this instance ran on its schedule's run state. */
+    recordEvent(event: ScheduleEvent): Promise<void>;
+    /** Observes occurrences whose target completed without notifying us. */
+    reconcileOccurrences(): Promise<number>;
+}
+export declare const schedulerServiceToken: ServiceToken<DefaultSchedulerService>;
+//# sourceMappingURL=scheduler.d.ts.map

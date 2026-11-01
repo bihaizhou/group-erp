@@ -1,0 +1,51 @@
+export function inputError(path, message) {
+    throw new TypeError(`${path.length ? path.join('.') : 'input'}: ${message}`);
+}
+export function isRecord(value) {
+    if (typeof value !== 'object' || value === null || Array.isArray(value))
+        return false;
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+}
+/** Does not call arbitrary toJSON methods or silently drop functions. */
+export function snapshotJson(value) {
+    const ancestors = new Set();
+    const copy = (input, path) => {
+        if (input === undefined ||
+            input === null ||
+            typeof input === 'string' ||
+            typeof input === 'boolean')
+            return input;
+        if (typeof input === 'number') {
+            if (!Number.isFinite(input))
+                inputError(path, 'Expected a finite number.');
+            return input;
+        }
+        if (typeof input === 'bigint')
+            return input.toString();
+        if (input instanceof Date) {
+            if (!Number.isFinite(input.getTime()))
+                inputError(path, 'Expected a valid Date.');
+            return input.toISOString();
+        }
+        if (typeof input !== 'object')
+            inputError(path, 'Expected JSON data; callbacks must return synchronous builder results.');
+        if (ancestors.has(input))
+            inputError(path, 'Circular Repository input.');
+        ancestors.add(input);
+        try {
+            if (Array.isArray(input))
+                return Array.from(input, (item, i) => copy(item, [...path, i]) ?? null);
+            if (!isRecord(input))
+                inputError(path, 'Expected a plain JSON object.');
+            return Object.fromEntries(Object.entries(input)
+                .filter(([, item]) => item !== undefined)
+                .map(([key, item]) => [key, copy(item, [...path, key])]));
+        }
+        finally {
+            ancestors.delete(input);
+        }
+    };
+    return copy(value, []);
+}
+//# sourceMappingURL=json.js.map

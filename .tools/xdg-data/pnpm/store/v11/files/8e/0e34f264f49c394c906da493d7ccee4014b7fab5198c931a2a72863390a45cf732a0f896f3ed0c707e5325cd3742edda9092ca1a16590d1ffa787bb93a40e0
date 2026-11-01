@@ -1,0 +1,90 @@
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { Hono } from 'hono';
+import { defineRootRoutes, } from '../router/index.js';
+import { registerSpaRoutes } from './routes.js';
+import { createMountedOriginProxyHandler } from '../proxy/index.js';
+import { joinBasePath } from '../support/index.js';
+export const spaRootRoutes = defineRootRoutes((app) => {
+    const router = new Hono();
+    const identity = app.config.get('app');
+    const spa = app.config.get('spa');
+    const apiUrl = joinBasePath(app.publicBasePath, '/api');
+    const appPackage = readAppPackage(app.paths.rootDir);
+    registerSpaRoutes(router, {
+        basePath: identity.internalBasePath,
+        publicBasePath: app.publicBasePath,
+        handler: app.mode === 'standalone' && spa.viteDevUrl
+            ? createMountedOriginProxyHandler(new URL(spa.viteDevUrl), {
+                publicBasePath: app.publicBasePath,
+                unavailableMessage: 'Vite dev server is unavailable.',
+            })
+            : undefined,
+        indexPath: spa.indexPath,
+        clientConfig: createClientConfig(app.config.get('client') ?? {}, { appBasePath: app.publicBasePath, apiUrl }),
+        // Computed per page so a configuration reload reaches the next page load.
+        publicConfig: () => createPublicConfig((app.config.publicValues?.() ?? {}), 
+        // Read by path rather than through the definition, so these routes stay usable in an application composed
+        // without the i18n config registered. The browser falls back to its own default when nothing is published.
+        app.config.get('i18n.defaultLocale'), appPackage),
+    });
+    return router;
+});
+function createClientConfig(configured, runtime) {
+    return {
+        ...configured,
+        app: {
+            ...readConfigSection(configured.app),
+            basePath: runtime.appBasePath,
+        },
+        api: {
+            ...readConfigSection(configured.api),
+            baseURL: runtime.apiUrl,
+        },
+    };
+}
+/**
+ * What sections publish through `public`, plus what the runtime itself publishes. The browser starts in the same
+ * `i18n.defaultLocale` the server does, rather than a separate client-side copy that could disagree with it, and shows
+ * the application's `displayName` and `version` from its own `package.json` rather than values baked in at build time.
+ */
+function createPublicConfig(published, defaultLocale, appPackage) {
+    const withLocale = defaultLocale === undefined
+        ? published
+        : {
+            ...published,
+            i18n: { ...readConfigSection(published.i18n), defaultLocale },
+        };
+    if (!appPackage.displayName && !appPackage.version)
+        return withLocale;
+    return {
+        ...withLocale,
+        app: {
+            ...readConfigSection(withLocale.app),
+            ...(appPackage.displayName
+                ? { displayName: appPackage.displayName }
+                : {}),
+            ...(appPackage.version ? { version: appPackage.version } : {}),
+        },
+    };
+}
+function readAppPackage(rootDir) {
+    const packagePath = path.join(rootDir, 'package.json');
+    if (!existsSync(packagePath))
+        return {};
+    const value = JSON.parse(readFileSync(packagePath, 'utf8'));
+    if (typeof value !== 'object' || value === null)
+        return {};
+    const { displayName, version } = value;
+    return {
+        ...(typeof displayName === 'string' ? { displayName } : {}),
+        ...(typeof version === 'string' ? { version } : {}),
+    };
+}
+function readConfigSection(value) {
+    return isClientConfigMap(value) ? value : {};
+}
+function isClientConfigMap(value) {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+//# sourceMappingURL=provider.js.map

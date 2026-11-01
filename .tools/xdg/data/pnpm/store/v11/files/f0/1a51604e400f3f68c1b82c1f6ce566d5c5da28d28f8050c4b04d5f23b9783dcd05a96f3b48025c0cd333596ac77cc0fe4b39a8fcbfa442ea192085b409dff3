@@ -1,0 +1,5 @@
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { AppAuthorization } from './authorization.js';
+/** The application's Authorization; the only service token this plugin registers. */
+export declare const authorizationToken: ServiceToken<AppAuthorization>;
+//# sourceMappingURL=tokens.d.ts.map

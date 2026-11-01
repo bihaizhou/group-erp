@@ -1,0 +1,207 @@
+import type { AccessConstraintService } from './constraints.js';
+import type { AuthorizationGrant, AuthorizationGrantSource, AuthorizationGrantService, AuthorizationPolicy, PermissionGrant, PermissionGrantAction } from './grants.js';
+import { type ResourceTypeRegistry } from './resource-types.js';
+import { type RecordSelection } from './selection.js';
+import type { AuthorizationTitle } from './titles.js';
+import type { AuthorizationConditions, AuthorizationDecision, ResourceRef } from './types.js';
+/** Package-internal: the reserved type every composite is stored under. */
+export declare const COMPOSITE_RESOURCE_TYPE = "composite";
+/**
+ * A named slot on a composite action that a grant or rule fills with records.
+ * Its target is the one resource the grant actions naming it address; see
+ * `dataScopeTarget`.
+ */
+export interface DataScope {
+    readonly key: string;
+    readonly title: AuthorizationTitle;
+    /** Record access keys a grant may choose from. Absent means any. */
+    readonly options?: readonly string[];
+    /** The record access key used when a grant chooses nothing. */
+    readonly defaultValue?: string;
+}
+/**
+ * A record selection, or a record access key as shorthand. The empty string
+ * selects nothing, not even the scope's default: only rules apply.
+ */
+export type DataScopeValue = RecordSelection | string;
+export interface CompositeResourceGrantAction extends PermissionGrantAction {
+    /** The data scope this action's records are chosen by. */
+    scopeKey?: string;
+}
+export interface CompositeResourceGrant {
+    resource: ResourceRef;
+    actions: readonly CompositeResourceGrantAction[];
+}
+export interface CompositeResourceAction {
+    name: string;
+    title: AuthorizationTitle;
+    dataScopes?: readonly DataScope[];
+    grants: readonly CompositeResourceGrant[];
+}
+/**
+ * A resource whose actions expand into a set of underlying grants, each
+ * optionally bound to a named data scope.
+ */
+export interface CompositeResource {
+    name: string;
+    title: AuthorizationTitle;
+    actions: readonly CompositeResourceAction[];
+}
+/** The policy of a composite grant: one value per data scope it sets. */
+export interface CompositeResourcePolicy extends AuthorizationPolicy {
+    type: 'composite';
+    scopes: Readonly<Record<string, DataScopeValue>>;
+}
+/** One underlying check of a composite action, made with that action's grants. */
+export interface CompositeResourceCheck {
+    resource: ResourceRef;
+    action: string;
+    decision: AuthorizationDecision;
+}
+/** Plugins extend this through `composeConditions`. */
+export interface CompositeResourceConditions extends AuthorizationConditions {
+    type: 'composite';
+    checks: readonly CompositeResourceCheck[];
+}
+export interface CompositeResourceContributionData {
+    grants: readonly CompositeResourceGrant[];
+    dataScopes?: readonly DataScope[];
+}
+/** What a composite action is built from; `S` carries data scope value types. */
+export interface CompositeResourceContribution<S extends Record<string, DataScopeValue> = Record<never, never>> {
+    build(): CompositeResourceContributionData;
+    /** Type-only: the values each data scope of this contribution accepts. */
+    readonly scopeSelections?: S;
+}
+/** A plugin-owned permission that becomes a data scope once bound to a key. */
+export interface BindableCompositeResourcePermission {
+    /** Type-only: the values the bound data scope accepts. */
+    readonly recordAccessSelection?: DataScopeValue;
+    bind<K extends string>(key: K, metadata?: {
+        title?: AuthorizationTitle;
+    }): CompositeResourceContribution<Record<K, DataScopeValue>>;
+}
+type ContributionScopes<C extends CompositeResourceContribution> = 'scopeSelections' extends keyof C ? NonNullable<C['scopeSelections']> : Record<never, never>;
+export interface CompositeResourceActionData {
+    title?: AuthorizationTitle;
+    grants: readonly CompositeResourceGrant[];
+    dataScopes: readonly DataScope[];
+}
+export declare class CompositeResourceActionBuilder<S extends Record<string, DataScopeValue> = Record<never, never>> implements CompositeResourceContribution<S> {
+    readonly scopeSelections?: S;
+    private readonly data;
+    constructor(data?: CompositeResourceActionData);
+    title(title: AuthorizationTitle): CompositeResourceActionBuilder<S>;
+    grant<C extends CompositeResourceContribution>(contribution: C): CompositeResourceActionBuilder<S & ContributionScopes<C>>;
+    grant<const K extends string, P extends BindableCompositeResourcePermission>(key: K extends keyof S ? never : K, permission: P, metadata?: {
+        title?: AuthorizationTitle;
+    }): CompositeResourceActionBuilder<S & Record<K, 'recordAccessSelection' extends keyof P ? NonNullable<P['recordAccessSelection']> : DataScopeValue>>;
+    build(): CompositeResourceActionData;
+}
+/** Data scope values per action, as the reference types them. */
+export type CompositeResourceActions = Record<string, Record<string, DataScopeValue>>;
+type ScopeAssignments<S> = keyof S extends never ? Record<string, never> : Partial<S>;
+export type CompositeResourceActionAssignments<A extends CompositeResourceActions> = {
+    [K in keyof A]?: ScopeAssignments<A[K]>;
+};
+export interface CompositeResourceScopeTarget<N extends string, K extends string> {
+    action: N;
+    scopeKey: K;
+}
+/** Type-safe grants and rule targets for one composite. */
+export declare class CompositeResourceReference<A extends CompositeResourceActions> {
+    private readonly definition;
+    constructor(definition: CompositeResource);
+    get name(): string;
+    scope<N extends keyof A & string, K extends keyof A[N] & string>(action: N, key: K): CompositeResourceScopeTarget<N, K>;
+    grant(action: keyof A & string, ...actions: (keyof A & string)[]): PermissionGrant;
+    grant(actions: CompositeResourceActionAssignments<A>): PermissionGrant;
+}
+export declare class CompositeResourceBuilder<A extends CompositeResourceActions = Record<never, never>> {
+    private readonly definition;
+    constructor(definition: CompositeResource);
+    title(title: AuthorizationTitle): CompositeResourceBuilder<A>;
+    action<const N extends string, C extends CompositeResourceContribution>(name: N extends keyof A ? never : N, configure: (action: CompositeResourceActionBuilder) => C): CompositeResourceBuilder<A & Record<N, ContributionScopes<C>>>;
+    build(): CompositeResource;
+    reference(): CompositeResourceReference<A>;
+}
+/** Builds a composite; `authz.compositeResources.define` registers it. */
+export declare function defineCompositeResource<A extends CompositeResourceActions>(name: string, configure: (resource: CompositeResourceBuilder) => CompositeResourceBuilder<A>): CompositeResourceBuilder<A>;
+/**
+ * The one resource a data scope of `action` selects records of: every grant
+ * action naming the scope must address it. Throws when none does or when
+ * they address different resources.
+ */
+export declare function dataScopeTarget(action: Pick<CompositeResourceAction, 'name' | 'grants'>, key: string): ResourceRef;
+export interface CompositeResourceApi {
+    /** Registers a definition object or a `defineCompositeResource` result. */
+    define<A extends CompositeResourceActions = CompositeResourceActions>(definition: CompositeResource | CompositeResourceBuilder<A>): CompositeResourceReference<A>;
+    getAction(id: string, action: string): CompositeResourceAction | undefined;
+    list(): readonly CompositeResource[];
+    /**
+     * The data scopes whose target type is unregistered or lacks
+     * `recordAccess`, one message each. `define` rejects these when the type is
+     * already registered; a type registered later is checked here and on first
+     * use.
+     */
+    validate(): readonly string[];
+    /**
+     * Why a stored composite grant cannot be expanded against the current
+     * definitions — an unknown action, an unknown or invalid data scope, or a
+     * malformed policy — or `undefined` when it is valid.
+     */
+    validateGrant(grant: CompositeResourceGrantInput): string | undefined;
+}
+/** A composite grant as a Permission Set stores it: one action and its policy. */
+export interface CompositeResourceGrantInput {
+    readonly resource: ResourceRef;
+    readonly action: string;
+    readonly policy?: AuthorizationPolicy;
+}
+/** A stored grant that was skipped because it no longer expands. */
+export interface InvalidGrant {
+    readonly source: AuthorizationGrantSource;
+    readonly resource: ResourceRef;
+    readonly action: string;
+    readonly reason: string;
+}
+/**
+ * Package-internal: `authz.compositeResources`. It registers the reserved `composite`
+ * resource type itself, so it is always available.
+ */
+export declare class CompositeResourceRegistry implements CompositeResourceApi {
+    private readonly resourceTypes;
+    private readonly onInvalidGrant?;
+    private readonly definitions;
+    /** Composites whose data scope targets have passed the `recordAccess` check. */
+    private readonly verified;
+    private readonly items;
+    private readonly reported;
+    constructor(resourceTypes: ResourceTypeRegistry, onInvalidGrant?: ((grant: InvalidGrant) => void) | undefined);
+    define<A extends CompositeResourceActions = CompositeResourceActions>(definition: CompositeResource | CompositeResourceBuilder<A>): CompositeResourceReference<A>;
+    validate(): readonly string[];
+    /**
+     * Data scopes whose target type lacks `recordAccess`; with `strict`, also
+     * those whose type is not registered yet.
+     */
+    private scopeProblems;
+    /** Throws on first use when a data scope's target type is still unfit. */
+    private verify;
+    getAction(id: string, action: string): CompositeResourceAction | undefined;
+    list(): readonly CompositeResource[];
+    get size(): number;
+    validateGrant(grant: CompositeResourceGrantInput): string | undefined;
+    /**
+     * `expand`, with a grant that no longer expands skipped and reported rather
+     * than failing every check of the identity that holds it.
+     */
+    expandOrSkip(grant: AuthorizationGrant): readonly AuthorizationGrant[];
+    /** Tells `onInvalidGrant` once per distinct grant and reason. */
+    report(grant: AuthorizationGrant, reason: string): void;
+    /** A composite grant followed by the grants it composes. */
+    expand(grant: AuthorizationGrant): readonly AuthorizationGrant[];
+}
+/** Wraps a Grant Provider so composite grants resolve with what they compose. */
+export declare function composedGrants(provider: AuthorizationGrantService, registry: CompositeResourceRegistry, constraints: AccessConstraintService): AuthorizationGrantService;
+export {};
+//# sourceMappingURL=composite.d.ts.map

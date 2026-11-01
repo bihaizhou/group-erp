@@ -1,0 +1,25 @@
+import type { Hono } from 'hono';
+/** One API contribution's router, labelled with whatever registered it. */
+export interface OwnedApiRouter {
+    readonly owner: string;
+    readonly router: Hono;
+    /**
+     * Where the router's paths start below the API prefix, such as `/authorization` for a router a dispatcher forwards
+     * requests under `/api/authorization` to. Defaults to none: the router is mounted on the API router itself.
+     */
+    readonly mount?: string;
+    /** Which of the router's endpoints, by path below the API prefix, take part in the check. Defaults to all of them. */
+    readonly includes?: (path: string) => boolean;
+}
+/**
+ * Fails when two API routes answer the same method and path. Hono matches in registration order and lets the first
+ * match win, so the second registration would never run and nothing would say so.
+ *
+ * Hono records one entry per handler, so `router.post('/x', limit, validate, handle)` is three entries for a single
+ * route, and `router.use()` is an `ALL` entry. Only entries whose handler is not a middleware — Hono's own test, a
+ * handler that does not take `next` — count as endpoints, which leaves exactly one per route. Two endpoints conflict
+ * when their patterns match and their methods are equal or either is `ALL`, whether they come from two contributions
+ * or from the same router.
+ */
+export declare function assertNoDuplicateApiRoutes(routers: readonly OwnedApiRouter[], prefix?: string): void;
+//# sourceMappingURL=duplicate-routes.d.ts.map

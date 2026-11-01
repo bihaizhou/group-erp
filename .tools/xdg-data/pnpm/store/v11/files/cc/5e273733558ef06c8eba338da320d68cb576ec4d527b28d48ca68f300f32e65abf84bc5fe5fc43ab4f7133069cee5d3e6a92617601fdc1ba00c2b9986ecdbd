@@ -1,0 +1,9 @@
+import type { Knex } from 'knex';
+import type { FieldDefinition } from '../../collection/types.js';
+export interface TemporalSqlClient {
+    readonly client: Knex.Client;
+    raw: Knex['raw'];
+}
+export declare function temporalBinding(client: TemporalSqlClient, field: FieldDefinition, value: unknown): Knex.Raw | string | null;
+/** Format at the database boundary so driver Date parsing cannot apply a host zone. */
+export declare function temporalProjection(client: Knex, field: FieldDefinition | undefined, reference: string | Knex.Raw): Knex.Raw | Knex.Ref<string, Record<string, string>>;

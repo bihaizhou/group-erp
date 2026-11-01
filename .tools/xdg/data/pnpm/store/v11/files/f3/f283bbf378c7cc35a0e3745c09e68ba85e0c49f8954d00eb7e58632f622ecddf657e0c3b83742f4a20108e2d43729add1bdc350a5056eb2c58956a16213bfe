@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "files": {
+    "202608200001_create_authentication_tables.js": {
+      "sourceChecksum": "920f265fc401ca90f2e398142310247b23f760ac9ab96f4834051486dd972a13",
+      "artifactChecksum": "bf05d793e02c2693569df1336ca634d68889d5b2864893925e18e020a773f6e7"
+    },
+    "202609080001_add_user_disabled_at.js": {
+      "sourceChecksum": "fff39281deab39690b1365c3575a385de76419f5a71a86ef7ba0c7758fb3ec6e",
+      "artifactChecksum": "e71435e56c1d7e17cabbc230eb25ec152f80a9058c73aab0afb39461e0818d49"
+    },
+    "202609170002_add_user_deletion_record.js": {
+      "sourceChecksum": "809e69f462b895f97964a048ba87b5aa3334fb1179a90c5ee36d4eb2e0fc1fe0",
+      "artifactChecksum": "2378160ff302148bcc0449a977bc15816dbced2d212c8064edd83a8b55974cad"
+    },
+    "202610020101_add_user_kind.js": {
+      "sourceChecksum": "8db4804dfd5065a94e4e1d695ff24726a1759f8ef66b3efdfc480302f17f64b0",
+      "artifactChecksum": "af754c383c5be1c84aaf71879028a0719be3abb8f5101645a61092c0a8b2d5f0"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+import type { ComponentProps, ReactElement } from 'react';
+export declare function FieldGroup({ className, ...props }: ComponentProps<'div'>): ReactElement;
+export declare function Field({ className, ...props }: ComponentProps<'div'>): ReactElement;
+export declare function FieldLabel({ className, ...props }: ComponentProps<'label'>): ReactElement;
+export declare function FieldDescription({ className, ...props }: ComponentProps<'p'>): ReactElement;
+export declare function FieldError({ className, children, ...props }: ComponentProps<'div'>): ReactElement | null;
+//# sourceMappingURL=field.d.ts.map

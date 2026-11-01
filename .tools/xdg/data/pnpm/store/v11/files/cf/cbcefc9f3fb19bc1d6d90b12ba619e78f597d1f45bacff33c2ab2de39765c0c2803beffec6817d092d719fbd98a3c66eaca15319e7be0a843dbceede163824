@@ -1,0 +1,16 @@
+import type { BaseConnectionConfig, ConnectionConfig, DatabaseDialect, DatabaseDriverDefinition, SchemaManagementMode } from '../../config.js';
+export interface KnexConnectionConfig extends BaseConnectionConfig {
+    dialect: DatabaseDialect;
+    driver: string;
+    schemaManagement: SchemaManagementMode;
+    knexClient: KnexClientName;
+    connection: unknown;
+    useNullAsDefault?: boolean;
+    searchPath?: string[];
+}
+/**
+ * The core package deliberately treats the Knex client name as opaque. A
+ * dialect package owns the mapping from its native driver to this name.
+ */
+export type KnexClientName = string;
+export declare function resolveKnexConnectionConfig<TConfig extends ConnectionConfig>(config: TConfig, dialectDriver?: DatabaseDriverDefinition): KnexConnectionConfig;

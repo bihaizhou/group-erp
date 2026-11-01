@@ -1,0 +1,27 @@
+import type { Cache, CacheEntry } from './types.js';
+export interface MemoryCacheOptions {
+    namespace: string;
+    maxSize: number;
+    defaultTtl?: number;
+    maxTtl?: number;
+    checkInterval?: number;
+    useClone?: boolean;
+}
+export declare class MemoryCache implements Cache {
+    readonly namespace: string;
+    private readonly store;
+    private readonly lock;
+    private readonly pending;
+    constructor(options: MemoryCacheOptions);
+    get<T>(key: string): Promise<T | undefined>;
+    getMany<T>(keys: readonly string[]): Promise<Array<T | undefined>>;
+    has(key: string): Promise<boolean>;
+    set<T>(key: string, value: T, ttl?: number): Promise<void>;
+    setMany<T>(entries: readonly CacheEntry<T>[]): Promise<void>;
+    delete(key: string): Promise<boolean>;
+    deleteMany(keys: readonly string[]): Promise<number>;
+    take<T>(key: string): Promise<T | undefined>;
+    wrap<T>(key: string, loader: () => T | Promise<T>, ttl?: number): Promise<T>;
+    disconnect(): Promise<void>;
+}
+//# sourceMappingURL=memory-cache.d.ts.map

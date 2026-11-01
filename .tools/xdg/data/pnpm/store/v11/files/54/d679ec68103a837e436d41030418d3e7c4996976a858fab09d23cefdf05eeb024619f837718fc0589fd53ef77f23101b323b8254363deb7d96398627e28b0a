@@ -1,0 +1,1 @@
+{"version":3,"file":"prepare.d.ts","sourceRoot":"","sources":["../src/prepare.ts"],"names":[],"mappings":"AAEA,OAAO,KAAK,EAAE,cAAc,EAAE,MAAM,YAAY,CAAC;AAEjD,MAAM,WAAW,yBAAyB;IACxC,WAAW,EAAE,MAAM,EAAE,CAAC;CACvB;AAED,wBAAsB,mBAAmB,CACvC,MAAM,EAAE,cAAc,GACrB,OAAO,CAAC,yBAAyB,CAAC,CAcpC"}

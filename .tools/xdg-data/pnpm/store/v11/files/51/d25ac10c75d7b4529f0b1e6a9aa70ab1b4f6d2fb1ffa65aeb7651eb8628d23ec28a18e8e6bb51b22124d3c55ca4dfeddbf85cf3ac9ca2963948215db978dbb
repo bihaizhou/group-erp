@@ -1,0 +1,42 @@
+import type { MailAttachmentContent, MailProviderResult, MailSyncCursor } from '../../../shared/mail.js';
+import type { MailProviderAdapter, MailProviderAccount, MailProviderChangePage, MailProviderContext, MailProviderFolderPage, MailProviderListChangesInput, MailProviderListFoldersInput, MailProviderListMessagesInput, MailProviderMessagePage, MailProviderSendInput, MailProviderSendResult, MailProviderUpsertPushSubscriptionInput, MailProviderUpsertPushSubscriptionResult, MailProviderUpdateLabelsInput, NormalizedMailFolder, NormalizedMailMessage } from '../../contracts/provider.js';
+import type { GmailMailProviderConfig } from './types.js';
+export declare class GmailMailProviderAdapter implements MailProviderAdapter {
+    private readonly context;
+    private readonly config;
+    private readonly account;
+    readonly identity: MailProviderAccount['provider'];
+    readonly capabilities: MailProviderAdapter['capabilities'];
+    readonly pushNotificationsConfigured: boolean;
+    private static readonly batchGetSize;
+    constructor(context: MailProviderContext, config: GmailMailProviderConfig, account: MailProviderAccount);
+    upsertPushSubscription(input: MailProviderUpsertPushSubscriptionInput): Promise<MailProviderResult<MailProviderUpsertPushSubscriptionResult>>;
+    deletePushSubscription(_providerSubscriptionId: string, signal?: AbortSignal): Promise<MailProviderResult<void>>;
+    getCurrentSyncCursor(signal?: AbortSignal): Promise<MailProviderResult<MailSyncCursor>>;
+    listFolders(input: MailProviderListFoldersInput): Promise<MailProviderResult<MailProviderFolderPage>>;
+    createLabel(name: string, signal?: AbortSignal): Promise<MailProviderResult<NormalizedMailFolder>>;
+    updateLabels(providerMessageId: string, input: MailProviderUpdateLabelsInput): Promise<MailProviderResult<void>>;
+    listMessages(input: MailProviderListMessagesInput): Promise<MailProviderResult<MailProviderMessagePage>>;
+    listChanges(input: MailProviderListChangesInput): Promise<MailProviderResult<MailProviderChangePage>>;
+    private getSyncMessages;
+    private getMessagesBatch;
+    private normalizeSyncMessage;
+    getMessage(providerMessageId: string, signal?: AbortSignal): Promise<MailProviderResult<NormalizedMailMessage>>;
+    getAttachment(providerMessageId: string, providerAttachmentId: string, signal?: AbortSignal): Promise<MailProviderResult<MailAttachmentContent>>;
+    sendMessage(input: MailProviderSendInput): Promise<MailProviderSendResult>;
+    saveDraft(input: MailProviderSendInput): Promise<MailProviderResult<NormalizedMailMessage>>;
+    updateDraft(providerDraftId: string, input: MailProviderSendInput): Promise<MailProviderResult<NormalizedMailMessage>>;
+    private prepareForward;
+    private resolveDraftId;
+    setRead(providerMessageId: string, read: boolean, signal?: AbortSignal): Promise<MailProviderResult<void>>;
+    setStarred(providerMessageId: string, starred: boolean, signal?: AbortSignal): Promise<MailProviderResult<void>>;
+    moveMessage(providerMessageId: string, providerFolderId: string, signal?: AbortSignal): Promise<MailProviderResult<{
+        readonly providerMessageId: string;
+    }>>;
+    deleteMessage(providerMessageId: string, permanently: boolean, signal?: AbortSignal): Promise<MailProviderResult<void>>;
+    private modifyLabels;
+    private emptyRequest;
+    private request;
+    private accessToken;
+}
+//# sourceMappingURL=adapter.d.ts.map

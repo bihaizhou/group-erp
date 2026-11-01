@@ -1,0 +1,4 @@
+import type { AppServer } from './types.js';
+export declare function createPublicBasePathAdapter(app: AppServer, publicBasePath: string): AppServer;
+export declare function stripPublicBasePathFromRequest(request: Request, publicBasePath: string): Request | null;
+//# sourceMappingURL=mount.d.ts.map

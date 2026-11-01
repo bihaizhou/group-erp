@@ -1,0 +1,32 @@
+import type { NotificationTarget } from '@nocobase/app-plugin-notification/client';
+import type { ApiClient } from '@nocobase/app-client';
+export type InboxMutationAction = 'read' | 'unread' | 'delete';
+export interface InboxItem {
+    readonly id: string;
+    readonly deliveryId: string;
+    readonly notificationId: string;
+    readonly title: string;
+    readonly body: string;
+    readonly target?: NotificationTarget;
+    readonly readAt?: string;
+    readonly createdAt: string;
+}
+export interface InboxFilters {
+    readonly unreadOnly?: boolean;
+    readonly pageSize?: number;
+    /** The `nextPageToken` of the previous page, passed back unchanged. */
+    readonly pageToken?: string;
+}
+export interface InboxListResponse {
+    readonly data: readonly InboxItem[];
+    /** Present while more messages follow; pass it back as `pageToken`. */
+    readonly nextPageToken?: string;
+}
+export declare function fetchInbox(client: ApiClient, filters: InboxFilters, signal?: AbortSignal): Promise<InboxListResponse>;
+export declare function fetchUnreadCount(client: ApiClient, signal?: AbortSignal): Promise<number>;
+/** Marks one message read or unread, returning it, or deletes it, returning nothing. */
+export declare function mutateInboxItem(client: ApiClient, id: string, action: 'read' | 'unread'): Promise<InboxItem>;
+export declare function mutateInboxItem(client: ApiClient, id: string, action: 'delete'): Promise<undefined>;
+export declare function mutateInboxItem(client: ApiClient, id: string, action: InboxMutationAction): Promise<InboxItem | undefined>;
+export declare function markInboxRead(client: ApiClient): Promise<number>;
+//# sourceMappingURL=api.d.ts.map

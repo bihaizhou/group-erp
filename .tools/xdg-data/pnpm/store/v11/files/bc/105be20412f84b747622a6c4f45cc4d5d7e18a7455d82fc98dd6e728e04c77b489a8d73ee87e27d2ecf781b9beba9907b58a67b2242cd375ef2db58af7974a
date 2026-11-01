@@ -1,0 +1,4 @@
+import { createServiceToken, } from '@nocobase/service-provider';
+export const realtimeServiceToken = createServiceToken('@nocobase/app/realtime-service');
+export const realtimePrincipalResolverToken = createServiceToken('@nocobase/app/realtime-principal-resolver');
+//# sourceMappingURL=types.js.map

@@ -1,0 +1,9 @@
+import type { ReactElement } from 'react';
+import { type DayPickerProps } from 'react-day-picker';
+export interface CalendarProps {
+    readonly locale?: DayPickerProps['locale'];
+    readonly selected?: Date;
+    readonly onSelect: (date: Date | undefined) => void;
+}
+export declare function Calendar({ locale, selected, onSelect, }: CalendarProps): ReactElement;
+//# sourceMappingURL=calendar.d.ts.map

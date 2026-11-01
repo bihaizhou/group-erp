@@ -1,0 +1,3 @@
+export declare function rawRows<T extends object>(result: unknown): T[];
+export declare function optionalString(value: unknown): string | undefined;
+export declare function numberValue(value: unknown): number | undefined;

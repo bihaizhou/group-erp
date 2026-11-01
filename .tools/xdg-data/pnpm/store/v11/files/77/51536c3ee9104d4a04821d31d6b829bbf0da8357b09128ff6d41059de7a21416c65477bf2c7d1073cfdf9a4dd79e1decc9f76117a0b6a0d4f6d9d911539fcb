@@ -1,0 +1,1 @@
+{"version":3,"file":"provider.d.ts","sourceRoot":"","sources":["../../src/drive/provider.ts"],"names":[],"mappings":"AAKA,OAAO,EAAE,eAAe,EAAE,MAAM,4BAA4B,CAAC;AAE7D,OAAO,KAAK,EAAE,oBAAoB,EAAE,MAAM,qBAAqB,CAAC;AAGhE,qBAAa,aAAc,SAAQ,eAAe,CAAC,oBAAoB,CAAC;IACtE,SAAgB,IAAI,EAAE,MAAM,CAAgC;IAE5C,QAAQ,IAAI,IAAI;IAOV,IAAI,IAAI,OAAO,CAAC,IAAI,CAAC;IAI3C,OAAO,CAAC,cAAc;CAOvB"}

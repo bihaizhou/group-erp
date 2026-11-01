@@ -1,0 +1,9 @@
+import { type DatabaseConnection, type DatabaseManager } from '@nocobase/db';
+import type { AuthorizationCollection, ResolveAuthorizationCollection } from './model.js';
+/**
+ * Reads one Collection's metadata from db. db's registry caches, so this stays
+ * a plain lookup rather than a second cache that could disagree with it.
+ */
+export declare function collectionResolver(connection: DatabaseConnection, database?: DatabaseManager): ResolveAuthorizationCollection;
+export declare function describeCollection(connection: DatabaseConnection, name: string): Promise<AuthorizationCollection | undefined>;
+//# sourceMappingURL=collections.d.ts.map

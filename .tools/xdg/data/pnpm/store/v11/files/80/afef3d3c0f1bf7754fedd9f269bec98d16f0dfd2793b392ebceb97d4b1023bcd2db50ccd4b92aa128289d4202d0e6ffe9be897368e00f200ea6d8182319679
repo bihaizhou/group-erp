@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "files": {
+    "202608210002_create_default_access_rules.js": {
+      "sourceChecksum": "130ca399ec061a1b761a00600e54929ef85fffe363a8e89987df5a94295e2d4c",
+      "artifactChecksum": "b54adadc1498e5960da533c68980cd634a297d59345def4571a2ff390724c820"
+    }
+  }
+}

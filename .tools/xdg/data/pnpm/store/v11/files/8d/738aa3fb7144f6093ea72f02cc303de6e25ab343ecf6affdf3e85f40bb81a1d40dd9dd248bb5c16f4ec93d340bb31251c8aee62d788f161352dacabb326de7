@@ -1,0 +1,17 @@
+import { type AppBuildHookStage, type AppCliPlugins, type AppDevHookStage } from '../plugins/types.ts';
+export interface ResolvedCliHook {
+    /** The plugin that declared it, so a failing step can be traced back without reading every plugin's CLI entry. */
+    readonly packageName: string;
+    /** The phrase naming the step in the log; the command itself when the plugin declared no label. */
+    readonly label: string;
+    readonly command: readonly string[];
+}
+/** Every stage, including the empty ones: a consumer iterates the result rather than knowing the stage names. */
+export type ResolvedBuildHooks = Readonly<Record<AppBuildHookStage, readonly ResolvedCliHook[]>>;
+export type ResolvedDevHooks = Readonly<Record<AppDevHookStage, readonly ResolvedCliHook[]>>;
+export interface ResolvedCliHooks {
+    readonly build: ResolvedBuildHooks;
+    readonly dev: ResolvedDevHooks;
+}
+export declare function collectCliHooks(plugins: AppCliPlugins | undefined): ResolvedCliHooks;
+//# sourceMappingURL=cli-hooks.d.ts.map

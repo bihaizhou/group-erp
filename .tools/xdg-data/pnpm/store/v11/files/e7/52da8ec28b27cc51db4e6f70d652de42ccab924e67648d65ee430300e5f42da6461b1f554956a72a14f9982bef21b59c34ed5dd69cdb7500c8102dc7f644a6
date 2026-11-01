@@ -1,0 +1,4 @@
+export { default } from './plugin.js';
+export type { UsersClientOptions } from './plugin.js';
+export { INVITE_ROUTE_ID } from './routes.js';
+//# sourceMappingURL=index.d.ts.map

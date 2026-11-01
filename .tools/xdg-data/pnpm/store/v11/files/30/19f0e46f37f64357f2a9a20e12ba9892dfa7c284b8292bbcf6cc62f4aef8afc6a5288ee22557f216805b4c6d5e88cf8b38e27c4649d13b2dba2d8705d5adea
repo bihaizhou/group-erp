@@ -1,0 +1,52 @@
+const MESSAGES_PATH = 'notificationInApp/messages';
+export async function fetchInbox(client, filters, signal) {
+    const query = new URLSearchParams({
+        pageSize: String(filters.pageSize ?? 25),
+    });
+    if (filters.unreadOnly)
+        query.set('unreadOnly', 'true');
+    if (filters.pageToken)
+        query.set('pageToken', filters.pageToken);
+    const value = await client.request({
+        path: `${MESSAGES_PATH}?${query}`,
+        signal,
+    });
+    if (isRecord(value) && Array.isArray(value.data)) {
+        const meta = isRecord(value.meta) ? value.meta : {};
+        return {
+            data: value.data,
+            ...(typeof meta.nextPageToken === 'string'
+                ? { nextPageToken: meta.nextPageToken }
+                : {}),
+        };
+    }
+    throw new Error('Inbox returned an invalid response.');
+}
+export async function fetchUnreadCount(client, signal) {
+    const response = await client.request({
+        path: `${MESSAGES_PATH}/unreadCount`,
+        signal,
+    });
+    return response.data.count;
+}
+export async function mutateInboxItem(client, id, action) {
+    const path = `${MESSAGES_PATH}/${encodeURIComponent(id)}`;
+    if (action === 'delete') {
+        await mutation(client, path, 'DELETE');
+        return undefined;
+    }
+    const response = await mutation(client, `${path}/${action === 'read' ? 'markRead' : 'markUnread'}`, 'POST');
+    return response.data;
+}
+export async function markInboxRead(client) {
+    const response = await mutation(client, `${MESSAGES_PATH}/markAllRead`, 'POST');
+    return response.data.updated;
+}
+async function mutation(client, path, method) {
+    // Cross-site writes are rejected by the authentication plugin's origin check, so no CSRF token is sent.
+    return client.request({ path, method });
+}
+function isRecord(value) {
+    return value !== null && typeof value === 'object';
+}
+//# sourceMappingURL=api.js.map

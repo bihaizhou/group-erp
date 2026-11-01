@@ -1,0 +1,46 @@
+import { AUTHORIZATION_NAMESPACE } from '../shared.js';
+/**
+ * Package-internal: the subsection the client fills with pages from its route
+ * tree. Only pages are client-provided, so no other type gets one.
+ */
+export const PAGE_SECTION = 'pages.page';
+/** Registers the `page` record type, its `pages.page` subsection and `authz.pages`. */
+export function pagesPlugin() {
+    return {
+        id: 'pages',
+        dependencies: ['ui'],
+        authorizationApi: {
+            pages: {
+                grant: (id) => {
+                    if (!id)
+                        throw new TypeError('A page grant needs a page id');
+                    return {
+                        resource: { type: 'page', id },
+                        actions: [{ action: 'access' }],
+                    };
+                },
+            },
+        },
+        setup(authz) {
+            authz.resourceTypes.add({
+                type: 'page',
+                actions: [
+                    {
+                        name: 'access',
+                        title: {
+                            key: 'options.actions.access',
+                            ns: AUTHORIZATION_NAMESPACE,
+                        },
+                    },
+                ],
+            });
+            authz.ui.sections.add({
+                name: PAGE_SECTION,
+                parent: 'pages',
+                title: { key: 'sections.page', ns: AUTHORIZATION_NAMESPACE },
+                order: 0,
+            });
+        },
+    };
+}
+//# sourceMappingURL=pages-authorization.js.map

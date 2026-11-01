@@ -1,0 +1,49 @@
+// A path flag that follows the command line's one rule for paths.
+//
+// A path the user types resolves from the current directory, as with any command line; a default the command names in
+// its `--help` is inside the application. Spelling that out in every command is how it went wrong: a default resolved
+// from the current directory finds nothing when the command runs from a subdirectory. `appPath()` resolves what the
+// user typed, and `AppCommand.parse()` resolves a default against the application root, because only the command knows
+// where that is.
+import path from 'node:path';
+import { Flags } from '@oclif/core';
+const APP_PATH = Symbol.for('@nocobase/app-cli.appPath');
+export function appPath(options) {
+    const parse = async (input) => path.resolve(process.cwd(), input);
+    let flag;
+    if (options.default !== undefined) {
+        const relative = options.default;
+        flag = Flags.string({
+            description: options.description,
+            default: relative,
+            defaultHelp: async () => `${relative}, relative to the application root`,
+            parse,
+        });
+    }
+    else if (options.required === true) {
+        flag = Flags.string({
+            description: options.description,
+            required: true,
+            parse,
+        });
+    }
+    else {
+        flag = Flags.string({ description: options.description, parse });
+    }
+    Object.defineProperty(flag, APP_PATH, { value: true });
+    return flag;
+}
+/**
+ * The flags a command class declares, its base flags first, merged the way oclif merges them. `--json` is not among
+ * them: oclif adds it when `enableJsonFlag` is set.
+ */
+export function declaredFlags(command) {
+    return { ...command.baseFlags, ...command.flags };
+}
+/** Whether a flag definition came from `appPath()`, including one from another copy of this package. */
+export function isAppPathFlag(flag) {
+    return (typeof flag === 'object' &&
+        flag !== null &&
+        flag[APP_PATH] === true);
+}
+//# sourceMappingURL=flags.js.map

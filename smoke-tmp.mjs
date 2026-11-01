@@ -1,0 +1,10 @@
+import { firefox } from '@playwright/test';
+const browser = await firefox.launch({ executablePath: '/usr/bin/firefox', headless: true });
+const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+page.on('console', m => { if (m.type() === 'error') console.log('CONSOLE', m.text().slice(0, 180)); });
+page.on('pageerror', e => console.log('PAGEERR', e.message.slice(0, 180)));
+await page.goto('http://127.0.0.1:13000/main/', { waitUntil: 'networkidle' });
+console.log('title', await page.title());
+console.log('url', page.url());
+await page.screenshot({ path: '/tmp/erp-after-data.png', fullPage: true });
+await browser.close();

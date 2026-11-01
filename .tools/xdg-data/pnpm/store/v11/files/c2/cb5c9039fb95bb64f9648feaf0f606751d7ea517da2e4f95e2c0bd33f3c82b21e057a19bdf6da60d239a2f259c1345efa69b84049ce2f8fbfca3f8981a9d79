@@ -1,0 +1,312 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+import { removeQuotedImage } from '../lib/mail-forward-content.js';
+import { uploadedImageContentId } from '../../shared/inline-images.js';
+import { removeEditorImage, referencedImageIds, normalizeImageId, composerImageSources, } from '../lib/mail-editor-images.js';
+import { mailEditorLabels } from '../lib/mail-editor-labels.js';
+import { Paperclip, X } from 'lucide-react';
+import { useId, useRef, useSyncExternalStore, } from 'react';
+import { useMailComposer } from '../hooks/use-mail-composer.js';
+import { formatBytes, formatIdentity, localDateTimeMinimum, replaceComposerSignature, } from '../lib/mail-composer-state.js';
+import { renderMailTemplate } from '../lib/mail-template.js';
+import { MailRichTextEditor } from './mail-rich-text-editor.js';
+import { MailHtmlBody } from './mail-html-body.js';
+import { Button } from './ui/button.js';
+import { Dialog, DialogPopup, DialogPortal, DialogTitle } from './ui/dialog.js';
+import { Checkbox } from './ui/checkbox.js';
+import { Input } from './ui/input.js';
+import { NativeSelect } from './ui/native-select.js';
+export function MailComposer(props) {
+    const fieldId = useId();
+    const Surface = props.inline ? 'section' : DialogPopup;
+    const Title = props.inline ? 'h2' : DialogTitle;
+    const { templateVariables } = props;
+    const recipientInputRef = useRef(null);
+    const mobile = useSyncExternalStore(subscribeToMobileLayout, isMobileLayout, () => false);
+    const { restoreDraft, discardRecovery, t, error, composer, setComposer, composerAccountId, identityId, setIdentityId, ccVisible, setCcVisible, bccVisible, setBccVisible, scheduleEnabled, setScheduleEnabled, signatures, signatureId, setSignatureId, sending, draftSaveStatus, setDraftSaveStatus, recoveryOffer, templates, uploading, composeAttachments, setComposeAttachments, retainedAttachments, setRetainedAttachments, attachmentInputRef, sendableComposerIdentities, composerCanSend, composerCanDraft, autoSaving, saveComposer, closeComposer, sendComposer, uploadComposerAttachments, uploadInlineImage, composerHasRequiredContent, composerHasUnsavedChanges, } = useMailComposer(props);
+    const bodyImageIds = referencedImageIds((composer?.html ?? '') + (composer?.forwardQuote?.html ?? ''));
+    const visibleUploads = composeAttachments.filter((attachment) => !bodyImageIds.has(normalizeImageId(uploadedImageContentId(attachment.id))));
+    const visibleRetained = retainedAttachments.filter((attachment) => !attachment.inline);
+    const senderOptions = props.senderSelection?.options ??
+        sendableComposerIdentities.map((identity) => ({
+            accountId: composerAccountId,
+            identity,
+        }));
+    return (_jsx(_Fragment, { children: _jsx(ComposerFrame, { inline: props.inline, open: Boolean(composer) && props.active !== false, modal: mobile, disablePointerDismissal: true, onOpenChange: (open, event) => {
+                if (!open) {
+                    if (event.reason === 'outside-press' || sending || uploading) {
+                        event.cancel();
+                        return;
+                    }
+                    closeComposer();
+                }
+            }, children: composer ? (_jsxs(Surface, { ...(props.inline ? {} : { initialFocus: recipientInputRef }), "aria-label": t('workspace.composerTitle', {
+                    defaultValue: 'New message',
+                }), className: props.inline
+                    ? 'flex min-h-0 flex-col overflow-hidden rounded-2xl border bg-background shadow-sm'
+                    : 'fixed inset-0 z-50 flex h-svh w-full flex-col overflow-hidden bg-background shadow-2xl outline-none sm:inset-auto sm:right-5 sm:bottom-5 sm:h-auto sm:max-h-[calc(100svh-2.5rem)] sm:w-[min(42rem,calc(100vw-2.5rem))] sm:rounded-2xl sm:border', children: [_jsxs("header", { className: 'flex items-center border-b bg-muted/30 px-4 py-3', children: [_jsx(Title, { className: props.inline ? 'font-semibold' : 'text-base font-semibold', children: t(`workspace.composer.${composer.mode}`, {
+                                    defaultValue: composer.mode === 'reply'
+                                        ? 'Reply'
+                                        : composer.mode === 'forward'
+                                            ? 'Forward'
+                                            : composer.mode === 'edit'
+                                                ? 'Edit draft'
+                                                : 'New message',
+                                }) }), !props.inline ? (_jsx(Button, { "aria-label": t('workspace.closeComposer', {
+                                    defaultValue: 'Close composer',
+                                }), className: 'ml-auto size-8 px-0', disabled: sending || uploading, onClick: () => closeComposer(), variant: 'ghost', children: _jsx(X, {}) })) : null] }), error ? (_jsx("div", { role: 'alert', className: 'shrink-0 border-b border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive', children: error })) : null, _jsxs("div", { className: 'min-h-0 flex-1 space-y-3 overflow-y-auto p-4', children: [recoveryOffer ? (_jsxs("div", { className: 'rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm', role: 'status', children: [_jsx("p", { className: 'font-medium', children: t('workspace.recoveryAvailable', {
+                                            defaultValue: 'An unfinished message can be restored.',
+                                        }) }), _jsxs("div", { className: 'mt-2 flex gap-2', children: [_jsx(Button, { onClick: restoreDraft, type: 'button', children: t('workspace.restoreDraft', {
+                                                    defaultValue: 'Restore',
+                                                }) }), _jsx(Button, { onClick: discardRecovery, type: 'button', variant: 'outline', children: t('workspace.discardRecovery', {
+                                                    defaultValue: 'Discard',
+                                                }) })] })] })) : null, _jsx("div", { className: 'flex flex-wrap items-end gap-2', children: _jsxs("label", { className: 'grid min-w-0 flex-1 gap-2 text-sm font-medium', children: [t('workspace.from', { defaultValue: 'From address' }), _jsxs(NativeSelect, { disabled: senderOptions.length === 0, onChange: (event) => {
+                                                const selected = senderOptions.find(({ accountId, identity }) => (props.senderSelection
+                                                    ? JSON.stringify([accountId, identity.id])
+                                                    : identity.id) === event.target.value);
+                                                if (!selected)
+                                                    return;
+                                                if (props.senderSelection) {
+                                                    props.senderSelection.onChange(selected.accountId, selected.identity.id);
+                                                }
+                                                else
+                                                    setIdentityId(selected.identity.id);
+                                            }, value: props.senderSelection && identityId
+                                                ? JSON.stringify([composerAccountId, identityId])
+                                                : identityId, children: [senderOptions.length === 0 ? (_jsx("option", { value: '', children: t('workspace.noSenders', {
+                                                        defaultValue: 'No sender addresses available',
+                                                    }) })) : null, senderOptions.map(({ accountId, identity }) => (_jsx("option", { value: props.senderSelection
+                                                        ? JSON.stringify([accountId, identity.id])
+                                                        : identity.id, children: formatIdentity(identity) }, JSON.stringify([accountId, identity.id]))))] })] }) }), _jsxs("div", { className: 'space-y-2', children: [_jsxs("div", { className: 'flex items-center gap-2', children: [_jsx(Input, { disabled: sending, "aria-label": t('workspace.to', { defaultValue: 'TO' }), className: 'min-w-0 flex-1', id: `${fieldId}-to`, ref: recipientInputRef, onChange: (event) => setComposer((current) => current
+                                                    ? { ...current, to: event.target.value }
+                                                    : current), placeholder: t('workspace.to', { defaultValue: 'TO' }), value: composer.to }), _jsxs("div", { className: 'flex shrink-0 items-center gap-1', children: [_jsx(Button, { "aria-controls": `${fieldId}-cc`, "aria-expanded": ccVisible, "aria-pressed": ccVisible, className: 'h-9 px-1.5 text-sm font-normal text-muted-foreground', onClick: () => setCcVisible((visible) => !visible), type: 'button', variant: 'ghost', children: t('workspace.showCc', { defaultValue: 'Cc' }) }), _jsx(Button, { "aria-controls": `${fieldId}-bcc`, "aria-expanded": bccVisible, "aria-pressed": bccVisible, className: 'h-9 px-1.5 text-sm font-normal text-muted-foreground', onClick: () => setBccVisible((visible) => !visible), type: 'button', variant: 'ghost', children: t('workspace.showBcc', { defaultValue: 'Bcc' }) })] })] }), ccVisible ? (_jsx(Input, { disabled: sending, "aria-label": t('workspace.cc', { defaultValue: 'CC' }), id: `${fieldId}-cc`, onChange: (event) => setComposer((current) => current
+                                            ? { ...current, cc: event.target.value }
+                                            : current), placeholder: t('workspace.cc', { defaultValue: 'CC' }), value: composer.cc })) : null, bccVisible ? (_jsx(Input, { disabled: sending, "aria-label": t('workspace.bcc', { defaultValue: 'BCC' }), id: `${fieldId}-bcc`, onChange: (event) => setComposer((current) => current
+                                            ? { ...current, bcc: event.target.value }
+                                            : current), placeholder: t('workspace.bcc', { defaultValue: 'BCC' }), value: composer.bcc })) : null] }), _jsx(Input, { disabled: sending, "aria-label": t('workspace.subject', {
+                                    defaultValue: 'Subject',
+                                }), onChange: (event) => setComposer((current) => current
+                                    ? { ...current, subject: event.target.value }
+                                    : current), placeholder: t('workspace.subject', {
+                                    defaultValue: 'Subject',
+                                }), value: composer.subject }), _jsx(MailRichTextEditor, { disabled: sending || uploading, onUploadImage: uploadInlineImage, imageSources: composerImageSources(composerAccountId, composer.draftMessageId, composeAttachments, retainedAttachments), ariaLabel: t('workspace.messageBodyLabel', {
+                                    defaultValue: 'Message body',
+                                }), insertActions: {
+                                    signature: {
+                                        label: t('workspace.signature', {
+                                            defaultValue: 'Signature',
+                                        }),
+                                        options: [
+                                            ...(signatures.some((signature) => signature.isDefault)
+                                                ? [
+                                                    {
+                                                        id: '',
+                                                        label: t('workspace.defaultSignature', {
+                                                            defaultValue: 'Default signature',
+                                                        }),
+                                                    },
+                                                ]
+                                                : []),
+                                            {
+                                                id: '__none__',
+                                                label: t('workspace.noSignature', {
+                                                    defaultValue: 'No signature',
+                                                }),
+                                            },
+                                            ...signatures.map((signature) => ({
+                                                id: signature.id,
+                                                label: signature.name,
+                                            })),
+                                        ],
+                                        onSelect: (nextSignatureId) => {
+                                            setComposer((current) => current
+                                                ? replaceComposerSignature(current, signatures, nextSignatureId)
+                                                : current);
+                                            setSignatureId(nextSignatureId);
+                                        },
+                                        selectedId: signatureId,
+                                    },
+                                    template: {
+                                        label: t('workspace.template', {
+                                            defaultValue: 'Template',
+                                        }),
+                                        emptyLabel: t('templates.empty', {
+                                            defaultValue: 'No templates yet.',
+                                        }),
+                                        options: templates.map((template) => ({
+                                            id: template.id,
+                                            label: template.name,
+                                        })),
+                                        onSelect: (templateId) => {
+                                            const template = templates.find((item) => item.id === templateId);
+                                            if (!template)
+                                                return;
+                                            const hasExistingContent = Boolean(composer?.subject.trim() ||
+                                                composer?.text.trim() ||
+                                                composer?.html.trim());
+                                            if (hasExistingContent &&
+                                                !window.confirm(t('workspace.templateReplaceConfirm', {
+                                                    defaultValue: 'This replaces the existing subject and message body. Continue?',
+                                                }))) {
+                                                return;
+                                            }
+                                            const rendered = renderMailTemplate(template, templateVariables);
+                                            setComposer((current) => current
+                                                ? {
+                                                    ...current,
+                                                    subject: rendered.subject,
+                                                    text: rendered.text,
+                                                    html: rendered.html,
+                                                }
+                                                : current);
+                                        },
+                                    },
+                                }, labels: mailEditorLabels(t), onChange: (value) => {
+                                    const remaining = referencedImageIds(value.html + (composer.forwardQuote?.html ?? ''));
+                                    const removed = (id) => bodyImageIds.has(normalizeImageId(id)) &&
+                                        !remaining.has(normalizeImageId(id));
+                                    setComposeAttachments((current) => current.filter((attachment) => !removed(uploadedImageContentId(attachment.id))));
+                                    setRetainedAttachments((current) => current.filter((attachment) => !attachment.inline ||
+                                        !attachment.contentId ||
+                                        !removed(attachment.contentId)));
+                                    setComposer((current) => current
+                                        ? { ...current, text: value.text, html: value.html }
+                                        : current);
+                                }, placeholder: t('workspace.messageBody', {
+                                    defaultValue: 'Write a message…',
+                                }), value: composer.html }), composer.forwardQuote ? (_jsxs("section", { className: 'rounded-lg border p-3', children: [_jsxs("div", { className: 'flex items-center justify-between gap-2', children: [_jsx("p", { className: 'text-sm font-medium text-muted-foreground', children: t(composer.forwardQuote.kind === 'reply'
+                                                    ? 'workspace.quotedMessage'
+                                                    : 'workspace.forwardedMessage', {
+                                                    defaultValue: composer.forwardQuote.kind === 'reply'
+                                                        ? 'Quoted message'
+                                                        : 'Forwarded message',
+                                                }) }), _jsx(Button, { "aria-label": t('workspace.removeQuote', {
+                                                    defaultValue: 'Remove quoted content',
+                                                }), title: t('workspace.removeQuote', {
+                                                    defaultValue: 'Remove quoted content',
+                                                }), className: 'size-7 rounded-md border-0 p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2', disabled: sending || uploading, onClick: () => setComposer((current) => current
+                                                    ? {
+                                                        ...current,
+                                                        removedForwardQuote: current.forwardQuote,
+                                                        forwardQuote: undefined,
+                                                    }
+                                                    : current), type: 'button', variant: 'ghost', children: _jsx(X, { "aria-hidden": 'true', className: 'size-4' }) })] }), _jsx(MailHtmlBody, { message: composer.forwardQuote, collapseQuotes: false, title: t(composer.forwardQuote.kind === 'reply'
+                                            ? 'workspace.quotedMessage'
+                                            : 'workspace.forwardedMessage', {
+                                            defaultValue: composer.forwardQuote.kind === 'reply'
+                                                ? 'Quoted message'
+                                                : 'Forwarded message',
+                                        }) })] })) : composer.removedForwardQuote ? (_jsx(Button, { className: 'self-start text-muted-foreground', disabled: sending || uploading, onClick: () => setComposer((current) => current
+                                    ? {
+                                        ...current,
+                                        forwardQuote: current.removedForwardQuote,
+                                        removedForwardQuote: undefined,
+                                    }
+                                    : current), type: 'button', variant: 'ghost', children: t('workspace.restoreQuote', {
+                                    defaultValue: 'Restore quoted content',
+                                }) })) : null, _jsxs("div", { className: 'space-y-2', children: [_jsx("input", { className: 'sr-only', multiple: true, onChange: (event) => uploadComposerAttachments(event.target.files), ref: attachmentInputRef, type: 'file' }), _jsxs(Button, { disabled: sending || uploading, onClick: () => attachmentInputRef.current?.click(), type: 'button', variant: 'outline', children: [_jsx(Paperclip, { "aria-hidden": 'true', className: 'size-4' }), uploading
+                                                ? t('workspace.uploadingAttachment', {
+                                                    defaultValue: 'Uploading…',
+                                                })
+                                                : t('workspace.addAttachment', {
+                                                    defaultValue: 'Add attachment',
+                                                })] }), visibleRetained.length > 0 || visibleUploads.length > 0 ? (_jsxs("ul", { className: 'space-y-1 text-sm', children: [visibleRetained.map((attachment) => (_jsxs("li", { className: 'flex items-center gap-2 rounded-md bg-muted/50 px-2 py-1', children: [_jsx("span", { className: 'min-w-0 flex-1 truncate', children: attachment.fileName }), _jsx("span", { className: 'text-xs text-muted-foreground', children: formatBytes(attachment.size) }), _jsx(Button, { "aria-label": t('workspace.removeAttachment', {
+                                                            fileName: attachment.fileName,
+                                                            defaultValue: 'Remove {{fileName}}',
+                                                        }).replace('{{fileName}}', attachment.fileName), className: 'size-7 px-0', disabled: sending || uploading, onClick: () => {
+                                                            setRetainedAttachments((current) => current.filter((item) => item.id !== attachment.id));
+                                                            setComposer((current) => current
+                                                                ? {
+                                                                    ...current,
+                                                                    html: removeEditorImage(current.html, attachment.contentId),
+                                                                    forwardQuote: removeQuotedImage(current.forwardQuote, attachment.contentId),
+                                                                }
+                                                                : current);
+                                                        }, type: 'button', variant: 'ghost', children: _jsx(X, { "aria-hidden": 'true', className: 'size-3.5' }) })] }, attachment.id))), visibleUploads.map((attachment) => (_jsxs("li", { className: 'flex items-center gap-2 rounded-md bg-muted/50 px-2 py-1', children: [_jsx("span", { className: 'min-w-0 flex-1 truncate', children: attachment.fileName }), _jsx("span", { className: 'text-xs text-muted-foreground', children: formatBytes(attachment.size) }), _jsx(Button, { "aria-label": t('workspace.removeAttachment', {
+                                                            fileName: attachment.fileName,
+                                                            defaultValue: 'Remove {{fileName}}',
+                                                        }).replace('{{fileName}}', attachment.fileName), className: 'size-7 px-0', disabled: sending || uploading, onClick: () => {
+                                                            setComposeAttachments((current) => current.filter((item) => item.id !== attachment.id));
+                                                            setComposer((current) => current
+                                                                ? {
+                                                                    ...current,
+                                                                    html: removeEditorImage(current.html, uploadedImageContentId(attachment.id)),
+                                                                    forwardQuote: removeQuotedImage(current.forwardQuote, uploadedImageContentId(attachment.id)),
+                                                                }
+                                                                : current);
+                                                        }, type: 'button', variant: 'ghost', children: _jsx(X, { "aria-hidden": 'true', className: 'size-3.5' }) })] }, attachment.id)))] })) : null] }), _jsxs("div", { className: 'space-y-2', children: [_jsxs("label", { className: 'flex items-center gap-2 text-sm text-muted-foreground', children: [_jsx(Checkbox, { checked: scheduleEnabled, disabled: sending || uploading, onCheckedChange: (checked) => {
+                                                    const enabled = checked === true;
+                                                    setScheduleEnabled(enabled);
+                                                    setDraftSaveStatus('idle');
+                                                    if (!enabled) {
+                                                        setComposer((current) => current ? { ...current, scheduledAt: '' } : current);
+                                                    }
+                                                } }), t('workspace.scheduleSendToggle', {
+                                                defaultValue: 'Schedule send',
+                                            })] }), scheduleEnabled ? (_jsxs("label", { className: 'grid gap-2 text-xs text-muted-foreground', htmlFor: `${fieldId}-scheduled-at`, children: [_jsx("span", { children: t('workspace.scheduledAt', {
+                                                    defaultValue: 'Send later (optional)',
+                                                }) }), _jsx(Input, { disabled: sending, id: `${fieldId}-scheduled-at`, min: localDateTimeMinimum(), onChange: (event) => {
+                                                    setDraftSaveStatus('idle');
+                                                    setComposer((current) => current
+                                                        ? { ...current, scheduledAt: event.target.value }
+                                                        : current);
+                                                }, type: 'datetime-local', value: composer.scheduledAt })] })) : null] })] }), _jsxs("footer", { className: 'flex shrink-0 flex-wrap items-center gap-2 border-t px-4 py-3', children: [_jsx("span", { className: 'mr-auto text-xs text-muted-foreground', role: 'status', children: draftSaveStatus === 'saving'
+                                    ? t('workspace.draftSaving', { defaultValue: 'Saving…' })
+                                    : draftSaveStatus === 'failed'
+                                        ? t('workspace.draftSaveFailed', {
+                                            defaultValue: 'Draft not saved',
+                                        })
+                                        : composerHasUnsavedChanges
+                                            ? t('workspace.draftPending', {
+                                                defaultValue: 'Unsaved changes',
+                                            })
+                                            : draftSaveStatus === 'saved'
+                                                ? t('workspace.draftSaved', {
+                                                    defaultValue: 'Draft saved',
+                                                })
+                                                : null }), _jsx(Button, { disabled: !composerCanDraft ||
+                                    !identityId ||
+                                    sending ||
+                                    uploading ||
+                                    autoSaving ||
+                                    Boolean(recoveryOffer), onClick: () => saveComposer(true), variant: 'outline', children: t('workspace.saveDraft', { defaultValue: 'Save draft' }) }), !props.inline ? (_jsx(Button, { disabled: sending || uploading, onClick: () => closeComposer(), variant: 'outline', children: t('workspace.cancel', { defaultValue: 'Cancel' }) })) : null, _jsx(Button, { disabled: !composerCanSend ||
+                                    !identityId ||
+                                    !composerHasRequiredContent ||
+                                    sending ||
+                                    uploading, onClick: () => sendComposer(), children: sending
+                                    ? t('workspace.sending', { defaultValue: 'Sending…' })
+                                    : composer.scheduledAt
+                                        ? t('workspace.scheduleSend', {
+                                            defaultValue: 'Schedule send',
+                                        })
+                                        : t('workspace.send', { defaultValue: 'Send' }) }), props.allowBulkSend ? (_jsx(Button, { disabled: !composerCanSend ||
+                                    !identityId ||
+                                    !composerHasRequiredContent ||
+                                    sending ||
+                                    uploading ||
+                                    Boolean(composer.cc.trim() || composer.bcc.trim()), onClick: () => sendComposer('bulk'), variant: 'outline', children: t('dev.sendHub.sendSeparately', {
+                                    defaultValue: 'Send separately',
+                                }) })) : null, props.allowBulkSend ? (_jsx("p", { className: 'w-full text-xs text-muted-foreground', children: composer.cc.trim() || composer.bcc.trim()
+                                    ? t('dev.sendHub.bulkNoCopies', {
+                                        defaultValue: 'Separate sending does not support Cc or Bcc. Clear them to send separately.',
+                                    })
+                                    : t('dev.sendHub.bulkHelp', {
+                                        defaultValue: 'Send separately creates an independent message for each recipient (up to 100); duplicate addresses are removed.',
+                                    }) })) : null] })] })) : null }) }));
+}
+function isMobileLayout() {
+    return (typeof window.matchMedia === 'function' &&
+        window.matchMedia('(max-width: 639px)').matches);
+}
+function subscribeToMobileLayout(notify) {
+    if (typeof window.matchMedia !== 'function')
+        return () => undefined;
+    const media = window.matchMedia('(max-width: 639px)');
+    media.addEventListener('change', notify);
+    return () => media.removeEventListener('change', notify);
+}
+function ComposerFrame({ inline, children, ...props }) {
+    if (inline)
+        return _jsx(_Fragment, { children: children });
+    return (_jsx(Dialog, { ...props, children: _jsx(DialogPortal, { children: children }) }));
+}
+//# sourceMappingURL=mail-composer.js.map

@@ -1,0 +1,11 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { useTranslation } from '@nocobase/i18n/client';
+import { MAIL_PLUGIN_NS } from '../namespace.js';
+import { splitMailQuotedText } from '../lib/mail-quoted-content.js';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger, } from './ui/collapsible.js';
+export function MailTextBody({ text, }) {
+    const { t } = useTranslation(MAIL_PLUGIN_NS);
+    const { body, quote } = splitMailQuotedText(text);
+    return (_jsxs("div", { className: 'mt-4 whitespace-pre-wrap break-words text-sm leading-6 text-foreground', children: [body, quote ? (_jsxs(Collapsible, { children: [_jsx(CollapsibleTrigger, { className: 'cursor-pointer text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring', children: t('workspace.quotedContent', { defaultValue: 'Quoted content' }) }), _jsx(CollapsibleContent, { className: 'mt-2', children: quote })] }, text)) : null] }));
+}
+//# sourceMappingURL=mail-text-body.js.map

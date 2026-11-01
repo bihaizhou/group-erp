@@ -1,0 +1,9 @@
+import { ServiceProvider } from '@nocobase/service-provider';
+import type { AppPluginApplication } from '../plugins/index.js';
+export declare class DriveProvider extends ServiceProvider<AppPluginApplication> {
+    readonly name: string;
+    register(): void;
+    boot(): Promise<void>;
+    private getDriveConfig;
+}
+//# sourceMappingURL=provider.d.ts.map

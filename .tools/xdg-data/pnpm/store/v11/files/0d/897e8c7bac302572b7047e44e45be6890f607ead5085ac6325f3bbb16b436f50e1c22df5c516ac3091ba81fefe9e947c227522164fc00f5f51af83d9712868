@@ -1,0 +1,92 @@
+import type { AuthorizationExtensionHost } from './host.js';
+import { type OptionText } from './i18n.js';
+export interface AuthorizationOptionsAction {
+    readonly name: string;
+    readonly title: OptionText;
+}
+export interface AuthorizationOptionsDataScope {
+    readonly key: string;
+    readonly title: OptionText;
+    readonly collection: string;
+    readonly fields: readonly string[];
+    /** Record access keys a grant or rule may choose here. */
+    readonly recordAccess: readonly string[];
+    readonly defaultValue?: string;
+}
+/** One grantable resource, listed on the right when its subsection is selected. */
+export interface AuthorizationOptionsResource {
+    readonly type: string;
+    readonly id: string;
+    readonly title: OptionText;
+    readonly description?: OptionText;
+    /** A name from `ui.groups`. */
+    readonly group?: string;
+    readonly actions: readonly AuthorizationOptionsAction[];
+    /** Composites only: the data scopes of each action. */
+    readonly dataScopes?: Readonly<Record<string, readonly AuthorizationOptionsDataScope[]>>;
+}
+/** A left-side entry. */
+export interface AuthorizationOptionsSubsection {
+    readonly name: string;
+    readonly title: OptionText;
+    /**
+     * Set when the client supplies the resources of a record type, such as
+     * `page` from its route tree; the actions are the type's.
+     */
+    readonly recordType?: {
+        readonly type: string;
+        readonly actions: readonly AuthorizationOptionsAction[];
+    };
+    readonly resources: readonly AuthorizationOptionsResource[];
+}
+/** A left-side heading with its subsections, both in order. */
+export interface AuthorizationOptionsSection {
+    readonly name: string;
+    readonly title: OptionText;
+    readonly order: number;
+    readonly subsections: readonly AuthorizationOptionsSubsection[];
+}
+/** A right-side heading; `parent` nests it. */
+export interface AuthorizationOptionsResourceGroup {
+    readonly name: string;
+    readonly title: OptionText;
+    readonly parent?: string;
+    readonly order?: number;
+}
+export interface AuthorizationOptionsSubjectType {
+    readonly type: string;
+    readonly title: OptionText;
+    readonly selection: {
+        type: 'fixed';
+        id: string;
+    } | {
+        type: 'collection';
+    };
+}
+export interface AuthorizationOptionsRecordAccess {
+    readonly key: string;
+    readonly title: OptionText;
+    readonly description?: OptionText;
+    readonly collections: readonly string[];
+}
+/** What every `options` route answers. */
+export interface AuthorizationOptions {
+    readonly sections: readonly AuthorizationOptionsSection[];
+    /** The resource groups the listed resources name, with their ancestors. */
+    readonly resourceGroups?: readonly AuthorizationOptionsResourceGroup[];
+    readonly subjectTypes: readonly AuthorizationOptionsSubjectType[];
+    readonly recordAccess: readonly AuthorizationOptionsRecordAccess[];
+    readonly collections: readonly {
+        name: string;
+        fields: readonly string[];
+    }[];
+}
+/**
+ * The workspace catalogue: sections, their subsections and each
+ * subsection's resources, placed by `authz.ui`. `rules` narrows it to
+ * composites with data scopes, which is all a rule plugin can target.
+ */
+export declare function authorizationOptions(host: AuthorizationExtensionHost, options?: {
+    rules?: boolean;
+}): Promise<AuthorizationOptions>;
+//# sourceMappingURL=options.d.ts.map

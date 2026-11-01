@@ -1,0 +1,9 @@
+import type { Env, MiddlewareHandler } from 'hono';
+import type { NocoBaseSession, NocoBaseSessionManager, SessionData } from './types.js';
+export type SessionEnv<Data extends SessionData = SessionData> = Env & {
+    Variables: {
+        session: NocoBaseSession<Data>;
+    };
+};
+export declare function createSessionMiddleware<Data extends SessionData = SessionData>(manager: NocoBaseSessionManager<Data>): MiddlewareHandler;
+//# sourceMappingURL=hono.d.ts.map

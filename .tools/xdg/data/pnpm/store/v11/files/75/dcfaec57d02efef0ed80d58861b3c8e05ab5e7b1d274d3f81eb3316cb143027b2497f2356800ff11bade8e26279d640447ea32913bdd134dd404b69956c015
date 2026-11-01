@@ -1,0 +1,15 @@
+import type { Counter } from './types.js';
+export interface MemoryCounterOptions {
+    namespace: string;
+    maxSize: number;
+}
+export declare class MemoryCounter implements Counter {
+    readonly namespace: string;
+    private readonly store;
+    constructor(options: MemoryCounterOptions);
+    get(key: string): Promise<number>;
+    increment(key: string, amount?: number, ttl?: number): Promise<number>;
+    reset(key: string): Promise<void>;
+    clear(): void;
+}
+//# sourceMappingURL=memory-counter.d.ts.map

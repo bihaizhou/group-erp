@@ -1,0 +1,4 @@
+import type { NotificationI18nText } from '@nocobase/app-plugin-notification';
+export declare const NOTIFICATION_PROVIDERS_NAMESPACE: string;
+export declare function notificationProviderText(key: string, defaultValue: string): NotificationI18nText;
+//# sourceMappingURL=i18n.d.ts.map

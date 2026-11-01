@@ -1,0 +1,37 @@
+/**
+ * The HTTP surface the installed plugins contribute. A plugin registers its
+ * own routes during setup, so an application mounts one dispatcher instead of
+ * naming each plugin, and a plugin it did not install has no route at all.
+ */
+export class AuthorizationRouteRegistry {
+    handlers = new Map();
+    add(path, handler) {
+        const normalized = normalizePath(path);
+        if (this.handlers.has(normalized)) {
+            throw new Error(`Authorization route already registered: ${normalized}`);
+        }
+        this.handlers.set(normalized, handler);
+    }
+    list() {
+        return [...this.handlers.keys()].sort();
+    }
+    /** Every registration with its handler, sorted by path like `list()`, for tooling such as an API document. */
+    entries() {
+        return [...this.handlers]
+            .map(([path, handler]) => ({ path, handler }))
+            .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    }
+    /** The matching handler's response, or `undefined` when no plugin claims the path. */
+    handle(input) {
+        for (const [route, handler] of this.handlers) {
+            if (input.path === route || input.path.startsWith(`${route}/`)) {
+                return handler(input);
+            }
+        }
+        return undefined;
+    }
+}
+function normalizePath(path) {
+    return `/${path}`.replace(/\/+/g, '/').replace(/\/$/, '');
+}
+//# sourceMappingURL=routes.js.map

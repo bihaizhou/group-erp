@@ -1,0 +1,347 @@
+import { z } from 'zod';
+import { type MailAccountView, type MailAuthorizationStartResult, type MailFolder, type MailIdentity, type MailLabel, type MailManagedAccountView, type MailManagementMessageActionResult, type MailMessage, type MailMessageSummary, type MailOutboundAttachmentView, type MailProviderView, type MailSignature, type MailSubmissionLogView, type MailSubmissionView, type MailSyncRunView, type MailTemplate } from '../../shared/mail.js';
+export declare const AccountParams: z.ZodObject<{
+    accountId: z.ZodString;
+}, z.core.$strip>;
+export declare const AccountMessageParams: z.ZodObject<{
+    accountId: z.ZodString;
+    messageId: z.ZodString;
+}, z.core.$strip>;
+export declare const AccountMessageAttachmentParams: z.ZodObject<{
+    accountId: z.ZodString;
+    messageId: z.ZodString;
+    attachmentId: z.ZodString;
+}, z.core.$strip>;
+export declare const AccountConversationParams: z.ZodObject<{
+    accountId: z.ZodString;
+    conversationId: z.ZodString;
+}, z.core.$strip>;
+export declare const IdentityParams: z.ZodObject<{
+    accountId: z.ZodString;
+    identityId: z.ZodString;
+}, z.core.$strip>;
+export declare const SignatureParams: z.ZodObject<{
+    accountId: z.ZodString;
+    signatureId: z.ZodString;
+}, z.core.$strip>;
+export declare const TemplateParams: z.ZodObject<{
+    templateId: z.ZodString;
+}, z.core.$strip>;
+export declare const LabelParams: z.ZodObject<{
+    labelId: z.ZodString;
+}, z.core.$strip>;
+export declare const AttachmentParams: z.ZodObject<{
+    attachmentId: z.ZodString;
+}, z.core.$strip>;
+export declare const SyncRunParams: z.ZodObject<{
+    syncRunId: z.ZodString;
+}, z.core.$strip>;
+export declare const SubmissionParams: z.ZodObject<{
+    submissionId: z.ZodString;
+}, z.core.$strip>;
+export declare const SyncRunsQuery: z.ZodObject<{
+    page: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    pageSize: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+}, z.core.$strip>;
+/** Every user's sync runs or submissions, for administrators. */
+export declare const ManagedLogsQuery: z.ZodObject<{
+    page: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    pageSize: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+}, z.core.$strip>;
+export declare const SubmissionsQuery: z.ZodObject<{
+    page: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    pageSize: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    bulkOnly: z.ZodOptional<z.ZodPipe<z.ZodEnum<{
+        true: 'true';
+        false: 'false';
+    }>, z.ZodTransform<boolean, 'true' | 'false'>>>;
+    groupByBatch: z.ZodOptional<z.ZodPipe<z.ZodEnum<{
+        true: 'true';
+        false: 'false';
+    }>, z.ZodTransform<boolean, 'true' | 'false'>>>;
+}, z.core.$strip>;
+export declare const MessagesQuery: z.ZodObject<{
+    pageSize: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    pageToken: z.ZodOptional<z.ZodString>;
+    accountId: z.ZodOptional<z.ZodString>;
+    folderId: z.ZodOptional<z.ZodString>;
+    labelId: z.ZodOptional<z.ZodString>;
+    conversationId: z.ZodOptional<z.ZodString>;
+    q: z.ZodOptional<z.ZodString>;
+    participant: z.ZodOptional<z.ZodString>;
+    unread: z.ZodOptional<z.ZodPipe<z.ZodEnum<{
+        true: 'true';
+        false: 'false';
+    }>, z.ZodTransform<boolean, 'true' | 'false'>>>;
+    starred: z.ZodOptional<z.ZodPipe<z.ZodEnum<{
+        true: 'true';
+        false: 'false';
+    }>, z.ZodTransform<boolean, 'true' | 'false'>>>;
+}, z.core.$strip>;
+export declare const ManagementMessagesQuery: z.ZodObject<{
+    page: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    pageSize: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    accountId: z.ZodOptional<z.ZodString>;
+    folderId: z.ZodOptional<z.ZodString>;
+    q: z.ZodOptional<z.ZodString>;
+    participant: z.ZodOptional<z.ZodString>;
+    unread: z.ZodOptional<z.ZodPipe<z.ZodEnum<{
+        true: 'true';
+        false: 'false';
+    }>, z.ZodTransform<boolean, 'true' | 'false'>>>;
+    starred: z.ZodOptional<z.ZodPipe<z.ZodEnum<{
+        true: 'true';
+        false: 'false';
+    }>, z.ZodTransform<boolean, 'true' | 'false'>>>;
+}, z.core.$strip>;
+export declare const ConversationMessagesQuery: z.ZodObject<{
+    pageSize: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    pageToken: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
+export declare const DeleteMessageQuery: z.ZodObject<{
+    permanently: z.ZodOptional<z.ZodPipe<z.ZodEnum<{
+        true: 'true';
+        false: 'false';
+    }>, z.ZodTransform<boolean, 'true' | 'false'>>>;
+}, z.core.$strip>;
+export declare const UpdateAccountInput: z.ZodObject<{
+    status: z.ZodOptional<z.ZodEnum<{
+        active: 'active';
+        suspended: 'suspended';
+    }>>;
+}, z.core.$strict>;
+export declare const SaveTemplateInput: z.ZodObject<{
+    name: z.ZodString;
+    subject: z.ZodOptional<z.ZodString>;
+    text: z.ZodOptional<z.ZodString>;
+    html: z.ZodOptional<z.ZodString>;
+}, z.core.$strict>;
+/** A template update: every field is optional, and an omitted one keeps its stored value. */
+export declare const UpdateTemplateInput: z.ZodObject<{
+    name: z.ZodOptional<z.ZodString>;
+    subject: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    text: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    html: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+}, z.core.$strict>;
+export declare const StartAuthorizationInput: z.ZodObject<{
+    type: z.ZodString;
+    name: z.ZodString;
+    scopes: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    initialSyncReceivedAfter: z.ZodISODateTime;
+}, z.core.$strict>;
+export type StartAuthorizationInput = z.infer<typeof StartAuthorizationInput>;
+export declare const ConnectAccountInput: z.ZodObject<{
+    type: z.ZodString;
+    name: z.ZodString;
+    address: z.ZodString;
+    displayName: z.ZodOptional<z.ZodString>;
+    username: z.ZodOptional<z.ZodString>;
+    password: z.ZodString;
+    initialSyncReceivedAfter: z.ZodISODateTime;
+}, z.core.$strict>;
+export declare const UpdateIdentityInput: z.ZodObject<{
+    displayName: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+}, z.core.$strict>;
+export declare const SaveSignatureInput: z.ZodObject<{
+    name: z.ZodString;
+    text: z.ZodOptional<z.ZodString>;
+    html: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    isDefault: z.ZodOptional<z.ZodBoolean>;
+}, z.core.$strict>;
+/** A signature update: every field is optional, and an omitted one keeps its stored value. */
+export declare const UpdateSignatureInput: z.ZodObject<{
+    name: z.ZodOptional<z.ZodString>;
+    text: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    html: z.ZodOptional<z.ZodOptional<z.ZodNullable<z.ZodString>>>;
+    isDefault: z.ZodOptional<z.ZodOptional<z.ZodBoolean>>;
+}, z.core.$strict>;
+export declare const SaveLabelInput: z.ZodObject<{
+    name: z.ZodString;
+    color: z.ZodOptional<z.ZodEnum<{
+        slate: 'slate';
+        red: 'red';
+        orange: 'orange';
+        amber: 'amber';
+        green: 'green';
+        sky: 'sky';
+        blue: 'blue';
+        violet: 'violet';
+        pink: 'pink';
+    }>>;
+}, z.core.$strict>;
+/** A label update: every field is optional, and an omitted one keeps its stored value. */
+export declare const UpdateLabelInput: z.ZodObject<{
+    name: z.ZodOptional<z.ZodString>;
+    color: z.ZodOptional<z.ZodOptional<z.ZodEnum<{
+        slate: 'slate';
+        red: 'red';
+        orange: 'orange';
+        amber: 'amber';
+        green: 'green';
+        sky: 'sky';
+        blue: 'blue';
+        violet: 'violet';
+        pink: 'pink';
+    }>>>;
+}, z.core.$strict>;
+export declare const SendMessageInput: z.ZodObject<{
+    to: z.ZodArray<z.ZodObject<{
+        address: z.ZodString;
+        name: z.ZodOptional<z.ZodString>;
+    }, z.core.$strict>>;
+    scheduledAt: z.ZodOptional<z.ZodISODateTime>;
+    cc: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        address: z.ZodString;
+        name: z.ZodOptional<z.ZodString>;
+    }, z.core.$strict>>>;
+    bcc: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        address: z.ZodString;
+        name: z.ZodOptional<z.ZodString>;
+    }, z.core.$strict>>>;
+    replyBodyIncluded: z.ZodOptional<z.ZodBoolean>;
+    draftMessageId: z.ZodOptional<z.ZodString>;
+    draftKey: z.ZodOptional<z.ZodString>;
+    draftRevision: z.ZodOptional<z.ZodNumber>;
+    accountId: z.ZodString;
+    identityId: z.ZodString;
+    signatureId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    subject: z.ZodOptional<z.ZodString>;
+    text: z.ZodOptional<z.ZodString>;
+    html: z.ZodOptional<z.ZodString>;
+    attachmentIds: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    retainedAttachmentIds: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    inReplyToMessageId: z.ZodOptional<z.ZodString>;
+    forwardOfMessageId: z.ZodOptional<z.ZodString>;
+    forwardBodyIncluded: z.ZodOptional<z.ZodBoolean>;
+    idempotencyKey: z.ZodString;
+}, z.core.$strict>;
+export type SendMessageInput = z.infer<typeof SendMessageInput>;
+export declare const SaveDraftInput: z.ZodObject<{
+    to: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        address: z.ZodString;
+        name: z.ZodOptional<z.ZodString>;
+    }, z.core.$strict>>>;
+    cc: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        address: z.ZodString;
+        name: z.ZodOptional<z.ZodString>;
+    }, z.core.$strict>>>;
+    bcc: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        address: z.ZodString;
+        name: z.ZodOptional<z.ZodString>;
+    }, z.core.$strict>>>;
+    replyBodyIncluded: z.ZodOptional<z.ZodBoolean>;
+    draftMessageId: z.ZodOptional<z.ZodString>;
+    draftKey: z.ZodOptional<z.ZodString>;
+    draftRevision: z.ZodOptional<z.ZodNumber>;
+    accountId: z.ZodString;
+    identityId: z.ZodString;
+    signatureId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    subject: z.ZodOptional<z.ZodString>;
+    text: z.ZodOptional<z.ZodString>;
+    html: z.ZodOptional<z.ZodString>;
+    attachmentIds: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    retainedAttachmentIds: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    inReplyToMessageId: z.ZodOptional<z.ZodString>;
+    forwardOfMessageId: z.ZodOptional<z.ZodString>;
+    forwardBodyIncluded: z.ZodOptional<z.ZodBoolean>;
+    idempotencyKey: z.ZodString;
+}, z.core.$strict>;
+export type SaveDraftInput = z.infer<typeof SaveDraftInput>;
+export declare const SendBulkInput: z.ZodObject<{
+    recipients: z.ZodArray<z.ZodObject<{
+        address: z.ZodString;
+        name: z.ZodOptional<z.ZodString>;
+    }, z.core.$strict>>;
+    draftKey: z.ZodOptional<z.ZodString>;
+    sourceDraftMessageId: z.ZodOptional<z.ZodString>;
+    scheduledAt: z.ZodOptional<z.ZodISODateTime>;
+    accountId: z.ZodString;
+    identityId: z.ZodString;
+    signatureId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    subject: z.ZodOptional<z.ZodString>;
+    text: z.ZodOptional<z.ZodString>;
+    html: z.ZodOptional<z.ZodString>;
+    attachmentIds: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    retainedAttachmentIds: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    inReplyToMessageId: z.ZodOptional<z.ZodString>;
+    forwardOfMessageId: z.ZodOptional<z.ZodString>;
+    forwardBodyIncluded: z.ZodOptional<z.ZodBoolean>;
+    idempotencyKey: z.ZodString;
+}, z.core.$strict>;
+export type SendBulkInput = z.infer<typeof SendBulkInput>;
+export declare const ResolveDraftConflictInput: z.ZodObject<{
+    action: z.ZodEnum<{
+        useRemote: 'useRemote';
+        keepLocal: 'keepLocal';
+    }>;
+}, z.core.$strict>;
+export declare const StartSyncInput: z.ZodObject<{
+    mode: z.ZodOptional<z.ZodEnum<{
+        initial: 'initial';
+        incremental: 'incremental';
+    }>>;
+    receivedAfter: z.ZodOptional<z.ZodISODateTime>;
+}, z.core.$strict>;
+export declare const UpdateMessageInput: z.ZodObject<{
+    read: z.ZodOptional<z.ZodBoolean>;
+    starred: z.ZodOptional<z.ZodBoolean>;
+    note: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    todo: z.ZodOptional<z.ZodBoolean>;
+}, z.core.$strict>;
+export declare const ModifyMessageLabelsInput: z.ZodObject<{
+    addLabelIds: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    removeLabelIds: z.ZodOptional<z.ZodArray<z.ZodString>>;
+}, z.core.$strict>;
+export declare const MoveMessageInput: z.ZodObject<{
+    providerFolderId: z.ZodString;
+}, z.core.$strict>;
+export declare const ManageMessagesInput: z.ZodObject<{
+    action: z.ZodEnum<{
+        archive: 'archive';
+        move: 'move';
+        delete: 'delete';
+        markRead: 'markRead';
+        markUnread: 'markUnread';
+        star: 'star';
+        unstar: 'unstar';
+    }>;
+    items: z.ZodArray<z.ZodObject<{
+        accountId: z.ZodString;
+        messageId: z.ZodString;
+    }, z.core.$strict>>;
+    providerFolderId: z.ZodOptional<z.ZodString>;
+    permanently: z.ZodOptional<z.ZodBoolean>;
+}, z.core.$strict>;
+export declare const MailProviderSchema: z.ZodType<MailProviderView>;
+export declare const MailAccountSchema: z.ZodType<MailAccountView>;
+export declare const MailManagedAccountSchema: z.ZodType<MailManagedAccountView>;
+export declare const MailAuthorizationSchema: z.ZodType<MailAuthorizationStartResult>;
+export declare const MailIdentitySchema: z.ZodType<MailIdentity>;
+export declare const MailSignatureSchema: z.ZodType<MailSignature>;
+export declare const MailFolderSchema: z.ZodType<MailFolder>;
+export declare const MailSyncRunSchema: z.ZodType<MailSyncRunView>;
+export declare const MailTemplateSchema: z.ZodType<MailTemplate>;
+export declare const MailLabelSchema: z.ZodType<MailLabel>;
+export declare const MailOutboundAttachmentSchema: z.ZodType<MailOutboundAttachmentView>;
+export declare const MailSubmissionSchema: z.ZodType<MailSubmissionView>;
+export declare const MailSubmissionLogSchema: z.ZodType<MailSubmissionLogView>;
+export declare const MailMessageSummarySchema: z.ZodType<MailMessageSummary>;
+export declare const MailMessageSchema: z.ZodType<MailMessage>;
+export declare const MailManagementActionResultSchema: z.ZodType<MailManagementMessageActionResult>;
+export declare const MailUnreadCountSchema: z.ZodType<number>;
+/** `meta` of a list answered whole. */
+export declare const MailBoundedListMeta: z.ZodType<{
+    total: number;
+}>;
+/** `meta` of a cursor-paged message feed. */
+export declare const MailCursorListMeta: z.ZodType<{
+    nextPageToken?: string;
+    total?: number;
+}>;
+/** `meta` of a page-numbered log or table. */
+export declare const MailPageListMeta: z.ZodType<{
+    page: number;
+    pageSize: number;
+    total: number;
+}>;
+//# sourceMappingURL=schemas.d.ts.map

@@ -1,0 +1,4 @@
+import { createServiceToken, } from '@nocobase/service-provider';
+export const authenticationToken = createServiceToken('@nocobase/app/authentication');
+export const userAdministrationServiceToken = createServiceToken('@nocobase/app/authentication/user-administration');
+//# sourceMappingURL=tokens.js.map

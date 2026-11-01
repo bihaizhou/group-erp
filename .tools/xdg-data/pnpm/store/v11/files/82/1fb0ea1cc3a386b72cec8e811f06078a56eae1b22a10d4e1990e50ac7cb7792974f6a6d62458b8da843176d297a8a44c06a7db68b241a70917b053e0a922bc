@@ -1,0 +1,54 @@
+export class ConfigError extends Error {
+    name = 'ConfigError';
+}
+export class ConfigPathError extends ConfigError {
+    path;
+    name = 'ConfigPathError';
+    constructor(path, message) {
+        super(`Invalid configuration path "${path}": ${message}`);
+        this.path = path;
+    }
+}
+export class ConfigTypeError extends ConfigError {
+    path;
+    expected;
+    actual;
+    name = 'ConfigTypeError';
+    constructor(path, expected, actual) {
+        super(`Invalid configuration at "${path}": expected ${expected}, received ${actual}.`);
+        this.path = path;
+        this.expected = expected;
+        this.actual = actual;
+    }
+}
+export class ConfigMergeError extends ConfigError {
+    path;
+    previousType;
+    nextType;
+    name = 'ConfigMergeError';
+    constructor(path, previousType, nextType) {
+        super(`Cannot merge configuration at "${path}": ${previousType} cannot be replaced by ${nextType} in strict mode.`);
+        this.path = path;
+        this.previousType = previousType;
+        this.nextType = nextType;
+    }
+}
+export class ConfigProviderError extends ConfigError {
+    provider;
+    name = 'ConfigProviderError';
+    constructor(provider, message, options) {
+        super(`Configuration provider "${provider}" failed: ${message}`, options);
+        this.provider = provider;
+    }
+}
+export class ConfigParserError extends ConfigError {
+    parser;
+    provider;
+    name = 'ConfigParserError';
+    constructor(parser, provider, message, options) {
+        super(`Configuration parser "${parser}" failed for provider "${provider}": ${message}`, options);
+        this.parser = parser;
+        this.provider = provider;
+    }
+}
+//# sourceMappingURL=errors.js.map

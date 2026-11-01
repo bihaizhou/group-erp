@@ -1,0 +1,2 @@
+/** Copy input data at consumption time; callbacks keep their own closure semantics. */
+export declare function snapshotQueryInput<T>(input: T): T;

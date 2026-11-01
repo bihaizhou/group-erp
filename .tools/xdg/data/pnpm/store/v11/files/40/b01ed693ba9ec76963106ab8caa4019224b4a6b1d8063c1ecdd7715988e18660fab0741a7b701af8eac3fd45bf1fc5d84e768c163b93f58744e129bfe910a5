@@ -1,0 +1,28 @@
+import type { Locale, LocaleDefinition, LocaleDirection } from './types.js';
+export declare function getLocaleDirection(locale: Locale): LocaleDirection;
+/**
+ * The locale's name in its own language, so a switcher reads "简体中文" rather than "Chinese" to someone looking for it.
+ */
+/**
+ * The locale's name in its own language, as short as stays unambiguous.
+ *
+ * A language picker reads better as "中文" than "中文（中国）", so the region is dropped — unless another enabled locale
+ * shares the same language, where "中文" would name both and the region is what tells them apart.
+ */
+export declare function getLocaleLabel(locale: Locale, siblings?: readonly Locale[]): string;
+export declare function describeLocale(locale: Locale, label?: string, siblings?: readonly Locale[]): LocaleDefinition;
+/**
+ * Resolves a requested locale against the ones an application enables.
+ *
+ * An exact match wins, then a match on the language subtag alone, so a browser asking for `zh` or `zh-Hans-CN` still
+ * lands on a configured `zh-CN` instead of falling back to English. Returns `undefined` when nothing matches, leaving
+ * the decision of what to do about it to the caller.
+ */
+export declare function resolveSupportedLocale(requested: Locale | undefined, supported: readonly Locale[]): Locale | undefined;
+/**
+ * Parses an `Accept-Language` header into the locales it lists, most preferred first.
+ *
+ * Entries with `q=0` are explicitly refused by the client and are dropped rather than ranked last.
+ */
+export declare function parseAcceptLanguage(header: string | undefined): Locale[];
+//# sourceMappingURL=locales.d.ts.map

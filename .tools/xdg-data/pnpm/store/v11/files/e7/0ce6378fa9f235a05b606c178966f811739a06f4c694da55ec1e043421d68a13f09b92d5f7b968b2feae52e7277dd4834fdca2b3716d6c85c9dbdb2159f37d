@@ -1,0 +1,22 @@
+import type { Command, Interfaces } from '@oclif/core';
+import { AppCommand } from '../../context.ts';
+import { type CliPackResult } from '../../lib/cli-pack.ts';
+export default class CliBuild extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static flags: {
+        runner: Interfaces.BooleanFlag<boolean>;
+        out: Interfaces.OptionFlag<string | undefined>;
+        channel: Interfaces.OptionFlag<string>;
+        targets: Interfaces.OptionFlag<string | undefined>;
+        universal: Interfaces.BooleanFlag<boolean>;
+        version: Interfaces.OptionFlag<string | undefined>;
+        'node-version': Interfaces.OptionFlag<string | undefined>;
+        'host-node': Interfaces.BooleanFlag<boolean>;
+        'skip-build': Interfaces.BooleanFlag<boolean>;
+        'keep-staging': Interfaces.BooleanFlag<boolean>;
+    };
+    run(): Promise<CliPackResult>;
+}
+//# sourceMappingURL=build.d.ts.map

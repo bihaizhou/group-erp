@@ -1,0 +1,38 @@
+import { fromSubmissionRow } from './mappers.js';
+import { mailFailedPrecondition } from '../services/errors.js';
+/** Call while holding the account write lock so schedule and edits serialize. */
+export async function assertDraftEditable(query, accountId, messageId) {
+    const row = await query
+        .selectFrom('mailMessages')
+        .select('scheduledSubmissionId')
+        .where('accountId', '=', accountId)
+        .where('id', '=', messageId)
+        .executeTakeFirst();
+    if (row?.scheduledSubmissionId)
+        throw mailFailedPrecondition('MAIL_DRAFT_SCHEDULED', 'Cancel the scheduled delivery before editing or deleting this draft.');
+}
+/** Only the worker that completed this exact delivery may remove the locked draft. */
+export async function assertDraftDeletable(query, accountId, messageId, acceptedSubmissionId) {
+    const row = await query
+        .selectFrom('mailMessages')
+        .select('scheduledSubmissionId')
+        .where('accountId', '=', accountId)
+        .where('id', '=', messageId)
+        .executeTakeFirst();
+    if (!row?.scheduledSubmissionId)
+        return;
+    if (acceptedSubmissionId === row.scheduledSubmissionId) {
+        const submission = await query
+            .selectFrom('mailSubmissions')
+            .selectAll()
+            .where('id', '=', acceptedSubmissionId)
+            .where('accountId', '=', accountId)
+            .where('status', '=', 'accepted')
+            .executeTakeFirst();
+        if (submission &&
+            !fromSubmissionRow(submission).error?.recipients?.rejected.length)
+            return;
+    }
+    throw mailFailedPrecondition('MAIL_DRAFT_SCHEDULED', 'Cancel the scheduled delivery before deleting this draft.');
+}
+//# sourceMappingURL=scheduled-drafts.js.map

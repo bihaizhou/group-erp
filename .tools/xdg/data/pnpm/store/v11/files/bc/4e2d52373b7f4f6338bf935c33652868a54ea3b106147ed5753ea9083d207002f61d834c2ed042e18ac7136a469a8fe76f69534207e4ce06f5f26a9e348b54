@@ -1,0 +1,24 @@
+import { ServiceProvider } from '@nocobase/service-provider';
+import type { AppPluginApplication } from '../plugins/index.js';
+export interface QueueServiceProviderOptions {
+    /** The application's `NODE_ENV`; the memory fallback is only reported outside development. */
+    readonly nodeEnv?: string;
+}
+/**
+ * Creates the application's queue service from the `queue` section, filling
+ * in what only the application knows: its name as the default namespace, its
+ * storage directory for memory state files, and its logger. Register it
+ * before the plugin providers that resolve `queueServiceToken`: `start()`
+ * sets the service up once every provider has booted and registered its
+ * handlers, and `shutdown()` releases it after they have shut down.
+ */
+export declare class QueueServiceProvider extends ServiceProvider<AppPluginApplication> {
+    private readonly options;
+    readonly name: string;
+    constructor(app: AppPluginApplication, options?: QueueServiceProviderOptions);
+    register(): void;
+    start(): Promise<void>;
+    shutdown(): Promise<void>;
+    private create;
+}
+//# sourceMappingURL=provider.d.ts.map

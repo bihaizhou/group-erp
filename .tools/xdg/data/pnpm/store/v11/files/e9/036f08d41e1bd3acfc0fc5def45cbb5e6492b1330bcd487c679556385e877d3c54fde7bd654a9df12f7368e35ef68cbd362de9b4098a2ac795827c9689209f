@@ -1,0 +1,14 @@
+export interface WorkspaceApp {
+    readonly packageName: string;
+    readonly root: string;
+}
+export interface ResolveAppRootOptions {
+    readonly app?: string;
+    readonly dir?: string;
+    readonly workspaceRoot?: string;
+}
+/** Resolves either a normal app directory or an app selected from a monorepo workspace. */
+export declare function resolveAppRoot({ app, dir, workspaceRoot, }: ResolveAppRootOptions): Promise<string>;
+/** Finds an application by workspace directory name or full package name. */
+export declare function resolveWorkspaceApp(workspaceRoot: string, selector: string): Promise<WorkspaceApp>;
+//# sourceMappingURL=workspace-app.d.ts.map

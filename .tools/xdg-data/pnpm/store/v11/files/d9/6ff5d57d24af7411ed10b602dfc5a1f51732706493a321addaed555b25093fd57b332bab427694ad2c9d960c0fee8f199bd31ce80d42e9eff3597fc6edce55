@@ -1,0 +1,10 @@
+import { type ClientApplication } from '@nocobase/app-client';
+import type { ClientServiceProviderConstructor } from '@nocobase/app-client/plugins';
+import { ServiceProvider } from '@nocobase/service-provider';
+export declare class ClientFileRepositoryServiceProvider extends ServiceProvider<ClientApplication> {
+    readonly name: string;
+    register(): void;
+}
+declare const serviceProviders: readonly ClientServiceProviderConstructor[];
+export default serviceProviders;
+//# sourceMappingURL=index.d.ts.map

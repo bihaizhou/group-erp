@@ -1,0 +1,10 @@
+# Prebuilt-only context for deploy/Dockerfile.prebuilt on hosts without Buildx.
+# The standard Dockerfile uses its own Dockerfile.dockerignore for source builds.
+*
+!dist/
+!dist/**
+!config.example.yml
+!deploy/
+!deploy/Dockerfile.prebuilt
+# Runtime settings must remain external, including values captured by a local build.
+dist/.env

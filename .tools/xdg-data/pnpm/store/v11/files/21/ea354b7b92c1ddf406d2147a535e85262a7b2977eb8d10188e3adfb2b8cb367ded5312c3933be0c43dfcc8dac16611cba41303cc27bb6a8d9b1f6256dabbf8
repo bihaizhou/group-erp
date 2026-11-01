@@ -1,0 +1,37 @@
+import { createHash } from 'node:crypto';
+import { DEFAULT_MAIL_LABEL_COLOR, isMailLabelColor, } from '../../shared/mail.js';
+import { mailInvalidArgument } from './errors.js';
+export function normalizeMailLabelColor(value, fallback = DEFAULT_MAIL_LABEL_COLOR) {
+    if (value === undefined || value === null)
+        return fallback;
+    if (!isMailLabelColor(value)) {
+        throw mailInvalidArgument('Mail label color is invalid.');
+    }
+    return value;
+}
+export function hashState(state) {
+    return createHash('sha256').update(state).digest('hex');
+}
+export function normalizeAddress(address) {
+    return address.trim().toLowerCase();
+}
+export function normalizeMailSyncDate(value) {
+    if (typeof value !== 'string' || value.trim().length === 0) {
+        throw mailInvalidArgument('Mail synchronization start date is required.');
+    }
+    const timestamp = Date.parse(value);
+    if (!Number.isFinite(timestamp)) {
+        throw mailInvalidArgument('Mail synchronization start date is invalid.');
+    }
+    return new Date(timestamp).toISOString();
+}
+export function boundedInteger(value, fallback, minimum, maximum) {
+    const resolved = value ?? fallback;
+    if (!Number.isSafeInteger(resolved) ||
+        resolved < minimum ||
+        resolved > maximum) {
+        throw new TypeError(`Mail sync option must be an integer from ${minimum} through ${maximum}.`);
+    }
+    return resolved;
+}
+//# sourceMappingURL=input.js.map

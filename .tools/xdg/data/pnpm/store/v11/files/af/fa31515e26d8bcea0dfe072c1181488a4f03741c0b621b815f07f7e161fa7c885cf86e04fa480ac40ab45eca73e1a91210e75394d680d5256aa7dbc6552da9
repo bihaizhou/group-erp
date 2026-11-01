@@ -1,0 +1,34 @@
+import type { CreateMigratorOptions, MigrationHistoryRecord, MigrationRepairOptions, MigrationRepairResult, MigrationRollbackOptions, MigrationRollbackResult, MigrationRunResult, TaskLockReleaseOptions, TaskLockReleaseResult, TaskLockState } from './types.js';
+/** Executes and rolls back ordered migrations for one database connection. */
+export interface Migrator {
+    /** Applies every pending migration. */
+    latest(): Promise<MigrationRunResult>;
+    /** Applies pending migrations through the named migration, inclusive. */
+    upTo(name: string): Promise<MigrationRunResult>;
+    /** Rolls back the most recently applied migration batch. */
+    rollback(options?: MigrationRollbackOptions): Promise<MigrationRollbackResult>;
+    /**
+     * Rewrites recorded checksums to match the current sources, clearing drift
+     * reported by a run. Executes no migration and changes no schema.
+     */
+    repair(options?: MigrationRepairOptions): Promise<MigrationRepairResult>;
+    /**
+     * Migrations already applied on the connection, oldest first. Reads only:
+     * a connection without a history table yields an empty list rather than
+     * getting one created.
+     */
+    history(): Promise<MigrationHistoryRecord[]>;
+    /**
+     * The lock as it stands, or undefined when no run holds it. Reads only, and
+     * creates no table.
+     */
+    lock(): Promise<TaskLockState | undefined>;
+    /**
+     * Deletes the lock row so a later run can proceed. An expired lock — one
+     * whose holder stopped sending heartbeats — is released; an active one needs
+     * `force`, because releasing it lets a second run start beside the first.
+     */
+    unlock(options?: TaskLockReleaseOptions): Promise<TaskLockReleaseResult>;
+}
+/** Creates a migration runner backed by the supplied database manager. */
+export declare function createMigrator(options: CreateMigratorOptions): Migrator;

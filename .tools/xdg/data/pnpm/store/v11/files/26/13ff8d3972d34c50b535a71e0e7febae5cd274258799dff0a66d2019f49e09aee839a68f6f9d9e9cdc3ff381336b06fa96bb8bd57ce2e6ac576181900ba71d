@@ -1,0 +1,116 @@
+/**
+ * Keys with scopes: creating, listing, rotating and revoking a user's keys, and recognizing the key behind a request.
+ * The caller authorizes who may manage whose keys; this service only ever acts on the user it is told.
+ */
+import { type Auth, type AuthSession } from '@nocobase/app-plugin-authentication/server';
+import type { Authorization, AuthorizationIdentity, KeyScope } from '@nocobase/authorization/core';
+import type { DatabaseConnection } from '@nocobase/db';
+import { type ApiKeyView, type CreatedApiKey, type KeyScopeInput, type KeyScopeObject, type KeyScopeOptions } from '../shared/scopes.js';
+import { type ApiKeyScopes } from './scopes.js';
+/** The expiry the editor proposes for a scoped key. */
+export declare const DEFAULT_SCOPED_KEY_DAYS = 90;
+/** `apiKeys` in the application's configuration. */
+export interface ApiKeysConfig {
+    /** The longest a scoped key may live, in days. Unset allows "never expires". */
+    readonly maxScopedKeyDays?: number | null;
+}
+/** A refused key operation: a status and a stable code. */
+export declare class ApiKeyRequestError extends Error {
+    readonly status: 400 | 403 | 404;
+    readonly code: string;
+    constructor(status: 400 | 403 | 404, code: string, message: string);
+}
+export interface ScopedApiKeysOptions {
+    readonly auth: Pick<Auth, 'pluginApi'>;
+    readonly connection: () => DatabaseConnection;
+    readonly scopes: ApiKeyScopes;
+    /** The application's authorization, to say what a user holds and to build their identity; optional. */
+    readonly authorization?: () => Authorization | undefined;
+    readonly config?: () => ApiKeysConfig | undefined;
+}
+/**
+ * Whether a user may create (and rotate) keys of their own, as an application decides it. Without one, everyone may.
+ * Listing and revoking one's keys stay open, so a person who loses the permission can still clean up.
+ */
+export type OwnKeyPolicy = (userId: string) => Promise<boolean>;
+/** A key's fields as `create` would issue it, checked but not yet issued (`ScopedApiKeys.check`). */
+export interface CheckedApiKey {
+    readonly name: string;
+    readonly description: string | null;
+    readonly scope: KeyScopeInput | null;
+    readonly expiresInDays: number | null;
+}
+/**
+ * Lets the hook on Better Auth's own `/api-key/create` ask `keys` whether a person may create a key of their own, as
+ * `/api/apiKeys` does. The plugin's provider calls it at boot; returns what disconnects it.
+ */
+export declare function connectOwnKeyPolicy(auth: Pick<Auth, 'administrationContext'>, keys: Pick<ScopedApiKeys, 'mayCreateOwn'>): Promise<() => void>;
+export declare class ScopedApiKeys {
+    private readonly options;
+    private readonly resolved;
+    private ownKeyPolicy;
+    constructor(options: ScopedApiKeysOptions);
+    /**
+     * Sets who may create keys of their own (`/api/apiKeys` and Better Auth's `/api-key/create`). Returns what removes
+     * it again.
+     */
+    setOwnKeyPolicy(policy: OwnKeyPolicy): () => void;
+    /** Whether `userId` may create keys of their own; true unless the application set a policy that says otherwise. */
+    mayCreateOwn(userId: string): Promise<boolean>;
+    /** Refuses with 403 `API_KEY_CREATION_FORBIDDEN` unless `userId` may create keys of their own. */
+    requireOwnCreation(userId: string): Promise<void>;
+    private get maxScopedKeyDays();
+    /** The identity a request of `userId` would carry, as the authorization plugin's middleware builds it. */
+    identityOf(userId: string): Promise<AuthorizationIdentity>;
+    /** What the editor offers for keys of `userId`, with what that user holds today. */
+    scopeOptions(userId: string): Promise<KeyScopeOptions>;
+    /** The records a group may be limited to, as `identity` may see them. */
+    scopeObjects(groupId: string, identity: AuthorizationIdentity, query?: {
+        readonly search?: string;
+        readonly ids?: readonly string[];
+    }): Promise<readonly KeyScopeObject[]>;
+    /** `userId`'s keys of the default configuration, newest first. */
+    list(userId: string): Promise<ApiKeyView[]>;
+    /**
+     * Creates a key for `userId`. `identity` is whoever chooses the records of a group limited to some: each must be
+     * one they may see.
+     */
+    create(userId: string, input: unknown, identity: AuthorizationIdentity): Promise<CreatedApiKey>;
+    /**
+     * Checks what `create` would issue — name, description, scope, the records it picks (`identity` must see each) and
+     * expiry — without issuing anything, so a caller can refuse before creating whatever the key belongs to.
+     */
+    check(input: unknown, identity: AuthorizationIdentity): Promise<CheckedApiKey>;
+    /** Issues a key `check` accepted. */
+    issueChecked(userId: string, input: CheckedApiKey): Promise<CreatedApiKey>;
+    /** One of `userId`'s keys. */
+    get(userId: string, keyId: string): Promise<ApiKeyView>;
+    /**
+     * Gives a key a new secret in place: the same key — id, name, description, scope and owner — with a new value, and
+     * an expiry renewed for the lifetime it had. The old value stops at once.
+     */
+    rotate(userId: string, keyId: string): Promise<CreatedApiKey>;
+    /**
+     * Replaces a key's scope. `identity` is whoever chooses it: each record a group is limited to must be one they may
+     * see. The caller decides who may change a key and whether the new scope is one they may give. A key without a scope
+     * cannot be given one this way, nor the reverse.
+     */
+    setScope(userId: string, keyId: string, input: unknown, identity: AuthorizationIdentity): Promise<ApiKeyView>;
+    /** Renames a key or changes its description; a field left out stays. */
+    update(userId: string, keyId: string, input: unknown): Promise<ApiKeyView>;
+    revoke(userId: string, keyId: string): Promise<void>;
+    /** Every key of `userId`, as when the account is deleted. */
+    revokeAll(userId: string): Promise<void>;
+    /**
+     * The scope of the key a request authenticated with: compiled from its stored scope, unbounded for a service
+     * account's unscoped key, and null for a session or a person's unscoped key. Read once per request.
+     */
+    resolve(session: NonNullable<AuthSession>, request: Request): Promise<KeyScope | null>;
+    private lookup;
+    private issue;
+    private remove;
+    private requireRow;
+    private checkObjects;
+    private expiryOf;
+}
+//# sourceMappingURL=scoped-keys.d.ts.map

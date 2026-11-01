@@ -1,0 +1,44 @@
+import { type JobExecutor, type ScheduleExecutor } from '@nocobase/jobs';
+import type { EffectDispatcher, LifecycleLogger, LifecycleRuntime } from './runtime.js';
+/** What the effect job carries: the run's state lives in the store. */
+export interface EffectJobPayload {
+    readonly effectRunId: string;
+}
+export interface LifecycleJobsOptions {
+    /** The executor effects run on, such as `executors.getJobExecutor(scope)`. */
+    readonly jobs: JobExecutor;
+    /** The executor the sweep runs on, such as `executors.getScheduleExecutor(scope)`. */
+    readonly schedule: ScheduleExecutor;
+    /** Stored with every queued task, so keep it stable: `<package>/effect`, say. */
+    readonly jobName: string;
+    /** The sweep rule's name within its scope. Defaults to `lifecycle-sweep`. */
+    readonly sweepName?: string;
+    /** How often triggers are swept and expired attempts taken back. Defaults to a minute. */
+    readonly sweepEveryMs?: number;
+    /** Work each sweep does after the triggers, such as pruning finished runs. */
+    readonly onSweep?: () => Promise<void>;
+    readonly logger?: LifecycleLogger;
+    /** The runtime's clock, so a backoff is measured on the same time. */
+    readonly clock?: () => Date;
+}
+/**
+ * The runtime's dispatcher when effects run on `@nocobase/jobs`. Pass it to
+ * `new LifecycleRuntime({ dispatcher })`, then `start(runtime)` once the
+ * lifecycles are registered and `shutdown()` with the application.
+ */
+export interface LifecycleJobs extends EffectDispatcher {
+    /**
+     * Registers the effect job, opens both executors, schedules the sweep and
+     * runs `runtime.recover()`, so what an earlier process left queued runs.
+     */
+    start(runtime: LifecycleRuntime): Promise<void>;
+    shutdown(): Promise<void>;
+}
+/**
+ * Runs a runtime's effects as jobs and its sweep as a schedule rule on the
+ * application's jobs service. Effects are retried with their backoff through
+ * an in-process timer, runs nobody is working on are reclaimed on every sweep, and a
+ * start recovers what the previous process left queued.
+ */
+export declare function createLifecycleJobs(options: LifecycleJobsOptions): LifecycleJobs;
+//# sourceMappingURL=jobs.d.ts.map

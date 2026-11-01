@@ -1,0 +1,17 @@
+import type { DatabaseDriverDefinition } from '@nocobase/db';
+import type { SqliteConnectionConfig } from './config.js';
+export type { SqliteConnectionConfig } from './config.js';
+export type SqliteOptions = Omit<SqliteConnectionConfig, 'dialect' | 'driver' | 'databaseDriver'>;
+export declare const sqliteDriver: DatabaseDriverDefinition<'sqlite', SqliteConnectionConfig>;
+export type SqliteConnection = SqliteOptions & {
+    dialect: 'sqlite';
+    databaseDriver: typeof sqliteDriver;
+};
+export interface SqliteFactory {
+    (options?: SqliteOptions): SqliteConnection;
+    readonly dialect: 'sqlite';
+    readonly driver: typeof sqliteDriver;
+}
+export declare const sqlite: SqliteFactory;
+export default sqlite;
+export { sqliteTypes } from './inspectors/sqlite.js';

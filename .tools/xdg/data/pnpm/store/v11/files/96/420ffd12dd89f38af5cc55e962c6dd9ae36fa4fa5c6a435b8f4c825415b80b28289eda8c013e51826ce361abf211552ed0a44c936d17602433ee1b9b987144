@@ -1,0 +1,10 @@
+import type { Command } from '@oclif/core';
+import { AppCommand } from '../../context.ts';
+import { type ConfigEnvResult } from '../../lib/config-env.ts';
+export default class AppConfigEnv extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    run(): Promise<ConfigEnvResult>;
+}
+//# sourceMappingURL=env.d.ts.map

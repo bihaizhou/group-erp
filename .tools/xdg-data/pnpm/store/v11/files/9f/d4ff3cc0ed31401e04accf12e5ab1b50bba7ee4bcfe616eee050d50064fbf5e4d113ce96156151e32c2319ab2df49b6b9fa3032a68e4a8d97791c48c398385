@@ -1,0 +1,129 @@
+import type { NormalizedRepositoryPolicy, PartialRepositoryPolicy, RepositoryPolicy } from './policy/types.js';
+import type { PolicyRecord } from './types.js';
+import type { ConnectionCollections } from '../collection/registry/types.js';
+import type { RepositoryExecutionAdapter } from './internal/execution-adapter.js';
+import type { AggregateAst, AggregateBuilder, AggregateOptions, AggregateResult, AggregateSelection, AggregateSelectionResult, CreateManyOptions, CreateManyResult, CreateOneOptions, DeleteManyOptions, DeleteManyResult, DeleteOneOptions, DeleteOneResult, AnySelectBuilder, DescribeMutationOptions, FilterOnlyOptions, FilterOperator, FindManyOptions, FindOneOptions, GroupByOptions, GroupByResult, GroupBySelectionResult, MutationValidationResult, RepositoryQuery, RepositoryMutationDescription, RepositoryRecord, ScopedRepository, SelectAst, SelectBuilder, SelectedBuilderRecord, SingleMutationResult, UpdateManyOptions, UpdateManyResult, UpdateOneOptions, UpsertOneOptions, ValidateMutationOptions } from './types.js';
+export interface DefaultRepositoryOptions {
+    readonly collection: string;
+    readonly collections: Pick<ConnectionCollections, 'get'>;
+    readonly adapter: RepositoryExecutionAdapter;
+    readonly policy?: NormalizedRepositoryPolicy;
+}
+export declare class DefaultRepository<TRecord extends object = RepositoryRecord, TCreate extends object = Partial<TRecord>, TUpdate extends object = Partial<TRecord>> implements ScopedRepository<TRecord, TCreate, TUpdate> {
+    private readonly options;
+    /**
+     * Normalized scopes, resolved once per instance. A bound Policy is frozen,
+     * so its scope cannot change while this Repository lives, and normalizing
+     * it on every call meant walking the Collection metadata on every write.
+     */
+    private readonly scopeChecks;
+    constructor(options: DefaultRepositoryOptions);
+    withPolicy<const TPolicy extends RepositoryPolicy<TRecord>>(policy: TPolicy): ScopedRepository<PolicyRecord<TRecord, TPolicy>, TCreate, TUpdate>;
+    withPolicy<P, const TPolicy extends RepositoryPolicy<TRecord>>(policy: (principal: P) => TPolicy, principal: P): ScopedRepository<PolicyRecord<TRecord, TPolicy>, TCreate, TUpdate>;
+    narrow(patch: PartialRepositoryPolicy<TRecord>): ScopedRepository<TRecord, TCreate, TUpdate>;
+    explainPolicy(): NormalizedRepositoryPolicy;
+    findMany(options?: FindManyOptions<TRecord>): RepositoryQuery<TRecord>;
+    private prepareRead;
+    private executeMany;
+    private executeStream;
+    findOne(options: FindOneOptions<TRecord>): Promise<TRecord | undefined>;
+    count(options?: FilterOnlyOptions<TRecord>): Promise<number>;
+    exists(options?: FilterOnlyOptions<TRecord>): Promise<boolean>;
+    aggregate<TSelection extends AggregateSelection>(options: AggregateOptions<TRecord> & {
+        readonly aggregate: (aggregate: AggregateBuilder<TRecord>) => TSelection;
+    }): Promise<AggregateSelectionResult<TSelection>>;
+    aggregate(options: AggregateOptions<TRecord> & {
+        readonly aggregate: AggregateAst;
+    }): Promise<AggregateResult>;
+    aggregate(options: AggregateOptions<TRecord>): Promise<AggregateResult>;
+    groupBy<const TBy extends readonly [
+        keyof TRecord & string,
+        ...(keyof TRecord & string)[]
+    ], TSelection extends AggregateSelection>(options: GroupByOptions<TRecord, GroupBySelectionResult<TRecord, TBy, TSelection>> & {
+        readonly by: TBy;
+        readonly aggregate: (aggregate: AggregateBuilder<TRecord>) => TSelection;
+    }): Promise<Array<GroupBySelectionResult<TRecord, TBy, TSelection>>>;
+    groupBy(options: GroupByOptions<TRecord> & {
+        readonly aggregate: AggregateAst;
+    }): Promise<GroupByResult[]>;
+    groupBy(options: GroupByOptions<TRecord>): Promise<GroupByResult[]>;
+    describeMutation(options: DescribeMutationOptions): Promise<RepositoryMutationDescription>;
+    validateMutation(options: ValidateMutationOptions<TCreate, TUpdate, TRecord>): Promise<MutationValidationResult>;
+    createOne(options: CreateOneOptions<TCreate, TRecord>): Promise<SingleMutationResult<TRecord>>;
+    createMany<TSelection extends AnySelectBuilder<TRecord>>(options: CreateManyOptions<TCreate, TRecord> & {
+        readonly select: (select: SelectBuilder<TRecord>) => TSelection;
+    }): Promise<CreateManyResult<SelectedBuilderRecord<TRecord, TSelection>>>;
+    createMany(options: CreateManyOptions<TCreate, TRecord> & {
+        readonly select: SelectAst;
+    }): Promise<CreateManyResult<TRecord>>;
+    createMany(options: CreateManyOptions<TCreate, TRecord>): Promise<CreateManyResult>;
+    updateOne(options: UpdateOneOptions<TUpdate, TRecord>): Promise<SingleMutationResult<TRecord>>;
+    upsertOne(options: UpsertOneOptions<TCreate, TUpdate, TRecord>): Promise<SingleMutationResult<TRecord>>;
+    updateMany<TSelection extends AnySelectBuilder<TRecord>>(options: UpdateManyOptions<TRecord, TUpdate> & {
+        readonly select: (select: SelectBuilder<TRecord>) => TSelection;
+    }): Promise<UpdateManyResult<SelectedBuilderRecord<TRecord, TSelection>>>;
+    updateMany(options: UpdateManyOptions<TRecord, TUpdate> & {
+        readonly select: SelectAst;
+    }): Promise<UpdateManyResult<TRecord>>;
+    updateMany(options: UpdateManyOptions<TRecord, TUpdate>): Promise<UpdateManyResult>;
+    deleteOne<TSelection extends AnySelectBuilder<TRecord>>(options: DeleteOneOptions<TRecord> & {
+        readonly select: (select: SelectBuilder<TRecord>) => TSelection;
+    }): Promise<DeleteOneResult<SelectedBuilderRecord<TRecord, TSelection>>>;
+    deleteOne(options: DeleteOneOptions<TRecord> & {
+        readonly select: SelectAst;
+    }): Promise<DeleteOneResult<TRecord>>;
+    deleteOne(options: DeleteOneOptions<TRecord>): Promise<DeleteOneResult>;
+    deleteMany<TSelection extends AnySelectBuilder<TRecord>>(options: DeleteManyOptions<TRecord> & {
+        readonly select: (select: SelectBuilder<TRecord>) => TSelection;
+    }): Promise<DeleteManyResult<SelectedBuilderRecord<TRecord, TSelection>>>;
+    deleteMany(options: DeleteManyOptions<TRecord> & {
+        readonly select: SelectAst;
+    }): Promise<DeleteManyResult<TRecord>>;
+    deleteMany(options: DeleteManyOptions<TRecord>): Promise<DeleteManyResult>;
+    private collection;
+    private assertPolicyMutationFields;
+    /**
+     * The post-write scope check for an operation, or undefined when the Policy
+     * puts no limit on where the record may land.
+     */
+    /**
+     * Build the relation target scopes for a write, mirroring the Policy's
+     * relation tree onto the Collection graph.
+     *
+     * Nested shapes each carry their own relation nodes, so a relation reached
+     * through more than one of them gets every scope ANDed together — the
+     * narrowest reading, since none of them was granted more than once.
+     */
+    private relationScopes;
+    private writeRelationScopes;
+    private scopeCheck;
+    private normalizeFilter;
+    /**
+     * Narrow an already-normalized caller filter by the read policy: reject the
+     * fields it may not name, then intersect it with the scope.
+     */
+    private applyReadPolicy;
+    private validateSelect;
+    /**
+     * The read authorization in force on this Repository. Every read surface
+     * takes it as a required argument, so a new one cannot skip the checks by
+     * forgetting to ask for it.
+     */
+    private readContext;
+    private validateSort;
+    private normalizeMutationFilter;
+    private normalizeSingleMutationFilter;
+    private normalizeFilterWithoutPolicy;
+    private normalizePolicyMutationScope;
+    private combineMutationPolicyScope;
+}
+/**
+ * The filter operators a condition on a scalar Field of `type` accepts, or `undefined` for a type no condition can
+ * name. It is the table every Repository validates conditions against, exported so a description of the filter
+ * grammar, such as an API document, is derived from it rather than copied.
+ */
+export declare function filterOperatorsForFieldType(type: string): readonly FilterOperator[] | undefined;
+/** Whether a Field of `type` may appear in the `{ field: value }` filter shorthand. */
+export declare function supportsFilterShorthand(type: string): boolean;
+/** Whether a Field of `type` may be named in a sort. */
+export declare function isSortableFieldType(type: string): boolean;

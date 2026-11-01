@@ -1,0 +1,3 @@
+import { createServiceToken, } from '@nocobase/service-provider';
+export const driveManagerToken = createServiceToken('@nocobase/drive/manager');
+//# sourceMappingURL=token.js.map

@@ -1,0 +1,25 @@
+import { ServiceProvider } from '@nocobase/service-provider';
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+export type MailCoreProviderApplication = AppPluginApplication;
+export declare class MailCoreProvider extends ServiceProvider<MailCoreProviderApplication> {
+    readonly name: string;
+    private realtimeTopic?;
+    private missingMailConfigWarningLogged;
+    private productionOAuthReturnWarningLogged;
+    private readonly messageChangeNotifier;
+    register(): void;
+    private resolveJobExecutor;
+    /**
+     * The `jobs` configuration `mail.jobs` names. The jobs service would fall back to `jobs.default` for a name it does
+     * not know, which would put Mail's tasks on another backend without a word, so an unknown name refuses to start.
+     */
+    private jobsConfiguration;
+    boot(): Promise<void>;
+    private warnAboutDevelopmentOAuthReturn;
+    private listProviderConfigs;
+    private resolveProviderConfig;
+    private getMailConfig;
+    start(): Promise<void>;
+    shutdown(): Promise<void>;
+}
+//# sourceMappingURL=mail-core.d.ts.map

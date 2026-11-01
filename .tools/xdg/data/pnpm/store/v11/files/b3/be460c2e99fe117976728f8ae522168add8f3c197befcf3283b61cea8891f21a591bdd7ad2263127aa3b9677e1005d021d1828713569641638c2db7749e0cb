@@ -1,0 +1,60 @@
+import type { MigrationConnection, MigrationHistoryRecord } from '../types.js';
+export declare const DEFAULT_MIGRATION_TABLE = "__nocobase_migrations";
+/**
+ * A task ledger: one table recording what has run. Migrations and seeds keep
+ * separate ledgers because only one of them is reversible, but the table, its
+ * columns and every read and write against it are the same bookkeeping, so the
+ * implementation lives here and the seed side names its own table.
+ */
+export interface TaskLedger {
+    readonly tableName: string;
+    /** Migrations record which batch a run belongs to; seeds have no batch. */
+    readonly batched: boolean;
+    /**
+     * Seeds record whether a run executed or was skipped, which only sample
+     * data can be. A row without it predates the column and executed.
+     */
+    readonly status?: boolean;
+}
+/** How a recorded task ended: it ran, or it was recorded without running. */
+export type TaskHistoryStatus = 'executed' | 'skipped';
+/** One recorded run, with `batch` present exactly for a batched ledger. */
+export interface TaskHistoryEntry {
+    readonly id: number;
+    readonly packageName: string;
+    readonly name: string;
+    readonly batch?: number;
+    readonly checksum: string;
+    readonly executedAt: Date | string;
+    readonly durationMs: number | null;
+    /** Present exactly for a ledger that records status. */
+    readonly status?: TaskHistoryStatus;
+}
+export interface TaskHistoryWrite {
+    readonly packageName: string;
+    readonly name: string;
+    readonly batch?: number;
+    readonly checksum: string;
+    readonly durationMs: number | null;
+    readonly status?: TaskHistoryStatus;
+}
+export declare function ensureTaskHistoryTable(connection: MigrationConnection, ledger: TaskLedger): Promise<void>;
+export declare function readTaskHistoryEntries(connection: MigrationConnection, ledger: TaskLedger): Promise<TaskHistoryEntry[]>;
+export declare function recordTaskHistoryEntry(connection: MigrationConnection, ledger: TaskLedger, entry: TaskHistoryWrite): Promise<void>;
+/** Rewrites how a recorded task ended, such as sample data run after it was skipped. */
+export declare function updateTaskHistoryEntry(connection: MigrationConnection, ledger: TaskLedger, name: string, entry: Pick<TaskHistoryWrite, 'checksum' | 'durationMs' | 'status'>): Promise<void>;
+export declare function deleteTaskHistoryEntry(connection: MigrationConnection, ledger: TaskLedger, name: string): Promise<void>;
+export declare function ensureMigrationTable(connection: MigrationConnection, tableName?: string): Promise<void>;
+export declare function readMigrationHistory(connection: MigrationConnection, tableName?: string): Promise<MigrationHistoryRecord[]>;
+export declare function recordMigrationCompleted(connection: MigrationConnection, options: {
+    tableName?: string;
+    packageName?: string;
+    name: string;
+    batch: number;
+    checksum: string;
+    durationMs: number;
+}): Promise<void>;
+export declare function deleteMigrationHistoryRecord(connection: MigrationConnection, options: {
+    tableName?: string;
+    name: string;
+}): Promise<void>;

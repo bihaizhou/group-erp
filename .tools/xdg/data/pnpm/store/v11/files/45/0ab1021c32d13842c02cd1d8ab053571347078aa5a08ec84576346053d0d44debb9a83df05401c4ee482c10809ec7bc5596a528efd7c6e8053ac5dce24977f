@@ -1,0 +1,60 @@
+import { type QueueJobDefaults } from './options.js';
+import type { QueueAdapter, QueueConfig, QueueConfigEntry, QueueLogger, RateLimitOptions } from './types.js';
+/** The adapter that selects the in-process implementation. */
+export declare const IN_MEMORY_ADAPTER: QueueAdapter;
+/** The adapter that selects the BullMQ implementation. */
+export declare const REDIS_ADAPTER: QueueAdapter;
+/** The `queueBackend` name of BullMQ's own Redis backend, used when none is named. */
+export declare const REDIS_BACKEND: string;
+/** The key queues on the built-in memory configuration are bound to. */
+export declare const BUILT_IN_MEMORY_KEY: string;
+export declare const LEGACY_CONFIG_WARNING: string;
+/**
+ * Drops the fields of the former queue format. When they are present, a
+ * `default` naming anything but a configuration of the current format is
+ * dropped as well, so the section falls back to the built-in memory
+ * configuration instead of failing to start. Warns once when anything was
+ * ignored.
+ */
+export declare function normalizeQueueConfig(config: QueueConfig | undefined, logger: QueueLogger | undefined): QueueConfig | undefined;
+export interface QueueConfigSelection {
+    readonly key: string;
+    /** `undefined` selects the built-in memory configuration. */
+    readonly entry: QueueConfigEntry | undefined;
+}
+/**
+ * Picks the configuration for a queue: the named key when it exists, then
+ * `default`, then the built-in memory configuration.
+ */
+export declare function selectQueueConfig(config: QueueConfig | undefined, configKey: string | undefined): QueueConfigSelection;
+/** One configuration key with every default filled in. */
+export interface ResolvedQueueConfig {
+    readonly key: string;
+    readonly builtIn: boolean;
+    readonly adapter: QueueAdapter;
+    /** `redis` only: the registered backend factory; `undefined` for BullMQ's Redis backend. */
+    readonly queueBackend: string | undefined;
+    /** Handed to the backend factory as it is; `undefined` for `inMemory`. */
+    readonly connection: unknown;
+    /** `inMemory` only. */
+    readonly persistencePath: string | undefined;
+    readonly namespace: string;
+    readonly concurrency: number;
+    readonly rateLimit: RateLimitOptions | null | undefined;
+    readonly jobDefaults: QueueJobDefaults;
+    readonly setupTimeoutMs: number;
+    readonly shutdownTimeoutMs: number;
+    readonly cancellationGraceMs: number;
+}
+export interface QueueConfigDefaults {
+    readonly appName: string;
+    readonly storagePath: string;
+}
+/**
+ * Checks this layer's options. Whether a backend name is registered is
+ * checked by the service, and connections by the backend itself.
+ */
+export declare function resolveQueueConfig(selection: QueueConfigSelection, defaults: QueueConfigDefaults): ResolvedQueueConfig;
+/** Every configuration key of the section, in declaration order. */
+export declare function queueConfigKeys(config: QueueConfig | undefined): string[];
+//# sourceMappingURL=config.d.ts.map

@@ -1,0 +1,4 @@
+import { type AppServerPlugin } from '@nocobase/app-server/plugins';
+declare const schedulerPlugin: AppServerPlugin;
+export default schedulerPlugin;
+//# sourceMappingURL=plugin.d.ts.map

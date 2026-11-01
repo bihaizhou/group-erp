@@ -1,0 +1,4 @@
+export { default } from './plugin.js';
+export { ClientFileRepositoryManager } from './manager.js';
+export { clientFileRepositoryManagerToken } from './token.js';
+//# sourceMappingURL=index.js.map

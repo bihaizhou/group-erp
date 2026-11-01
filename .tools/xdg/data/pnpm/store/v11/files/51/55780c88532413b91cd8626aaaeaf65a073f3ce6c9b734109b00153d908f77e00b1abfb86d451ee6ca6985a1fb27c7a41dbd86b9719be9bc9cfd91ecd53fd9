@@ -1,0 +1,8 @@
+import { type AppClientPluginFactory } from '@nocobase/app-client/plugins';
+/**
+ * Registers the plugin's locales, which hold the titles its server registers with the authorization catalog. It
+ * contributes no pages: an application that lists schedules builds the page on the scheduler API among its own routes.
+ */
+declare const scheduler: AppClientPluginFactory;
+export default scheduler;
+//# sourceMappingURL=plugin.d.ts.map

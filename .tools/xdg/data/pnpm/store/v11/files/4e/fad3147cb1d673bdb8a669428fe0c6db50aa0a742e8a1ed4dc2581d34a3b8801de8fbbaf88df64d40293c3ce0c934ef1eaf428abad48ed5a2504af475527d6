@@ -1,0 +1,16 @@
+import type { MailAccount, MailMessage, MailOperationContext } from '../../shared/mail.js';
+import type { MailStore } from '../contracts/persistence.js';
+import type { DefaultMailServiceDependencies } from '../services/dependencies.js';
+type MessageMutationStore = Pick<MailStore, 'listFolders' | 'updateMessageState' | 'moveMessage' | 'deleteMessage'>;
+/** Executes mutations after the caller has authorized and resolved the target. */
+export declare class MailMessageMutations {
+    private readonly dependencies;
+    constructor(dependencies: Pick<DefaultMailServiceDependencies, 'adapters' | 'messageChangeNotifier' | 'logger'> & {
+        readonly store: MessageMutationStore;
+    });
+    updateMessage(context: MailOperationContext, account: MailAccount, message: MailMessage, input: import('../../shared/mail.js').MailUpdateMessageInput): Promise<MailMessage>;
+    moveMessage(context: MailOperationContext, account: MailAccount, message: MailMessage, input: import('../../shared/mail.js').MailMoveMessageInput): Promise<MailMessage>;
+    deleteMessage(context: MailOperationContext, account: MailAccount, message: MailMessage, input: import('../../shared/mail.js').MailDeleteMessageInput): Promise<void>;
+}
+export {};
+//# sourceMappingURL=message-mutations.d.ts.map

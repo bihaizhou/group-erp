@@ -1,0 +1,16 @@
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+import { ServiceProvider } from '@nocobase/service-provider';
+export declare class UsersProvider extends ServiceProvider<AppPluginApplication> {
+    readonly name: string;
+    private releasePermissionSetScope?;
+    private releaseSubjectType?;
+    register(): void;
+    boot(): Promise<void>;
+    shutdown(): Promise<void>;
+    /**
+     * Asks this plugin's own user administration which of these accounts are
+     * still enabled, one page per batch rather than one query per account.
+     */
+    private enabledUserIds;
+}
+//# sourceMappingURL=users.d.ts.map

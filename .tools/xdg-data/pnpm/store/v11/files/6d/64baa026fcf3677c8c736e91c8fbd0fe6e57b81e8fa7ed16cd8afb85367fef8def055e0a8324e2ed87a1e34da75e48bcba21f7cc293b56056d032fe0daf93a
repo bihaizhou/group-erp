@@ -1,0 +1,43 @@
+import type { Command, Interfaces } from '@oclif/core';
+import { PluginUnregistrationCommand, type PluginUnregisterResult } from '../plugin/unregister.ts';
+import { type PluginCommandInvocation } from '../../lib/plugin-json.ts';
+declare const DEPENDENCY_SECTIONS: readonly ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
+type DependencySection = (typeof DEPENDENCY_SECTIONS)[number];
+/** What removing a package that is not a plugin would do; status `success-noop` when there is nothing to remove. */
+export interface PackageRemoveDryRunResult {
+    readonly mode: 'dry-run';
+    readonly appRoot: string;
+    readonly packageName: string;
+    readonly dependencySections: readonly DependencySection[];
+    readonly skillRemovals: readonly string[];
+    readonly commands: readonly PluginCommandInvocation[];
+}
+/** What removing a package that is not a plugin did; status `success-noop` when there was nothing to remove. */
+export interface PackageRemoveRemovedResult {
+    readonly mode: 'remove';
+    readonly appRoot: string;
+    readonly packageName: string;
+    readonly removedFrom: readonly DependencySection[];
+    readonly removedSkills: readonly string[];
+    readonly commands: readonly PluginCommandInvocation[];
+}
+/** A plugin package is unregistered, so it answers with `plugin unregister`'s result. */
+export type PackageRemoveResult = PackageRemoveDryRunResult | PackageRemoveRemovedResult | PluginUnregisterResult;
+export default class PackageRemove extends PluginUnregistrationCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static args: {
+        name: Interfaces.Arg<string>;
+    };
+    static flags: {
+        dir: Interfaces.OptionFlag<string | undefined>;
+        app: Interfaces.OptionFlag<string | undefined>;
+        'workspace-root': Interfaces.OptionFlag<string | undefined>;
+        'dry-run': Interfaces.BooleanFlag<boolean>;
+    };
+    run(): Promise<PackageRemoveResult>;
+    private remove;
+}
+export {};
+//# sourceMappingURL=remove.d.ts.map

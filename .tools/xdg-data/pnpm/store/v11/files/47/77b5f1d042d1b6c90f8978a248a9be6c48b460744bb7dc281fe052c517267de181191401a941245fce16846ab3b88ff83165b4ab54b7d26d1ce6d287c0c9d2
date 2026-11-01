@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "files": {
+    "202609030001_create_mail_tables.js": {
+      "sourceChecksum": "729cf929d5681cd1d361bbb133059158bb33e22786e5634a42a7507c5fcce4fc",
+      "artifactChecksum": "347306e744bdaff16ef847574be05f9744393c721b33403b4a91fc1f074f1ec1"
+    },
+    "202609200001_backfill_mail_conversations.js": {
+      "sourceChecksum": "32be2bd3fed90efbb34aa3ea77d24ce4cd8c193cdb7593f00e82e31a8b68cc08",
+      "artifactChecksum": "c5cd9f8b86a32a5f948321867fc1bf788b0a7e11e9492125871e9fd877e1d0a5"
+    },
+    "202609210001_normalize_mail_folders.js": {
+      "sourceChecksum": "cbad6233f37995a195da4616c2619d01b9036f8b5f7ef751eb6924f03503aec0",
+      "artifactChecksum": "2f4e1085fdb6eb1a7cb47de038255222bc76fd8565c4c1d9b2f340c61a9f09d0"
+    },
+    "202609260001_add_mail_sync_retry_attempts.js": {
+      "sourceChecksum": "e25cd0ddcff5775a68976b610f13d6ce68ba015dfe79770b59ec2479b2866cf8",
+      "artifactChecksum": "5e905571bc120cbb7993bb21c7c3a94f5b9d85b7bb985151f8fc4228bcd71855"
+    },
+    "202610090001_mail_create_message_participants.js": {
+      "sourceChecksum": "8cbc894973a532c79aacb638cce4a687d316e1ba7f0043a7ed7d13b268b61155",
+      "artifactChecksum": "95c122dbda4b5c273d0da0d795b4e895cce5b6b16c460fe1187b6180ef5d3137"
+    },
+    "202610250001_mail_imap_message_locations.js": {
+      "sourceChecksum": "f6acd8d5eb6f70a99bf725b33930720f4510d5da11d7744d1e26c2125526854a",
+      "artifactChecksum": "aeeb60baab0f81a8ffa1e0a1d6be91e2aa14da56851d590494a595943803d0c8"
+    }
+  }
+}

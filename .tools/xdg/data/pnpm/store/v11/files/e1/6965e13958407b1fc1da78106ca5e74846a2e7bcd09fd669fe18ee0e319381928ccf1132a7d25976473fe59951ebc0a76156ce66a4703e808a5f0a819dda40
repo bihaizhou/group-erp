@@ -1,0 +1,31 @@
+import { type QueryAdapter } from '@nocobase/db';
+import { type NormalizedMailMessage } from '../contracts/provider.js';
+import type { ImapCopyEvidence, ImapLocationChange, ImapStoredLocation, ImapLocationTuple, ImapIdSource } from '../adapters/imap-smtp/types.js';
+export declare function upsertMessages(query: QueryAdapter, accountId: string, messages: readonly NormalizedMailMessage[], preserveUpdatedAfter?: string, replaceFolders?: boolean): Promise<void>;
+export declare function removeStaleMessageFolders(query: QueryAdapter, accountId: string, completeProviderFolderIds: readonly string[]): Promise<void>;
+export declare function upsertFolders(query: QueryAdapter, accountId: string, folders: readonly import('../contracts/provider.js').NormalizedMailFolder[]): Promise<void>;
+export declare function deleteMessages(query: QueryAdapter, accountId: string, providerMessageIds: readonly string[]): Promise<void>;
+export declare function removeMessagesFromFolders(query: QueryAdapter, accountId: string, removals: readonly import('../contracts/provider.js').MailProviderFolderRemoval[]): Promise<void>;
+export declare function validateImapLocation(tuple: ImapLocationTuple, source?: ImapIdSource): void;
+export declare function validateImapStoredLocation(location: ImapStoredLocation): void;
+export declare function validateImapCopyEvidence(copy: ImapCopyEvidence): void;
+/**
+ * Write one sync step's IMAP copies: one business message per identity, a
+ * location per copy, and aggregates derived from every verified copy.
+ */
+export declare function upsertImapMessages(query: QueryAdapter, accountId: string, messages: readonly NormalizedMailMessage[], copies: readonly ImapCopyEvidence[], runId: string, preserveUpdatedAfter?: string): Promise<void>;
+/** Apply verified status changes of stored copies. */
+export declare function applyImapLocationChanges(query: QueryAdapter, accountId: string, changes: readonly ImapLocationChange[], runId: string): Promise<void>;
+/**
+ * Derive message state from its copies: read when every verified copy is read,
+ * starred when any is, received at the earliest verified copy. A message with
+ * no verified copy keeps its state and is marked as an orphan of this run.
+ */
+export declare function refreshImapMessages(query: QueryAdapter, accountId: string, messageIds: readonly string[], runId?: string, updatedAt?: string): Promise<void>;
+/**
+ * Delete IMAP messages with no valid or pending copy after a complete,
+ * twice-verified run. Local, submitted and scheduled messages are never IMAP
+ * orphans: they carry no IMAP identity source or are locked by a schedule.
+ */
+export declare function deleteImapOrphans(query: QueryAdapter, accountId: string, runId: string): Promise<void>;
+//# sourceMappingURL=message-writes.d.ts.map

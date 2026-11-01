@@ -1,0 +1,9 @@
+import { Hono } from 'hono';
+import type { ApiDocsService } from '../openapi/service.js';
+import type { CliService } from './service.js';
+/**
+ * `GET /cli/manifest`, mounted under `/api`: the commands the caller may run, derived from the API document and
+ * filtered by who calls. Without a caller resolver it answers `404 ROUTE_NOT_FOUND`, like a path that does not exist.
+ */
+export declare function createCliRouter(cli: CliService, docs: ApiDocsService): Hono;
+//# sourceMappingURL=routes.d.ts.map

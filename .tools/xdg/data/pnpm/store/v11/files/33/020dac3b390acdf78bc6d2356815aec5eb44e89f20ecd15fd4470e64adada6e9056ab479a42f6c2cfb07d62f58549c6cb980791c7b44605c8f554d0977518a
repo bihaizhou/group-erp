@@ -1,0 +1,12 @@
+import { type MailAttachmentContent, type MailOperationContext, type MailOutboundAttachmentView, type MailUploadAttachmentInput } from '../../shared/mail.js';
+import { type MailServiceDependencies } from './dependencies.js';
+export declare class MailAttachmentsService {
+    private readonly dependencies;
+    constructor(dependencies: MailServiceDependencies<'getAccount' | 'getMessage' | 'getMessageForAccount' | 'getOutboundAttachment', 'outboundAttachments' | 'adapters'>);
+    getUploadedAttachment(context: MailOperationContext, attachmentId: string): Promise<MailAttachmentContent>;
+    uploadAttachment(context: MailOperationContext, input: MailUploadAttachmentInput): Promise<MailOutboundAttachmentView>;
+    getAttachment(context: MailOperationContext, accountId: string, messageId: string, attachmentId: string): Promise<MailAttachmentContent>;
+    getManagedAttachment(context: MailOperationContext, accountId: string, messageId: string, attachmentId: string): Promise<MailAttachmentContent>;
+    private openAttachment;
+}
+//# sourceMappingURL=attachments.d.ts.map

@@ -1,0 +1,7 @@
+import type { RealtimeUserTopic } from '@nocobase/app-server/realtime';
+import { type InAppNotificationRealtimeEvent } from '../shared/realtime.js';
+import type { InAppStore } from './store.js';
+export { IN_APP_NOTIFICATION_REALTIME_TOPIC, type InAppNotificationChange, type InAppNotificationRealtimeEvent, } from '../shared/realtime.js';
+export type InAppNotificationRealtimeTopic = Pick<RealtimeUserTopic<InAppNotificationRealtimeEvent>, 'publishFor'>;
+export declare function createRealtimeInAppStore(store: InAppStore, topic: InAppNotificationRealtimeTopic): InAppStore;
+//# sourceMappingURL=realtime.d.ts.map

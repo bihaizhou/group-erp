@@ -1,0 +1,2 @@
+/** Normalize convenience declarations while preserving explicit native types. */
+export declare function metadataFieldType(value: unknown): string | undefined;

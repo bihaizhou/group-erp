@@ -1,0 +1,4 @@
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { DatabaseManager } from './manager.js';
+/** The application database manager registered in a service container. */
+export declare const databaseManagerToken: ServiceToken<DatabaseManager>;

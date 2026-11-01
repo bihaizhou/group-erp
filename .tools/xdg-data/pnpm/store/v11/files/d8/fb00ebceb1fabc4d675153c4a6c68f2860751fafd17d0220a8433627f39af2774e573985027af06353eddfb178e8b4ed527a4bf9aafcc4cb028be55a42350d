@@ -1,0 +1,171 @@
+import type { Context, MiddlewareHandler, NotFoundHandler } from 'hono';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
+/**
+ * The error categories an `/api` response may report, with the HTTP status each one maps to. The names and mapping are
+ * Google's canonical error codes (AIP-193), so a client branches on a fixed, documented set rather than on whatever
+ * each plugin invents. `reason` carries the plugin-specific detail.
+ */
+export declare const apiErrorStatusCodes: {
+    readonly INVALID_ARGUMENT: 400;
+    readonly FAILED_PRECONDITION: 400;
+    readonly OUT_OF_RANGE: 400;
+    readonly UNAUTHENTICATED: 401;
+    readonly PERMISSION_DENIED: 403;
+    readonly NOT_FOUND: 404;
+    readonly ALREADY_EXISTS: 409;
+    readonly ABORTED: 409;
+    readonly RESOURCE_EXHAUSTED: 429;
+    readonly INTERNAL: 500;
+    readonly UNIMPLEMENTED: 501;
+    readonly UNAVAILABLE: 503;
+    readonly DEADLINE_EXCEEDED: 504;
+};
+export type ApiErrorStatus = keyof typeof apiErrorStatusCodes;
+/** The error reasons and domain the framework itself reports. Plugins use their own domain and reasons. */
+export declare const appErrorDomain = "app";
+export interface ApiLocalizedMessage {
+    readonly locale: string;
+    readonly message: string;
+}
+/** One invalid field in a request, as AIP-193's `BadRequest.FieldViolation`. */
+export interface ApiFieldViolation {
+    /** Path to the field, such as `releaseId` or `items[2].name`. */
+    readonly field: string;
+    readonly description: string;
+    readonly reason?: string;
+}
+export interface ApiErrorOptions {
+    readonly status: ApiErrorStatus;
+    /** What went wrong, in UPPER_SNAKE_CASE, unique within `domain`. Clients branch on `reason`, never on `message`. */
+    readonly reason: string;
+    /** Who defined `reason`: the plugin's URL namespace, such as `workflows`, or `app` for the framework. */
+    readonly domain: string;
+    /** Developer-facing English description. Never shown to end users and never relied on by clients. */
+    readonly message: string;
+    /** User-facing text already translated by the handler. */
+    readonly localizedMessage?: ApiLocalizedMessage;
+    readonly fieldViolations?: readonly ApiFieldViolation[];
+    /** Further machine-readable facts about this occurrence. Values must be JSON-serializable. */
+    readonly metadata?: Readonly<Record<string, unknown>>;
+    /**
+     * The HTTP status to answer with when a protocol requires one the status table does not produce, such as 413 or
+     * 415. Leave unset otherwise: the status from `status` is what clients expect.
+     */
+    readonly httpStatus?: ContentfulStatusCode;
+    readonly cause?: unknown;
+}
+export interface ApiErrorPayload {
+    readonly code: number;
+    readonly status: ApiErrorStatus;
+    readonly reason: string;
+    readonly domain: string;
+    readonly message: string;
+    readonly localizedMessage?: ApiLocalizedMessage;
+    readonly fieldViolations?: readonly ApiFieldViolation[];
+    readonly metadata?: Readonly<Record<string, unknown>>;
+    readonly requestId?: string;
+}
+/** The body of every failed `/api` response. */
+export interface ApiErrorBody {
+    readonly error: ApiErrorPayload;
+}
+/**
+ * An error a route throws to answer with the standard `/api` error body.
+ *
+ * ```ts
+ * throw new ApiError({ status: 'NOT_FOUND', reason: 'WORKFLOW_NOT_FOUND', domain: 'workflows', message: `Workflow ${id} was not found.` });
+ * ```
+ */
+export declare class ApiError extends Error {
+    /** The HTTP status of the response. */
+    readonly code: ContentfulStatusCode;
+    readonly status: ApiErrorStatus;
+    readonly reason: string;
+    readonly domain: string;
+    readonly localizedMessage: ApiLocalizedMessage | undefined;
+    readonly fieldViolations: readonly ApiFieldViolation[] | undefined;
+    readonly metadata: Readonly<Record<string, unknown>> | undefined;
+    constructor(options: ApiErrorOptions);
+    toPayload(requestId?: string): ApiErrorPayload;
+}
+/** The canonical status for an HTTP status code, for errors raised as bare HTTP statuses. */
+export declare function apiErrorStatusFromHttp(code: number): ApiErrorStatus;
+/**
+ * The `ApiError` for an error the framework recognizes, or `undefined` for one it does not:
+ *
+ * - an `ApiError` as it is;
+ * - Hono's `HTTPException`, and any error that carries a 4xx `status` the way Hono's `getResponse()` convention does
+ *   (such as `AuthorizationDeniedError`), with their status and message, and a string `reason` and `domain` on such an
+ *   error kept too;
+ * - a `RepositoryError` whose `status` is not `INTERNAL` (a refused write, a missing record, a version conflict), with
+ *   that status, its code as `reason`, domain `app`, and its `path` and `details` as `metadata`. One that is the
+ *   server's own fault, such as an invalid Policy, is not recognized.
+ */
+export declare function recognizeApiError(error: unknown): ApiError | undefined;
+/**
+ * Convert anything a route threw into an `ApiError`: what `recognizeApiError` recognizes, and anything else as an
+ * unexpected failure answered with a 500 that reveals nothing about its cause.
+ */
+export declare function toApiError(error: unknown): ApiError;
+export declare function apiErrorBody(error: ApiError, requestId?: string): ApiErrorBody;
+/**
+ * The `onError` for a plugin's router: it answers every error `recognizeApiError` recognizes in the standard body and
+ * rethrows the rest, so an enclosing router can still translate it and the application answers an unexpected failure
+ * with an opaque 500. A router that translates its own domain errors does that first and then delegates here. Install
+ * it even though the application renders the same errors: a router tested on a bare Hono has no `/api` handler.
+ */
+export declare function apiErrorHandler(error: unknown, context: Context): Response;
+export declare const apiNotFoundHandler: NotFoundHandler;
+/** One problem a schema reported, as zod and Standard Schema issues are shaped. */
+export interface ApiInputIssue {
+    readonly path: readonly PropertyKey[];
+    readonly message: string;
+    readonly code?: string;
+}
+/** A schema with zod's `safeParse`, matched by shape so the framework does not depend on a zod version. */
+export interface ApiInputSchema<T> {
+    safeParse(value: unknown): {
+        readonly success: true;
+        readonly data: T;
+    } | {
+        readonly success: false;
+        readonly error: {
+            readonly issues: readonly ApiInputIssue[];
+        };
+    };
+}
+/**
+ * Validate request input against a schema, returning the parsed value or throwing a 400 `INVALID_ARGUMENT` that names
+ * every invalid field. Use it inside Hono's `validator()` so handlers read only `context.req.valid(...)`.
+ *
+ * Superseded by `apiValidator(target, schema)`, which answers the same error and also declares the schema in the API
+ * document. Routes not yet migrated keep working with this.
+ */
+export declare function parseApiInput<T>(schema: ApiInputSchema<T>, value: unknown): T;
+/**
+ * The 400 `INVALID_ARGUMENT` with reason `INVALID_INPUT` and one field violation per issue that every input validator
+ * answers. A path segment may be a key or a Standard Schema `{ key }` segment; a `code` on an issue, as zod sets one,
+ * becomes the violation's `reason`.
+ */
+export declare function invalidApiInputError(issues: readonly ApiInputIssueLike[]): ApiError;
+/** An issue as zod and Standard Schema report one, whose path segments may be keys or `{ key }` objects. */
+export interface ApiInputIssueLike {
+    readonly message: string;
+    readonly path?: readonly (PropertyKey | {
+        readonly key: PropertyKey;
+    })[] | undefined;
+}
+export declare const requestIdHeader = "x-request-id";
+declare module 'hono' {
+    interface ContextVariableMap {
+        requestId: string;
+    }
+}
+/**
+ * The id of the current request: an `x-request-id` the caller sent, when it is short and plain enough to log safely,
+ * otherwise a new UUID. The first call per request decides it, so the request log and the response always agree.
+ */
+export declare function getRequestId(context: Context): string;
+/** Echo the request id in the `x-request-id` response header, so a user reporting a failure can quote it. */
+export declare function requestIdMiddleware(): MiddlewareHandler;
+//# sourceMappingURL=api-error.d.ts.map

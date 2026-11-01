@@ -1,0 +1,5 @@
+export const SYSTEM_ACTOR = Object.freeze({
+    id: 'system',
+    system: true,
+});
+//# sourceMappingURL=types.js.map

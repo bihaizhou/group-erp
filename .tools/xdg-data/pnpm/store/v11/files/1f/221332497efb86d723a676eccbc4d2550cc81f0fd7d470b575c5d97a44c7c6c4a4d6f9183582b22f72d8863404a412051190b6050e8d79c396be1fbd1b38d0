@@ -1,0 +1,8 @@
+import type { AppRuntimeContext } from './definition.js';
+import { Application } from '../application/index.js';
+import type { AppLifecycle } from './types.js';
+/** Starts an application and binds its shutdown to the host-owned scope. */
+export declare function startApplicationInScope(scope: AppLifecycle, app: Application): Promise<Application>;
+/** Create the application without starting services or registering contributions. */
+export declare function createAppFromRuntime(runtime: AppRuntimeContext): Application;
+//# sourceMappingURL=application.d.ts.map

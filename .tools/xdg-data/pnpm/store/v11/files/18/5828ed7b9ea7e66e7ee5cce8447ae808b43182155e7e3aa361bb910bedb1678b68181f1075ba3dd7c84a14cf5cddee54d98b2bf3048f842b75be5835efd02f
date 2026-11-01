@@ -1,0 +1,7 @@
+// One dynamic import per locale, so an application downloads only the language it is showing.
+const locales = {
+    'en-US': () => import('./en-US.js'),
+    'zh-CN': () => import('./zh-CN.js'),
+};
+export default locales;
+//# sourceMappingURL=index.js.map

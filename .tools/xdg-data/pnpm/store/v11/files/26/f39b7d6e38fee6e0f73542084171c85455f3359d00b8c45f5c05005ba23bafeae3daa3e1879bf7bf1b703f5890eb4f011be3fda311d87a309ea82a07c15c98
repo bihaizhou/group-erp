@@ -1,0 +1,42 @@
+import type { MigrationConnection } from './types.js';
+interface TaskHistory {
+    readonly packageName: string;
+    readonly name: string;
+    readonly checksum: string;
+}
+interface TaskChecksum extends TaskHistory {
+    readonly legacyChecksum?: string;
+}
+/**
+ * How a runner reacts when an executed task's recorded checksum no longer
+ * matches its source. `warn` reports the drift and continues; `error` refuses
+ * to run.
+ */
+export type ChecksumMismatchPolicy = 'error' | 'warn';
+/** One executed task whose recorded checksum no longer matches its source. */
+export interface ChecksumMismatch {
+    readonly packageName: string;
+    readonly name: string;
+    /** The checksum stored in history when the task was executed. */
+    readonly recordedChecksum: string;
+    /** The checksum of the task as it exists in the current sources. */
+    readonly sourceChecksum: string;
+}
+/**
+ * Executed tasks whose recorded checksum no longer matches the loaded source.
+ * A record matching the source's pre-manifest hash is not drift: it is
+ * upgraded in place by `upgradeTaskChecksums`.
+ */
+export declare function collectChecksumMismatches(tasks: readonly TaskChecksum[], history: readonly TaskHistory[]): ChecksumMismatch[];
+/** Renders one mismatch for an error message or a warning log line. */
+export declare function describeChecksumMismatch(mismatch: ChecksumMismatch, kind: 'migration' | 'seed'): string;
+/** Called under the task lock, after the entire history has passed validation. */
+export declare function upgradeTaskChecksums(connection: Pick<MigrationConnection, 'client'>, tableName: string, tasks: readonly TaskChecksum[], history: readonly TaskHistory[]): Promise<void>;
+/**
+ * Rewrites recorded checksums to the values their sources now hash to. Each
+ * update is conditioned on the checksum that was read, so a history changed by
+ * another process between read and write aborts the whole batch rather than
+ * overwriting it.
+ */
+export declare function writeTaskChecksums(connection: Pick<MigrationConnection, 'client'>, tableName: string, updates: readonly ChecksumMismatch[]): Promise<void>;
+export {};

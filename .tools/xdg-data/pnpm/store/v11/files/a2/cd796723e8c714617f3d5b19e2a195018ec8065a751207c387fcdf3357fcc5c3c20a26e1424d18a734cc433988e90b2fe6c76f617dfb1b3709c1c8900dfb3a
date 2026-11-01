@@ -1,0 +1,4 @@
+import { type MigrationDefinition } from '@nocobase/db';
+declare const migration: MigrationDefinition;
+export default migration;
+//# sourceMappingURL=202610020201_create_user_preferences.d.ts.map

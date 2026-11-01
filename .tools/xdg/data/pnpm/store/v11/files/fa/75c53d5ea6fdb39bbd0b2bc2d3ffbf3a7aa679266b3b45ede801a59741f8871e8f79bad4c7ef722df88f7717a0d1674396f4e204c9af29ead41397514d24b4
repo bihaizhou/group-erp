@@ -1,0 +1,7 @@
+import type { AuthorizationPlugin } from '@nocobase/authorization/core';
+import { type DatabaseConnection, type DatabaseManager } from '@nocobase/db';
+import { type DatabaseAuthorizationApi } from './api.js';
+export type DatabasePlugin = AuthorizationPlugin<DatabaseAuthorizationApi, DatabaseConnection>;
+/** Registers the `database.collection` catalog type and `authz.database`. */
+export declare function databasePlugin(database?: DatabaseManager): DatabasePlugin;
+//# sourceMappingURL=plugin.d.ts.map

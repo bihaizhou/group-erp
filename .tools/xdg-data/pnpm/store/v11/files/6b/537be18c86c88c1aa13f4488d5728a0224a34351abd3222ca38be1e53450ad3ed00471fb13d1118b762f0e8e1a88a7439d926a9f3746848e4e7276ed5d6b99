@@ -1,0 +1,455 @@
+import { resolveAuthorizationSubjects, } from '../../core/subjects.js';
+import { requireStore } from '../internal/store.js';
+/** Owner of a protection the library declares on its own behalf. */
+export const PERMISSION_SETS_PROTECTION_OWNER = '@nocobase/authorization/permission-sets';
+export class PermissionSetProtectedError extends Error {
+    key;
+    owner;
+    operation;
+    constructor(key, owner, operation) {
+        super(`The ${key} Permission Set and its assignments are protected by ${owner}.`);
+        this.name = 'PermissionSetProtectedError';
+        this.key = key;
+        this.owner = owner;
+        this.operation = operation;
+    }
+}
+export class PermissionSetSubjectNotAllowedError extends Error {
+    key;
+    subjectType;
+    constructor(key, subjectType) {
+        super(`The ${key} Permission Set cannot be assigned to a ${subjectType} subject.`);
+        this.name = 'PermissionSetSubjectNotAllowedError';
+        this.key = key;
+        this.subjectType = subjectType;
+    }
+}
+export class PermissionSetLastAssignmentError extends Error {
+    key;
+    constructor(key) {
+        super(`The last active assignment of the ${key} Permission Set cannot be removed.`);
+        this.name = 'PermissionSetLastAssignmentError';
+        this.key = key;
+    }
+}
+export class PermissionSetNotFoundError extends Error {
+    constructor(key) {
+        super(`Unknown Permission Set: ${key}`);
+        this.name = 'PermissionSetNotFoundError';
+    }
+}
+export class PermissionSetConflictError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'PermissionSetConflictError';
+    }
+}
+export function permissionSetsPlugin(options) {
+    const service = new PermissionSetService(requireStore(options.store, 'Permission Sets'));
+    const rootSet = resolveRootSet(options.rootSet);
+    if (rootSet) {
+        service.protect({
+            owner: PERMISSION_SETS_PROTECTION_OWNER,
+            keys: [rootSet.key],
+            allow: ['assign', 'revoke'],
+            requireActiveAssignment: rootSet.requireActiveAssignment ?? true,
+            unrestricted: true,
+            ...(rootSet.assignableTo ? { assignableTo: rootSet.assignableTo } : {}),
+        });
+    }
+    if (options.defaultSet) {
+        service.protect({
+            owner: PERMISSION_SETS_PROTECTION_OWNER,
+            keys: [options.defaultSet],
+            allow: ['update'],
+        });
+    }
+    return {
+        id: 'permission-sets',
+        grants: service.grantService(),
+        authorizationApi: { permissionSets: service },
+        setup(authz) {
+            service.useSubjects(authz.subjects);
+        },
+    };
+}
+function resolveRootSet(rootSet) {
+    if (rootSet === undefined)
+        return undefined;
+    return typeof rootSet === 'string' ? { key: rootSet } : rootSet;
+}
+class PermissionSetService {
+    store;
+    shared;
+    transaction;
+    protections;
+    constructor(store, shared = {
+        protections: new Map(),
+        subscribers: new Set(),
+    }, transaction) {
+        this.store = store;
+        this.shared = shared;
+        this.transaction = transaction;
+        this.protections = shared.protections;
+    }
+    /** The registry that answers which subjects can still act. */
+    useSubjects(subjects) {
+        this.shared.subjects = subjects;
+    }
+    /** The Grant Provider side, kept off the public API. */
+    grantService() {
+        return {
+            resolve: (input) => this.resolveGrants(input),
+            resolveAll: (input) => this.resolveAllGrants(input),
+            for: (identity) => this.grantsFor(identity),
+            unrestricted: async (identity) => this.hasUnrestrictedSets() &&
+                this.setsAreUnrestricted(await this.getEffective(identity)),
+            onChange: (listener) => this.onChange(listener),
+        };
+    }
+    protect(protection) {
+        const allow = [...new Set(protection.allow ?? [])];
+        const registered = [];
+        for (const key of protection.keys) {
+            const existing = this.protections.get(key);
+            if (existing && existing.owner !== protection.owner) {
+                throw new Error(`Permission Set "${key}" is already protected by ${existing.owner}`);
+            }
+            this.protections.set(key, {
+                owner: protection.owner,
+                allow,
+                ...(protection.requireActiveAssignment
+                    ? { requireActiveAssignment: true }
+                    : {}),
+                ...(protection.unrestricted ? { unrestricted: true } : {}),
+                ...(protection.assignableTo
+                    ? { assignableTo: [...protection.assignableTo] }
+                    : {}),
+                ...(protection.hidden ? { hidden: true } : {}),
+            });
+            registered.push(key);
+        }
+        return () => {
+            for (const key of registered) {
+                if (this.protections.get(key)?.owner === protection.owner) {
+                    this.protections.delete(key);
+                }
+            }
+        };
+    }
+    protection(key) {
+        return this.protections.get(key);
+    }
+    assertWritable(key, operation) {
+        const protection = this.protections.get(key);
+        if (!protection || protection.allow.includes(operation))
+            return;
+        throw new PermissionSetProtectedError(key, protection.owner, operation);
+    }
+    async resolveGrants(input) {
+        const grants = await this.resolveAllGrants({
+            principal: input.principal,
+            subjects: input.subjects,
+        });
+        return grants
+            .filter((grant) => this.resourceMatches(grant.resource, input.resource) &&
+            grant.action === input.action)
+            .map((grant) => ({ ...grant, resource: input.resource }));
+    }
+    async resolveAllGrants(input) {
+        return this.toGrants(await this.getEffective(input));
+    }
+    grantsFor(identity) {
+        // One store read per request: every derived answer comes from this promise.
+        let sets;
+        const effective = () => {
+            sets ??= this.getEffective(identity);
+            return sets;
+        };
+        let grants;
+        const resolveAll = () => {
+            grants ??= effective().then((resolved) => this.toGrants(resolved));
+            return grants;
+        };
+        return {
+            resolve: async (input) => (await resolveAll())
+                .filter((grant) => this.resourceMatches(grant.resource, input.resource) &&
+                grant.action === input.action)
+                .map((grant) => ({ ...grant, resource: input.resource })),
+            resolveAll,
+            unrestricted: async () => this.hasUnrestrictedSets() &&
+                this.setsAreUnrestricted(await effective()),
+        };
+    }
+    hasUnrestrictedSets() {
+        for (const protection of this.protections.values()) {
+            if (protection.unrestricted)
+                return true;
+        }
+        return false;
+    }
+    setsAreUnrestricted(sets) {
+        return sets.some((set) => this.protections.get(set.key)?.unrestricted);
+    }
+    toGrants(sets) {
+        return sets.flatMap((set) => set.grants.flatMap((grant) => grant.actions.map((action) => ({
+            source: {
+                plugin: 'permission-sets',
+                id: set.key,
+                ...(set.title === undefined ? {} : { title: set.title }),
+            },
+            resource: grant.resource,
+            action: action.action,
+            ...(action.policy === undefined ? {} : { policy: action.policy }),
+        }))));
+    }
+    getEffective(input) {
+        return this.resolvePermissionSets(input);
+    }
+    async create(input) {
+        if (await this.store.get(input.key)) {
+            throw new PermissionSetConflictError(`Permission Set already exists: ${input.key}`);
+        }
+        return this.store.create(this.toPermissionSet(input));
+    }
+    async update(key, input) {
+        if (!(await this.store.get(key))) {
+            throw new PermissionSetNotFoundError(key);
+        }
+        if (key !== input.key && (await this.store.get(input.key))) {
+            throw new PermissionSetConflictError(`Permission Set already exists: ${input.key}`);
+        }
+        const affectedSubjects = await this.assignedSubjects(key);
+        const permissionSet = await this.store.update(key, this.toPermissionSet(input));
+        await this.notifySubjectsChanged(affectedSubjects);
+        return permissionSet;
+    }
+    async delete(key) {
+        if (!(await this.store.get(key))) {
+            throw new PermissionSetNotFoundError(key);
+        }
+        const affectedSubjects = await this.assignedSubjects(key);
+        await this.store.delete(key);
+        await this.notifySubjectsChanged(affectedSubjects);
+    }
+    get(key) {
+        return this.store.get(key);
+    }
+    list() {
+        return this.store.list();
+    }
+    async assign(input) {
+        if (!(await this.store.get(input.permissionSet))) {
+            throw new PermissionSetNotFoundError(input.permissionSet);
+        }
+        this.assertAssignableTo(input.permissionSet, input.subject);
+        const assignment = await this.store.assign({
+            id: input.id ?? this.createAssignmentId(input),
+            subject: input.subject,
+            permissionSet: input.permissionSet,
+        });
+        await this.notifyAssignmentsChanged(input.subject);
+        return assignment;
+    }
+    async revoke(id) {
+        const assignment = await this.mutateAssignments((service) => service.revokeAssignment(id));
+        if (assignment)
+            await this.notifyAssignmentsChanged(assignment.subject);
+    }
+    async revokeAssignment(id) {
+        await this.lockProtectedSets();
+        const assignment = (await this.store.listAssignments()).find((item) => item.id === id);
+        if (assignment)
+            await this.assertRetainsAssignment(assignment);
+        await this.store.revoke(id);
+        return assignment;
+    }
+    listAssignments(permissionSet) {
+        return this.store.listAssignments(permissionSet);
+    }
+    async replaceSubjectAssignments(input) {
+        const result = await this.mutateAssignments((service) => service.replaceAssignments(input));
+        if (result.changed)
+            await this.notifyAssignmentsChanged(input.subject);
+        return result.assignments;
+    }
+    async replaceAssignments(input) {
+        await this.lockProtectedSets();
+        const managed = new Set(input.managedPermissionSets);
+        const requested = [...new Set(input.permissionSets)];
+        if (requested.some((key) => !managed.has(key))) {
+            throw new TypeError('Replacement Permission Sets must belong to the managed scope');
+        }
+        for (const key of requested) {
+            if (!(await this.store.get(key))) {
+                throw new PermissionSetNotFoundError(key);
+            }
+            this.assertAssignableTo(key, input.subject);
+        }
+        const existing = (await this.store.listAssignments()).filter((assignment) => assignment.subject.type === input.subject.type &&
+            assignment.subject.id === input.subject.id &&
+            managed.has(assignment.permissionSet));
+        const requestedSet = new Set(requested);
+        const removed = existing.filter((assignment) => !requestedSet.has(assignment.permissionSet));
+        // Refuse the whole replacement before it writes anything.
+        for (const assignment of removed) {
+            await this.assertRetainsAssignment(assignment);
+        }
+        for (const assignment of removed) {
+            await this.store.revoke(assignment.id);
+        }
+        const existingKeys = new Set(existing.map((assignment) => assignment.permissionSet));
+        const created = [];
+        for (const permissionSet of requested) {
+            if (existingKeys.has(permissionSet))
+                continue;
+            const assignment = {
+                id: this.createAssignmentId({
+                    subject: input.subject,
+                    permissionSet,
+                }),
+                subject: input.subject,
+                permissionSet,
+            };
+            created.push(await this.store.assign(assignment));
+        }
+        const kept = existing.filter((assignment) => requestedSet.has(assignment.permissionSet));
+        return {
+            assignments: [...kept, ...created],
+            changed: created.length > 0 || removed.length > 0,
+        };
+    }
+    mutateAssignments(run) {
+        if (this.transaction !== undefined || !this.store.transaction)
+            return run(this);
+        return this.store.transaction((transaction) => run(new PermissionSetService(this.store.withTransaction(transaction), this.shared, transaction)));
+    }
+    async lockProtectedSets() {
+        // Lock before the first assignment read, including under repeatable-read
+        // isolation. All removal paths acquire multiple guards in the same order.
+        const keys = [...this.protections]
+            .filter(([, protection]) => protection.requireActiveAssignment)
+            .map(([key]) => key)
+            .sort();
+        for (const key of keys)
+            await this.store.lock?.(key);
+    }
+    onChange(listener) {
+        this.shared.subscribers.add(listener);
+        return () => {
+            this.shared.subscribers.delete(listener);
+        };
+    }
+    async notifyAssignmentsChanged(subject) {
+        if (this.transaction === undefined) {
+            await this.publishAssignmentsChanged(subject);
+            return;
+        }
+        // Bound to a transaction, a change is only real once it commits. A
+        // @nocobase/db connection runs the publication after its commit and drops
+        // it on rollback; any other transaction leaves publishing to its owner.
+        afterCommitHook(this.transaction)?.(() => this.publishAssignmentsChanged(subject));
+    }
+    async publishAssignmentsChanged(subject) {
+        for (const listener of this.shared.subscribers)
+            await listener(subject);
+    }
+    withTransaction(transaction) {
+        return new PermissionSetService(this.store.withTransaction(transaction), this.shared, transaction);
+    }
+    async assertSubjectRemovable(subject) {
+        await this.lockProtectedSets();
+        const assignments = await this.store.listAssignments();
+        for (const assignment of assignments) {
+            if (assignment.subject.type === subject.type &&
+                assignment.subject.id === subject.id) {
+                await this.assertRetainsAssignment(assignment);
+            }
+        }
+    }
+    /**
+     * Enforced here rather than in the handler alone, so an application that
+     * assigns through the api is held to the same restriction.
+     */
+    assertAssignableTo(key, subject) {
+        const assignableTo = this.protections.get(key)?.assignableTo;
+        if (!assignableTo || assignableTo.includes(subject.type))
+            return;
+        throw new PermissionSetSubjectNotAllowedError(key, subject.type);
+    }
+    /**
+     * A Permission Set that requires an active assignment is the only source of
+     * the access it grants, so removing its last one would leave nobody able to
+     * restore it.
+     */
+    async assertRetainsAssignment(removing) {
+        const key = removing.permissionSet;
+        if (!this.protections.get(key)?.requireActiveAssignment)
+            return;
+        const remaining = (await this.store.listAssignments(key)).filter((assignment) => assignment.id !== removing.id);
+        const active = await this.activeSubjects(remaining.map((assignment) => assignment.subject));
+        if (active.length === 0) {
+            throw new PermissionSetLastAssignmentError(key);
+        }
+    }
+    /** Every subject counts until a declared subject type says otherwise. */
+    async activeSubjects(subjects) {
+        return ((await this.shared.subjects?.filterActive(subjects, this.transaction)) ??
+            subjects);
+    }
+    async assignedSubjects(permissionSet) {
+        const assignments = await this.store.listAssignments(permissionSet);
+        const subjects = new Map();
+        for (const assignment of assignments) {
+            subjects.set(`${assignment.subject.type}\u0000${assignment.subject.id}`, assignment.subject);
+        }
+        return [...subjects.values()];
+    }
+    async notifySubjectsChanged(subjects) {
+        for (const subject of subjects) {
+            await this.notifyAssignmentsChanged(subject);
+        }
+    }
+    toPermissionSet(input) {
+        return {
+            key: input.key,
+            ...(input.title === undefined ? {} : { title: input.title }),
+            grants: [...input.grants],
+        };
+    }
+    async resolvePermissionSets(input) {
+        const subjects = resolveAuthorizationSubjects(input);
+        const assignments = await this.store.findAssignments(subjects);
+        const keys = new Set(assignments.map((assignment) => assignment.permissionSet));
+        const requested = [...keys];
+        const sets = await Promise.all(requested.map((key) => this.store.get(key)));
+        const missing = sets.findIndex((set) => set === undefined);
+        if (missing >= 0) {
+            throw new Error(`Unknown Permission Set: ${requested[missing]}`);
+        }
+        return sets;
+    }
+    resourceMatches(configured, requested) {
+        return (configured.type === requested.type &&
+            (configured.id === '*' || configured.id === requested.id));
+    }
+    createAssignmentId(input) {
+        return `${input.subject.type}:${input.subject.id}:${input.permissionSet}`;
+    }
+}
+/**
+ * The `afterCommit` of a transaction that offers one, as a @nocobase/db
+ * connection does. The store's transaction type is opaque here, so the
+ * capability is detected rather than required.
+ */
+function afterCommitHook(transaction) {
+    if (typeof transaction !== 'object' || transaction === null)
+        return undefined;
+    const afterCommit = Reflect.get(transaction, 'afterCommit');
+    if (typeof afterCommit !== 'function')
+        return undefined;
+    return (callback) => {
+        Reflect.apply(afterCommit, transaction, [callback]);
+    };
+}
+//# sourceMappingURL=plugin.js.map

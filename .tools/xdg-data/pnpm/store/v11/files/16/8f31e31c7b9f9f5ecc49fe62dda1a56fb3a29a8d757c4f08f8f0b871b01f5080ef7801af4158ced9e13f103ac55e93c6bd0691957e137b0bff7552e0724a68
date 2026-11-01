@@ -1,0 +1,7 @@
+import { ToolCommand } from "../lib/tool-command.js";
+export default class Start extends ToolCommand {
+    static summary = 'Start the built server from dist/.';
+    static description = 'A shortcut for running dist/server/standalone.js from the source checkout. A deployment starts that file directly, without the CLI.';
+    tool = 'start';
+}
+//# sourceMappingURL=start.js.map

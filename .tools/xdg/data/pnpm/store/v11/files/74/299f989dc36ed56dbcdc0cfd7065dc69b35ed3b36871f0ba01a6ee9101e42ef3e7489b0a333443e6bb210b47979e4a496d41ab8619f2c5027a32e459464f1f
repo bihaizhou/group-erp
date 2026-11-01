@@ -1,0 +1,7 @@
+import { type ConfigMap } from '@nocobase/config';
+import type { DatabaseTaskConfig } from '@nocobase/db';
+/** Capture ordinary configuration values once, using the application's path semantics. */
+export declare function snapshotDatabaseTaskConfig(config?: DatabaseTaskConfig & {
+    raw?(): ConfigMap;
+}): DatabaseTaskConfig;
+//# sourceMappingURL=task-config.d.ts.map

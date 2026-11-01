@@ -1,0 +1,5 @@
+import type { QueryAdapter } from '@nocobase/db';
+/** The caller holds the account write lock. Closed drafts are never resurrected. */
+export declare function acceptDraftWrite(query: QueryAdapter, accountId: string, providerMessageId: string, revision?: number): Promise<boolean>;
+export declare function closeDrafts(query: QueryAdapter, accountId: string, messageId?: string, draftKey?: string): Promise<void>;
+//# sourceMappingURL=draft-states.d.ts.map

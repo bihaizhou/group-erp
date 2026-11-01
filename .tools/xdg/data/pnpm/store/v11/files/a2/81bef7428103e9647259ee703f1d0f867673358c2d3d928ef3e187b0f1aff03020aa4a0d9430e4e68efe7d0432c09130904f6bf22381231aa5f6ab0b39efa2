@@ -1,0 +1,46 @@
+export const DEFAULT_SCOPES = [
+    'openid',
+    'profile',
+    'email',
+    'offline_access',
+    'https://graph.microsoft.com/User.Read',
+    'https://graph.microsoft.com/Mail.ReadWrite',
+    'https://graph.microsoft.com/Mail.Send',
+];
+export const MESSAGE_SELECT = [
+    'id',
+    'internetMessageId',
+    'conversationId',
+    'parentFolderId',
+    'from',
+    'toRecipients',
+    'ccRecipients',
+    'bccRecipients',
+    'replyTo',
+    'subject',
+    'bodyPreview',
+    'body',
+    'receivedDateTime',
+    'sentDateTime',
+    'isRead',
+    'isDraft',
+    'flag',
+    'hasAttachments',
+].join(',');
+export const SIMPLE_ATTACHMENT_LIMIT = 3 * 1024 * 1024;
+export const UPLOAD_CHUNK_SIZE = 10 * 320 * 1024;
+export const HTTP_TIMEOUT_MS = 30 * 1_000;
+export const MESSAGE_NORMALIZATION_CONCURRENCY = 8;
+export const MAX_PROVIDER_JSON_BYTES = 32 * 1024 * 1024;
+export const MICROSOFT_CAPABILITIES = {
+    receive: true,
+    send: true,
+    incrementalSync: true,
+    pushNotifications: true,
+    folders: true,
+    labels: false,
+    drafts: true,
+    moveMessage: true,
+    aliases: true,
+};
+//# sourceMappingURL=constants.js.map

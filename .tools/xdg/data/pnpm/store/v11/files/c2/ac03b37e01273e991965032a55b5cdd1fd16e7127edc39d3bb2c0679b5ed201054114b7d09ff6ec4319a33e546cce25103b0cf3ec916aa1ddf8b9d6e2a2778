@@ -1,0 +1,33 @@
+import type { DatabaseDialect } from '../../database/config.js';
+import { SchemaInspectorError } from './errors.js';
+import { type DecodedPhysicalCollectionCursor } from './shared/cursor.js';
+import type { ListPhysicalCollectionsOptions, PhysicalCollectionIdentifier, PhysicalCollectionPage, PhysicalCollectionSchema, PhysicalCollectionSummary, PhysicalSchemaInfo, ScanPhysicalCollectionsOptions, SchemaInspector } from './types.js';
+export interface NormalizedPhysicalCollectionListOptions {
+    readonly limit: number;
+    readonly schemas?: readonly string[];
+    readonly tableNamePrefixes?: readonly string[];
+    readonly kinds?: ListPhysicalCollectionsOptions['kinds'];
+}
+export declare abstract class BaseSchemaInspector implements SchemaInspector {
+    protected readonly connectionName: string;
+    protected readonly dialect: DatabaseDialect;
+    protected constructor(connectionName: string, dialect: DatabaseDialect);
+    listSchemas(): Promise<PhysicalSchemaInfo[]>;
+    getPhysicalCollection(identifier: PhysicalCollectionIdentifier): Promise<PhysicalCollectionSchema | undefined>;
+    listPhysicalCollections(options?: ListPhysicalCollectionsOptions): Promise<PhysicalCollectionPage>;
+    scanPhysicalCollections(options?: ScanPhysicalCollectionsOptions): AsyncIterable<PhysicalCollectionSchema>;
+    protected abstract inspectSchemas(): Promise<PhysicalSchemaInfo[]>;
+    protected abstract inspectCollection(identifier: PhysicalCollectionIdentifier): Promise<PhysicalCollectionSchema | undefined>;
+    protected abstract inspectCollectionSummaries(options: NormalizedPhysicalCollectionListOptions, after: DecodedPhysicalCollectionCursor['after'] | undefined, fetchLimit: number): Promise<PhysicalCollectionSummary[]>;
+    protected invalidOptions(message: string, identifier?: Partial<PhysicalCollectionIdentifier>): SchemaInspectorError;
+    private normalizeListOptions;
+    private resolveCursor;
+    private assertIdentifier;
+    private assertOptionsObject;
+    private assertPageSize;
+    private normalizeStrings;
+    private normalizeKinds;
+    private run;
+    protected canRetryDeadlock(): Promise<boolean>;
+    protected isRetryableError(error: unknown): boolean;
+}

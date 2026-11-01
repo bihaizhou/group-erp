@@ -1,0 +1,52 @@
+import { Queue, Worker, type Job } from 'bullmq';
+import type { ResolvedRedisJobsConfig } from '../../config.js';
+import { type ScheduleBackend, type ScheduleExecutionSettings, type ScheduleRuleWrite, type ScheduleRunner, type StoredScheduleRule } from '../executor.js';
+import type { JobsLogger } from '../../types.js';
+import type { JobScheduler } from '../types.js';
+/** The part of a BullMQ `Queue` this backend calls, all of it public API. */
+export type ScheduleQueue = Pick<Queue, 'upsertJobScheduler' | 'getJobScheduler' | 'getJobSchedulers' | 'getJobSchedulersCount' | 'removeJobScheduler' | 'waitUntilReady' | 'close' | 'on'>;
+/** The part of a BullMQ `Worker` this backend calls, all of it public API. */
+export type ScheduleWorker = Pick<Worker, 'waitUntilReady' | 'close' | 'cancelAllJobs' | 'on'>;
+export type ScheduleProcessor = (job: Job, token: string | undefined, signal: AbortSignal | undefined) => Promise<void>;
+/** Creates the BullMQ objects; tests replace them with doubles of the same public API. */
+export interface RedisScheduleBackendFactories {
+    readonly queue: (config: ResolvedRedisJobsConfig) => ScheduleQueue;
+    readonly worker: (config: ResolvedRedisJobsConfig, processor: ScheduleProcessor) => ScheduleWorker;
+}
+export declare const defaultRedisFactories: RedisScheduleBackendFactories;
+/**
+ * Stores rules as BullMQ job schedulers — the scope is the queue name and the
+ * namespace its prefix — and runs them on a BullMQ worker. Everything goes
+ * through BullMQ's public API: no Redis client, key layout, script or job id
+ * format is relied on.
+ */
+export declare class RedisScheduleBackend implements ScheduleBackend {
+    private readonly config;
+    private readonly logger;
+    private readonly factories;
+    readonly settings: ScheduleExecutionSettings;
+    private queue;
+    private worker;
+    private runner;
+    private events;
+    constructor(config: ResolvedRedisJobsConfig, logger: JobsLogger | undefined, factories?: RedisScheduleBackendFactories);
+    open(): Promise<void>;
+    read(name: string): Promise<StoredScheduleRule | undefined>;
+    write(rule: ScheduleRuleWrite): Promise<Date | undefined>;
+    remove(name: string): Promise<boolean>;
+    count(): Promise<number>;
+    list(start: number, end: number): Promise<JobScheduler[]>;
+    consume(runner: ScheduleRunner): Promise<void>;
+    close(): Promise<void>;
+    private process;
+    /** Builds events one after another, so they reach subscribers in the order BullMQ emitted them. */
+    private report;
+    /**
+     * The firing after `job`. Once a scheduler has spent its `limit`, BullMQ
+     * keeps reporting the last planned time as `next`; a `next` that is not
+     * after this firing is therefore no further firing at all.
+     */
+    private nextRunAt;
+    private openQueue;
+}
+//# sourceMappingURL=backend.d.ts.map

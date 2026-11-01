@@ -1,0 +1,4 @@
+import { type ReactElement } from 'react';
+import type { MailComposerComponentProps } from '../contracts/composer.js';
+export declare function MailComposer(props: MailComposerComponentProps): ReactElement;
+//# sourceMappingURL=mail-composer.d.ts.map

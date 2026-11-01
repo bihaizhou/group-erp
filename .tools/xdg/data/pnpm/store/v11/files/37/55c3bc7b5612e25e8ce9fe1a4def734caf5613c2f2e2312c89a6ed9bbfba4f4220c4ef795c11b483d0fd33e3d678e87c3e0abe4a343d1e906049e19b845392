@@ -1,0 +1,200 @@
+/** Detached immutable builders; callbacks return the next value explicitly. */
+export class ReadPermissionBuilder {
+    value;
+    constructor(value = {}) {
+        this.value = value;
+        this.value = structuredClone(value);
+    }
+    fields(...fields) {
+        return new ReadPermissionBuilder({ ...this.value, fields });
+    }
+    allFields() {
+        return new ReadPermissionBuilder({ ...this.value, fields: '*' });
+    }
+    recordAccess(...rules) {
+        return new ReadPermissionBuilder({
+            ...this.value,
+            recordAccess: rules.map((rule) => typeof rule === 'string'
+                ? rule
+                : {
+                    key: rule.key,
+                    ...(rule.params === undefined ? {} : { params: rule.params }),
+                }),
+        });
+    }
+    relation(name, configure) {
+        const relations = this.value.relations || {};
+        if (Object.hasOwn(relations, name))
+            throw new TypeError(`Duplicate relation: ${name}`);
+        return new ReadPermissionBuilder({
+            ...this.value,
+            relations: {
+                ...relations,
+                [name]: configure(new ReadPermissionBuilder()).build(),
+            },
+        });
+    }
+    build() {
+        return structuredClone(this.value);
+    }
+}
+export class ThroughPermissionBuilder {
+    value;
+    constructor(value = {}) {
+        this.value = value;
+        this.value = structuredClone(value);
+    }
+    through(configure) {
+        return new ThroughPermissionBuilder({
+            through: configure(new PermissionFieldsBuilder()).build(),
+        });
+    }
+    build() {
+        return structuredClone(this.value);
+    }
+}
+export class PermissionFieldsBuilder {
+    value;
+    constructor(value = {}) {
+        this.value = value;
+        this.value = structuredClone(value);
+    }
+    fields(...fields) {
+        return new PermissionFieldsBuilder({ fields });
+    }
+    allFields() {
+        return new PermissionFieldsBuilder({ fields: '*' });
+    }
+    build() {
+        return structuredClone(this.value);
+    }
+}
+export class WritePermissionBuilder {
+    value;
+    createOnly;
+    allowThrough;
+    nested;
+    constructor(value = {}, createOnly = false, allowThrough = false, nested = false) {
+        this.value = value;
+        this.createOnly = createOnly;
+        this.allowThrough = allowThrough;
+        this.nested = nested;
+        this.value = structuredClone(value);
+    }
+    fields(...fields) {
+        return new WritePermissionBuilder({ ...this.value, fields }, this.createOnly, this.allowThrough, this.nested);
+    }
+    allFields() {
+        return new WritePermissionBuilder({ ...this.value, fields: '*' }, this.createOnly, this.allowThrough, this.nested);
+    }
+    recordAccess(...rules) {
+        return new WritePermissionBuilder({
+            ...this.value,
+            recordAccess: rules.map((rule) => typeof rule === 'string'
+                ? rule
+                : {
+                    key: rule.key,
+                    ...(rule.params === undefined ? {} : { params: rule.params }),
+                }),
+        }, this.createOnly, this.allowThrough, this.nested);
+    }
+    relation(name, configure) {
+        const relations = this.value.relations || {};
+        if (Object.hasOwn(relations, name))
+            throw new TypeError(`Duplicate relation: ${name}`);
+        const builder = new RelationPermissionBuilder(this.createOnly);
+        const result = configure(builder);
+        return new WritePermissionBuilder({ ...this.value, relations: { ...relations, [name]: result.build() } }, this.createOnly, this.allowThrough, this.nested);
+    }
+    through(configure) {
+        return new WritePermissionBuilder({
+            ...this.value,
+            through: configure(new PermissionFieldsBuilder()).build(),
+        }, this.createOnly, this.allowThrough, this.nested);
+    }
+    build() {
+        return structuredClone(this.value);
+    }
+}
+export class RelationPermissionBuilder {
+    createOnly;
+    value;
+    constructor(createOnly = false, value = {}) {
+        this.createOnly = createOnly;
+        this.value = value;
+        this.value = structuredClone(value);
+    }
+    recordAccess(...rules) {
+        return new RelationPermissionBuilder(this.createOnly, {
+            ...this.value,
+            recordAccess: rules.map((rule) => typeof rule === 'string'
+                ? rule
+                : {
+                    key: rule.key,
+                    ...(rule.params === undefined ? {} : { params: rule.params }),
+                }),
+        });
+    }
+    operation(key, value) {
+        if (this.createOnly && !['create', 'connect'].includes(key))
+            throw new TypeError(`Relation operation ${key} is unavailable beneath create`);
+        if (Object.hasOwn(this.value, key))
+            throw new TypeError(`Duplicate relation operation: ${key}`);
+        return new RelationPermissionBuilder(this.createOnly, {
+            ...this.value,
+            [key]: value,
+        });
+    }
+    create(configure) {
+        return this.operation('create', configure(new WritePermissionBuilder({}, this.createOnly, true, true)).build());
+    }
+    update(configure) {
+        return this.operation('update', configure(new WritePermissionBuilder({}, false, false, true)).build());
+    }
+    upsert(configure) {
+        return this.operation('upsert', configure(new PermissionUpsertBuilder()).build());
+    }
+    connect(configure) {
+        return this.operation('connect', configure ? configure(new ThroughPermissionBuilder()).build() : {});
+    }
+    set(configure) {
+        return this.operation('set', configure ? configure(new ThroughPermissionBuilder()).build() : {});
+    }
+    disconnect() {
+        return this.operation('disconnect', {});
+    }
+    delete() {
+        return this.operation('delete', {});
+    }
+    build() {
+        return structuredClone(this.value);
+    }
+}
+export class PermissionUpsertBuilder {
+    value;
+    constructor(value = {}) {
+        this.value = value;
+        this.value = structuredClone(value);
+    }
+    create(configure) {
+        return new PermissionUpsertBuilder({
+            ...this.value,
+            create: configure(new WritePermissionBuilder({}, false, false, true)).build(),
+        });
+    }
+    update(configure) {
+        return new PermissionUpsertBuilder({
+            ...this.value,
+            update: configure(new WritePermissionBuilder({}, false, false, true)).build(),
+        });
+    }
+    build() {
+        if (!this.value.create || !this.value.update)
+            throw new TypeError('Upsert requires create and update permissions');
+        return structuredClone({
+            create: this.value.create,
+            update: this.value.update,
+        });
+    }
+}
+//# sourceMappingURL=permission-builders.js.map

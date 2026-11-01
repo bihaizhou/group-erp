@@ -1,0 +1,27 @@
+import { useState } from 'react';
+import { useAuthentication } from '../auth-provider.js';
+import { useAuthenticationErrorResolver } from './errors.js';
+export function usePasswordRegistration() {
+    const { client, refresh } = useAuthentication();
+    const resolveError = useAuthenticationErrorResolver();
+    const [state, setState] = useState({ pending: false });
+    return {
+        error: state.error,
+        isPending: state.pending,
+        submit: async (input) => {
+            setState({ pending: true });
+            try {
+                await client.signUp.email(input, { throw: true });
+                await refresh();
+                setState({ pending: false });
+            }
+            catch (error) {
+                setState({
+                    pending: false,
+                    error: resolveError(error),
+                });
+            }
+        },
+    };
+}
+//# sourceMappingURL=use-password-registration.js.map

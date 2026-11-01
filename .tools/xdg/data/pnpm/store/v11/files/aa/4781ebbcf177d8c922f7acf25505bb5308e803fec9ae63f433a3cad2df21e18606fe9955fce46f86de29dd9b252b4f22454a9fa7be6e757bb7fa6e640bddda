@@ -1,0 +1,4 @@
+import type { AppServerPlugin, AppServerPluginDefinition, AppServerPlugins } from './types.js';
+export declare function defineServerPlugin<TConfig = object>(definition: AppServerPluginDefinition<TConfig>): AppServerPlugin<TConfig>;
+export declare function defineServerPlugins(plugins: readonly AppServerPlugin[]): AppServerPlugins;
+//# sourceMappingURL=define.d.ts.map

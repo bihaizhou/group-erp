@@ -1,0 +1,168 @@
+export class DefaultSelectBuilder {
+    constructor() {
+        this.selectedFields = [];
+        this.fieldsSpecified = false;
+        this.includedRelations = [];
+    }
+    fields(...fields) {
+        this.fieldsSpecified = true;
+        this.selectedFields.push(...fields);
+        return this;
+    }
+    include(relation, callback) {
+        return this.addInclude(relation, callback);
+    }
+    addInclude(relation, callback) {
+        const builder = new DefaultRelationSelectBuilder();
+        const state = relationSelectionState(callback ? callback(builder) : builder);
+        this.includedRelations.push({
+            ...state,
+            kind: 'include',
+            relation,
+            select: {
+                kind: 'selection',
+                fields: state.fields,
+                includes: state.includes,
+            },
+            filter: state.filter,
+            sort: state.sort,
+            limit: state.limit,
+            cursor: state.cursor,
+            direction: state.direction,
+        });
+        return this;
+    }
+    toState() {
+        return {
+            kind: 'selection',
+            fields: this.fieldsSpecified ? [...this.selectedFields] : undefined,
+            includes: [...this.includedRelations],
+        };
+    }
+}
+export class DefaultRelationSelectBuilder extends DefaultSelectBuilder {
+    clone() {
+        const copy = Object.assign(Object.create(Object.getPrototypeOf(this)), this);
+        copy.selectedFields = [...this.selectedFields];
+        copy.includedRelations = [...this.includedRelations];
+        return copy;
+    }
+    fields(...fields) {
+        const copy = this.clone();
+        copy.fieldsSpecified = true;
+        copy.selectedFields.push(...fields);
+        return copy;
+    }
+    include(relation, callback) {
+        const copy = this.clone();
+        copy.addInclude(relation, callback);
+        return copy;
+    }
+    distinct(fields) {
+        const copy = this.clone();
+        copy.relationDistinct = [...fields];
+        return copy;
+    }
+    count(field) {
+        return new DefaultRelationSelectionExpression(this.toState(), {
+            kind: 'count',
+            field,
+        });
+    }
+    sum(field) {
+        return new DefaultRelationSelectionExpression(this.toState(), {
+            kind: 'sum',
+            field,
+        });
+    }
+    avg(field) {
+        return new DefaultRelationSelectionExpression(this.toState(), {
+            kind: 'avg',
+            field,
+        });
+    }
+    min(field) {
+        return new DefaultRelationSelectionExpression(this.toState(), {
+            kind: 'min',
+            field,
+        });
+    }
+    max(field) {
+        return new DefaultRelationSelectionExpression(this.toState(), {
+            kind: 'max',
+            field,
+        });
+    }
+    combine(branches) {
+        return new DefaultRelationSelectionExpression(this.toState(), {
+            kind: 'combine',
+            branches: Object.fromEntries(Object.entries(branches).map(([key, branch]) => {
+                const state = relationSelectionState(branch);
+                return [
+                    key,
+                    {
+                        ...state,
+                        select: {
+                            kind: 'selection',
+                            fields: state.fields,
+                            includes: state.includes,
+                        },
+                    },
+                ];
+            })),
+        });
+    }
+    direction(direction) {
+        const copy = this.clone();
+        copy.relationDirection = direction;
+        return copy;
+    }
+    filter(filter) {
+        const copy = this.clone();
+        copy.relationFilter = filter;
+        return copy;
+    }
+    sort(sort) {
+        const copy = this.clone();
+        copy.relationSort = sort;
+        return copy;
+    }
+    limit(limit) {
+        const copy = this.clone();
+        copy.relationLimit = limit;
+        return copy;
+    }
+    cursor(cursor) {
+        const copy = this.clone();
+        copy.relationCursor = cursor;
+        return copy;
+    }
+    toState() {
+        return {
+            ...super.toState(),
+            filter: this.relationFilter,
+            sort: this.relationSort,
+            limit: this.relationLimit,
+            cursor: this.relationCursor,
+            direction: this.relationDirection,
+            distinct: this.relationDistinct,
+        };
+    }
+}
+class DefaultRelationSelectionExpression {
+    constructor(state, result) {
+        this.state = state;
+        this.result = result;
+        this.kind = 'relationSelectionExpression';
+    }
+    toState() {
+        return { ...this.state, result: this.result };
+    }
+}
+function relationSelectionState(value) {
+    if (value instanceof DefaultRelationSelectBuilder ||
+        value instanceof DefaultRelationSelectionExpression)
+        return value.toState();
+    throw new TypeError('Relation selection callbacks must return a relation builder or expression.');
+}
+//# sourceMappingURL=select-builder.js.map

@@ -1,0 +1,32 @@
+import type { DatabaseConnection } from '@nocobase/db';
+export interface AuthorizationRecordOption {
+    id: string;
+    label: string;
+    description?: string;
+}
+/** The collection metadata a record picker needs, read from db. */
+export interface AuthorizationRecordCollection {
+    readonly name: string;
+    readonly fields: readonly string[];
+}
+export interface AuthorizationRecordPage {
+    readonly items: readonly AuthorizationRecordOption[];
+    readonly total: number;
+}
+export interface AuthorizationAdministration {
+    /** One page of a Collection's records, or `undefined` when no Collection of that name exists. */
+    listRecords(collection: string, page: {
+        readonly page: number;
+        readonly pageSize: number;
+    }): Promise<AuthorizationRecordPage | undefined>;
+}
+export interface CreateAuthorizationAdministrationOptions {
+    connection?: DatabaseConnection;
+    resolveCollection(name: string): Promise<AuthorizationRecordCollection | undefined>;
+}
+/**
+ * Answers the record pickers on the Authorization settings pages, a page at a time. Only Collections db holds can be
+ * read, so a name that is none of them answers `undefined` rather than reaching the database.
+ */
+export declare function createAuthorizationAdministration(options: CreateAuthorizationAdministrationOptions): AuthorizationAdministration;
+//# sourceMappingURL=administration.d.ts.map

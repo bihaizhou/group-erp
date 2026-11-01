@@ -1,0 +1,79 @@
+import type { ResolvedAppServerPlugins } from './types.js';
+export interface AppServerInspectionIssue {
+    readonly code: 'SERVER_MIGRATIONS_DIRECTORY_MISSING' | 'SERVER_SEEDS_DIRECTORY_MISSING' | 'SERVER_QUEUE_JOBS_DEPRECATED';
+    readonly message: string;
+    readonly packageName: string;
+    /** Only errors make an inspection inconsistent. */
+    readonly severity: 'error' | 'warning';
+}
+export interface AppServerProviderSnapshot {
+    readonly order: number;
+    readonly pluginOrder: number;
+    readonly packageName: string;
+    readonly constructorName: string;
+}
+export interface AppServerRouteSnapshot {
+    readonly order: number;
+    readonly pluginOrder: number;
+    readonly contributionOrder: number;
+    readonly packageName: string;
+    readonly scope: 'api' | 'root';
+}
+export interface AppServerLocalesSnapshot {
+    readonly order: number;
+    readonly pluginOrder: number;
+    readonly packageName: string;
+}
+export interface AppServerDatabaseSnapshot {
+    readonly packageName: string;
+    readonly migrations?: {
+        readonly configured: string;
+        readonly resolved?: string;
+    };
+    readonly seeds?: {
+        readonly configured: string;
+        readonly resolved?: string;
+    };
+}
+/** A deprecated `queue.jobs` declaration, reported rather than resolved. */
+export interface AppServerJobsSnapshot {
+    readonly packageName: string;
+    readonly configuredLocations: readonly string[];
+}
+export interface AppServerPluginSnapshot {
+    readonly order: number;
+    readonly packageName: string;
+    readonly version: string;
+    readonly rootDir: string;
+    readonly baseDir: string;
+    readonly contributions: {
+        readonly serviceProviders: number;
+        readonly routes: number;
+        readonly locales: boolean;
+        readonly migrations: boolean;
+        readonly seeds: boolean;
+        /** Deprecated `queue.jobs` locations the plugin still declares; none is loaded. */
+        readonly jobLocations: number;
+    };
+}
+export interface AppServerInspectionSnapshot {
+    readonly app: {
+        readonly packageName: string;
+    };
+    readonly plugins: readonly AppServerPluginSnapshot[];
+    readonly serviceProviders: readonly AppServerProviderSnapshot[];
+    readonly routes: readonly AppServerRouteSnapshot[];
+    readonly locales: readonly AppServerLocalesSnapshot[];
+    readonly database: readonly AppServerDatabaseSnapshot[];
+    readonly jobs: readonly AppServerJobsSnapshot[];
+    readonly consistent: boolean;
+    readonly issues: readonly AppServerInspectionIssue[];
+    readonly suggestions: readonly string[];
+}
+/**
+ * Describes imported Server plugin declarations and resolved contribution locations without constructing Providers,
+ * running lifecycle code, executing Route factories, or loading locale resources.
+ * Importing the declarations remains the caller's responsibility and may execute module initialization code.
+ */
+export declare function inspectResolvedAppServerPlugins(resolved: ResolvedAppServerPlugins): AppServerInspectionSnapshot;
+//# sourceMappingURL=inspect.d.ts.map

@@ -1,0 +1,28 @@
+import { type NotificationChannelDefinition, type NotificationProviderDefinition } from '@nocobase/app-plugin-notification';
+import type { InAppStore } from './store.js';
+import type { InAppMessage, InAppRecipient } from './types.js';
+export interface InAppProviderConfig {
+    readonly provider: 'in-app';
+    readonly enabled?: boolean;
+}
+export type InAppChannelConfig = InAppProviderConfig;
+export interface PreparedInAppMessage {
+    readonly deliveryId: string;
+    readonly notificationId: string;
+    readonly recipient: InAppRecipient;
+    readonly content: InAppMessage;
+}
+export declare function createInAppChannelDefinition(): NotificationChannelDefinition<InAppChannelConfig, InAppRecipient, InAppMessage, PreparedInAppMessage>;
+export declare function createDatabaseProviderDefinition(options: {
+    readonly store: InAppStore;
+    readonly recipientExists: (userId: string) => Promise<boolean>;
+}): NotificationProviderDefinition<InAppProviderConfig, PreparedInAppMessage>;
+declare module '@nocobase/app-plugin-notification' {
+    interface NotificationChannelSchemas {
+        'in-app': {
+            readonly recipient: InAppRecipient;
+            readonly message: InAppMessage;
+        };
+    }
+}
+//# sourceMappingURL=definition.d.ts.map

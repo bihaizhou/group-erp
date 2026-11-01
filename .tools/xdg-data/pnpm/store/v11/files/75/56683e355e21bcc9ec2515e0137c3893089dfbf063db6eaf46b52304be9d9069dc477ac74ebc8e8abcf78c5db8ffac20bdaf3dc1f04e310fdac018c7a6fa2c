@@ -1,0 +1,15 @@
+import { type MailOperationContext, type MailOffsetPage, type MailStartSyncInput, type MailSyncRunView } from '../../shared/mail.js';
+import { type MailServiceDependencies } from './dependencies.js';
+export declare class MailSyncService {
+    private readonly dependencies;
+    private readonly scheduler;
+    constructor(dependencies: MailServiceDependencies<'cancelSyncRun' | 'countSyncRuns' | 'createSyncRun' | 'findActiveSyncRun' | 'getAccount' | 'getSyncCursor' | 'getSyncRun' | 'listSyncRuns', 'outbox'>, syncBatchSize: number);
+    startSync(context: MailOperationContext, input: MailStartSyncInput): Promise<MailSyncRunView>;
+    getSyncRun(context: MailOperationContext, syncRunId: string): Promise<MailSyncRunView | undefined>;
+    listSyncRunsPage(context: MailOperationContext, offset?: number, limit?: number): Promise<MailOffsetPage<MailSyncRunView>>;
+    listSyncRuns(context: MailOperationContext, offset?: number, limit?: number): Promise<readonly MailSyncRunView[]>;
+    retrySyncRun(context: MailOperationContext, syncRunId: string): Promise<MailSyncRunView>;
+    cancelSyncRun(context: MailOperationContext, syncRunId: string): Promise<MailSyncRunView>;
+    private requireOwnedSyncRun;
+}
+//# sourceMappingURL=sync.d.ts.map

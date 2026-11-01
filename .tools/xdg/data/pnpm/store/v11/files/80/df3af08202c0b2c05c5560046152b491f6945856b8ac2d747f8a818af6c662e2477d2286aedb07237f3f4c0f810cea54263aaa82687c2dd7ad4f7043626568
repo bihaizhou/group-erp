@@ -1,0 +1,30 @@
+import { type CollectionDefinition, type FieldDefinition, type NormalizedRepositoryPolicy } from '@nocobase/db';
+import type { MiddlewareHandler } from 'hono';
+import type { OpenAPIV3_1 } from 'openapi-types';
+import type { RepositoryApiAction } from '../repository-routes.js';
+import type { ApiSchema } from './describe.js';
+/** What the document generator needs to describe one data endpoint. */
+export interface RepositoryEndpointDescriptor {
+    readonly exposure: string;
+    readonly collection: string;
+    readonly connection: string | undefined;
+    readonly action: RepositoryApiAction;
+    readonly maxLimit: number;
+    /** The exposure's fixed Policy, or `undefined` when the Policy is built per request from the principal. */
+    readonly policy: NormalizedRepositoryPolicy | undefined;
+    /** Fields the exposure adds to every returned record, documented read-only in its record schema. */
+    readonly computedFields: Readonly<Record<string, ApiSchema>>;
+    readonly loadCollection: () => Promise<CollectionDefinition | undefined>;
+}
+type SchemaObject = OpenAPIV3_1.SchemaObject;
+/** The declaration a data endpoint registers, so it is documented without a hand-written `describeRoute()`. */
+export declare function describeRepositoryEndpoint(descriptor: RepositoryEndpointDescriptor): MiddlewareHandler;
+/** The JSON shape a scalar field's value takes over HTTP, before nullability. */
+export declare function fieldValueSchema(field: FieldDefinition): SchemaObject;
+/**
+ * Replace each data endpoint's placeholder declaration in `document` with its operation: per-field record, `values`
+ * and filter schemas read from the Collection, and the shared Repository components.
+ */
+export declare function expandRepositoryOperations(document: OpenAPIV3_1.Document): Promise<void>;
+export {};
+//# sourceMappingURL=repository-document.d.ts.map

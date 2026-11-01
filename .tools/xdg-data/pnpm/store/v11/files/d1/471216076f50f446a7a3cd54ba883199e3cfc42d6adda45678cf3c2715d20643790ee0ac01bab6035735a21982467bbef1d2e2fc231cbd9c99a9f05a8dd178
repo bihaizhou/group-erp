@@ -1,0 +1,8 @@
+import type { ConfigMap, ConfigProvider } from '../types.js';
+export interface ObjectProviderOptions {
+    readonly name?: string;
+    readonly delimiter?: string;
+    readonly flat?: boolean;
+}
+export declare function objectProvider(value: ConfigMap, options?: ObjectProviderOptions): ConfigProvider;
+//# sourceMappingURL=object.d.ts.map

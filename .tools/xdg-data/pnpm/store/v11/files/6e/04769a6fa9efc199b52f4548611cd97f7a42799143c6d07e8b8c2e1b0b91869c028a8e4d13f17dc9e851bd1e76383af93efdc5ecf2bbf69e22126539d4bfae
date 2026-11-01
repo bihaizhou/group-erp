@@ -1,0 +1,5 @@
+import { type NotificationProviderDefinition } from '@nocobase/app-plugin-notification';
+import type { PreparedEmailMessage, SmtpProviderConfig } from '../types.js';
+export declare function defineSmtpProviderConfig(input: Omit<SmtpProviderConfig, 'provider'>): SmtpProviderConfig;
+export declare function createSmtpProviderDefinition(): NotificationProviderDefinition<SmtpProviderConfig, PreparedEmailMessage>;
+//# sourceMappingURL=smtp.d.ts.map

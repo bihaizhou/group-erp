@@ -1,0 +1,24 @@
+import type { UserAdministrationService } from '@nocobase/app-plugin-authentication';
+import type { DatabaseManager } from '@nocobase/db';
+import { type UserManagementService, type UserRoleScope, type UserRoleValue } from '../tokens.js';
+import { type InvitationMailer } from './mail.js';
+/** Where links point and what the email calls the application. */
+export interface InvitationSite {
+    /** Configured origin, falling back to the invitation request origin when omitted. */
+    readonly publicOrigin?: string;
+    readonly publicBasePath: string;
+    readonly appTitle: string;
+}
+export interface InvitationManagerOptions {
+    readonly database: DatabaseManager;
+    readonly users: UserAdministrationService;
+    readonly requireScope: (key: string) => UserRoleScope;
+    /** The checks account creation applies: known scopes, valid values, required scopes present. */
+    readonly validateRoleScopes: (roleScopes: Readonly<Record<string, UserRoleValue>>) => void;
+    readonly mailer: InvitationMailer;
+    readonly site: InvitationSite;
+    readonly onRoleScopesChanged?: (userId: string) => void | Promise<void>;
+}
+export type InvitationManager = Pick<UserManagementService, 'invite' | 'listInvitations' | 'getInvitation' | 'resendInvitation' | 'revokeInvitation' | 'lookupInvitation' | 'acceptInvitation' | 'onInvitationAccepted'>;
+export declare function createInvitationManager(options: InvitationManagerOptions): InvitationManager;
+//# sourceMappingURL=service.d.ts.map

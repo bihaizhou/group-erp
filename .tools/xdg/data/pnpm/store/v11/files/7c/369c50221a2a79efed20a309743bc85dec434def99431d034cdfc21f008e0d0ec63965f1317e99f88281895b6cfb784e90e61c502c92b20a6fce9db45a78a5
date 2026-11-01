@@ -1,0 +1,2 @@
+export function resolvePluginWatchIncludes(rootDir: any): Promise<string[]>;
+//# sourceMappingURL=plugin-watches.d.mts.map

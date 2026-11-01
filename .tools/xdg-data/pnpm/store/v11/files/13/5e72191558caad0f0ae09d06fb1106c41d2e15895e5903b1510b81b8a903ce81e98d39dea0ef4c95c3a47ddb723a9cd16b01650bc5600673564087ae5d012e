@@ -1,0 +1,16 @@
+/**
+ * A failure with a canonical status and a stable reason, thrown by the read
+ * helpers. The routes answer it as an `ApiError` in the `databaseExplorer`
+ * domain, with `code` as its `reason`.
+ */
+export class DatabaseExplorerError extends Error {
+    code;
+    status;
+    constructor(code, status, message, options) {
+        super(message, options);
+        this.code = code;
+        this.status = status;
+        this.name = 'DatabaseExplorerError';
+    }
+}
+//# sourceMappingURL=types.js.map

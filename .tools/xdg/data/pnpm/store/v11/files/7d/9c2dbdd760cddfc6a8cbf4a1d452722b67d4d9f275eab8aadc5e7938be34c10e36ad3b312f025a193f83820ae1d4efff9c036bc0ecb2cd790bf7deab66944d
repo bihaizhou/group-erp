@@ -1,0 +1,4 @@
+import { type SeedDefinition } from '@nocobase/db';
+declare const seed: SeedDefinition;
+export default seed;
+//# sourceMappingURL=202608240001_authorization_create_root_set.d.ts.map

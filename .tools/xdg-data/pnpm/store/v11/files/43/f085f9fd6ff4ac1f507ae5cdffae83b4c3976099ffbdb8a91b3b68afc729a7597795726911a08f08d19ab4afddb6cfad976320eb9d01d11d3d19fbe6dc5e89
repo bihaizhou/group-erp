@@ -1,0 +1,8 @@
+import { MailCoreProvider } from './mail-core.js';
+import { MailBuiltinsProvider } from './mail-builtins.js';
+export const serviceProviders = [
+    MailCoreProvider,
+    MailBuiltinsProvider,
+];
+export default serviceProviders;
+//# sourceMappingURL=index.js.map

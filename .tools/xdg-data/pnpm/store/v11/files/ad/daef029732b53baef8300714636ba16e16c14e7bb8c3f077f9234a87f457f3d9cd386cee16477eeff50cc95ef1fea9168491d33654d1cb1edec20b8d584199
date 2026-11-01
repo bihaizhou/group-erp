@@ -1,0 +1,5 @@
+import { markSeedDefinition } from './internal/marker.js';
+/** Marks and returns a seed definition for discovery by the seed loader. */
+export function defineSeed(definition) {
+    return markSeedDefinition(definition);
+}

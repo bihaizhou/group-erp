@@ -1,0 +1,4 @@
+import type { NotificationProvidersResource } from './en-US.js';
+declare const zhCN: NotificationProvidersResource;
+export default zhCN;
+//# sourceMappingURL=zh-CN.d.ts.map

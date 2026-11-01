@@ -1,0 +1,28 @@
+import { snakeCase, truncateIdentifier } from './utils.js';
+export class DefaultNamingStrategy {
+    options;
+    constructor(options = {}) {
+        this.options = {
+            underscored: options.underscored ?? true,
+            tablePrefix: options.tablePrefix ?? '',
+        };
+    }
+    collectionToTableName(collectionName) {
+        return `${this.options.tablePrefix}${this.normalize(collectionName)}`;
+    }
+    fieldToColumnName(fieldName) {
+        return this.normalize(fieldName);
+    }
+    relationForeignKey(fieldName) {
+        return `${this.normalize(fieldName)}_id`;
+    }
+    indexName(tableName, columns) {
+        return truncateIdentifier(`idx_${tableName}_${columns.join('_')}`);
+    }
+    foreignKeyName(tableName, columns, targetTable) {
+        return truncateIdentifier(`fk_${tableName}_${columns.join('_')}_${targetTable}`);
+    }
+    normalize(value) {
+        return this.options.underscored ? snakeCase(value) : value;
+    }
+}

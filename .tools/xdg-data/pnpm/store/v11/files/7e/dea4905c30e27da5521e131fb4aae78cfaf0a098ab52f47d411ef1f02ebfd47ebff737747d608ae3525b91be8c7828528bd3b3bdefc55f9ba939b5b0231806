@@ -1,0 +1,10 @@
+import { type MailAccountView, type MailOperationContext } from '../../shared/mail.js';
+import { type MailServiceDependencies } from './dependencies.js';
+export declare class MailAccountsService {
+    private readonly dependencies;
+    constructor(dependencies: MailServiceDependencies<'cancelSyncRun' | 'findActiveSyncRun' | 'getAccount' | 'listAccounts' | 'markAccountRemoving' | 'updateAccountStatus', 'outbox' | 'messageChangeNotifier' | 'logger'>);
+    listAccounts(context: MailOperationContext): Promise<readonly MailAccountView[]>;
+    updateAccount(context: MailOperationContext, input: import('../../shared/mail.js').MailUpdateAccountInput): Promise<MailAccountView>;
+    removeAccount(context: MailOperationContext, accountId: string): Promise<MailAccountView | undefined>;
+}
+//# sourceMappingURL=accounts.d.ts.map

@@ -1,0 +1,7 @@
+import { z } from 'zod';
+/** The public authentication capabilities returned without a session. */
+export interface PasswordResetCapability {
+    readonly passwordResetAvailable: boolean;
+}
+export declare const PasswordResetCapabilitySchema: z.ZodType<PasswordResetCapability>;
+//# sourceMappingURL=schemas.d.ts.map

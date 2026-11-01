@@ -1,0 +1,13 @@
+import type { MailProviderError, MailProviderResult } from '../../../shared/mail.js';
+import type { MailProviderSendResult } from '../../contracts/provider.js';
+import type { MicrosoftMailProviderConfig } from './types.js';
+export declare function fetchWithTimeout(input: Parameters<typeof globalThis.fetch>[0], init?: RequestInit): Promise<Response>;
+export declare function readJson<T>(response: Response): Promise<T>;
+export declare function graphRequest<T>(config: MicrosoftMailProviderConfig, token: string, pathOrUrl: string, init: RequestInit): Promise<MailProviderResult<T>>;
+export declare function resolveGraphUrl(config: MicrosoftMailProviderConfig, pathOrUrl: string): MailProviderResult<string>;
+export declare function graphBase(config: MicrosoftMailProviderConfig): string;
+export declare function responseError(response: Response): Promise<MailProviderError>;
+/** The delay a `Retry-After` header asks for, in milliseconds, given as seconds or as an HTTP date. */
+export declare function parseRetryAfter(value: string | null): number | undefined;
+export declare function submissionResponse(response: Response): Promise<MailProviderSendResult>;
+//# sourceMappingURL=http.d.ts.map

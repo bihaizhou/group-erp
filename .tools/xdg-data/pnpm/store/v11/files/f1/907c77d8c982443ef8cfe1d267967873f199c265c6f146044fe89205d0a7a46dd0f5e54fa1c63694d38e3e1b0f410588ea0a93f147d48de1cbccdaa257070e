@@ -1,0 +1,26 @@
+import { jsx as _jsx } from "react/jsx-runtime";
+import { useApiClient, realtimeClientToken, useService, } from '@nocobase/app-client';
+import { useCallback, useEffect, useMemo, useState, } from 'react';
+import { fetchUnreadCount } from '../api.js';
+import { NotificationInAppRuntimeContext, } from '../notification-in-app-runtime.js';
+import { subscribeToInboxInvalidations } from '../subscription.js';
+export function NotificationInAppProvider({ children, }) {
+    const appClient = useApiClient();
+    const realtime = useService(realtimeClientToken);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [revision, setRevision] = useState(0);
+    const refresh = useCallback(() => setRevision((value) => value + 1), []);
+    useEffect(() => {
+        const controller = new AbortController();
+        fetchUnreadCount(appClient, controller.signal)
+            .then(setUnreadCount)
+            .catch(() => undefined);
+        return () => controller.abort();
+    }, [appClient, revision]);
+    useEffect(() => {
+        return subscribeToInboxInvalidations(realtime, window, refresh);
+    }, [realtime, refresh]);
+    const value = useMemo(() => ({ unreadCount, revision, refresh }), [refresh, revision, unreadCount]);
+    return (_jsx(NotificationInAppRuntimeContext.Provider, { value: value, children: children }));
+}
+//# sourceMappingURL=notification-in-app-provider.js.map

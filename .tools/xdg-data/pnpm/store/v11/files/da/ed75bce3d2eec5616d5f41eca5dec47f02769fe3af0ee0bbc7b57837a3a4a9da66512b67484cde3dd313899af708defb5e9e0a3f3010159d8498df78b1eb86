@@ -1,0 +1,142 @@
+import type { DatabaseManager } from '@nocobase/db';
+import { type NotificationProviderErrorCategory } from './types.js';
+export type NotificationLogStatus = 'pending' | 'processing' | 'completed' | 'partial' | 'failed' | 'unknown';
+export type NotificationDeliveryStatus = 'pending' | 'preparing' | 'submitting' | 'retrying' | 'accepted' | 'failed' | 'unknown';
+export type NotificationAttemptStatus = 'submitting' | 'accepted' | 'failed' | 'unknown';
+export interface NotificationErrorRecord {
+    readonly code?: string;
+    readonly message: string;
+    readonly category?: NotificationProviderErrorCategory;
+}
+export interface NotificationLogRecord {
+    readonly id: string;
+    readonly idempotencyKey?: string;
+    readonly requestFingerprint?: string;
+    readonly sourceType: string;
+    readonly sourceReferenceId?: string;
+    readonly messageSnapshot: Readonly<Record<string, object>>;
+    readonly status: NotificationLogStatus;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+export interface NotificationDeliveryRecord {
+    readonly id: string;
+    readonly notificationId: string;
+    readonly channelName: string;
+    readonly channelType: string;
+    readonly recipientSnapshot: object;
+    readonly messageSnapshot: object;
+    readonly providerType: string;
+    readonly attemptCount: number;
+    readonly status: NotificationDeliveryStatus;
+    readonly nextRunAt?: string;
+    readonly leaseToken?: string;
+    readonly leaseExpiresAt?: string;
+    readonly lastError?: NotificationErrorRecord;
+    readonly retryResolution?: NotificationRetryResolutionRecord;
+    readonly providerIdempotency?: NotificationProviderIdempotencyRecord;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+export interface NotificationProviderIdempotencyRecord {
+    readonly startedAt: string;
+    readonly expiresAt?: string;
+}
+export interface NotificationAttemptRecord {
+    readonly id: string;
+    readonly deliveryId: string;
+    readonly sequence: number;
+    readonly providerType: string;
+    readonly status: NotificationAttemptStatus;
+    readonly startedAt: string;
+    readonly finishedAt?: string;
+    readonly providerMessageId?: string;
+    readonly error?: NotificationErrorRecord;
+    readonly retryResolution?: NotificationRetryResolutionRecord;
+}
+export interface NotificationRetryResolutionRecord {
+    readonly type: 'terminal_failure';
+    readonly reason: string;
+    readonly requestedAt: string;
+}
+export interface NotificationRetryAuditRecord {
+    readonly id: string;
+    readonly deliveryId: string;
+    readonly resolution: NotificationRetryResolutionRecord;
+    readonly providerIdempotency?: NotificationProviderIdempotencyRecord;
+    readonly createdAt: string;
+}
+export interface NotificationLogBundle {
+    readonly log: NotificationLogRecord;
+    readonly deliveries: readonly NotificationDeliveryRecord[];
+}
+/** Position after which a log page continues: the last log of the previous page, newest first. */
+export interface NotificationLogCursor {
+    readonly createdAt: string;
+    readonly id: string;
+}
+export interface NotificationStore {
+    now(): Promise<string>;
+    create(bundle: NotificationLogBundle): Promise<void>;
+    createOrGetByIdempotency(bundle: NotificationLogBundle): Promise<{
+        readonly outcome: 'created';
+        readonly bundle: NotificationLogBundle;
+    } | {
+        readonly outcome: 'existing';
+        readonly bundle: NotificationLogBundle;
+    } | {
+        readonly outcome: 'conflict';
+        readonly bundle: NotificationLogBundle;
+    }>;
+    getLog(id: string): Promise<NotificationLogRecord | undefined>;
+    getLogByIdempotencyKey(idempotencyKey: string): Promise<NotificationLogRecord | undefined>;
+    /** Logs newest first, ties broken by id, starting after `before` when given. */
+    listLogs(limit?: number, before?: NotificationLogCursor): Promise<readonly NotificationLogRecord[]>;
+    getDelivery(id: string): Promise<NotificationDeliveryRecord | undefined>;
+    listDeliveries(notificationId: string): Promise<readonly NotificationDeliveryRecord[]>;
+    listReady(now: string, limit?: number): Promise<readonly NotificationDeliveryRecord[]>;
+    listAttempts(deliveryId: string): Promise<readonly NotificationAttemptRecord[]>;
+    listRetryAudits(deliveryId: string): Promise<readonly NotificationRetryAuditRecord[]>;
+    claimDelivery(id: string, leaseToken: string, leaseExpiresAt: string): Promise<NotificationDeliveryRecord | undefined>;
+    startAttempt(delivery: NotificationDeliveryRecord, attempt: NotificationAttemptRecord, leaseExpiresAt: string): Promise<NotificationDeliveryRecord | undefined>;
+    renewLease(id: string, leaseToken: string, leaseExpiresAt: string): Promise<boolean>;
+    finishAttemptAndDelivery(attempt: NotificationAttemptRecord, delivery: NotificationDeliveryRecord, status: Extract<NotificationDeliveryStatus, 'accepted' | 'failed' | 'retrying' | 'unknown'>, error?: NotificationErrorRecord, nextRunAt?: string): Promise<NotificationDeliveryRecord | undefined>;
+    finishDelivery(delivery: NotificationDeliveryRecord, status: Extract<NotificationDeliveryStatus, 'accepted' | 'failed' | 'unknown'>, error?: NotificationErrorRecord): Promise<NotificationDeliveryRecord | undefined>;
+    retryDelivery(id: string, resolution: NotificationRetryResolutionRecord): Promise<NotificationDeliveryRecord | undefined>;
+    recoverExpired(now: string): Promise<readonly NotificationDeliveryRecord[]>;
+}
+export declare class DatabaseNotificationStore implements NotificationStore {
+    private readonly database;
+    constructor(database: DatabaseManager);
+    now(): Promise<string>;
+    create(bundle: NotificationLogBundle): Promise<void>;
+    createOrGetByIdempotency(bundle: NotificationLogBundle): Promise<{
+        readonly outcome: 'created';
+        readonly bundle: NotificationLogBundle;
+    } | {
+        readonly outcome: 'existing';
+        readonly bundle: NotificationLogBundle;
+    } | {
+        readonly outcome: 'conflict';
+        readonly bundle: NotificationLogBundle;
+    }>;
+    getLog(id: string): Promise<NotificationLogRecord | undefined>;
+    getLogByIdempotencyKey(idempotencyKey: string): Promise<NotificationLogRecord | undefined>;
+    listLogs(limit?: number, before?: NotificationLogCursor): Promise<readonly NotificationLogRecord[]>;
+    getDelivery(id: string): Promise<NotificationDeliveryRecord | undefined>;
+    listDeliveries(notificationId: string): Promise<readonly NotificationDeliveryRecord[]>;
+    listReady(now: string, limit?: number): Promise<readonly NotificationDeliveryRecord[]>;
+    listAttempts(deliveryId: string): Promise<readonly NotificationAttemptRecord[]>;
+    listRetryAudits(deliveryId: string): Promise<readonly NotificationRetryAuditRecord[]>;
+    claimDelivery(id: string, leaseToken: string, leaseExpiresAt: string): Promise<NotificationDeliveryRecord | undefined>;
+    startAttempt(delivery: NotificationDeliveryRecord, attempt: NotificationAttemptRecord, leaseExpiresAt: string): Promise<NotificationDeliveryRecord | undefined>;
+    finishAttemptAndDelivery(attempt: NotificationAttemptRecord, delivery: NotificationDeliveryRecord, status: Extract<NotificationDeliveryStatus, 'accepted' | 'failed' | 'retrying' | 'unknown'>, error?: NotificationErrorRecord, nextRunAt?: string): Promise<NotificationDeliveryRecord | undefined>;
+    renewLease(id: string, leaseToken: string, leaseExpiresAt: string): Promise<boolean>;
+    finishDelivery(delivery: NotificationDeliveryRecord, status: Extract<NotificationDeliveryStatus, 'accepted' | 'failed' | 'unknown'>, error?: NotificationErrorRecord): Promise<NotificationDeliveryRecord | undefined>;
+    retryDelivery(id: string, resolution: NotificationRetryResolutionRecord): Promise<NotificationDeliveryRecord | undefined>;
+    recoverExpired(now: string): Promise<readonly NotificationDeliveryRecord[]>;
+    private getBundleByIdempotencyKey;
+}
+export declare function createDatabaseNotificationStore(database: DatabaseManager): NotificationStore;
+export declare function summarizeNotificationDeliveries(deliveries: readonly NotificationDeliveryRecord[]): NotificationLogStatus;
+//# sourceMappingURL=store.d.ts.map

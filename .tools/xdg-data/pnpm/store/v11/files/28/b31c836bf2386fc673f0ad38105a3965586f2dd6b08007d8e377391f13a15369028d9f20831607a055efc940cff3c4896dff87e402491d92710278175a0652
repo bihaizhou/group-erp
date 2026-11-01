@@ -1,0 +1,14 @@
+/** A minimal production-safe template that writes structured logs to stdout. */
+export function createDefaultLoggingConfig() {
+    return {
+        level: 'info',
+    };
+}
+/** A fallback for tests and runtimes that intentionally disable logging. */
+export function createSilentLoggingConfig() {
+    return {
+        enabled: false,
+        level: 'silent',
+    };
+}
+//# sourceMappingURL=config.js.map

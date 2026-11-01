@@ -1,0 +1,26 @@
+import type { ConnectionConfig } from '@nocobase/db';
+import type { ConnectionSummary } from './types.js';
+/**
+ * Describes one configured connection for the Explorer.
+ *
+ * The copy is an allow-list, and deliberately so. A connection configuration
+ * carries `password` and `username`, an `ssl` value whose object form holds
+ * certificate and key material, an open `driverOptions` record where a driver's
+ * own auth options live, a `pool`, a `metadataStore` that may be a live object,
+ * and functions. A redaction pass would have to be extended for each, and would
+ * leak whichever one nobody remembered.
+ *
+ * The dialect list is open — `DatabaseDialect` is `string`, and a dialect
+ * package supplies its own configuration shape — so a dialect added later may
+ * introduce a field like an API token. Naming what may leave means that field
+ * stays inside without anyone revisiting this file; a deny-list would publish
+ * it the day it was added. That is the whole argument for the switch below.
+ *
+ * Host, port, socket path, and SQLite filename are excluded as well, though
+ * they are not secrets. They locate the database on a network or a disk, which
+ * turns a screenshot of this page into a target, and a schema browser has no
+ * use for them.
+ */
+export declare function describeConnection(name: string, config: ConnectionConfig, defaultConnection: string | null): ConnectionSummary;
+export declare function describeConnections(connections: Readonly<Record<string, ConnectionConfig>>, defaultConnection: string | null): readonly ConnectionSummary[];
+//# sourceMappingURL=connection-summary.d.ts.map

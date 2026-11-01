@@ -1,0 +1,18 @@
+import enUS from '../locales/en-US.js';
+import type { AuthenticationActionError } from './types.js';
+/** The authentication plugin's locale namespace (`client/locales/`). */
+export declare const AUTHENTICATION_NAMESPACE = "@nocobase/app-plugin-authentication";
+type ErrorKey = keyof typeof enUS.errors;
+export type TranslateAuthenticationError = (key: ErrorKey, defaultValue: string, values?: {
+    origin: string;
+}) => string;
+/**
+ * Turns a failed authentication request into a message for the person: the localized message for the server's error
+ * code, a rate-limit message for 429, or a generic one. Never the response's status text or the server's English
+ * message, which are not written for the person and not in their language.
+ */
+export declare function resolveAuthenticationActionError(error: unknown, translate?: TranslateAuthenticationError, origin?: string | undefined): AuthenticationActionError | undefined;
+/** `resolveAuthenticationActionError` with the messages in the language the person is using. */
+export declare function useAuthenticationErrorResolver(): (error: unknown) => AuthenticationActionError | undefined;
+export {};
+//# sourceMappingURL=errors.d.ts.map

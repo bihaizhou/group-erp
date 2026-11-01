@@ -1,0 +1,71 @@
+import { parseJson } from './serialization.js';
+export class MailAuthorizationStore {
+    database;
+    constructor(database) {
+        this.database = database;
+    }
+    async createAuthorizationTransaction(transaction) {
+        await this.database
+            .query()
+            .insertInto('mailAuthorizationStates')
+            .values({
+            stateHash: transaction.stateHash,
+            userId: transaction.userId,
+            providerType: transaction.provider.type,
+            providerName: transaction.provider.name,
+            redirectUri: transaction.redirectUri,
+            verifierCredentialReference: transaction.verifierCredentialReference,
+            scopes: JSON.stringify(transaction.scopes),
+            initialSyncReceivedAfter: transaction.initialSyncReceivedAfter ?? null,
+            expiresAt: transaction.expiresAt,
+            createdAt: new Date().toISOString(),
+        })
+            .execute();
+    }
+    async consumeAuthorizationTransaction(stateHash, now) {
+        return this.database.transaction(async (connection) => {
+            const row = await connection.query
+                .selectFrom('mailAuthorizationStates')
+                .selectAll()
+                .where('stateHash', '=', stateHash)
+                .where('consumedAt', 'is', null)
+                .where('expiresAt', '>', now)
+                .executeTakeFirst();
+            if (!row)
+                return undefined;
+            const updated = await connection.query
+                .updateTable('mailAuthorizationStates')
+                .set({ consumedAt: now })
+                .where('stateHash', '=', stateHash)
+                .where('consumedAt', 'is', null)
+                .execute();
+            return updated.updatedCount === 1
+                ? {
+                    stateHash: row.stateHash,
+                    userId: row.userId,
+                    provider: {
+                        type: row.providerType,
+                        name: row.providerName,
+                    },
+                    redirectUri: row.redirectUri,
+                    verifierCredentialReference: row.verifierCredentialReference,
+                    scopes: parseJson(row.scopes, 'authorization scopes'),
+                    initialSyncReceivedAfter: row.initialSyncReceivedAfter,
+                    expiresAt: row.expiresAt,
+                }
+                : undefined;
+        });
+    }
+    async deleteExpiredAuthorizationTransactions(now) {
+        const result = await this.database
+            .query()
+            .deleteFrom('mailAuthorizationStates')
+            .where((builder) => builder.or([
+            builder.eb('expiresAt', '<=', now),
+            builder.eb('consumedAt', 'is not', null),
+        ]))
+            .execute();
+        return result.deletedCount ?? 0;
+    }
+}
+//# sourceMappingURL=authorization.js.map

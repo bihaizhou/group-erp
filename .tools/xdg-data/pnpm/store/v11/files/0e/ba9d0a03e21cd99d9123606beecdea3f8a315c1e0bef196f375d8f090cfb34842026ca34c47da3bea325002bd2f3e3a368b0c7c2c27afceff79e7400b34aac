@@ -1,0 +1,52 @@
+{
+  "name": "@nocobase/db-sqlite",
+  "version": "0.1.0-beta.5",
+  "description": "Sqlite dialect for @nocobase/db.",
+  "type": "module",
+  "prettier": "@nocobase/dev-config/prettier",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./testing": {
+      "types": "./dist/src/testing.d.ts",
+      "import": "./dist/src/testing.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@nocobase/db": "^1.0.0-beta.19"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "eslint": "^10.0.0",
+    "knex": "^3.1.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10",
+    "@nocobase/db": "1.0.0-beta.19",
+    "@nocobase/db-testkit": "0.1.0-beta.3",
+    "@nocobase/dev-config": "0.1.0-beta.22"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "knex": "^3.1.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run tests --exclude **/tests/integration/**",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "test:integration": "node --import tsx ./scripts/test-integration.ts"
+  }
+}

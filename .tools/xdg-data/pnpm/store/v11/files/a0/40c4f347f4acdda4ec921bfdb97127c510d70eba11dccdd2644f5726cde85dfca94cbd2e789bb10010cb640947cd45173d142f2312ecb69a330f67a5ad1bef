@@ -1,0 +1,31 @@
+import type { JobBackend } from './backend.js';
+import { Job, type JobClass, type JobExecutor, type JobReceipt, type JobSetupOptions, type JobSubscriber } from './types.js';
+import type { JobsLogger, Unsubscribe } from '../types.js';
+export declare class BackendJobExecutor implements JobExecutor {
+    private readonly backend;
+    private readonly logger;
+    private state;
+    private readonly classes;
+    private readonly methods;
+    private readonly instances;
+    private readonly subscribers;
+    private readonly submissions;
+    private delivery;
+    private setupPromise;
+    private shutdownPromise;
+    private opened;
+    constructor(backend: JobBackend, logger: JobsLogger | undefined);
+    registerJob<TPayload>(jobClass: JobClass<TPayload>): void;
+    private register;
+    addJob<TPayload>(job: Job<TPayload>): Promise<JobReceipt>;
+    subscribe(subscriber: JobSubscriber): Unsubscribe;
+    setup(options?: JobSetupOptions): Promise<void>;
+    shutdown(): Promise<void>;
+    private runSetup;
+    private runShutdown;
+    private assertOpen;
+    private emit;
+    private execute;
+    private readonly runner;
+}
+//# sourceMappingURL=executor.d.ts.map

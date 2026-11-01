@@ -1,0 +1,46 @@
+export function finalizeStream(stream, finalize) {
+    const reader = stream.getReader();
+    let finalized = false;
+    const finish = async () => {
+        if (finalized)
+            return;
+        finalized = true;
+        reader.releaseLock();
+        await finalize();
+    };
+    return new ReadableStream({
+        async pull(controller) {
+            try {
+                const result = await reader.read();
+                if (result.done) {
+                    controller.close();
+                    await finish();
+                }
+                else {
+                    controller.enqueue(result.value);
+                }
+            }
+            catch (error) {
+                controller.error(error);
+                await finish();
+            }
+        },
+        async cancel(reason) {
+            try {
+                await reader.cancel(reason);
+            }
+            finally {
+                await finish();
+            }
+        },
+    });
+}
+export async function closeAdapter(adapter) {
+    try {
+        await adapter.close?.();
+    }
+    catch {
+        // Provider cleanup cannot change the result of a completed command.
+    }
+}
+//# sourceMappingURL=provider-lifecycle.js.map

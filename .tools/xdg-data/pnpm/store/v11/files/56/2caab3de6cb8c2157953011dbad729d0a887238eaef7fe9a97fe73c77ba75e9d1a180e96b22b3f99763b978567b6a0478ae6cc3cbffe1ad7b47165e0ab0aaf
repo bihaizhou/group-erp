@@ -1,0 +1,30 @@
+import { type AuthorizationSubject, type AuthorizationTitle, type RecordSelection, type ResourceRef, type RuleAction } from '@nocobase/authorization/core';
+/** The fields every rule shares; `subjects` and friends only for sharing and restriction. */
+export interface ParsedRule {
+    key: string;
+    resource: ResourceRef;
+    actions: readonly RuleAction[];
+    title?: AuthorizationTitle;
+    subjects?: readonly AuthorizationSubject[];
+    reason?: string;
+}
+export interface RequestParsers {
+    object(value: unknown, label: string): Record<string, unknown>;
+    string(value: unknown, label: string): string;
+    strings(value: unknown, label: string): readonly string[];
+    title(value: unknown): AuthorizationTitle | undefined;
+    resource(value: unknown): ResourceRef;
+    subjects(value: unknown): readonly AuthorizationSubject[];
+    selection(value: unknown): RecordSelection;
+    ruleActions(value: unknown): readonly RuleAction[];
+    /** A rule body; `withSubjects` also reads `title`, `subjects` and `reason`. */
+    rule(value: unknown, options?: {
+        withSubjects?: boolean;
+    }): ParsedRule;
+}
+/**
+ * Request body parsers for authorization settings routes. Each failure is a
+ * TypeError, which `createSettingsRouter` answers as `400`.
+ */
+export declare const parse: RequestParsers;
+//# sourceMappingURL=parsing.d.ts.map

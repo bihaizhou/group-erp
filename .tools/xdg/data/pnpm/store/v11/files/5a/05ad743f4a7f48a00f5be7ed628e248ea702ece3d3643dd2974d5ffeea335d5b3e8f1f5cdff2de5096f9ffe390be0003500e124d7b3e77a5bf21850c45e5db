@@ -1,0 +1,12 @@
+import type { RepositoryMutationScalarValue } from '../repository/types.js';
+import type { Knex } from 'knex';
+import type { FieldDefinition } from '../collection/types.js';
+export type NumericAggregate = 'count' | 'sum' | 'avg' | 'min' | 'max';
+export declare function aggregateSql(client: Knex, kind: NumericAggregate, field: string, distinct?: boolean, source?: FieldDefinition): Knex.Raw;
+/** Drivers that already transport BIGINT and DECIMAL as strings. */
+export declare function hasNativeNumericResults(client: Knex): boolean;
+/** Apply only at a result boundary; comparisons must retain numeric SQL types. */
+export declare function aggregateProjection(client: Knex, expression: Knex.Raw, source?: FieldDefinition): Knex.Raw;
+export declare function decodeAggregate(kind: NumericAggregate, value: unknown, source?: FieldDefinition): RepositoryMutationScalarValue;
+/** Validate exact transport before converting a count to a JavaScript number. */
+export declare function decodeCount(value: unknown): number;

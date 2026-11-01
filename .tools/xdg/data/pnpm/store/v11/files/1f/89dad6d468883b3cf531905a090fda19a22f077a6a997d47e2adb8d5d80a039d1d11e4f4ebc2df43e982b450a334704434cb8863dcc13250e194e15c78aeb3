@@ -1,0 +1,16 @@
+export declare const CLI_BIN_NAME = "nocobase";
+export interface RunAppCliOptions {
+    /**
+     * The application root, for an entry point that knows where it lives, such as the `cli/index.js` a build writes
+     * into `dist/`. Without it, `NOCOBASE_APP_ROOT` names the application, and without that the application is found
+     * from the working directory. Naming it leaves the working directory alone, so relative paths a command takes still
+     * resolve against where it was run.
+     */
+    readonly root?: string;
+    /** Arguments to dispatch. Defaults to this process's. */
+    readonly argv?: readonly string[];
+}
+export declare function runAppCli(options?: RunAppCliOptions): Promise<void>;
+/** The longest run of leading words in `argv` that names one of `ids`, the way oclif resolves a space-separated id. */
+export declare function matchCommandId(argv: readonly string[], ids: readonly string[]): string | undefined;
+//# sourceMappingURL=run.d.ts.map

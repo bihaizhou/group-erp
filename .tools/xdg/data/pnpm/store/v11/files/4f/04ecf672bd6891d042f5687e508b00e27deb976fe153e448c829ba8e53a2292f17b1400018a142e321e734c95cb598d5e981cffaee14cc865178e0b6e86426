@@ -1,0 +1,4 @@
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+import { type InvitationMailer } from './mail.js';
+export declare function createNotificationMailer(app: AppPluginApplication): InvitationMailer;
+//# sourceMappingURL=notification-mailer.d.ts.map

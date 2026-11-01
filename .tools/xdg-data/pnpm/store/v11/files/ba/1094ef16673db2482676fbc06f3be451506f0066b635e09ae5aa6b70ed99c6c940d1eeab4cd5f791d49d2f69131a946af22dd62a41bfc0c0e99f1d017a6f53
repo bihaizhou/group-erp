@@ -1,0 +1,44 @@
+import type { Command, Interfaces } from '@oclif/core';
+import { AppCommand } from '../../context.ts';
+import { type PluginUpdatePlan } from '../../lib/plugin-update.ts';
+import { type PluginCommandInvocation, type PluginCommandIssue } from '../../lib/plugin-json.ts';
+import { type SkillsSyncPlan } from '../../lib/skills-sync.ts';
+/** No plugin is registered, so there is nothing to upgrade; status `success-noop`. */
+export interface PluginUpdateNoopResult {
+    readonly appRoot: string;
+    readonly packageNames: readonly string[];
+    readonly commands: readonly PluginCommandInvocation[];
+}
+/** The upgrade a run would perform, and whose Skills it would then synchronize. */
+export interface PluginUpdateDryRunResult extends PluginUpdatePlan {
+    readonly mode: 'dry-run';
+    readonly appRoot: string;
+    readonly commands: readonly PluginCommandInvocation[];
+    readonly synchronizeSkills: readonly string[];
+}
+/**
+ * The upgrade that ran and the Skills it synchronized. Status `partial-success` when the upgrade succeeded but the
+ * Skills could not be synchronized (`issues`, and no `skills`).
+ */
+export interface PluginUpdateUpdatedResult extends PluginUpdatePlan {
+    readonly mode: 'update';
+    readonly appRoot: string;
+    readonly skills?: SkillsSyncPlan;
+    readonly issues?: readonly PluginCommandIssue[];
+}
+export type PluginUpdateResult = PluginUpdateNoopResult | PluginUpdateDryRunResult | PluginUpdateUpdatedResult;
+export default class PluginUpdate extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static args: {
+        name: Interfaces.Arg<string | undefined>;
+    };
+    static flags: {
+        dir: Interfaces.OptionFlag<string | undefined>;
+        'dry-run': Interfaces.BooleanFlag<boolean>;
+    };
+    run(): Promise<PluginUpdateResult>;
+    private update;
+}
+//# sourceMappingURL=update.d.ts.map

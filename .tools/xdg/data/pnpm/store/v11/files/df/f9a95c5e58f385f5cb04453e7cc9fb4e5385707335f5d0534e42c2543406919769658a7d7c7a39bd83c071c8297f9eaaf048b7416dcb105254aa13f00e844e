@@ -1,0 +1,145 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+import { Check, Plus, Tag, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from '@nocobase/i18n/client';
+import { mailErrorMessage, } from '../mail-client.js';
+import { useMailClient } from '../runtime.js';
+import { MAIL_PLUGIN_NS } from '../namespace.js';
+import { MAIL_LABEL_COLORS, mailLabelColorSwatch } from '../lib/mail-label.js';
+import { MailLabelTag } from './mail-label-tag.js';
+import { MailManagementFormActions } from './mail-management-form-actions.js';
+import { MailManagementListItem } from './mail-management-list-item.js';
+import { cn } from '../lib/utils.js';
+import { Button } from './ui/button.js';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, } from './ui/dialog.js';
+import { Card } from './ui/card.js';
+import { Input } from './ui/input.js';
+const DEFAULT_LABEL_COLOR = 'blue';
+const DEFAULT_COLOR_NAMES = {
+    slate: 'Slate',
+    red: 'Red',
+    orange: 'Orange',
+    amber: 'Amber',
+    green: 'Green',
+    sky: 'Sky',
+    blue: 'Blue',
+    violet: 'Violet',
+    pink: 'Pink',
+};
+export function MailLabelManager() {
+    const mail = useMailClient();
+    const { t } = useTranslation(MAIL_PLUGIN_NS);
+    const [labels, setLabels] = useState([]);
+    const [draft, setDraft] = useState(() => emptyDraft());
+    const [editingId, setEditingId] = useState();
+    const [labelToDelete, setLabelToDelete] = useState();
+    const [loading, setLoading] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState();
+    const showError = useCallback((cause) => setError(mailErrorMessage(cause, t('errors.requestFailed', { defaultValue: 'Mail request failed.' }))), [t]);
+    const refresh = useCallback(() => {
+        setLoading(true);
+        setError(undefined);
+        void mail
+            .listLabels()
+            .then((nextLabels) => setLabels([...nextLabels].sort(compareLabels)))
+            .catch(showError)
+            .finally(() => setLoading(false));
+    }, [mail, showError]);
+    useEffect(() => {
+        void Promise.resolve().then(refresh);
+    }, [refresh]);
+    const resetDraft = () => {
+        setEditingId(undefined);
+        setDraft(emptyDraft());
+        setError(undefined);
+    };
+    const edit = (label) => {
+        setEditingId(label.id);
+        setDraft({ name: label.name, color: label.color });
+        setError(undefined);
+    };
+    const save = () => {
+        const name = draft.name.trim();
+        if (!name || busy)
+            return;
+        setBusy(true);
+        setError(undefined);
+        const request = editingId
+            ? mail.updateLabel({ id: editingId, name, color: draft.color })
+            : mail.createLabel(name, draft.color);
+        void request
+            .then((label) => {
+            setLabels((current) => [...current.filter((item) => item.id !== label.id), label].sort(compareLabels));
+            resetDraft();
+        })
+            .catch(showError)
+            .finally(() => setBusy(false));
+    };
+    const confirmDelete = () => {
+        const label = labelToDelete;
+        if (!label || busy)
+            return;
+        setBusy(true);
+        setError(undefined);
+        void mail
+            .deleteLabel(label.id)
+            .then(() => {
+            setLabels((current) => current.filter((item) => item.id !== label.id));
+            if (editingId === label.id)
+                resetDraft();
+            setLabelToDelete(undefined);
+        })
+            .catch(showError)
+            .finally(() => setBusy(false));
+    };
+    const colorName = (color) => t(`labels.colors.${color}`, {
+        defaultValue: DEFAULT_COLOR_NAMES[color],
+    });
+    return (_jsxs(_Fragment, { children: [_jsxs("div", { className: 'grid min-h-0 w-full gap-4 lg:h-full lg:grid-cols-[18rem_minmax(0,1fr)]', children: [_jsxs(Card, { className: 'flex min-h-0 flex-col overflow-hidden rounded-2xl bg-background shadow-sm', children: [_jsxs("div", { className: 'flex shrink-0 items-center justify-between gap-3 border-b bg-muted/20 px-4 py-3', children: [_jsxs("div", { className: 'flex min-w-0 items-center gap-2', children: [_jsx("span", { className: 'grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary', children: _jsx(Tag, { "aria-hidden": 'true', className: 'size-4' }) }), _jsx("span", { className: 'sr-only', children: t('labels.list', { defaultValue: 'Labels' }) })] }), _jsxs("div", { className: 'flex items-center gap-2', children: [_jsx("span", { className: 'inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full border bg-background px-2 text-xs font-semibold', children: labels.length }), _jsxs(Button, { className: 'h-8 shrink-0 px-3 text-xs', disabled: busy, onClick: resetDraft, type: 'button', variant: 'outline', children: [_jsx(Plus, { "aria-hidden": 'true', className: 'size-3.5' }), t('labels.new', { defaultValue: 'New label' })] })] })] }), error ? (_jsx("p", { className: 'border-b border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive', children: error })) : null, loading ? (_jsx("p", { className: 'p-4 text-sm text-muted-foreground', children: t('labels.loading', { defaultValue: 'Loading labels…' }) })) : labels.length === 0 ? (_jsx("div", { className: 'grid min-h-48 place-items-center p-4 text-center', children: _jsxs("div", { children: [_jsx("span", { className: 'mx-auto grid size-10 place-items-center rounded-full bg-muted text-muted-foreground', children: _jsx(Tag, { "aria-hidden": 'true', className: 'size-4' }) }), _jsx("p", { className: 'mt-3 text-sm font-medium', children: t('labels.empty', { defaultValue: 'No labels yet.' }) }), _jsx("p", { className: 'mt-1 text-xs text-muted-foreground', children: t('labels.emptyHint', {
+                                                defaultValue: 'Create one to organize messages visually.',
+                                            }) })] }) })) : (_jsx("div", { "aria-label": t('labels.list', { defaultValue: 'Labels' }), className: 'min-h-0 flex-1 divide-y overflow-y-auto overscroll-contain', role: 'region', children: labels.map((label) => (_jsx(MailManagementListItem, { ariaLabel: t('labels.editAction', {
+                                        name: label.name,
+                                        defaultValue: `Edit ${label.name}`,
+                                    }), onSelect: () => edit(label), selected: editingId === label.id, actions: _jsx(Button, { "aria-label": t('labels.deleteAction', {
+                                            name: label.name,
+                                            defaultValue: `Delete ${label.name}`,
+                                        }), className: 'size-8 p-0', onClick: () => setLabelToDelete(label), type: 'button', variant: 'ghost', children: _jsx(Trash2, { "aria-hidden": 'true', className: 'size-3.5' }) }), children: _jsx(MailLabelTag, { label: label, size: 'md' }) }, label.id))) }))] }), _jsxs(Card, { className: 'min-h-0 space-y-5 overflow-y-auto p-5', children: [_jsx("div", { className: 'flex items-start justify-between gap-3', children: _jsxs("div", { children: [_jsx("p", { className: 'text-xs font-medium tracking-wide text-muted-foreground uppercase', children: t('labels.formEyebrow', { defaultValue: 'Label setup' }) }), _jsx("h2", { className: 'mt-1 font-semibold', children: t(editingId ? 'labels.edit' : 'labels.new', {
+                                                defaultValue: editingId ? 'Edit label' : 'New label',
+                                            }) })] }) }), _jsxs("div", { className: 'grid gap-2', children: [_jsx("label", { className: 'text-sm font-medium', htmlFor: 'mail-label-name', children: t('labels.name', { defaultValue: 'Label name' }) }), _jsx(Input, { autoFocus: true, disabled: busy, id: 'mail-label-name', onChange: (event) => setDraft((current) => ({
+                                            ...current,
+                                            name: event.target.value,
+                                        })), onKeyDown: (event) => {
+                                            if (event.key === 'Enter')
+                                                save();
+                                        }, placeholder: t('labels.namePlaceholder', {
+                                            defaultValue: 'e.g. Customers',
+                                        }), value: draft.name })] }), _jsxs("fieldset", { children: [_jsx("legend", { className: 'mb-2 text-sm font-medium', children: t('labels.color', { defaultValue: 'Color' }) }), _jsx("div", { className: 'grid grid-cols-3 gap-2', children: MAIL_LABEL_COLORS.map((color) => {
+                                            const selected = draft.color === color;
+                                            return (_jsxs(Button, { "aria-label": t('labels.colorOption', {
+                                                    color: colorName(color),
+                                                    defaultValue: `Choose ${colorName(color)}`,
+                                                }), "aria-pressed": selected, className: cn('h-auto justify-start gap-2 rounded-lg border-border px-2.5 py-2 text-left text-xs font-normal hover:bg-muted', selected &&
+                                                    'border-primary bg-primary/5 ring-2 ring-primary/20'), disabled: busy, onClick: () => setDraft((current) => ({ ...current, color })), type: 'button', variant: 'ghost', children: [_jsx("span", { "aria-hidden": 'true', className: cn('size-4 shrink-0 rounded-full', mailLabelColorSwatch(color)) }), _jsx("span", { className: 'min-w-0 flex-1 truncate', children: colorName(color) }), selected ? (_jsx(Check, { "aria-hidden": 'true', className: 'size-3.5 shrink-0 text-primary' })) : null] }, color));
+                                        }) })] }), _jsxs("div", { className: 'rounded-xl border border-dashed bg-muted/20 p-3', children: [_jsx("p", { className: 'mb-2 text-xs text-muted-foreground', children: t('labels.preview', { defaultValue: 'Preview' }) }), _jsx(MailLabelTag, { label: {
+                                            name: draft.name.trim() ||
+                                                t('labels.previewName', { defaultValue: 'Label name' }),
+                                            color: draft.color,
+                                        }, size: 'md' })] }), _jsx(MailManagementFormActions, { editing: Boolean(editingId), busy: busy, disabled: !draft.name.trim(), submitLabel: t(editingId ? 'labels.save' : 'labels.add', {
+                                    defaultValue: editingId ? 'Save label' : 'Add label',
+                                }), savingLabel: t('labels.saving', { defaultValue: 'Saving…' }), cancelLabel: t('labels.cancel', { defaultValue: 'Cancel' }), onSubmit: save, onCancel: resetDraft })] })] }), _jsx(Dialog, { onOpenChange: (open) => {
+                    if (!open && !busy)
+                        setLabelToDelete(undefined);
+                }, open: Boolean(labelToDelete), children: _jsxs(DialogContent, { closeLabel: t('labels.close', { defaultValue: 'Close' }), children: [_jsxs(DialogHeader, { children: [_jsx(DialogTitle, { children: t('labels.deleteTitle', { defaultValue: 'Delete label?' }) }), _jsx(DialogDescription, { children: t('labels.deleteDescription', {
+                                        defaultValue: 'This deletes the label and removes it from all messages. The messages will not be deleted.',
+                                    }) })] }), labelToDelete ? (_jsx("div", { className: 'mt-4', children: _jsx(MailLabelTag, { label: labelToDelete, size: 'md' }) })) : null, _jsxs(DialogFooter, { children: [_jsx(Button, { disabled: busy, onClick: () => setLabelToDelete(undefined), type: 'button', variant: 'outline', children: t('labels.cancel', { defaultValue: 'Cancel' }) }), _jsxs(Button, { disabled: busy, onClick: confirmDelete, type: 'button', variant: 'destructive', children: [_jsx(Trash2, { "aria-hidden": 'true', className: 'size-4' }), busy
+                                            ? t('labels.deleting', { defaultValue: 'Deleting…' })
+                                            : t('labels.delete', { defaultValue: 'Delete label' })] })] })] }) })] }));
+}
+function emptyDraft() {
+    return { name: '', color: DEFAULT_LABEL_COLOR };
+}
+function compareLabels(left, right) {
+    return left.name.localeCompare(right.name);
+}
+//# sourceMappingURL=mail-label-manager.js.map

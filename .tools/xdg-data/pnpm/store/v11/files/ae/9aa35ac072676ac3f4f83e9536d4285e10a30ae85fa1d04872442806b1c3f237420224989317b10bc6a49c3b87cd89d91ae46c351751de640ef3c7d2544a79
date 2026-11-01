@@ -1,0 +1,4 @@
+import type { RepositoryRecord } from '@nocobase/repository-input';
+import { RepositoryError } from '../errors.js';
+export declare function isPlainRecord(value: unknown): value is RepositoryRecord;
+export declare function invalid(code: ConstructorParameters<typeof RepositoryError>[0], message: string, options?: ConstructorParameters<typeof RepositoryError>[2]): never;

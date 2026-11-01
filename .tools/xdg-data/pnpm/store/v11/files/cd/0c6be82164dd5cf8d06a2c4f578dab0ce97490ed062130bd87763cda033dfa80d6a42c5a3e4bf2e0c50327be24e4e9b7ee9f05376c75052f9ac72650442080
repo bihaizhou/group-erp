@@ -1,0 +1,7 @@
+export const CLI_HOOKS_ENV: "NOCOBASE_CLI_HOOKS";
+export function readCliHooks(env?: NodeJS.ProcessEnv): {
+    build: any;
+    dev: any;
+};
+export function runHookStage(hooks: any, stage: any, run: any): void;
+//# sourceMappingURL=cli-hooks.d.mts.map

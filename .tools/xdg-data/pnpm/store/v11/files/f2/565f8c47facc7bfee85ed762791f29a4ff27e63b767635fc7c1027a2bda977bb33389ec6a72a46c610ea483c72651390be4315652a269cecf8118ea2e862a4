@@ -1,0 +1,64 @@
+import { assertJobId, resolvePublishOptions, } from './options.js';
+export function assertChannel(value) {
+    if (typeof value !== 'string' || value === '') {
+        throw new TypeError('A queue channel must be a non-empty string.');
+    }
+}
+/**
+ * Serializes with BullMQ's JSON rule: a top-level `undefined` becomes `{}`,
+ * cycles and BigInt throw, and a root that produces no JSON text is rejected.
+ */
+export function serializeMessage(message) {
+    if (message === undefined)
+        return '{}';
+    const text = JSON.stringify(message);
+    if (text === undefined) {
+        throw new TypeError('A queue message must serialize to JSON.');
+    }
+    return text;
+}
+export function encodeEnvelope(text) {
+    return { version: 1, payload: text };
+}
+/** Accepts only the envelope this package writes. */
+export function decodeEnvelope(data) {
+    if (typeof data !== 'object' ||
+        data === null ||
+        data.version !== 1 ||
+        typeof data.payload !== 'string') {
+        throw new TypeError('The queued job does not hold a version 1 envelope.');
+    }
+    return data.payload;
+}
+export function parseMessage(text) {
+    return JSON.parse(text);
+}
+/**
+ * Prepares every entry before anything is written, so a failure in any of
+ * them — serialization, options or ID generation — writes nothing.
+ */
+export function prepareJobs(queue, entries, defaults, options) {
+    if (!Array.isArray(entries)) {
+        throw new TypeError('publishMany expects an array of { channel, message }.');
+    }
+    const resolved = resolvePublishOptions(defaults, options);
+    return entries.map((entry) => {
+        if (typeof entry !== 'object' || entry === null) {
+            throw new TypeError('Each published entry must be { channel, message }.');
+        }
+        assertChannel(entry.channel);
+        const text = serializeMessage(entry.message);
+        let jobId;
+        if (resolved.jobIdProducer) {
+            jobId = resolved.jobIdProducer(queue, entry.channel, entry.message);
+            assertJobId(jobId);
+        }
+        return {
+            jobId,
+            channel: entry.channel,
+            text,
+            options: resolved.job,
+        };
+    });
+}
+//# sourceMappingURL=message.js.map

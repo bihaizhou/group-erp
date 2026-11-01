@@ -1,0 +1,3 @@
+import { type ReactElement } from 'react';
+export declare function NotificationInAppInbox(): ReactElement;
+//# sourceMappingURL=notification-in-app-inbox.d.ts.map

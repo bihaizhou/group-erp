@@ -1,0 +1,42 @@
+import { RepositoryError } from './errors.js';
+/** One lazy execution, with a single choice of consumption mode. */
+export class DefaultRepositoryQuery {
+    execute;
+    iterate;
+    mode;
+    promise;
+    constructor(execute, iterate) {
+        this.execute = execute;
+        this.iterate = iterate;
+    }
+    then(onfulfilled, onrejected) {
+        return this.collect().then(onfulfilled, onrejected);
+    }
+    catch(onrejected) {
+        return this.collect().catch(onrejected);
+    }
+    finally(onfinally) {
+        return this.collect().finally(onfinally);
+    }
+    [Symbol.asyncIterator]() {
+        if (this.mode)
+            throw consumptionError();
+        this.mode = 'iterator';
+        return this.iterate();
+    }
+    collect() {
+        if (this.mode === 'iterator')
+            return Promise.reject(consumptionError());
+        if (!this.promise) {
+            this.mode = 'array';
+            this.promise = this.run();
+        }
+        return this.promise;
+    }
+    async run() {
+        return this.execute();
+    }
+}
+function consumptionError() {
+    return new RepositoryError('QUERY_ALREADY_CONSUMED', 'A Repository query cannot mix consumption modes or be iterated twice. Create a new findMany query to execute again.');
+}

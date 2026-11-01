@@ -1,0 +1,28 @@
+import type { AuthorizationContext } from './authorization.js';
+export interface AuthorizationRouteRequest {
+    request: Request;
+    /** The request path relative to where the application mounted the dispatcher. */
+    path: string;
+    authorization: AuthorizationContext;
+}
+export type AuthorizationRouteHandler = (input: AuthorizationRouteRequest) => Promise<Response>;
+/** One handler registered with `AuthorizationRouteRegistry.add`, under its normalized path. */
+export interface AuthorizationRouteEntry {
+    readonly path: string;
+    readonly handler: AuthorizationRouteHandler;
+}
+/**
+ * The HTTP surface the installed plugins contribute. A plugin registers its
+ * own routes during setup, so an application mounts one dispatcher instead of
+ * naming each plugin, and a plugin it did not install has no route at all.
+ */
+export declare class AuthorizationRouteRegistry {
+    private readonly handlers;
+    add(path: string, handler: AuthorizationRouteHandler): void;
+    list(): readonly string[];
+    /** Every registration with its handler, sorted by path like `list()`, for tooling such as an API document. */
+    entries(): readonly AuthorizationRouteEntry[];
+    /** The matching handler's response, or `undefined` when no plugin claims the path. */
+    handle(input: AuthorizationRouteRequest): Promise<Response> | undefined;
+}
+//# sourceMappingURL=routes.d.ts.map

@@ -1,0 +1,70 @@
+export class ServiceContainer {
+    bindings = new Map();
+    resolving = [];
+    instance(token, value) {
+        this.assertAvailable(token);
+        this.bindings.set(token, {
+            factory: () => value,
+            instance: value,
+            state: 'created',
+        });
+    }
+    singleton(token, factory) {
+        this.assertAvailable(token);
+        this.bindings.set(token, {
+            factory,
+            instance: undefined,
+            state: 'pending',
+        });
+    }
+    has(token) {
+        return this.bindings.has(token);
+    }
+    resolve(token) {
+        const binding = this.bindings.get(token);
+        if (!binding) {
+            throw new Error(`Service "${token.name}" is not registered.`);
+        }
+        if (binding.state === 'created') {
+            return binding.instance;
+        }
+        if (binding.state === 'failed') {
+            throw binding.error;
+        }
+        if (binding.state === 'creating') {
+            const cycle = [...this.resolving, token]
+                .map((item) => item.name)
+                .join(' -> ');
+            throw new Error(`Circular service dependency detected: ${cycle}.`);
+        }
+        binding.state = 'creating';
+        this.resolving.push(token);
+        try {
+            const value = binding.factory(this);
+            binding.instance = value;
+            binding.state = 'created';
+            return value;
+        }
+        catch (error) {
+            binding.error = error;
+            binding.state = 'failed';
+            throw error;
+        }
+        finally {
+            this.resolving.pop();
+        }
+    }
+    resolveIfCreated(token) {
+        const binding = this.bindings.get(token);
+        if (!binding || binding.state !== 'created') {
+            return undefined;
+        }
+        return binding.instance;
+    }
+    assertAvailable(token) {
+        if (this.bindings.has(token)) {
+            throw new Error(`Service "${token.name}" is already registered.`);
+        }
+    }
+}
+//# sourceMappingURL=container.js.map

@@ -1,0 +1,1 @@
+{"version":3,"file":"react-provider.js","sourceRoot":"","sources":["../../client/react-provider.ts"],"names":[],"mappings":"AAAA,OAAO,EACL,0BAA0B,GAE3B,MAAM,8BAA8B,CAAC;AACtC,OAAO,EAAE,sBAAsB,EAAE,MAAM,oBAAoB,CAAC;AAC5D,MAAM,cAAc,GAClB,0BAA0B,CAAC;IACzB,EAAE,IAAI,EAAE,gBAAgB,EAAE,SAAS,EAAE,sBAAsB,EAAE;CAC9D,CAAC,CAAC;AACL,eAAe,cAAc,CAAC"}

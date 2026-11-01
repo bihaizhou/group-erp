@@ -1,0 +1,5 @@
+import type { CacheProviderDriver } from './types.js';
+export declare const memoryCacheProviderDriver: CacheProviderDriver;
+export declare function registerCachingDriver(driver: CacheProviderDriver): () => void;
+export declare function getCachingDriver(name: string): CacheProviderDriver | undefined;
+//# sourceMappingURL=drivers.d.ts.map

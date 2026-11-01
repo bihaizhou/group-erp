@@ -1,0 +1,18 @@
+import type { DatabaseCapabilities } from './adapter.js';
+import type { BuilderExecOptions, BuilderImpact, BuilderWarning, SchemaOperation } from '../collection/types.js';
+export interface CapabilityPlan {
+    schemaOperations: SchemaOperation[];
+    warnings: BuilderWarning[];
+    impact: BuilderImpact[];
+}
+export interface CapabilityPlannerOptions {
+    capabilities?: DatabaseCapabilities;
+    dialect?: string;
+    strict?: boolean;
+}
+export declare class UnsupportedCapabilityError extends Error {
+    readonly warnings: BuilderWarning[];
+    constructor(warnings: BuilderWarning[]);
+}
+export declare function planCapabilities(schemaOperations: SchemaOperation[], options?: CapabilityPlannerOptions): CapabilityPlan;
+export declare function throwIfStrictWarnings(warnings: BuilderWarning[], options: Pick<BuilderExecOptions, 'strict'>): void;

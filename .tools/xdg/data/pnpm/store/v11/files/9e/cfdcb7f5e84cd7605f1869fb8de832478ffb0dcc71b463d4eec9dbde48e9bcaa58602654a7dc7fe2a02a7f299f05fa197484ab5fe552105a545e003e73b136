@@ -1,0 +1,7 @@
+import type { QueueConfig, QueueService, QueueServiceDefaults } from './types.js';
+/**
+ * Creates the queue service of one application. It only keeps the
+ * configuration: nothing connects before `setup()`.
+ */
+export declare function createQueueService(config: QueueConfig | undefined, defaults: QueueServiceDefaults): QueueService;
+//# sourceMappingURL=service.d.ts.map

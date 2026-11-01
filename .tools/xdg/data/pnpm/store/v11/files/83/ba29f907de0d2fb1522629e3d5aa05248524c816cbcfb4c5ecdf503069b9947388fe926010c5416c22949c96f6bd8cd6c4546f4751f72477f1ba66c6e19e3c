@@ -1,0 +1,6 @@
+import { type QueryAdapter } from '@nocobase/db';
+import { type MailAccount, type MailIdentity, type MailSignature } from '../../shared/mail.js';
+export declare function persistAccount(query: QueryAdapter, account: MailAccount): Promise<void>;
+export declare function replaceAccountIdentities(query: QueryAdapter, accountId: string, identities: readonly MailIdentity[]): Promise<void>;
+export declare function saveSignature(query: QueryAdapter, signature: MailSignature): Promise<void>;
+//# sourceMappingURL=account-writes.d.ts.map

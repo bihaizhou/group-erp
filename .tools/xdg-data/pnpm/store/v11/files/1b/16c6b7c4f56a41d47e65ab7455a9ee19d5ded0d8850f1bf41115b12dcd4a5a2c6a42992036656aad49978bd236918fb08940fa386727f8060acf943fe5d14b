@@ -1,0 +1,99 @@
+import { z } from 'zod';
+import type { UserPreferences } from '../preferences/service.js';
+import type { PublicUserInvitation, UserInvitation, UserInvitationResult } from '../tokens.js';
+export declare const UserParams: z.ZodObject<{
+    userId: z.ZodString;
+}, z.core.$strip>;
+export declare const UserRoleScopeParams: z.ZodObject<{
+    userId: z.ZodString;
+    scope: z.ZodString;
+}, z.core.$strip>;
+export declare const ListUsersQuery: z.ZodObject<{
+    page: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
+    pageSize: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
+    q: z.ZodOptional<z.ZodString>;
+    status: z.ZodOptional<z.ZodEnum<{
+        enabled: 'enabled';
+        disabled: 'disabled';
+    }>>;
+    roleScope: z.ZodOptional<z.ZodString>;
+    role: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
+/** One scope's roles: a single role, or a list that may be empty to clear an optional multi-role scope. */
+export declare const UserRoleValueInput: z.ZodUnion<readonly [z.ZodString, z.ZodArray<z.ZodString>]>;
+export declare const CreateUserInput: z.ZodObject<{
+    name: z.ZodString;
+    username: z.ZodOptional<z.ZodString>;
+    email: z.ZodString;
+    password: z.ZodString;
+    roleScopes: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodArray<z.ZodString>]>>>;
+}, z.core.$strict>;
+export declare const UpdateUserInput: z.ZodObject<{
+    name: z.ZodOptional<z.ZodString>;
+    username: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    email: z.ZodOptional<z.ZodString>;
+}, z.core.$strict>;
+export declare const DeleteUserQuery: z.ZodObject<{
+    confirm: z.ZodLiteral<'true'>;
+}, z.core.$strip>;
+export declare const ReplaceUserRoleScopeInput: z.ZodObject<{
+    value: z.ZodUnion<readonly [z.ZodString, z.ZodArray<z.ZodString>]>;
+}, z.core.$strict>;
+export declare const ResetUserPasswordInput: z.ZodObject<{
+    password: z.ZodString;
+}, z.core.$strict>;
+export type CreateUserInput = z.infer<typeof CreateUserInput>;
+export type UpdateUserInput = z.infer<typeof UpdateUserInput>;
+export declare const InvitationParams: z.ZodObject<{
+    invitationId: z.ZodString;
+}, z.core.$strip>;
+export declare const InviteUsersInput: z.ZodObject<{
+    emails: z.ZodArray<z.ZodString>;
+    roleScopes: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodArray<z.ZodString>]>>>;
+}, z.core.$strict>;
+/** The token travels in the body so request logs never record it. */
+export declare const InvitationTokenInput: z.ZodObject<{
+    token: z.ZodString;
+}, z.core.$strict>;
+export declare const AcceptInvitationInput: z.ZodObject<{
+    token: z.ZodString;
+    name: z.ZodString;
+    password: z.ZodString;
+}, z.core.$strict>;
+export declare const PreferenceParams: z.ZodObject<{
+    key: z.ZodString;
+}, z.core.$strip>;
+/**
+ * Several preferences by key. Keys and values are application-defined JSON, so they cannot be described here; the
+ * preferences service checks each key and the encoded size of each value.
+ */
+export declare const PreferencesInput: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+/** One preference's value: application-defined JSON, checked by the preferences service. */
+export declare const PreferenceInput: z.ZodObject<{
+    value: z.ZodUnknown;
+}, z.core.$strict>;
+export declare const ManagedUserSchema: z.ZodType;
+export declare const UsersPageMeta: z.ZodType;
+export declare const UserManagementOptionsSchema: z.ZodType;
+export declare const UserInvitationSchema: z.ZodType<UserInvitation>;
+export declare const ResendInvitationQuery: z.ZodObject<{
+    sendEmail: z.ZodOptional<z.ZodEnum<{
+        true: 'true';
+        false: 'false';
+    }>>;
+}, z.core.$strip>;
+export declare const UserInvitationResultSchema: z.ZodType<UserInvitationResult>;
+export declare const PublicUserInvitationSchema: z.ZodType<PublicUserInvitation>;
+export declare const AcceptedInvitationSchema: z.ZodType<{
+    email: string;
+    existingAccount: boolean;
+}>;
+export declare const UserPreferencesSchema: z.ZodType<UserPreferences>;
+export declare const UserPreferenceSchema: z.ZodType<{
+    value: unknown;
+}>;
+/** Pending and expired invitations are a bounded list, so it is not paged. */
+export declare const InvitationsMeta: z.ZodType<{
+    total: number;
+}>;
+//# sourceMappingURL=schemas.d.ts.map

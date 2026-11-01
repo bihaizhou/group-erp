@@ -1,0 +1,3 @@
+import type { ConfigContext, CreateConfigContextOptions } from './types.js';
+export declare function createConfigContext(options: CreateConfigContextOptions): ConfigContext;
+//# sourceMappingURL=context.d.ts.map

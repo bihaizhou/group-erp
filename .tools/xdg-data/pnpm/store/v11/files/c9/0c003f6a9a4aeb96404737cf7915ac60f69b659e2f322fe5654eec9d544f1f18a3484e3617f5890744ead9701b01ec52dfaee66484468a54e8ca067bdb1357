@@ -1,0 +1,2 @@
+export { imapSmtpMailProviderDefinition } from './definition.js';
+//# sourceMappingURL=index.js.map

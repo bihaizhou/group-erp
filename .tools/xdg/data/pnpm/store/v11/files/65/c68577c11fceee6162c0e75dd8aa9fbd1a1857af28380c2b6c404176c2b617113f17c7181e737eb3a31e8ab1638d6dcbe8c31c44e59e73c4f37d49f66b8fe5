@@ -1,0 +1,16 @@
+import { type AuthorizationRouteHandler } from '@nocobase/authorization/core';
+import { type PermissionSet, type PermissionSetProtectionInfo, type PermissionSetsApi } from '@nocobase/authorization/permission-sets';
+import type { AuthorizationExtensionHost } from '../host.js';
+/** A Permission Set as the read endpoints report it. */
+export interface PermissionSetSummary extends PermissionSet {
+    /** Present when the set is protected; `allow` lists what the generic API may still do. */
+    readonly protection?: PermissionSetProtectionInfo;
+    /** True when holding this set grants unrestricted access. */
+    readonly unrestricted?: boolean;
+}
+export declare const PERMISSION_SETS_SETTINGS = "authorization.permission-sets";
+type Api = Omit<PermissionSetsApi, 'withTransaction'>;
+/** Every `/permissionSets` route, gated by `settings:authorization.permission-sets`. */
+export declare function createPermissionSetHandler(host: AuthorizationExtensionHost, api: Api): AuthorizationRouteHandler;
+export {};
+//# sourceMappingURL=permission-sets.d.ts.map

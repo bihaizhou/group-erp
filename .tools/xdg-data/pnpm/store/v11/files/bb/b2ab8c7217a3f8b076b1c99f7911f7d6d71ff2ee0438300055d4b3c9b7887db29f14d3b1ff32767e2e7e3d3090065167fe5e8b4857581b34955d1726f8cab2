@@ -1,0 +1,71 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+import { Archive, ChevronDown, ChevronRight, FileText, Folder, Inbox, MailOpen, Send, ShieldAlert, Star, Trash2, } from 'lucide-react';
+import { useState } from 'react';
+import { cn } from '../lib/utils.js';
+import { MAIL_VIRTUAL_FOLDER_IDS } from '../../shared/mail.js';
+import { getMailFolderDisplayItems, } from '../lib/mail-folders.js';
+import { Button } from './ui/button.js';
+import { MailLabelColorDot } from './mail-label-tag.js';
+import { NativeSelect } from './ui/native-select.js';
+const folderIcons = {
+    inbox: Inbox,
+    sent: Send,
+    drafts: FileText,
+    trash: Trash2,
+    junk: ShieldAlert,
+    archive: Archive,
+    custom: Folder,
+};
+export function MailboxSidebar({ accounts, accountId, folderId, folderAccountId, folders, accountFolderGroups, labelId, customLabels, labels, onAccountChange, onFolderChange, onLabelChange, onSmartViewChange, smartView, }) {
+    const [collapsedAccountIds, setCollapsedAccountIds] = useState(() => new Set());
+    const orderedFolders = getMailFolderDisplayItems(folders, labels.folderNames, labels.systemFolderNames);
+    const inboxFolderItem = orderedFolders.find(({ folder }) => folder.type === 'inbox');
+    const otherFolderItems = orderedFolders.filter(({ folder }) => folder.type !== 'inbox');
+    const visibleAccountFolderGroups = accountFolderGroups.filter((group) => !accountId || group.accountId === accountId);
+    const renderFolderButton = (folder, ownerAccountId, ownerAccountLabel, displayName) => {
+        const Icon = folderIcons[folder.type] ?? Folder;
+        const selected = (folderId === folder.providerFolderId &&
+            folderAccountId === ownerAccountId) ||
+            (folder.type === 'inbox' &&
+                folderId === MAIL_VIRTUAL_FOLDER_IDS.inbox &&
+                !folderAccountId &&
+                (!ownerAccountId || ownerAccountId === accountId));
+        return (_jsx(SidebarButton, { accountLabel: ownerAccountLabel, active: selected, icon: Icon, label: displayName ?? folder.name, onClick: () => {
+                if (selected)
+                    return;
+                onSmartViewChange('all');
+                onFolderChange(folder.providerFolderId, ownerAccountId);
+            } }, `${ownerAccountId ?? accountId}:${folder.id}`));
+    };
+    return (_jsxs("aside", { className: 'flex h-full min-h-0 flex-col overflow-y-auto border-r bg-muted/20 p-3', children: [_jsxs("label", { className: 'grid gap-2 text-xs font-medium text-muted-foreground', children: [labels.account, _jsxs(NativeSelect, { className: 'bg-background', onChange: (event) => onAccountChange(event.target.value), value: accountId, children: [_jsx("option", { value: '', children: labels.allAccounts }), accounts.map((account) => (_jsx("option", { value: account.id, children: account.address }, account.id)))] })] }), _jsxs("nav", { "aria-label": labels.folders, className: 'mt-4 space-y-1', children: [inboxFolderItem
+                        ? renderFolderButton(inboxFolderItem.folder, accountId || undefined, undefined, inboxFolderItem.name)
+                        : null, _jsx(SidebarButton, { active: !folderId && !labelId && smartView === 'unread', icon: MailOpen, label: labels.unread, onClick: () => {
+                            onFolderChange(undefined);
+                            onLabelChange(undefined);
+                            onSmartViewChange('unread');
+                        } }), _jsx(SidebarButton, { active: !folderId && !labelId && smartView === 'starred', icon: Star, label: labels.starred, onClick: () => {
+                            onFolderChange(undefined);
+                            onLabelChange(undefined);
+                            onSmartViewChange('starred');
+                        } })] }), accountId ? (accounts.length > 0 ? (_jsxs(_Fragment, { children: [_jsx("p", { className: 'mt-6 px-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase', children: labels.folders }), _jsxs("nav", { "aria-label": labels.folders, className: 'mt-2 space-y-1', children: [otherFolderItems.map(({ folder, name }) => renderFolderButton(folder, accountId, undefined, name)), visibleAccountFolderGroups.flatMap((group) => getMailFolderDisplayItems(group.folders, labels.folderNames, labels.systemFolderNames).map(({ folder, name }) => renderFolderButton(folder, group.accountId, group.accountLabel, name)))] })] })) : null) : (_jsxs(_Fragment, { children: [otherFolderItems.length > 0 ? (_jsx("nav", { "aria-label": labels.folders, className: 'mt-1 space-y-1', children: otherFolderItems.map(({ folder, name }) => renderFolderButton(folder, undefined, undefined, name)) })) : null, accounts.length > 0 ? (_jsxs(_Fragment, { children: [_jsx("p", { className: 'mt-6 px-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase', children: labels.accounts }), _jsx("nav", { "aria-label": labels.accounts, className: 'mt-2 space-y-1', children: visibleAccountFolderGroups.map((group) => {
+                                    const expanded = !collapsedAccountIds.has(group.accountId);
+                                    const Chevron = expanded ? ChevronDown : ChevronRight;
+                                    return (_jsxs("div", { children: [_jsxs(Button, { "aria-expanded": expanded, className: 'w-full justify-between gap-2 rounded-lg px-2.5 text-left text-sm font-medium', onClick: () => setCollapsedAccountIds((current) => {
+                                                    const next = new Set(current);
+                                                    if (next.has(group.accountId)) {
+                                                        next.delete(group.accountId);
+                                                    }
+                                                    else {
+                                                        next.add(group.accountId);
+                                                    }
+                                                    return next;
+                                                }), type: 'button', variant: 'ghost', children: [_jsx(Chevron, { "aria-hidden": 'true', className: 'size-4 shrink-0 text-muted-foreground' }), _jsx("span", { className: 'min-w-0 flex-1 truncate', title: group.accountLabel, children: group.accountLabel })] }), expanded ? (_jsx("div", { "aria-label": group.accountLabel, className: 'ml-3 space-y-1 border-l pl-2', role: 'group', children: getMailFolderDisplayItems(group.folders, labels.folderNames, labels.systemFolderNames).map(({ folder, name }) => renderFolderButton(folder, group.accountId, group.accountLabel, name)) })) : null] }, group.accountId));
+                                }) })] })) : null] })), customLabels.length > 0 ? (_jsxs(_Fragment, { children: [_jsx("p", { className: 'mt-6 px-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase', children: labels.labels }), _jsx("nav", { "aria-label": labels.labels, className: 'mt-2 space-y-1', children: customLabels.map((label) => (_jsx(SidebarButton, { active: labelId === label.id, color: label.color, label: label.name, onClick: () => {
+                                onSmartViewChange('all');
+                                onLabelChange(labelId === label.id ? undefined : label.id);
+                            } }, label.id))) })] })) : null] }));
+}
+function SidebarButton({ accountLabel, active, color, icon: Icon, label, onClick, }) {
+    return (_jsxs(Button, { "aria-label": accountLabel ? `${label} — ${accountLabel}` : undefined, "aria-current": active ? 'page' : undefined, className: cn('h-9 w-full justify-start gap-2 rounded-lg px-2.5 text-left text-sm', active && 'bg-primary/10 font-medium text-primary hover:bg-primary/15'), onClick: onClick, type: 'button', variant: 'ghost', children: [color ? (_jsx(MailLabelColorDot, { color: color })) : Icon ? (_jsx(Icon, { "aria-hidden": 'true', className: 'size-4 shrink-0' })) : null, _jsx("span", { className: 'min-w-0 flex-1 truncate', children: label })] }));
+}
+//# sourceMappingURL=mailbox-sidebar.js.map

@@ -1,0 +1,10 @@
+import { ServiceProvider } from '@nocobase/service-provider';
+import { createSecretsService } from './service.js';
+import { secretsServiceToken } from './token.js';
+export class SecretsProvider extends ServiceProvider {
+    name = '@nocobase/app-server/secrets';
+    register() {
+        this.app.container.singleton(secretsServiceToken, () => createSecretsService(this.app.config.get('secrets') ?? { keys: [] }));
+    }
+}
+//# sourceMappingURL=provider.js.map

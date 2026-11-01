@@ -1,0 +1,7 @@
+import type { ConfigProvider } from '../types.js';
+export interface FileProviderOptions {
+    readonly name?: string;
+    readonly optional?: boolean;
+}
+export declare function fileProvider(filePath: string, options?: FileProviderOptions): ConfigProvider;
+//# sourceMappingURL=file.d.ts.map

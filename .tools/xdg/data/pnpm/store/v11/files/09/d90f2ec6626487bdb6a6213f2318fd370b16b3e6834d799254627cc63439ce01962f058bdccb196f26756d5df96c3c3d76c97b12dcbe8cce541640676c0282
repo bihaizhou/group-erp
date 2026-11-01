@@ -1,0 +1,126 @@
+{
+  "name": "@nocobase/app-cli",
+  "version": "1.0.0-beta.22",
+  "description": "The NocoBase application command line: runtime commands, plugin management, and the dev and build tooling.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "bin": {
+    "nocobase": "./bin/run.js"
+  },
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "prettier": "@nocobase/dev-config/prettier",
+  "oclif": {
+    "bin": "nocobase",
+    "topicSeparator": " "
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js",
+      "default": "./dist/testing.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "import": "./dist/runtime/index.js",
+      "default": "./dist/runtime/index.js"
+    },
+    "./dev/proxy": {
+      "types": "./dist/tools/scripts/dev/proxy.d.mts",
+      "import": "./dist/tools/scripts/dev/proxy.mjs",
+      "default": "./dist/tools/scripts/dev/proxy.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nocobase/nocobase.git",
+    "directory": "packages/app/app-cli"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.7.0",
+    "@oclif/core": "^4.14.0",
+    "cross-spawn": "^7.0.6",
+    "execa": "^10.0.1",
+    "yaml": "^2.9.0",
+    "@nocobase/logging": "^0.1.0-beta.7",
+    "@nocobase/cli-envelope": "^0.1.0-beta.1",
+    "@nocobase/secrets": "^0.1.0-beta.1"
+  },
+  "peerDependencies": {
+    "@refinedev/cli": "^2.16.48",
+    "prettier": "^3.9.6",
+    "tar": "^7.5.22",
+    "tsc-alias": "^1.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "vite": "^6.3.5",
+    "@nocobase/app-server": "^2.0.0-beta.7",
+    "@nocobase/dev-config": "^0.1.0-beta.22",
+    "@nocobase/db": "^1.0.0-beta.20"
+  },
+  "peerDependenciesMeta": {
+    "@nocobase/dev-config": {
+      "optional": true
+    },
+    "@refinedev/cli": {
+      "optional": true
+    },
+    "prettier": {
+      "optional": true
+    },
+    "tar": {
+      "optional": true
+    },
+    "tsc-alias": {
+      "optional": true
+    },
+    "tsx": {
+      "optional": true
+    },
+    "typescript": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "eslint": "^10.0.0",
+    "prettier": "^3.9.6",
+    "publint": "^0.3.24",
+    "tar": "^7.5.22",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "vite": "^6.3.5",
+    "vitest": "^4.1.10",
+    "@nocobase/db-sqlite": "^0.1.0-beta.5",
+    "@nocobase/db-testing": "0.1.0-beta.2",
+    "@nocobase/dev-config": "0.1.0-beta.22"
+  },
+  "scripts": {
+    "build": "node ./scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix --max-warnings 0",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "test": "vitest run",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
+    "fix": "pnpm lint:fix && pnpm format"
+  }
+}

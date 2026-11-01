@@ -1,0 +1,7 @@
+import type { MailProviderSendInput, NormalizedMailMessage } from '../../contracts/provider.js';
+export declare function normalizedDraft(input: MailProviderSendInput, providerMessageId: string): NormalizedMailMessage;
+export declare function buildMime(input: MailProviderSendInput): Promise<string>;
+export declare function htmlToText(value: string | undefined): string | undefined;
+export declare function forwardedText(comment: string, source: NormalizedMailMessage): string;
+export declare function forwardedHtml(commentHtml: string | undefined, commentText: string, source: NormalizedMailMessage): string;
+//# sourceMappingURL=mime.d.ts.map

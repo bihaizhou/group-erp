@@ -1,0 +1,7 @@
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+import { type AppApiRouteContribution } from '@nocobase/app-server/router';
+import type { NotificationProviderApplicationConfig } from '../providers/notification.js';
+export declare const apiRoutes: AppApiRouteContribution<AppPluginApplication<NotificationProviderApplicationConfig>>;
+declare const routes: readonly AppApiRouteContribution<AppPluginApplication<NotificationProviderApplicationConfig>>[];
+export default routes;
+//# sourceMappingURL=index.d.ts.map

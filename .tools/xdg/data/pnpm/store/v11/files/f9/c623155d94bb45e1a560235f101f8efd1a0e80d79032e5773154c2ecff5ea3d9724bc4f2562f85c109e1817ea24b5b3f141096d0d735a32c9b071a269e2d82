@@ -1,0 +1,7 @@
+import { type AppClientPluginFactory } from '@nocobase/app-client/plugins';
+export interface AuthorizationClientOptions {
+    readonly placeholder?: never;
+}
+declare const authorization: AppClientPluginFactory<AuthorizationClientOptions>;
+export default authorization;
+//# sourceMappingURL=plugin.d.ts.map

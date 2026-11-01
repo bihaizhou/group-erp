@@ -1,0 +1,3 @@
+import type { ComponentProps, ReactElement } from 'react';
+export declare function Card({ className, ...props }: ComponentProps<'div'>): ReactElement;
+//# sourceMappingURL=card.d.ts.map

@@ -1,0 +1,4 @@
+import { type AppServerPlugin } from '@nocobase/app-server/plugins';
+declare const apiKeysPlugin: AppServerPlugin;
+export default apiKeysPlugin;
+//# sourceMappingURL=plugin.d.ts.map

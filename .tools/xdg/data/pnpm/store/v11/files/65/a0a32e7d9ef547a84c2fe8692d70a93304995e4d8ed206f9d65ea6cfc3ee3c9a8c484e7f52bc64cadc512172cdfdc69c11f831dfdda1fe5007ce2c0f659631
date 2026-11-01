@@ -1,0 +1,36 @@
+import type { AppPaths } from '../config/index.js';
+import type { DatabaseDriverRegistration, MigrationSource } from '@nocobase/db';
+import type { AppDatabaseConfig, AppDatabaseMigrationConfig, AppDatabaseTaskContributions } from './types.js';
+export type AppDatabaseTaskKind = 'migrations' | 'seeds';
+export interface AppDatabaseTaskSelection {
+    connection?: string;
+    all?: boolean;
+    autoRun?: boolean;
+    fresh?: boolean;
+    confirmFresh?: (plan: readonly AppDatabaseTask[]) => Promise<boolean>;
+}
+/**
+ * Everything planning needs beyond the configuration itself. `contributions` is
+ * required so that a caller which has not been updated fails to compile rather
+ * than silently planning without its plugins' migrations.
+ */
+export interface AppDatabaseTaskPlanOptions extends AppDatabaseTaskSelection {
+    readonly migrationSources?: readonly AppDatabaseMigrationSource[];
+    readonly contributions: AppDatabaseTaskContributions;
+    readonly paths?: AppPaths;
+    readonly drivers?: Record<string, DatabaseDriverRegistration>;
+}
+export interface AppDatabaseMigrationSource {
+    readonly connection: string;
+    readonly source: MigrationSource;
+}
+export interface AppDatabaseTask {
+    connection: string;
+    kind: AppDatabaseTaskKind;
+    config: AppDatabaseMigrationConfig;
+    skipReason?: 'external' | 'auto-run-disabled';
+}
+export declare function defaultConnectionName(config: AppDatabaseConfig): string | undefined;
+/** Resolve the entire plan before any database is opened or modified. */
+export declare function planAppDatabaseTasks(config: AppDatabaseConfig, kinds: readonly AppDatabaseTaskKind[], planOptions: AppDatabaseTaskPlanOptions): AppDatabaseTask[];
+//# sourceMappingURL=plan.d.ts.map

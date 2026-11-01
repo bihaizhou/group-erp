@@ -1,0 +1,134 @@
+import type { DatabaseManager } from '@nocobase/db';
+import type { ScheduleEvent, ScheduleExecutor, ScheduleJob } from '@nocobase/jobs';
+import type { ScheduleJobSpec } from './dispatch.js';
+import type { ScheduleOccurrenceStatus } from './occurrences.js';
+import type { JsonObject, NormalizedScheduleDefinition } from './schedules/define.js';
+/** A schedule id that names no schedule of this application. */
+export declare class ScheduleNotFoundError extends Error {
+    readonly scheduleId: string;
+    constructor(scheduleId: string);
+}
+/** Which slice of a schedule's occurrence history to read, newest first. */
+export interface ScheduleOccurrenceRange {
+    readonly offset?: number;
+    readonly limit?: number;
+}
+export interface ScheduleManifestEntry {
+    readonly definition: NormalizedScheduleDefinition;
+}
+export interface ScheduleRecord {
+    readonly id: string;
+    readonly appName: string;
+    readonly key: string;
+    readonly title: string;
+    readonly description?: string;
+    readonly cron: string;
+    readonly timezone: string;
+    readonly enabled: boolean;
+    readonly targetType: string;
+    readonly lifecycleState: 'active' | 'inactive';
+    readonly inactiveReason?: string;
+    readonly definitionHash: string;
+    readonly runCount: number;
+    readonly completedCount: number;
+    readonly nextRunAt?: string;
+    readonly lastRunAt?: string;
+    readonly scheduleStatus: 'active' | 'paused';
+}
+export interface ScheduleTargetProjection {
+    readonly id: string;
+    readonly type: string;
+    readonly config: JsonObject;
+}
+export interface ScheduleOccurrenceRecord {
+    readonly id: string;
+    readonly scheduleId: string;
+    readonly status: ScheduleOccurrenceStatus;
+    readonly reason?: string;
+    readonly executionCount: number;
+    readonly startedAt: string;
+    readonly acceptedAt?: string;
+    readonly finishedAt?: string;
+    readonly targetReceipt?: JsonObject;
+    readonly resultSummary?: JsonObject;
+    readonly target: {
+        readonly type: string;
+        readonly reference?: {
+            readonly type: string;
+            readonly id: string;
+        };
+    };
+}
+/** Builds the executor job of one schedule, given what remains of its limit. */
+export type ScheduleJobFactory = (spec: ScheduleJobSpec, limit: number | undefined) => ScheduleJob;
+/**
+ * Keeps the schedule definitions and hands their rules to the executor.
+ *
+ * Every definition in the manifest gets its handler registered, including
+ * disabled and exhausted ones, so whichever instance a firing reaches can run
+ * it. Only enabled definitions with firings left get a rule. Before the
+ * executor is set up, rules are only registered — it writes them in setup() —
+ * so removals and the planned times they return wait for {@link activate}.
+ */
+export declare class ScheduleStore {
+    private readonly database;
+    private readonly appName;
+    private readonly executor;
+    private readonly createJob;
+    private readonly now;
+    private active;
+    private readonly awaitingPlan;
+    private readonly awaitingRemoval;
+    private readonly awaitingStaleRemoval;
+    constructor(database: DatabaseManager, appName: string, executor: ScheduleExecutor, createJob: ScheduleJobFactory, now?: () => Date);
+    reconcile(manifest: readonly ScheduleManifestEntry[], finalize?: boolean): Promise<void>;
+    /**
+     * Runs what had to wait for the executor's setup(): removing rules, and
+     * recording the planned time of every rule setup() wrote.
+     */
+    activate(): Promise<void>;
+    /**
+     * Records a firing this instance ran. A start counts once per occurrence:
+     * the conditional update matches only while `lastOccurrenceId` is another
+     * occurrence, so a redelivered start is ignored. The query builder has no
+     * arithmetic, so the increment is a compare-and-set on the count it read.
+     */
+    recordEvent(event: ScheduleEvent): Promise<void>;
+    list(): Promise<readonly ScheduleRecord[]>;
+    setEnabled(id: string, enabled: boolean): Promise<void>;
+    /**
+     * Counts occurrences that reached the `succeeded` terminal state, per schedule.
+     * Only successful outcomes count as completed: `failed`, `timed_out`,
+     * `cancelled`, `triggered` (result unknown) and `skipped` (never executed) are
+     * deliberately excluded. The result is keyed by schedule id for the schedules
+     * passed in, so occurrences orphaned from an app's definitions never appear.
+     */
+    private countCompleted;
+    listTargets(): Promise<readonly ScheduleTargetProjection[]>;
+    listOccurrences(scheduleId: string, range?: ScheduleOccurrenceRange): Promise<readonly ScheduleOccurrenceRecord[]>;
+    private upsertDefinition;
+    private materialize;
+    /**
+     * Adds the rule of an enabled schedule and returns its planned firing. A
+     * schedule whose limit is spent only registers its handler, and a rule it
+     * still had is removed.
+     */
+    private applyRule;
+    private removeRule;
+    /** Removes a rule the definition should no longer have, once the executor is set up. */
+    private removeStaleRule;
+    /**
+     * Reads the definition again first: another instance may have enabled it
+     * after this sync read it as disabled, and written the rule since.
+     */
+    private removeRuleIfOff;
+    private updateDefinition;
+    private findMissing;
+    /** Definitions `--finalize` already deactivated, other than those the manifest brings back. */
+    private findInactive;
+    private deactivate;
+    private recordSyncResult;
+    private lockManifestOwners;
+}
+export declare function scheduleId(appName: string, key: string): string;
+//# sourceMappingURL=store.d.ts.map

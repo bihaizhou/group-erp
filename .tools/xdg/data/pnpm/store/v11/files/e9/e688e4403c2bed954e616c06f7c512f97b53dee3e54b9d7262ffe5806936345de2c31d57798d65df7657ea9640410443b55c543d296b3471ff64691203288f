@@ -1,0 +1,16 @@
+import type { BooleanFilterOperators, DateFilterOperators, FilterBuilder, FilterConditionNode, FilterFieldGroup, FilterGroupNode, FilterNode, FilterVariable, JsonFilterOperators, NumberFilterOperators, RelationFilterOperators, RepositoryPath, RepositoryRecord, StringFilterOperators, TextFilterOperators, TimeFilterOperators } from './types.js';
+export declare class DefaultFilterBuilder<TRecord extends object = RepositoryRecord> implements FilterBuilder<TRecord> {
+    and(items: readonly FilterNode[]): FilterGroupNode;
+    or(items: readonly FilterNode[]): FilterGroupNode;
+    variable(path: string): FilterVariable;
+    string(path: string | RepositoryPath): StringFilterOperators;
+    text(path: string | RepositoryPath): TextFilterOperators;
+    number(path: string | RepositoryPath): NumberFilterOperators;
+    date(path: string | RepositoryPath): DateFilterOperators;
+    time(path: string | RepositoryPath): TimeFilterOperators;
+    boolean(path: string | RepositoryPath): BooleanFilterOperators;
+    json(path: string | RepositoryPath): JsonFilterOperators;
+    relation<TTarget extends object = RepositoryRecord>(path: string | RepositoryPath): RelationFilterOperators<TTarget>;
+}
+export declare function getFilterFieldGroup(node: FilterConditionNode): FilterFieldGroup | undefined;
+//# sourceMappingURL=filter-builder.d.ts.map

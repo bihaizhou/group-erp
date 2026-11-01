@@ -1,0 +1,7 @@
+import { ServiceProvider } from '@nocobase/service-provider';
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+export declare class MailBuiltinsProvider extends ServiceProvider<AppPluginApplication> {
+    readonly name: string;
+    boot(): Promise<void>;
+}
+//# sourceMappingURL=mail-builtins.d.ts.map

@@ -1,0 +1,7 @@
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+import { ServiceProvider } from '@nocobase/service-provider';
+export declare class SchedulerAuthorizationProvider extends ServiceProvider<AppPluginApplication> {
+    readonly name: string;
+    boot(): Promise<void>;
+}
+//# sourceMappingURL=authorization.d.ts.map

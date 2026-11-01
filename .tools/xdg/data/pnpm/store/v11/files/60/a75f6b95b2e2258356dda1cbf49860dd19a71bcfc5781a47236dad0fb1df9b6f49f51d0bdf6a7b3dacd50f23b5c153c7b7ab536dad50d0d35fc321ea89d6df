@@ -1,0 +1,37 @@
+import type { CollectionMetadataStore, CollectionMetadataPage, CollectionMetadataStoreCapabilities, DeleteCollectionMetadataOptions, ListCollectionMetadataOptions, PutCollectionMetadataOptions } from './document-store.js';
+import type { CollectionMetadataDocument, StoredCollectionMetadata } from './document.js';
+export interface DirectoryCollectionMetadataStoreOptions {
+    /**
+     * A directory of hand-written metadata: one `<name>.json` per Collection,
+     * holding that Collection's metadata document. Relative paths resolve
+     * against the process working directory, so callers that know an application
+     * root should resolve them first.
+     */
+    readonly directory: string;
+}
+/**
+ * Reads supplemental Collection metadata from a directory of `<name>.json`
+ * files, each one a Collection metadata document. The files are the source:
+ * for an external connection nothing else can hold metadata, so they are
+ * written by hand and committed. Read-only, like the Module store.
+ *
+ * This is deliberately a different layout from the Collection artifacts
+ * `serializeCollectionArtifact()` writes, whose `<name>/metadata.json` is a
+ * derived copy. A directory in that layout is refused rather than read, so a
+ * store pointed at generated artifacts cannot mistake a snapshot for its
+ * source.
+ */
+export declare class DirectoryCollectionMetadataStore implements CollectionMetadataStore {
+    readonly capabilities: CollectionMetadataStoreCapabilities;
+    readonly directory: string;
+    private readonly documents;
+    private initialized;
+    constructor(options: DirectoryCollectionMetadataStoreOptions);
+    initialize(): Promise<void>;
+    get(name: string): Promise<StoredCollectionMetadata | undefined>;
+    list(options?: ListCollectionMetadataOptions): Promise<CollectionMetadataPage>;
+    put(_document: CollectionMetadataDocument, _options: PutCollectionMetadataOptions): Promise<StoredCollectionMetadata>;
+    delete(_name: string, _options: DeleteCollectionMetadataOptions): Promise<void>;
+    /** A missing directory is an empty store: nothing has been written yet. */
+    private metadataFiles;
+}

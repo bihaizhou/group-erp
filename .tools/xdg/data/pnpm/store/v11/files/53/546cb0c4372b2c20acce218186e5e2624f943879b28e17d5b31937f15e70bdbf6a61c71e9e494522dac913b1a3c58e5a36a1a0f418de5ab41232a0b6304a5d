@@ -1,0 +1,2 @@
+export declare function useAuthorizationRevision(): number;
+//# sourceMappingURL=use-authorization-revision.d.ts.map

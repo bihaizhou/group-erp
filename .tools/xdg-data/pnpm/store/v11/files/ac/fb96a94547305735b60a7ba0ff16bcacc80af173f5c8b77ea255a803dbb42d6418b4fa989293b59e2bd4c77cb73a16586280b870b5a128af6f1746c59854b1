@@ -1,0 +1,188 @@
+import type { Knex } from 'knex';
+import { type DatabaseDriverRuntime } from '../../database/runtime.js';
+import type { CollectionDefinition } from '../../collection/types.js';
+import type { RepositoryRecord, UniqueSelector } from '../types.js';
+import type { RepositoryCreateManyPlan, RepositoryCreateOnePlan, RepositoryDeleteManyPlan, RepositoryDeleteOnePlan, RepositoryDeletedMutation, RepositoryExecutedMutation, RepositoryExecutedManyMutation, RepositoryExecutionAdapter, RepositoryAggregatePlan, RepositoryGroupByPlan, RepositoryFilterPlan, RepositoryReadPlan, RepositorySingleMutationMiss, RepositoryUpdateManyPlan, RepositoryUpdateOnePlan, RepositoryUpsertOnePlan } from './execution-adapter.js';
+import { type RepositoryEventsBinding } from './events/delivery.js';
+import { MutationRecorder } from './events/recorder.js';
+export declare class KnexRepositoryExecutionAdapter implements RepositoryExecutionAdapter {
+    private readonly getClient;
+    private readonly getCollection;
+    readonly runtime: DatabaseDriverRuntime | undefined;
+    /**
+     * Subscriptions and delivery of the connection this adapter writes
+     * through; absent where writes must stay silent.
+     */
+    private readonly events;
+    /**
+     * Present only while a call some subscription observes is running. Every
+     * write site records into it; without it they run exactly as before.
+     */
+    private readonly recorder;
+    constructor(getClient: () => Knex, getCollection: (name: string) => Promise<CollectionDefinition | undefined>, runtime?: DatabaseDriverRuntime | undefined, 
+    /**
+     * Subscriptions and delivery of the connection this adapter writes
+     * through; absent where writes must stay silent.
+     */
+    events?: RepositoryEventsBinding | undefined, 
+    /**
+     * Present only while a call some subscription observes is running. Every
+     * write site records into it; without it they run exactly as before.
+     */
+    recorder?: MutationRecorder | undefined);
+    findMany(plan: RepositoryReadPlan): Promise<RepositoryRecord[]>;
+    stream(plan: RepositoryReadPlan): AsyncIterable<RepositoryRecord>;
+    assertReadable(): void;
+    private streamRoots;
+    findOne(plan: RepositoryReadPlan): Promise<RepositoryRecord | undefined>;
+    count(plan: RepositoryFilterPlan): Promise<number>;
+    exists(plan: RepositoryFilterPlan): Promise<boolean>;
+    aggregate(plan: RepositoryAggregatePlan): Promise<RepositoryRecord>;
+    groupBy(plan: RepositoryGroupByPlan): Promise<RepositoryRecord[]>;
+    createOne(plan: RepositoryCreateOnePlan): Promise<RepositoryExecutedMutation>;
+    private executeCreateOne;
+    createMany(plan: RepositoryCreateManyPlan): Promise<RepositoryExecutedManyMutation>;
+    private executeCreateMany;
+    private executeCreateManyReturning;
+    updateOne(plan: RepositoryUpdateOnePlan): Promise<RepositoryExecutedMutation | RepositorySingleMutationMiss>;
+    private executeUpdateOne;
+    upsertOne(plan: RepositoryUpsertOnePlan): Promise<RepositoryExecutedMutation | 'conflict'>;
+    private executeUpsertOne;
+    updateMany(plan: RepositoryUpdateManyPlan): Promise<RepositoryExecutedManyMutation>;
+    private executeUpdateMany;
+    private executeUpdateManyReturning;
+    deleteOne(plan: RepositoryDeleteOnePlan): Promise<'deleted' | RepositoryDeletedMutation | RepositorySingleMutationMiss>;
+    private executeDeleteOne;
+    deleteMany(plan: RepositoryDeleteManyPlan): Promise<RepositoryExecutedManyMutation>;
+    /** Lock the matching rows by key, then delete them by key, reading nothing back. */
+    private executeDeleteManyByKey;
+    private executeDeleteMany;
+    private executeDeleteManyReturning;
+    private buildRead;
+    private buildDistinctRead;
+    private findByUnique;
+    /**
+     * Assert that the records named by `selectors` satisfy the scope, and roll
+     * the transaction back with SCOPE_VIOLATION if any of them does not.
+     *
+     * The check is a statement rather than an in-memory comparison so that it
+     * agrees with the WHERE clause that selected the row by construction —
+     * same collation, same NULL semantics, same numeric and temporal handling.
+     */
+    private assertWithinScope;
+    /**
+     * Whether this write could move a record out of the scope.
+     *
+     * The submitted values are not the only way a root column changes: a to-one
+     * relation stores its foreign key on the root table, so `owner.connect`
+     * writes `ownerId` without ever naming it. Missing that was how a relation
+     * operation could carry a record out of its own tenant and commit.
+     */
+    private scopeCheckApplies;
+    /**
+     * An upsert whose target exists but lies outside the update scope raises
+     * RECORD_OUTSIDE_SCOPE rather than falling back to an insert.
+     *
+     * This is the one place a policy deliberately tells forbidden and absent
+     * apart, and it costs nothing: an insert would collide with the very unique
+     * constraint that located the row, so "this key is taken" leaks either way —
+     * the fallback would only report it as a confusing duplicate key error. A
+     * caller who must not learn that a key is taken should not be using upsert.
+     */
+    private assertUpsertTargetInScope;
+    private lockByUnique;
+    private lockByFilter;
+    private lockManyByFilter;
+    private anySelectedRowRemains;
+    private findManyBySelectors;
+    private createRecord;
+    private insertRecord;
+    private insertRow;
+    private applyRelationMutations;
+    private applyRelationMutation;
+    private updateRelatedTarget;
+    private upsertRelatedTarget;
+    private deleteRelatedTarget;
+    private removeTargetEdgesForDelete;
+    private updateTargetRecord;
+    private refreshAtomicValues;
+    private lockRelatedTarget;
+    private resolveMutationTarget;
+    private findTarget;
+    /**
+     * A hasOne source holds one target. Attaching another first lets go of the
+     * current one, which needs a nullable foreign key; `keep` is the target
+     * being attached, when it already exists.
+     *
+     * Letting go is still reaching for a row, so the relation scope has to
+     * locate the current target as it does for every other relation write. A
+     * current target the scope cannot see is not detached, and since the new
+     * one cannot be attached while it stays, the write is refused.
+     */
+    private detachCurrentHasOneTarget;
+    private connectRelation;
+    private clearRelation;
+    /** Narrow a relation query by the Policy scope that governs its target. */
+    private applyRelationScope;
+    private disconnectRelation;
+    private replaceRelation;
+    private inTransaction;
+    private inSavepoint;
+    /**
+     * The subscriptions a call reaching `collections` could match, or nothing
+     * when none can. The registry is checked first and on its own, so a
+     * connection nobody observes runs every write exactly as it would without
+     * events.
+     */
+    private observingSubscriptions;
+    /**
+     * Run an observed call with a recorder, inside the caller's transaction or
+     * an implicit one opened through the connection, and emit its event before
+     * that transaction ends.
+     */
+    private runRecorded;
+    /**
+     * A bulk write whose subscriptions accept a count keeps its single
+     * statement. It runs in a transaction only when an `inTransaction`
+     * listener needs one, or the caller already holds one.
+     */
+    private runCounted;
+    private createManyObserved;
+    private recordSuppliedKeys;
+    /** One multi-row INSERT that returns every inserted row. */
+    private executeCreateManyReturningKeys;
+    private executeCreateManyRowByRow;
+    /**
+     * The root Collection and every target and through Collection the
+     * relation writes could reach. Decided before the call runs, so it can
+     * name a Collection the call ends up not writing.
+     */
+    private reachableCollections;
+    private recordRow;
+    /** A through row is keyed by its two foreign keys, with or without a primary key of its own. */
+    private recordEdge;
+    /** A belongsTo foreign key written on the source row. */
+    private recordForeignKey;
+    /**
+     * Whether a write addressed by a condition should lock and report its rows.
+     * A target whose rows have no identity cannot be written by key, so its
+     * condition write runs unchanged and those rows go unreported.
+     */
+    private discoversKeysOf;
+    /**
+     * Key discovery for a write addressed by a condition: lock the rows it
+     * matches and return their keys, so the write can be issued by key and
+     * every row it changes is known.
+     */
+    private lockKeys;
+    /** Null a hasOne or hasMany foreign key on rows whose keys were locked. */
+    private detachByKeys;
+    private selectionFields;
+    private loadRelations;
+    private loadRelation;
+    private prepareFilterGraph;
+    private applySort;
+    private resolveRelationPath;
+    private resolveRelation;
+}
+export declare function selectorBatches(selectors: readonly UniqueSelector[]): UniqueSelector[][];

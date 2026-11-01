@@ -1,0 +1,10 @@
+import type { DatabaseConnection } from '@nocobase/db';
+import type { AuthorizationPlugin } from '@nocobase/authorization/core';
+import { type RestrictionRulesAuthorizationApi, type RestrictionRuleStore } from '@nocobase/authorization/restriction-rules';
+import { type DatabaseAuthorizationApi, type SettingsAuthorizationApi, type UiAuthorizationApi } from '@nocobase/app-plugin-authorization/server';
+export interface RestrictionRulesOptions {
+    store?: RestrictionRuleStore<DatabaseConnection>;
+}
+/** The configuration factory: sharing rules with their settings item and routes. */
+export declare function restrictionRules(options?: RestrictionRulesOptions): AuthorizationPlugin<RestrictionRulesAuthorizationApi<DatabaseConnection>, DatabaseConnection, SettingsAuthorizationApi & DatabaseAuthorizationApi & UiAuthorizationApi>;
+//# sourceMappingURL=authorization.d.ts.map

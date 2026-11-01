@@ -1,0 +1,49 @@
+/** No queue: expired waits never create capacity for work that is still running. */
+export class MailExecutions {
+    limit;
+    timeoutMs;
+    active = new Map();
+    stopped = false;
+    constructor(limit = 4, timeoutMs = 20_000) {
+        this.limit = limit;
+        this.timeoutMs = timeoutMs;
+        if (!Number.isInteger(limit) || limit < 1 || timeoutMs < 1)
+            throw new Error('Invalid mail execution limits.');
+    }
+    get inFlight() {
+        return this.active.size;
+    }
+    submit(work) {
+        if (this.stopped || this.active.size >= this.limit)
+            return undefined;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+        timer.unref();
+        const completion = Promise.resolve().then(() => work(controller.signal));
+        this.active.set(controller, completion);
+        const cleanup = () => {
+            clearTimeout(timer);
+            this.active.delete(controller);
+        };
+        // Observe late failures even when callers have stopped waiting.
+        void completion.then(cleanup, cleanup);
+        return { completion, signal: controller.signal };
+    }
+    async close(waitMs = 5_000) {
+        this.stopped = true;
+        for (const controller of this.active.keys())
+            controller.abort();
+        if (!this.active.size)
+            return;
+        // Shutdown's bounded wait does not change the original work or its accounting.
+        let timer;
+        await Promise.race([
+            Promise.allSettled([...this.active.values()]),
+            new Promise((resolve) => {
+                timer = setTimeout(resolve, waitMs);
+            }),
+        ]);
+        clearTimeout(timer);
+    }
+}
+//# sourceMappingURL=execution.js.map

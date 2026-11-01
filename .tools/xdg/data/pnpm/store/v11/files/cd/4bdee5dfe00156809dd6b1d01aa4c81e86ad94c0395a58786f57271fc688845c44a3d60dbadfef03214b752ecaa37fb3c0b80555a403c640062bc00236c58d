@@ -1,0 +1,4 @@
+import { type ReactElement } from 'react';
+import type { MailWorkspaceComposerProps } from '../contracts/composer.js';
+export declare function MailWorkspaceComposer({ onSelectAccount, ...props }: MailWorkspaceComposerProps): ReactElement;
+//# sourceMappingURL=mail-workspace-composer.d.ts.map

@@ -1,0 +1,13 @@
+export interface MailUnreadCountState {
+    /** Undefined until the first successful response; zero is an actual server count. */
+    readonly unreadCount: number | undefined;
+    readonly loading: boolean;
+    /** The latest request failure, cleared on a successful refresh. */
+    readonly error: unknown;
+}
+/**
+ * Current-user unread count with instance-local refresh coordination.
+ * Mount inside a session-owned scope that remounts when the signed-in user changes.
+ */
+export declare function useMailUnreadCount(): MailUnreadCountState;
+//# sourceMappingURL=use-mail-unread-count.d.ts.map

@@ -1,0 +1,20 @@
+import type { RepositoryEventMeta, RepositoryEventMetaBag, RepositoryEventMetaEntry } from './types.js';
+/**
+ * Define a namespace for metadata a write passes to its mutation event, for
+ * example who made the change. The handle builds the entries a write
+ * method's `meta` option takes and reads the value back from an event,
+ * typed, without an assertion.
+ *
+ * ```ts
+ * const audit = defineRepositoryEventMeta<{ actorId: string }>('audit');
+ * await repository.updateOne({ filter, values, meta: [audit({ actorId })] });
+ * audit.read(event); // { actorId: string } | undefined
+ * ```
+ *
+ * Metadata reaches every row change of the call, nested writes included.
+ * Writes made by a listener do not inherit it. It is not the `context` of
+ * filter and value variables, and no Policy reads it.
+ */
+export declare function defineRepositoryEventMeta<T>(namespace: string): RepositoryEventMeta<T>;
+/** The bag an event carries for a write's `meta` option; one value per namespace. */
+export declare function normalizeRepositoryEventMeta(entries: readonly RepositoryEventMetaEntry[] | undefined, collection: string): RepositoryEventMetaBag | undefined;

@@ -1,0 +1,33 @@
+import { resolveTtlConfig } from './internal/duration.js';
+import { MemoryCacheProvider } from './memory-provider.js';
+export const memoryCacheProviderDriver = {
+    name: 'memory',
+    createProvider(config, _context) {
+        const memory = config;
+        return new MemoryCacheProvider({
+            maxSize: memory.maxSize,
+            defaultTtl: resolveTtlConfig(memory.defaultTtl, 'Memory cache defaultTtl'),
+            maxTtl: resolveTtlConfig(memory.maxTtl, 'Memory cache maxTtl'),
+            checkInterval: resolveTtlConfig(memory.checkInterval, 'Memory cache checkInterval'),
+            useClone: memory.useClone,
+        });
+    },
+};
+const drivers = new Map([
+    [memoryCacheProviderDriver.name, memoryCacheProviderDriver],
+]);
+export function registerCachingDriver(driver) {
+    if (drivers.has(driver.name)) {
+        throw new Error(`Cache provider driver "${driver.name}" is already registered.`);
+    }
+    drivers.set(driver.name, driver);
+    return () => {
+        if (drivers.get(driver.name) === driver) {
+            drivers.delete(driver.name);
+        }
+    };
+}
+export function getCachingDriver(name) {
+    return drivers.get(name);
+}
+//# sourceMappingURL=drivers.js.map

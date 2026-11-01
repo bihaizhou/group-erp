@@ -1,0 +1,16 @@
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+import { type AppApiRouteContribution, type AppRouteContribution } from '@nocobase/app-server/router';
+/**
+ * The page this plugin owns. The Client Route declares the same resource, so a
+ * single `page:database-explorer/access` grant governs both the navigation
+ * entry and a direct call to these endpoints.
+ */
+export declare const DATABASE_EXPLORER_PAGE: string;
+/**
+ * The plugin's URL namespace, which is also the domain of its error reasons.
+ */
+export declare const DATABASE_EXPLORER_NAMESPACE: string;
+export declare const apiRoutes: AppApiRouteContribution<AppPluginApplication>;
+declare const routes: readonly AppRouteContribution<AppPluginApplication>[];
+export default routes;
+//# sourceMappingURL=index.d.ts.map

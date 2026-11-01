@@ -1,0 +1,5 @@
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { MailClient } from './mail-client.js';
+export declare const mailClientToken: ServiceToken<MailClient>;
+export declare function useMailClient(): MailClient;
+//# sourceMappingURL=runtime.d.ts.map

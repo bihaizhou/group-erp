@@ -1,0 +1,7 @@
+import { defineClientReactProviders, } from '@nocobase/app-client/plugins';
+import { AuthenticationProvider } from './auth-provider.js';
+const reactProviders = defineClientReactProviders([
+    { name: 'authentication', component: AuthenticationProvider },
+]);
+export default reactProviders;
+//# sourceMappingURL=react-provider.js.map

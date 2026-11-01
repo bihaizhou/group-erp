@@ -1,0 +1,445 @@
+export class FluentCollectionDefinitionBuilder {
+    definition = {
+        fields: [],
+        indexes: [],
+        constraints: [],
+    };
+    naming(options) {
+        this.definition.naming = { ...(this.definition.naming ?? {}), ...options };
+        return this;
+    }
+    dbSchema(schema) {
+        this.definition.db = { ...(this.definition.db ?? {}), schema };
+        return this;
+    }
+    title(title) {
+        this.definition.title = title;
+        return this;
+    }
+    description(description) {
+        this.definition.description = description;
+        return this;
+    }
+    optimisticLock(field) {
+        const optimisticLock = {
+            field,
+            strategy: 'increment',
+        };
+        this.definition.optimisticLock = optimisticLock;
+        return this;
+    }
+    field(field) {
+        const builder = new FluentFieldDefinitionBuilder(this, field);
+        this.pushField(builder);
+        return builder;
+    }
+    increments(name) {
+        return this.field({
+            name,
+            type: 'increments',
+            primaryKey: true,
+            autoIncrement: true,
+        });
+    }
+    integer(name, options = {}) {
+        return this.field({ name, type: 'integer', ...options });
+    }
+    bigInt(name, options = {}) {
+        return this.field({ name, type: 'bigInt', ...options });
+    }
+    string(name, options = {}) {
+        return this.field({ name, type: 'string', ...options });
+    }
+    char(name, options) {
+        return this.field({ ...options, name, type: 'char' });
+    }
+    enum(name, options) {
+        return this.field({
+            ...options,
+            name,
+            type: 'enum',
+            values: [...options.values],
+        });
+    }
+    text(name, options = {}) {
+        return this.field({ name, type: 'text', ...options });
+    }
+    boolean(name, options = {}) {
+        return this.field({ name, type: 'boolean', ...options });
+    }
+    decimal(name, options = {}) {
+        return this.field({ name, type: 'decimal', ...options });
+    }
+    datetime(name, options = {}) {
+        return this.field({ name, type: 'datetime', ...options });
+    }
+    float(name, options = {}) {
+        return this.field({ ...options, name, type: 'float' });
+    }
+    double(name, options = {}) {
+        return this.field({ ...options, name, type: 'double' });
+    }
+    date(name, options = {}) {
+        return this.field({ ...options, name, type: 'date' });
+    }
+    time(name, options = {}) {
+        return this.field({ ...options, name, type: 'time' });
+    }
+    datetimeTz(name, options = {}) {
+        return this.field({ ...options, name, type: 'datetimeTz' });
+    }
+    json(name, options = {}) {
+        return this.field({ name, type: 'json', ...options });
+    }
+    blob(name, options = {}) {
+        return this.field({ name, type: 'blob', ...options });
+    }
+    uuid(name, options = {}) {
+        return this.field({ name, type: 'uuid', ...options });
+    }
+    native(name, nativeType, options = {}) {
+        return this.field({
+            name,
+            type: options.type ?? 'native',
+            ...options,
+            db: {
+                ...(options.db ?? {}),
+                nativeType,
+            },
+        });
+    }
+    belongsTo(name, target, options = {}) {
+        return this.relation({ name, target, type: 'belongsTo', ...options });
+    }
+    hasOne(name, target, options = {}) {
+        return this.relation({ name, target, type: 'hasOne', ...options });
+    }
+    hasMany(name, target, options = {}) {
+        return this.relation({ name, target, type: 'hasMany', ...options });
+    }
+    belongsToMany(name, target, options = {}) {
+        return this.relation({ name, target, type: 'belongsToMany', ...options });
+    }
+    primary(fields, options = {}) {
+        this.definition.constraints?.push({
+            type: 'primary',
+            fields: array(fields),
+            ...options,
+        });
+        return this;
+    }
+    unique(fields, options = {}) {
+        this.definition.constraints?.push({
+            type: 'unique',
+            fields: array(fields),
+            ...options,
+        });
+        return this;
+    }
+    foreignKey(fields, options) {
+        this.definition.constraints?.push({
+            type: 'foreignKey',
+            fields: array(fields),
+            ...options,
+        });
+        return this;
+    }
+    index(fields, options = {}) {
+        this.definition.indexes?.push({ fields: array(fields), ...options });
+        return this;
+    }
+    toDefinition() {
+        return pruneEmpty({
+            ...this.definition,
+            fields: this.definition.fields?.map((field) => ({ ...field })),
+            indexes: this.definition.indexes?.map((index) => ({ ...index })),
+            constraints: this.definition.constraints?.map((constraint) => ({
+                ...constraint,
+            })),
+            optimisticLock: this.definition.optimisticLock
+                ? { ...this.definition.optimisticLock }
+                : undefined,
+        });
+    }
+    pushField(builder) {
+        this.definition.fields?.push(builder.definition);
+    }
+    relation(definition) {
+        const builder = new FluentRelationFieldBuilder(this, definition);
+        this.pushField(builder);
+        return builder;
+    }
+}
+export class FluentCollectionAlterBuilder extends FluentCollectionDefinitionBuilder {
+    changes = {
+        addFields: [],
+        alterFields: [],
+        dropFields: [],
+        addIndexes: [],
+        dropIndexes: [],
+        addConstraints: [],
+        dropConstraints: [],
+    };
+    optimisticLock(field) {
+        this.changes.optimisticLock = { field, strategy: 'increment' };
+        return this;
+    }
+    clearOptimisticLock() {
+        this.changes.optimisticLock = null;
+        return this;
+    }
+    primary(fields, options = {}) {
+        this.changes.addConstraints?.push({
+            type: 'primary',
+            fields: array(fields),
+            ...options,
+        });
+        return this;
+    }
+    unique(fields, options = {}) {
+        this.changes.addConstraints?.push({
+            type: 'unique',
+            fields: array(fields),
+            ...options,
+        });
+        return this;
+    }
+    foreignKey(fields, options) {
+        this.changes.addConstraints?.push({
+            type: 'foreignKey',
+            fields: array(fields),
+            ...options,
+        });
+        return this;
+    }
+    index(fields, options = {}) {
+        this.changes.addIndexes?.push({ fields: array(fields), ...options });
+        return this;
+    }
+    alterField(name, changes) {
+        this.changes.alterFields?.push({ name, changes });
+        return this;
+    }
+    dropField(name) {
+        this.changes.dropFields?.push(name);
+        return this;
+    }
+    dropFields(...names) {
+        this.changes.dropFields?.push(...names);
+        return this;
+    }
+    dropIndex(name) {
+        this.changes.dropIndexes?.push(name);
+        return this;
+    }
+    dropConstraint(name) {
+        this.changes.dropConstraints?.push(name);
+        return this;
+    }
+    toAlterDefinition() {
+        return pruneEmpty({
+            ...this.changes,
+            addFields: this.definition.fields,
+        });
+    }
+}
+export class FluentViewCollectionDefinitionBuilder extends FluentCollectionDefinitionBuilder {
+    as(query) {
+        const nextQuery = typeof query === 'function'
+            ? query(new FluentViewQueryBuilder()).toQuery()
+            : query;
+        this.definition.view = { ...(this.definition.view ?? {}), as: nextQuery };
+        return this;
+    }
+    asRaw(sql, bindings) {
+        this.definition.view = {
+            ...(this.definition.view ?? {}),
+            asRaw: { sql, bindings },
+        };
+        return this;
+    }
+    refresh(options) {
+        this.definition.view = {
+            ...(this.definition.view ?? {}),
+            refresh: options,
+        };
+        return this;
+    }
+}
+export class FluentViewQueryBuilder {
+    query = {
+        from: '',
+        select: [],
+    };
+    from(collection) {
+        this.query.from = collection;
+        return this;
+    }
+    select(...fields) {
+        this.query.select.push(...fields);
+        return this;
+    }
+    where(field, operator, value) {
+        this.query.filter = {
+            ...(this.query.filter ?? {}),
+            [field]: { [operatorToFilterOperator(operator)]: value },
+        };
+        return this;
+    }
+    toQuery() {
+        return this.query;
+    }
+}
+export class FluentFieldDefinitionBuilder {
+    collection;
+    definition;
+    constructor(collection, definition) {
+        this.collection = collection;
+        this.definition = definition;
+    }
+    primary(options = {}) {
+        this.definition.primaryKey = true;
+        this.collection.primary(this.definition.name, options);
+        return this;
+    }
+    autoIncrement() {
+        this.definition.autoIncrement = true;
+        return this;
+    }
+    notNull() {
+        this.definition.nullable = false;
+        return this;
+    }
+    nullable() {
+        this.definition.nullable = true;
+        return this;
+    }
+    defaultTo(value) {
+        this.definition.defaultValue = value;
+        return this;
+    }
+    unique(options = {}) {
+        this.definition.unique = true;
+        this.collection.unique(this.definition.name, options);
+        return this;
+    }
+    index(options = {}) {
+        this.definition.index = true;
+        this.collection.index(this.definition.name, options);
+        return this;
+    }
+    title(title) {
+        this.definition.title = title;
+        return this;
+    }
+    description(description) {
+        this.definition.description = description;
+        return this;
+    }
+    dbComment(comment) {
+        this.definition.db = { ...(this.definition.db ?? {}), comment };
+        return this;
+    }
+    db(options) {
+        this.definition.db = { ...(this.definition.db ?? {}), ...options };
+        return this;
+    }
+    unsigned() {
+        this.definition.unsigned = true;
+        return this;
+    }
+    references(ref) {
+        this.collection.foreignKey(this.definition.name, {
+            references: {
+                collection: ref.collection,
+                fields: ref.fields ?? (ref.field ? [ref.field] : undefined),
+            },
+        });
+        return this;
+    }
+    toDefinition() {
+        return { ...this.definition };
+    }
+}
+export class FluentRelationFieldBuilder extends FluentFieldDefinitionBuilder {
+    constructor(collection, definition) {
+        super(collection, definition);
+        this.definition = definition;
+    }
+    references() {
+        throw new Error('Relation fields do not support references(). Define a scalar field for database foreign key constraints.');
+    }
+    toDefinition() {
+        return { ...this.definition };
+    }
+    target(target) {
+        this.definition.target = target;
+        return this;
+    }
+    sourceKey(key) {
+        this.definition.sourceKey = key;
+        return this;
+    }
+    targetKey(key) {
+        this.definition.targetKey = key;
+        return this;
+    }
+    foreignKey(key) {
+        this.definition.foreignKey = key;
+        return this;
+    }
+    foreignKeyType(type) {
+        this.definition.foreignKeyType = type;
+        return this;
+    }
+    otherKey(key) {
+        this.definition.otherKey = key;
+        return this;
+    }
+    through(collection) {
+        this.definition.through = collection;
+        return this;
+    }
+    constraints(value = true) {
+        this.definition.constraints = value;
+        return this;
+    }
+    onDelete(action) {
+        this.definition.onDelete = action;
+        return this;
+    }
+    onUpdate(action) {
+        this.definition.onUpdate = action;
+        return this;
+    }
+}
+function array(value) {
+    return Array.isArray(value) ? value : [value];
+}
+function pruneEmpty(value) {
+    for (const key of Object.keys(value)) {
+        const current = value[key];
+        if (Array.isArray(current) && current.length === 0) {
+            delete value[key];
+        }
+    }
+    return value;
+}
+function operatorToFilterOperator(operator) {
+    switch (operator) {
+        case '>':
+            return '$gt';
+        case '>=':
+            return '$gte';
+        case '<':
+            return '$lt';
+        case '<=':
+            return '$lte';
+        case '!=':
+        case '<>':
+            return '$ne';
+        case '=':
+        default:
+            return '$eq';
+    }
+}

@@ -1,0 +1,16 @@
+export { default } from './plugin.js';
+export { createAppAuthorization, } from './authorization.js';
+export { authorizationToken } from './tokens.js';
+export { AuthorizationProvider } from './providers/authorization.js';
+export { databasePlugin } from './database/plugin.js';
+export { pagesPlugin, } from './pages-authorization.js';
+export { settingsPlugin, } from './settings.js';
+export { AUTHORIZATION_SETTINGS_SECTION, reportAuthorizationUi, uiPlugin, } from './ui.js';
+export { DatabasePermissionBuilder, DatabasePermissionDefinitionBuilder, defineDatabasePermission, } from './database/builders.js';
+export { PermissionFieldsBuilder, PermissionUpsertBuilder, ReadPermissionBuilder, RelationPermissionBuilder, ThroughPermissionBuilder, WritePermissionBuilder, } from './database/permission-builders.js';
+export { recordAccess, } from './database/record-access.js';
+export { anyScope, condition, scopeAst, } from './database/scope.js';
+export { AUTHORIZATION_NAMESPACE } from '../shared.js';
+// Re-exported so a plugin can register and check without depending on the library.
+export { grantBacked } from '@nocobase/authorization/core';
+//# sourceMappingURL=index.js.map

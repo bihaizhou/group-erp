@@ -1,0 +1,17 @@
+import { type UserInvitationStatus } from '../tokens.js';
+import type { InvitationRecord } from './store.js';
+/** A link stays valid for seven days; sending it again starts a new period. */
+export declare const INVITATION_TTL_MS: number;
+export declare const MAX_INVITATION_EMAILS = 50;
+/** A new token (the link carries it) and the hash that is stored. */
+export declare function mintToken(): {
+    readonly token: string;
+    readonly hash: string;
+};
+export declare function hashToken(token: string): string;
+/** Trimmed, lower-cased, de-duplicated addresses; every one must be valid. */
+export declare function normalizeEmails(value: readonly unknown[]): string[];
+export declare function statusOf(row: InvitationRecord, at?: Date): UserInvitationStatus;
+/** Only a pending, unexpired invitation can be opened or accepted. */
+export declare function requireOpen(row: InvitationRecord | undefined): InvitationRecord;
+//# sourceMappingURL=rules.d.ts.map

@@ -1,0 +1,37 @@
+import { ensureTaskHistoryTable, readTaskHistoryEntries, recordTaskHistoryEntry, updateTaskHistoryEntry, } from '../../migration/internal/history.js';
+export const DEFAULT_SEED_TABLE = '__nocobase_seeds';
+/**
+ * Seeds keep their own ledger, and it is not batched: they never roll back.
+ * It records a status, because sample data may be recorded without running.
+ */
+function seedLedger(tableName) {
+    return { tableName, batched: false, status: true };
+}
+export async function ensureSeedTable(connection, tableName = DEFAULT_SEED_TABLE) {
+    await ensureTaskHistoryTable(connection, seedLedger(tableName));
+}
+export async function readSeedHistory(connection, tableName = DEFAULT_SEED_TABLE) {
+    const entries = await readTaskHistoryEntries(connection, seedLedger(tableName));
+    // A ledger that records status maps it on every entry.
+    return entries.map((entry) => ({
+        ...entry,
+        status: entry.status ?? 'executed',
+    }));
+}
+export async function recordSeedCompleted(connection, options) {
+    await recordTaskHistoryEntry(connection, seedLedger(options.tableName ?? DEFAULT_SEED_TABLE), {
+        packageName: options.packageName,
+        name: options.name,
+        checksum: options.checksum,
+        durationMs: options.durationMs,
+        status: options.status ?? 'executed',
+    });
+}
+/** Rewrites a recorded entry's outcome, such as a skipped sample seed that has now run. */
+export async function updateSeedRecord(connection, options) {
+    await updateTaskHistoryEntry(connection, seedLedger(options.tableName ?? DEFAULT_SEED_TABLE), options.name, {
+        checksum: options.checksum,
+        durationMs: options.durationMs,
+        status: options.status,
+    });
+}

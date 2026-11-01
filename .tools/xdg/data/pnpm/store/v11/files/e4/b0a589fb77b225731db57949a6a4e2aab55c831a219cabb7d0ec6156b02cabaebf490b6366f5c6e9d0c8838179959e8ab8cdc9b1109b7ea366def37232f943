@@ -1,0 +1,9 @@
+import { type ReactElement } from 'react';
+/**
+ * `/invite/:token`, the page an invitation email links to. It shows who invited the visitor, takes a name and a
+ * password, creates the account and signs in. Existing accounts accept only from their matching session; visitors
+ * signed in as another account must sign out first. Applications may replace it (`INVITE_ROUTE_ID`) to match their
+ * own sign-in pages.
+ */
+export default function AcceptInvitationPage(): ReactElement;
+//# sourceMappingURL=accept-invitation-page.d.ts.map

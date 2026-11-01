@@ -1,0 +1,130 @@
+{
+  "name": "@nocobase/app-plugin-mail",
+  "displayName": "Mail App Plugin",
+  "description": "Provides mail sending and resumable mailbox synchronization architecture.",
+  "version": "1.0.0-beta.14",
+  "type": "module",
+  "prettier": "@nocobase/dev-config/prettier",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "sideEffects": false,
+  "main": "./dist/server/index.js",
+  "types": "./dist/server/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
+    },
+    "./client/components": {
+      "types": "./dist/client/components/public.d.ts",
+      "import": "./dist/client/components/public.js"
+    },
+    "./realtime": {
+      "types": "./dist/shared/realtime.d.ts",
+      "import": "./dist/shared/realtime.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "nocobase": {
+    "appConfig": {
+      "namespace": "mail",
+      "configFile": "server/config/mail.ts",
+      "factory": "@nocobase/app-plugin-mail/server",
+      "environmentVariables": [
+        "MAIL_OAUTH_CALLBACK_URL",
+        "MAIL_OAUTH_RETURN_URL",
+        "MAIL_AUTOMATIC_SYNC_INTERVAL_MS",
+        "MAIL_SYNC_BATCH_SIZE",
+        "MAIL_PUSH_WEBHOOK_URL",
+        "MAIL_PUSH_WEBHOOK_SECRET",
+        "MAIL_JOBS"
+      ]
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@base-ui/react": "^1.6.0",
+    "class-variance-authority": "^0.7.1",
+    "cn": "^0.4.0",
+    "date-fns": "^4.4.0",
+    "lucide-react": "^0.487.0",
+    "react": "^19.0.0",
+    "react-day-picker": "^10.0.1",
+    "react-dom": "^19.0.0",
+    "@nocobase/app-client": "^3.0.0-beta.1",
+    "@nocobase/app-plugin-authentication": "^2.0.0-beta.9",
+    "@nocobase/app-plugin-authorization": "^1.0.0-beta.27",
+    "@nocobase/app-server": "^2.0.0-beta.7",
+    "@nocobase/db": "^1.0.0-beta.20",
+    "@nocobase/i18n": "^1.0.0-beta.7",
+    "@nocobase/jobs": "^0.1.0-beta.3",
+    "@nocobase/service-provider": "^0.0.2-beta.2"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.52",
+    "hono": "^4.13.2",
+    "imapflow": "^2.0.0",
+    "mailparser": "^3.9.24",
+    "nodemailer": "^9.0.5",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.3",
+    "@types/mailparser": "^3.4.6",
+    "@types/node": "^24.0.0",
+    "@types/nodemailer": "^8.0.1",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^10.0.0",
+    "prettier": "^3.9.6",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router": "^7.0.2",
+    "shadcn": "^4.13.1",
+    "tailwindcss": "^4.1.4",
+    "tw-animate-css": "^1.2.5",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10",
+    "@nocobase/app-testing": "0.1.0-beta.4",
+    "@nocobase/config": "0.1.0-beta.3",
+    "@nocobase/dev-config": "0.1.0-beta.22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nocobase/nocobase.git",
+    "directory": "packages/plugins/app-plugin-mail"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && nocobase-db-manifests",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tests/fixtures/composer-callback-types/tsconfig.json",
+    "test": "vitest run --coverage",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix --max-warnings 0",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
+    "fix": "pnpm lint:fix && pnpm format",
+    "test:postgres": "NOCOBASE_TEST_DB_DIALECT=postgres vitest run tests/server/message-queries.test.ts"
+  }
+}

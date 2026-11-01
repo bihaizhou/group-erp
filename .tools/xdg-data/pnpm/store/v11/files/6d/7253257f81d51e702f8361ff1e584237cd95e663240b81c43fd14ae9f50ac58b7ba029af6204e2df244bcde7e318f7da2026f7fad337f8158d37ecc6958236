@@ -1,0 +1,10 @@
+import type { Auth } from '@nocobase/app-plugin-authentication';
+import type { AuthorizationEnv } from '@nocobase/authorization/core';
+import { Hono } from 'hono';
+import type { AppAuthorization } from '../authorization.js';
+/**
+ * `/permissions` for the signed-in user; every other path goes to whichever
+ * plugin registered it with `authz.routes.add`.
+ */
+export declare function createAuthorizationRoutes(auth: Auth, authorization: AppAuthorization): Hono<AuthorizationEnv>;
+//# sourceMappingURL=authorization.d.ts.map

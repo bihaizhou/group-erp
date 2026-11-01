@@ -1,0 +1,7 @@
+import type { ProviderSendResult } from '@nocobase/app-plugin-notification';
+export declare function evaluateJsonResult(response: Response, fields: {
+    readonly code: readonly (readonly string[])[];
+    readonly message: readonly (readonly string[])[];
+    readonly success: (code: unknown) => boolean;
+}): Promise<ProviderSendResult>;
+//# sourceMappingURL=result.d.ts.map

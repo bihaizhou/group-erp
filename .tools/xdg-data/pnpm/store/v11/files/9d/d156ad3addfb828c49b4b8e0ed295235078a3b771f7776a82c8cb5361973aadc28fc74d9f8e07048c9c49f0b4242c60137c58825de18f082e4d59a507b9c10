@@ -1,0 +1,12 @@
+export interface PasswordResetCapability {
+    readonly passwordResetAvailable: boolean;
+}
+export interface PasswordResetCapabilityQuery {
+    readonly data?: PasswordResetCapability;
+    readonly isPending: boolean;
+    readonly isError: boolean;
+    readonly refetch: () => Promise<void>;
+}
+/** Reads and briefly caches the server's password-reset policy. */
+export declare function usePasswordResetCapability(): PasswordResetCapabilityQuery;
+//# sourceMappingURL=password-reset-capability.d.ts.map

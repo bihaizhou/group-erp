@@ -1,0 +1,7 @@
+import type { ListResponse } from 'imapflow';
+import type { NormalizedMailFolder } from '../../contracts/provider.js';
+/** Classifies provider names into the six mailbox semantics shared by the UI. */
+export declare function classifyFolderType(name: string | undefined, specialUse?: string): NormalizedMailFolder['type'];
+export declare function folderType(mailbox: ListResponse): NormalizedMailFolder['type'];
+export declare function folderTypeFromPath(path: string): NormalizedMailFolder['type'];
+//# sourceMappingURL=folders.d.ts.map

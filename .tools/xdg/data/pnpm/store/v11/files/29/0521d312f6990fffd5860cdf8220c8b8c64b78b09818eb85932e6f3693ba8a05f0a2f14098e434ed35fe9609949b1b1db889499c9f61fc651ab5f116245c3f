@@ -1,0 +1,5 @@
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { NotificationExtensionRegistry, NotificationService } from './types.js';
+export declare const notificationServiceToken: ServiceToken<NotificationService>;
+export declare const notificationExtensionRegistryToken: ServiceToken<NotificationExtensionRegistry>;
+//# sourceMappingURL=tokens.d.ts.map

@@ -1,0 +1,10 @@
+import type { Command } from '@oclif/core';
+import { AppCommand } from '../context.ts';
+import { type CommandCatalog } from '../runtime/catalog.ts';
+export default class Commands extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    run(): Promise<CommandCatalog>;
+}
+//# sourceMappingURL=commands.d.ts.map

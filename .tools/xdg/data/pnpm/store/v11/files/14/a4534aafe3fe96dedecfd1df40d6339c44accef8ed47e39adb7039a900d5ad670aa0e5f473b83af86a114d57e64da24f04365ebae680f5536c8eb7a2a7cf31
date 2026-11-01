@@ -1,0 +1,99 @@
+{
+  "name": "@nocobase/app-plugin-file",
+  "displayName": "File App Plugin",
+  "description": "File repositories, uploads, stable content URLs, and editable Registry components for NocoBase applications.",
+  "version": "1.0.0-beta.23",
+  "type": "module",
+  "prettier": "@nocobase/dev-config/prettier",
+  "sideEffects": false,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nocobase/nocobase.git",
+    "directory": "packages/plugins/app-plugin-file"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "CHANGELOG.md",
+    "skills",
+    "registry",
+    "registry.config.json",
+    "public/r"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@silurus/ooxml": "0.85.1",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.3",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "^10.0.0",
+    "jsdom": "^30.0.1",
+    "lucide-react": "^0.487.0",
+    "prettier": "^3.9.6",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10",
+    "@nocobase/api-client": "1.0.0-beta.4",
+    "@nocobase/app-client": "3.0.0-beta.1",
+    "@nocobase/app-server": "2.0.0-beta.4",
+    "@nocobase/db": "1.0.0-beta.19",
+    "@nocobase/app-testing": "0.1.0-beta.3",
+    "@nocobase/dev-config": "0.1.0-beta.22",
+    "@nocobase/drive": "0.1.0-beta.5",
+    "@nocobase/service-provider": "0.0.2-beta.2"
+  },
+  "dependencies": {
+    "hono": "^4.13.2"
+  },
+  "peerDependencies": {
+    "@nocobase/app-client": "^3.0.0-beta.1",
+    "@nocobase/app-server": "^2.0.0-beta.4",
+    "@nocobase/db": "^1.0.0-beta.19",
+    "@nocobase/service-provider": "^0.0.2-beta.2",
+    "@nocobase/i18n": "^1.0.0-beta.7"
+  },
+  "nocobase": {
+    "registry": {
+      "items": {
+        "component-ui": "./registry/component-ui"
+      }
+    }
+  },
+  "scripts": {
+    "build": "node ./scripts/clean-dist.mjs && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix --max-warnings 0",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm registry:build && pnpm build",
+    "fix": "pnpm lint:fix && pnpm format",
+    "registry:build": "node ../../../scripts/registry.mjs build --package .",
+    "registry:materialize": "node ../../../scripts/registry.mjs materialize --package ."
+  }
+}

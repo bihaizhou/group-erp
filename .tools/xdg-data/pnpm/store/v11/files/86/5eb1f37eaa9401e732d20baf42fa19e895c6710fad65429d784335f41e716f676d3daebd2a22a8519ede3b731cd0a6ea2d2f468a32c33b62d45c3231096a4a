@@ -1,0 +1,182 @@
+import { Queue, UnrecoverableError, WaitingError, Worker, } from 'bullmq';
+import { decodeEnvelope, encodeEnvelope, } from '../message.js';
+import { redisQueueIdentity } from '../naming.js';
+/**
+ * One logical queue on BullMQ, through public Queue and Worker APIs only.
+ * Both are built with the configuration's backend factory, passed
+ * explicitly: no process-wide default factory is involved.
+ */
+export class RedisQueueRuntime {
+    context;
+    factory;
+    queue;
+    worker;
+    workerClosing;
+    concurrency;
+    prefix;
+    name;
+    constructor(context, factory) {
+        this.context = context;
+        this.factory = factory;
+        const identity = redisQueueIdentity(context.config.namespace, context.queue);
+        this.prefix = identity.prefix;
+        this.name = identity.name;
+        this.concurrency = context.config.concurrency;
+    }
+    async open() {
+        const queue = new Queue(this.name, { connection: this.connection(), prefix: this.prefix }, this.factory);
+        // Assigned first, so close() reaches a queue whose initialization failed.
+        this.queue = queue;
+        queue.on('error', (error) => this.report(error, 'queue'));
+        await queue.waitUntilReady();
+    }
+    async add(jobs) {
+        const queue = this.requireQueue();
+        if (jobs.length === 1) {
+            const [job] = jobs;
+            const added = await queue.add(job.channel, encodeEnvelope(job.text), jobOptions(job));
+            return [requireJobId(added)];
+        }
+        const added = await queue.addBulk(jobs.map((job) => ({
+            name: job.channel,
+            data: encodeEnvelope(job.text),
+            opts: jobOptions(job),
+        })));
+        return added.map(requireJobId);
+    }
+    async startConsuming(concurrency) {
+        this.concurrency = concurrency;
+        if (this.workerClosing)
+            return;
+        if (this.worker) {
+            if (this.worker.isPaused())
+                await this.worker.resume();
+            return;
+        }
+        const worker = new Worker(this.name, 
+        // BullMQ passes its AbortSignal only to processors declaring three parameters.
+        (job, token, signal) => this.process(job, token, signal), {
+            connection: this.connection(),
+            prefix: this.prefix,
+            concurrency: this.concurrency,
+        }, this.factory);
+        this.worker = worker;
+        worker.on('error', (error) => this.report(error, 'worker'));
+        await worker.waitUntilReady();
+    }
+    async pauseConsuming() {
+        if (!this.worker || this.workerClosing || this.worker.isPaused())
+            return;
+        // Running jobs go on; a job fetched in the meantime finds no handler and returns to waiting.
+        await this.worker.pause(true);
+    }
+    setConcurrency(concurrency) {
+        this.concurrency = concurrency;
+        if (this.worker)
+            this.worker.concurrency = concurrency;
+    }
+    async setRateLimit(rateLimit) {
+        const queue = this.requireQueue();
+        if (rateLimit === null)
+            await queue.removeGlobalRateLimit();
+        else
+            await queue.setGlobalRateLimit(rateLimit.max, rateLimit.duration);
+    }
+    async drain(delayed) {
+        await this.requireQueue().drain(delayed);
+    }
+    stopConsuming() {
+        // Graceful close stops fetching, waits for running processors, then closes the worker's connections.
+        this.workerClosing ??= this.worker?.close() ?? Promise.resolve();
+        return this.workerClosing;
+    }
+    async close() {
+        const errors = [];
+        if (this.worker && !this.workerClosing) {
+            try {
+                await this.stopConsuming();
+            }
+            catch (error) {
+                errors.push(error);
+            }
+        }
+        try {
+            await this.queue?.close();
+        }
+        catch (error) {
+            errors.push(error);
+        }
+        if (errors.length === 1)
+            throw errors[0];
+        if (errors.length > 1) {
+            throw new AggregateError(errors, `Failed to close queue "${this.context.queue}".`);
+        }
+    }
+    async process(job, token, signal) {
+        let outcome;
+        try {
+            if (!job.id)
+                throw new Error('The queued job has no ID.');
+            outcome = await this.context.dispatcher.dispatch({ id: job.id, channel: job.name, text: decodeEnvelope(job.data) }, signal);
+        }
+        catch (error) {
+            // Data this package did not write cannot succeed on a retry.
+            throw new UnrecoverableError(`Queue job ${job.id ?? '(no ID)'} cannot be read: ${errorMessage(error)}`);
+        }
+        switch (outcome.kind) {
+            case 'completed':
+                return;
+            case 'failed':
+                throw outcome.error instanceof Error
+                    ? outcome.error
+                    : new Error(errorMessage(outcome.error));
+            case 'cancelled':
+                throw new UnrecoverableError(outcome.reason);
+            case 'requeue':
+                // Never transition without the processor's lock token.
+                if (!token)
+                    throw new Error('The queue job holds no lock token.');
+                await job.moveToWait(token);
+                // The public sentinel keeps BullMQ from completing or failing the job.
+                throw new WaitingError();
+        }
+    }
+    connection() {
+        // Validated as an object for `redis`; a registered factory interprets its own connection.
+        return this.context.config.connection;
+    }
+    requireQueue() {
+        if (!this.queue) {
+            throw new Error(`Queue "${this.context.queue}" is not open.`);
+        }
+        return this.queue;
+    }
+    report(error, resource) {
+        this.context.logger.error({
+            error,
+            queue: this.context.queue,
+            namespace: this.context.config.namespace,
+        }, `The ${resource} of queue "${this.context.queue}" reported an error.`);
+    }
+}
+function jobOptions(job) {
+    const { options } = job;
+    return {
+        ...(job.jobId !== undefined ? { jobId: job.jobId } : {}),
+        ...(options.priority > 0 ? { priority: options.priority } : {}),
+        ...(options.delay > 0 ? { delay: options.delay } : {}),
+        attempts: options.attempts,
+        ...(options.backoff !== undefined ? { backoff: options.backoff } : {}),
+        removeOnComplete: options.removeOnComplete,
+        removeOnFail: options.removeOnFail,
+    };
+}
+function requireJobId(job) {
+    if (!job.id)
+        throw new Error('BullMQ returned a job without an ID.');
+    return job.id;
+}
+function errorMessage(error) {
+    return error instanceof Error ? error.message : String(error);
+}
+//# sourceMappingURL=runtime.js.map

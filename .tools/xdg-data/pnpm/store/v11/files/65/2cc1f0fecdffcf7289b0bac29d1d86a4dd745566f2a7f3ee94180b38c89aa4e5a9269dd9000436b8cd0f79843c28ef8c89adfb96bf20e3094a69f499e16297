@@ -1,0 +1,24 @@
+import type { RowChange } from '../../events/types.js';
+/**
+ * The rows one Repository call wrote.
+ *
+ * A call can write the same row more than once, for example a nested update
+ * followed by an optimistic lock increment, and reports it once: a created
+ * row stays created, an updated row unites the fields of every write, and a
+ * row created and then deleted within the call disappears.
+ */
+export declare class MutationRecorder {
+    readonly withValues: boolean;
+    private readonly rows;
+    /** Rows of one bulk statement, distinct by construction and never merged. */
+    private readonly bulk;
+    /** @param withValues Whether any subscription asked for written values. */
+    constructor(withValues: boolean);
+    record(change: RowChange): void;
+    /** Rows one bulk statement wrote; the caller guarantees they are distinct. */
+    recordBulk(changes: readonly RowChange[]): void;
+    /** A recorder for an adapter-level savepoint, merged only if the savepoint is released. */
+    child(): MutationRecorder;
+    absorb(child: MutationRecorder): void;
+    get changes(): RowChange[];
+}

@@ -1,0 +1,43 @@
+export class CollectionMetadataConflictError extends Error {
+    collection;
+    expectedRevision;
+    actualRevision;
+    code = 'METADATA_CONFLICT';
+    constructor(collection, expectedRevision, actualRevision) {
+        super(`Collection metadata revision conflict for "${collection}": expected ${formatRevision(expectedRevision)}, received ${formatRevision(actualRevision)}.`);
+        this.collection = collection;
+        this.expectedRevision = expectedRevision;
+        this.actualRevision = actualRevision;
+        this.name = 'CollectionMetadataConflictError';
+    }
+}
+export class CollectionMetadataStoreReadOnlyError extends Error {
+    operation;
+    source;
+    code = 'METADATA_STORE_READ_ONLY';
+    constructor(operation, source) {
+        super(source
+            ? `Collection Metadata Store is read-only; edit source "${source}" instead of calling ${operation}().`
+            : `Collection Metadata Store is read-only and cannot ${operation}.`);
+        this.operation = operation;
+        this.source = source;
+        this.name = 'CollectionMetadataStoreReadOnlyError';
+    }
+}
+export class CollectionMetadataStoreOptionsError extends Error {
+    code = 'METADATA_STORE_INVALID_OPTIONS';
+    constructor(message) {
+        super(message);
+        this.name = 'CollectionMetadataStoreOptionsError';
+    }
+}
+export class CollectionMetadataStoreCursorError extends Error {
+    code = 'METADATA_STORE_INVALID_CURSOR';
+    constructor() {
+        super('Collection Metadata Store cursor is invalid.');
+        this.name = 'CollectionMetadataStoreCursorError';
+    }
+}
+function formatRevision(revision) {
+    return revision === null ? 'no document' : `revision ${String(revision)}`;
+}

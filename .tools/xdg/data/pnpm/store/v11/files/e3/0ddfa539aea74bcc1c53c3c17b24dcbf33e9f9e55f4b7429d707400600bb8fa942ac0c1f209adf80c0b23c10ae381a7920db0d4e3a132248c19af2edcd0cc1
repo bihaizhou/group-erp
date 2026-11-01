@@ -1,0 +1,64 @@
+import { encodeAttachmentLocator } from './locators.js';
+export function normalizeAttachment(folder, uidValidity, uid, attachment, index) {
+    return {
+        providerAttachmentId: encodeAttachmentLocator({
+            folder,
+            uidValidity,
+            uid,
+            attachment: index,
+        }),
+        fileName: attachment.filename ?? `attachment-${index + 1}`,
+        contentType: attachment.contentType,
+        size: attachment.size,
+        contentId: attachment.contentId,
+        inline: attachment.related ?? false,
+    };
+}
+export function addresses(value) {
+    const objects = value ? (Array.isArray(value) ? value : [value]) : [];
+    return objects.flatMap((object) => object.value.flatMap(flattenAddress));
+}
+function flattenAddress(value) {
+    if (value.group?.length)
+        return value.group.flatMap(flattenAddress);
+    return value.address
+        ? [{ address: value.address, name: value.name || undefined }]
+        : [];
+}
+export function envelopeAddress(value) {
+    return value?.address
+        ? { address: value.address, name: value.name || undefined }
+        : undefined;
+}
+export function envelopeAddresses(value) {
+    return (value?.flatMap((item) => {
+        const address = envelopeAddress(item);
+        return address ? [address] : [];
+    }) ?? []);
+}
+export function references(value) {
+    return value ? (Array.isArray(value) ? value : [value]) : [];
+}
+export function preview(text) {
+    return text?.replace(/\s+/g, ' ').trim().slice(0, 240) || undefined;
+}
+export function toIsoDate(value) {
+    if (!value)
+        return undefined;
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(date.valueOf()) ? undefined : date.toISOString();
+}
+export function toHeader(value) {
+    return value.name
+        ? { address: value.address, name: value.name }
+        : { address: value.address };
+}
+export function bufferStream(value) {
+    return new ReadableStream({
+        start(controller) {
+            controller.enqueue(value);
+            controller.close();
+        },
+    });
+}
+//# sourceMappingURL=normalize.js.map

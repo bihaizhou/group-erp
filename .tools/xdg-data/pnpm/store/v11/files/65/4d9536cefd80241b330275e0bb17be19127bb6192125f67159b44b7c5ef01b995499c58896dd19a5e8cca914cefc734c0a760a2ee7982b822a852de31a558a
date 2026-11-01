@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "files": {
+    "202609150001_create_api_key_table.js": {
+      "sourceChecksum": "370b04daffda210c32e8a2931944bcd9e4b19938483d75e02f9fbb525fea72d5",
+      "artifactChecksum": "270d6f8ec497876bff3aa8d304aa6ad51889b5e5ef632a475e8ca797bd80eb86"
+    }
+  }
+}

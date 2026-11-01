@@ -1,0 +1,105 @@
+import { Job, } from '@nocobase/jobs';
+const silent = { warn: () => { }, error: () => { } };
+class JobsEffectDispatcher {
+    options;
+    runtime;
+    effectJob;
+    open = false;
+    timers = new Set();
+    logger;
+    constructor(options) {
+        this.options = options;
+        this.logger = options.logger ?? silent;
+    }
+    async start(runtime) {
+        if (this.runtime)
+            throw new Error('The lifecycle jobs have already started.');
+        this.runtime = runtime;
+        const { jobs, schedule, jobName } = this.options;
+        const effectJob = class LifecycleEffectJob extends Job {
+            static jobName = jobName;
+            async execute({ signal }) {
+                await runtime.runEffect(this.payload.effectRunId, signal);
+            }
+        };
+        this.effectJob = effectJob;
+        // Registered before setup(): a run queued by an earlier process must find it.
+        jobs.registerJob(effectJob);
+        await jobs.setup();
+        await schedule.addJob({
+            name: this.options.sweepName ?? 'lifecycle-sweep',
+            options: { every: this.options.sweepEveryMs ?? 60_000 },
+            payload: {},
+            execute: () => this.sweep(runtime),
+        });
+        await schedule.setup();
+        this.open = true;
+        await runtime.recover();
+    }
+    async shutdown() {
+        this.open = false;
+        for (const timer of this.timers)
+            clearTimeout(timer);
+        this.timers.clear();
+        await this.options.schedule.shutdown();
+        await this.options.jobs.shutdown();
+        this.runtime = undefined;
+        this.effectJob = undefined;
+    }
+    /**
+     * The JobExecutor has no delay, so a retry with backoff waits here first.
+     * A process that stops while it waits loses only the timer: the run is
+     * still queued, and `recover()` hands it over on the next start.
+     */
+    async dispatch(runId, { runAfter }) {
+        const delay = runAfter === null
+            ? 0
+            : Date.parse(runAfter) -
+                (this.options.clock ?? (() => new Date()))().getTime();
+        if (delay > 0) {
+            const timer = setTimeout(() => {
+                this.timers.delete(timer);
+                this.dispatch(runId, { runAfter: null }).catch((error) => {
+                    this.logger.error(`Effect run "${runId}" could not be dispatched after its backoff; reclaim() or recover() will hand it over.`, { error });
+                });
+            }, delay);
+            timer.unref();
+            this.timers.add(timer);
+            return;
+        }
+        const EffectJob = this.effectJob;
+        if (!this.open || !EffectJob)
+            throw new Error('The lifecycle jobs have not started; recover() hands the run over once they have.');
+        await this.options.jobs.addJob(new EffectJob({ effectRunId: runId }));
+    }
+    /** Expired attempts first, so a run stuck in `running` is back before the triggers need it. */
+    async sweep(runtime) {
+        const failures = [];
+        const steps = [
+            () => runtime.reclaim(),
+            () => runtime.runTriggers(),
+            ...(this.options.onSweep ? [this.options.onSweep] : []),
+        ];
+        for (const step of steps)
+            try {
+                await step();
+            }
+            catch (error) {
+                failures.push(error);
+            }
+        if (failures.length === 1)
+            throw failures[0];
+        if (failures.length > 1)
+            throw new AggregateError(failures, `${failures.length} sweep steps failed.`);
+    }
+}
+/**
+ * Runs a runtime's effects as jobs and its sweep as a schedule rule on the
+ * application's jobs service. Effects are retried with their backoff through
+ * an in-process timer, runs nobody is working on are reclaimed on every sweep, and a
+ * start recovers what the previous process left queued.
+ */
+export function createLifecycleJobs(options) {
+    return new JobsEffectDispatcher(options);
+}
+//# sourceMappingURL=jobs.js.map

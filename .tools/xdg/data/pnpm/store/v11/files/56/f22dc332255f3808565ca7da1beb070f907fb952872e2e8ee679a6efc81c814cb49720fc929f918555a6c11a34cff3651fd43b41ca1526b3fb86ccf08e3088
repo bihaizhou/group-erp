@@ -1,0 +1,71 @@
+import { rawRows } from '../schema/inspector/shared/result.js';
+import { createDatabaseManager } from './manager.js';
+/**
+ * A provisioner for a server dialect that isolates each test database with
+ * one statement each to create, drop and list them, so that a dialect
+ * package declares only those statements and its connection options.
+ * Every statement runs on an administrative connection opened for it and
+ * closed afterwards, so a test holds no connection beyond its own.
+ */
+export function createSqlTestDatabaseProvisioner(options) {
+    const { statements } = options;
+    const identifier = options.identifier ?? ((name) => name);
+    const statementsOf = (sql) => typeof sql === 'string' ? [sql] : sql;
+    const runStatement = async (client, statement, name) => {
+        const placeholders = statement.match(/\?\??/g)?.length ?? 0;
+        await client.raw(statement, Array.from({ length: placeholders }, () => identifier(name)));
+    };
+    const run = async (client, sql, name) => {
+        for (const statement of statementsOf(sql)) {
+            await runStatement(client, statement, name);
+        }
+    };
+    const withAdmin = async (env, run) => {
+        const admin = createDatabaseManager({
+            connections: { main: options.admin(env) },
+        });
+        try {
+            return await run(await admin.connection().client());
+        }
+        finally {
+            await admin.destroy();
+        }
+    };
+    const drop = (env, name) => withAdmin(env, (client) => run(client, statements.drop, name));
+    return {
+        dialect: options.dialect,
+        capabilities: options.capabilities,
+        provision: async ({ name, env }) => {
+            await withAdmin(env, async (client) => {
+                const [first, ...rest] = statementsOf(statements.create);
+                // A failure of the first statement leaves nothing of this run behind — the name may even belong to
+                // something that predates it — so it is not cleaned up. Once the database or user exists, a failure of a
+                // later step drops it again, since the caller never receives the drop() that would.
+                if (first !== undefined)
+                    await runStatement(client, first, name);
+                try {
+                    for (const statement of rest) {
+                        await runStatement(client, statement, name);
+                    }
+                }
+                catch (error) {
+                    try {
+                        await run(client, statements.drop, name);
+                    }
+                    catch {
+                        // The create failure is what the caller needs to see; a stale sweep removes what remains.
+                    }
+                    throw error;
+                }
+            });
+            return {
+                connection: options.connection(env, name),
+                drop: () => drop(env, name),
+            };
+        },
+        listProvisioned: ({ prefix, env }) => withAdmin(env, async (client) => rawRows(await client.raw(statements.list))
+            .map((row) => row.name)
+            .filter((name) => name.startsWith(prefix))),
+        dropProvisioned: ({ name, env }) => drop(env, name),
+    };
+}

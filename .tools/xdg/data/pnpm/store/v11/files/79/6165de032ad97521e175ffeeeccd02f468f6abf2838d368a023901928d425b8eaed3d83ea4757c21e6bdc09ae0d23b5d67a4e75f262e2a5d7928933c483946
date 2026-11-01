@@ -1,0 +1,18 @@
+import { Job } from '@nocobase/jobs';
+/** The handler identity stored with every scheduled send task: keep it stable. */
+export const MAIL_SCHEDULED_SEND_JOB_NAME = '@nocobase/app-plugin-mail/send-scheduled-mail';
+/** Like the sync job, the class closes over the handler of the runtime that registers it. */
+export function createSendScheduledMailJob(handler) {
+    return class SendScheduledMailJob extends Job {
+        static jobName = MAIL_SCHEDULED_SEND_JOB_NAME;
+        async execute() {
+            if (this.payload.version !== 1 ||
+                typeof this.payload.submissionId !== 'string' ||
+                this.payload.submissionId.length === 0) {
+                throw new TypeError('Invalid scheduled mail job payload.');
+            }
+            await handler(this.payload);
+        }
+    };
+}
+//# sourceMappingURL=send-scheduled-mail.js.map

@@ -1,0 +1,50 @@
+import type { CollectionDefinition, NamingOptions } from '../types.js';
+import { CollectionResolver } from '../resolver/resolver.js';
+import type { CollectionResolutionResult } from '../resolver/types.js';
+import type { CollectionMetadataStore } from '../../metadata/document-store.js';
+import type { CollectionMetadataInvalidation, CollectionMetadataInvalidator } from '../../metadata/service.js';
+import type { PhysicalCollectionSchema, SchemaInspector } from '../../schema/inspector/types.js';
+import type { CollectionDiagnosis, CollectionSummaryPage, ConnectionCollections, ListCollectionsOptions, ScanCollectionsOptions } from './types.js';
+export interface CollectionRegistryOptions {
+    readonly inspector: SchemaInspector;
+    readonly metadataStore: CollectionMetadataStore;
+    readonly naming?: NamingOptions;
+    readonly resolver?: CollectionResolver;
+    readonly isInternalPhysicalCollection?: (identity: {
+        readonly tableName: string;
+        readonly schema: string;
+    }) => boolean;
+}
+export declare class CollectionRegistry implements ConnectionCollections, CollectionMetadataInvalidator {
+    private readonly options;
+    private readonly cache;
+    private readonly inFlight;
+    private readonly resolver;
+    private generation;
+    private readonly collectionGenerations;
+    private namingIndexPromise?;
+    private initializationPromise?;
+    private readonly relationValidator;
+    constructor(options: CollectionRegistryOptions);
+    initialize(): Promise<void>;
+    get(name: string): Promise<CollectionDefinition | undefined>;
+    /** Resolve Query's relative table identifiers without treating them as logical names. */
+    getForQuery(name: string): Promise<CollectionDefinition | undefined>;
+    getPhysical(name: string): Promise<PhysicalCollectionSchema | undefined>;
+    getResolution(name: string): Promise<CollectionResolutionResult | undefined>;
+    private getResolutionInternal;
+    list(options?: ListCollectionsOptions): Promise<CollectionSummaryPage>;
+    scan(options?: ScanCollectionsOptions): AsyncIterable<CollectionDefinition>;
+    refresh(name: string): Promise<CollectionDefinition | undefined>;
+    invalidate(name?: string): void;
+    invalidate(change: CollectionMetadataInvalidation): void;
+    invalidateAll(): void;
+    validateRelations(name?: string): Promise<void>;
+    diagnose(): Promise<CollectionDiagnosis>;
+    private load;
+    private inspectLogicalCollection;
+    private namingIndex;
+    private generationToken;
+    private sameGeneration;
+    private bumpCollectionGeneration;
+}

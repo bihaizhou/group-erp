@@ -1,0 +1,14 @@
+import type { NotificationChannelDefinition, NotificationConfig, NotificationExtensionRegistry, NotificationProviderDefinition, NotificationTestTargetDescriptor } from './types.js';
+/** Collects definitions without creating runtime resources. */
+export declare class NotificationRegistry implements NotificationExtensionRegistry {
+    private readonly channelDefinitions;
+    private readonly providerDefinitions;
+    registerChannel(definition: NotificationChannelDefinition): this;
+    registerProvider(definition: NotificationProviderDefinition): this;
+    channel(type: string): NotificationChannelDefinition | undefined;
+    provider(type: string): NotificationProviderDefinition | undefined;
+    testTargets(config: NotificationConfig): readonly NotificationTestTargetDescriptor[];
+    validate(config: NotificationConfig): void;
+}
+export declare function createNotificationRegistry(): NotificationRegistry;
+//# sourceMappingURL=registry.d.ts.map

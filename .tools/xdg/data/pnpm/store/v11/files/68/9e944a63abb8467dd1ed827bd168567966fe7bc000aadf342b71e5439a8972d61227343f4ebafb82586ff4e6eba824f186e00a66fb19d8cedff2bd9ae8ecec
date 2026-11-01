@@ -1,0 +1,42 @@
+import type { DatabaseManager } from '@nocobase/db';
+import type { JsonObject } from './schedules/define.js';
+import type { ScheduleExecutionCompletion, ScheduleExecutionContext, ScheduleExecutionReporter, ScheduleTargetReference, ScheduleTargetRegistry } from './schedules/registry.js';
+export type ScheduleOccurrenceStatus = 'pending' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'skipped' | 'cancelled' | 'timed_out' | 'triggered';
+export declare class ScheduleOccurrenceError extends Error {
+    readonly code: 'OCCURRENCE_NOT_FOUND' | 'REFERENCE_MISMATCH' | 'INVALID_STATE' | 'COMPLETION_CONFLICT' | 'SUMMARY_TOO_LARGE';
+    constructor(code: 'OCCURRENCE_NOT_FOUND' | 'REFERENCE_MISMATCH' | 'INVALID_STATE' | 'COMPLETION_CONFLICT' | 'SUMMARY_TOO_LARGE', message: string);
+}
+/** What an occurrence recorded before its target started is created from. */
+export interface ScheduleOccurrenceSeed {
+    readonly scheduleId: string;
+    readonly definitionHash: string;
+    readonly targetType: string;
+    readonly scheduledAt?: Date;
+}
+export declare class ScheduleOccurrenceStore implements ScheduleExecutionReporter {
+    private readonly database;
+    constructor(database: DatabaseManager);
+    start(context: ScheduleExecutionContext, definitionHash: string, targetType: string, scheduledAt?: Date): Promise<'start' | 'noop'>;
+    wait(occurrenceId: string, reference: ScheduleTargetReference, receipt?: JsonObject): Promise<void>;
+    succeed(occurrenceId: string, result?: JsonObject): Promise<void>;
+    /**
+     * Skips an occurrence. With `seed`, a firing skipped before its target
+     * started — so before any occurrence exists — is recorded as skipped; a
+     * firing already recorded is left as it is.
+     */
+    skip(occurrenceId: string, reason: string, seed?: ScheduleOccurrenceSeed): Promise<void>;
+    fail(occurrenceId: string, reason: string): Promise<void>;
+    complete(occurrenceId: string, reference: ScheduleTargetReference, completion: ScheduleExecutionCompletion, expectedTargetType?: string): Promise<void>;
+    reconcile(targets: ScheduleTargetRegistry): Promise<number>;
+    private finish;
+    /**
+     * Inserts a new occurrence and reports whether this call created it. A
+     * primary key conflict surfaces differently on every dialect, so a failed
+     * insert is resolved by looking for the row it collided with.
+     */
+    private insertOnce;
+    private find;
+    private required;
+    private assertMatchingReference;
+}
+//# sourceMappingURL=occurrences.d.ts.map

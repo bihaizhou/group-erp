@@ -1,0 +1,135 @@
+import type { ApiClient } from '@nocobase/app-client';
+export type UserRoleValue = string | readonly string[];
+export interface UserRoleOption {
+    readonly value: string;
+    readonly label: string;
+    readonly labelI18nKey?: string;
+    readonly labelI18nNs?: string;
+    readonly description?: string;
+    readonly assignable?: boolean;
+    readonly removable?: boolean;
+}
+export interface UserRoleScopeOption {
+    readonly key: string;
+    readonly label: string;
+    readonly labelI18nKey?: string;
+    readonly labelI18nNs?: string;
+    readonly selection: 'single' | 'multiple';
+    readonly requiredOnCreate: boolean;
+    readonly hasAuthenticatedDefaultAccess?: boolean;
+    readonly options: readonly UserRoleOption[];
+}
+export interface UsersOptions {
+    readonly roleScopes: readonly UserRoleScopeOption[];
+}
+export interface ManagedUser {
+    readonly id: string;
+    readonly name: string;
+    readonly username?: string;
+    readonly email: string;
+    readonly emailVerified: boolean;
+    readonly disabledAt: string | null;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+    readonly roleScopes: Readonly<Record<string, UserRoleValue>>;
+}
+export interface ManagedUserPage {
+    readonly items: readonly ManagedUser[];
+    readonly total: number;
+    readonly page: number;
+    readonly pageSize: number;
+}
+export interface ListUsersInput {
+    readonly page?: number;
+    readonly pageSize?: number;
+    /** Matches name, username and email. */
+    readonly q?: string;
+    readonly status?: 'enabled' | 'disabled';
+    readonly roleScope?: string;
+    readonly role?: string;
+}
+export interface CreateUserInput {
+    readonly name: string;
+    readonly username?: string;
+    readonly email: string;
+    readonly password: string;
+    readonly roleScopes?: Readonly<Record<string, UserRoleValue>>;
+}
+export interface UpdateUserInput {
+    readonly name?: string;
+    readonly username?: string | null;
+    readonly email?: string;
+}
+export interface UserInvitation {
+    readonly id: string;
+    readonly email: string;
+    readonly status: 'pending' | 'expired' | 'accepted' | 'revoked';
+    readonly invitedBy: {
+        readonly id: string;
+        readonly name: string;
+    };
+    readonly roleScopes: Readonly<Record<string, UserRoleValue>>;
+    readonly data: Readonly<Record<string, unknown>>;
+    readonly summary: readonly string[];
+    readonly expiresAt: string;
+    readonly sentAt: string | null;
+    readonly createdAt: string;
+}
+export interface InviteUsersInput {
+    readonly emails: readonly string[];
+    readonly roleScopes?: Readonly<Record<string, UserRoleValue>>;
+}
+export type UserInvitationResult = {
+    readonly email: string;
+    readonly outcome: 'invited';
+    readonly invitationId: string;
+    readonly emailSent: boolean;
+    readonly inviteUrl?: string;
+} | {
+    readonly email: string;
+    readonly outcome: 'existingUser';
+    readonly userId: string;
+};
+export interface PublicUserInvitation {
+    readonly email: string;
+    readonly inviterName: string;
+    readonly summary: readonly string[];
+    readonly expiresAt: string;
+}
+export interface AcceptUserInvitationInput {
+    readonly token: string;
+    readonly name: string;
+    readonly password: string;
+}
+export interface AcceptedUserInvitation {
+    readonly email: string;
+    readonly existingAccount: boolean;
+}
+/** Addresses as people type them: one per line, or separated by commas, semicolons or spaces. */
+export declare function parseEmailList(text: string): string[];
+export declare function isEmailAddress(value: string): boolean;
+export declare class UsersClient {
+    private readonly api;
+    constructor(api: ApiClient);
+    options(): Promise<UsersOptions>;
+    list(input?: ListUsersInput): Promise<ManagedUserPage>;
+    create(input: CreateUserInput): Promise<ManagedUser>;
+    update(userId: string, input: UpdateUserInput): Promise<ManagedUser>;
+    disable(userId: string): Promise<ManagedUser>;
+    enable(userId: string): Promise<ManagedUser>;
+    replaceRoleScope(userId: string, scope: string, value: UserRoleValue): Promise<ManagedUser>;
+    resetPassword(userId: string, password: string): Promise<void>;
+    remove(userId: string): Promise<void>;
+    revokeSessions(userId: string): Promise<void>;
+    listInvitations(): Promise<UserInvitation[]>;
+    invite(input: InviteUsersInput): Promise<UserInvitationResult[]>;
+    resendInvitation(invitationId: string, sendEmail?: boolean): Promise<UserInvitationResult>;
+    revokeInvitation(invitationId: string): Promise<void>;
+    /** Public: what the accept page shows to whoever holds the link. */
+    lookupInvitation(token: string): Promise<PublicUserInvitation>;
+    /** Creates an unverified account, or accepts from the invited account's authenticated session. */
+    acceptInvitation(input: AcceptUserInvitationInput): Promise<AcceptedUserInvitation>;
+    private get;
+    private send;
+}
+//# sourceMappingURL=user-client.d.ts.map

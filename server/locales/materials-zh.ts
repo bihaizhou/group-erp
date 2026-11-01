@@ -1,0 +1,26 @@
+export const materials = {
+  title: '物料治理',
+  kinds: {
+    skus: '物料中心',
+    names: '标准名称',
+    templates: '属性模板',
+    units: '计量单位',
+    unitRules: '包装与换算',
+    references: '别名与旧码',
+    tags: '标签字典',
+    tagLinks: '标签关联',
+    requests: '物料申请',
+    subjectSettings: '公司物料设置',
+    warehouses: '仓库设置',
+  },
+  actions: {
+    read: '查看',
+    update: '维护',
+    review: '审核',
+  },
+  catalog: '物料目录',
+  history: '治理记录',
+  scopeOwn: '本人申请',
+  scopeCompany: '本公司',
+  scopeCompanies: '指定公司',
+};

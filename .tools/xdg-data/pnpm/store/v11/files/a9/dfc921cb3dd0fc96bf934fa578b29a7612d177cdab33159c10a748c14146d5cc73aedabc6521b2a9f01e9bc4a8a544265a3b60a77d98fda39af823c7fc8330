@@ -1,0 +1,40 @@
+import type { LocaleResource } from '@nocobase/i18n';
+declare const enUS: {
+    page: {
+        loading: string;
+    };
+    accept: {
+        title: string;
+        description: string;
+        summary: string;
+        loading: string;
+        email: string;
+        name: string;
+        password: string;
+        nameRequired: string;
+        passwordTooShort: string;
+        submit: string;
+        join: string;
+        submitting: string;
+        signedIn: string;
+        signOut: string;
+        signOutFailed: string;
+        existingAccount: string;
+        goToLogin: string;
+        errors: {
+            notFound: string;
+            expired: string;
+            accepted: string;
+            revoked: string;
+            password: string;
+            accountConflict: string;
+            failed: string;
+        };
+    };
+};
+/**
+ * English is the source of truth for this plugin's locale shape.
+ */
+export type UsersResource = LocaleResource<typeof enUS>;
+export default enUS;
+//# sourceMappingURL=en-US.d.ts.map

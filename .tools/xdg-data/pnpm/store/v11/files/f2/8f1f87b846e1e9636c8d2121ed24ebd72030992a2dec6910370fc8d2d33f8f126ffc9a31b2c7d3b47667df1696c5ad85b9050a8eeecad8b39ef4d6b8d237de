@@ -1,0 +1,15 @@
+import type { ApiClient, RemoteRepository } from '@nocobase/app-client';
+import type { FileRecord, UploadOneInput, UploadManyInput, UploadOneResult, UploadManyResult } from '../shared/types.js';
+export type ClientFileRepository = RemoteRepository<FileRecord> & {
+    uploadOne(input: UploadOneInput, options?: ClientUploadOptions): Promise<UploadOneResult>;
+    uploadMany(input: UploadManyInput, options?: ClientUploadOptions): Promise<UploadManyResult>;
+};
+export interface ClientUploadOptions {
+    readonly signal?: AbortSignal;
+}
+export declare class ClientFileRepositoryManager {
+    private readonly api;
+    constructor(api: ApiClient);
+    repository(name: string): ClientFileRepository;
+}
+//# sourceMappingURL=manager.d.ts.map

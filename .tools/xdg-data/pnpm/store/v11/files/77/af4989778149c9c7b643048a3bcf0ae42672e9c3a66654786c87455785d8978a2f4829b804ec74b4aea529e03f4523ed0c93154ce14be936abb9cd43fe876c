@@ -1,0 +1,19 @@
+// The `oclif.commands.target` module for the assembled CLI.
+//
+// oclif imports this module and reads its default export as the command map. The map is only known once the runner has
+// merged built-in, app, and plugin commands, so this proxies the store rather than exporting a literal — oclif enumerates
+// the keys at load time and reads each one when dispatching.
+import { resolvedCommands } from "./command-store.js";
+const registry = new Proxy({}, {
+    get: (_target, key) => resolvedCommands()[key],
+    getOwnPropertyDescriptor: (_target, key) => {
+        const value = resolvedCommands()[key];
+        return value === undefined
+            ? undefined
+            : { configurable: true, enumerable: true, value };
+    },
+    has: (_target, key) => key in resolvedCommands(),
+    ownKeys: () => Reflect.ownKeys(resolvedCommands()),
+});
+export default registry;
+//# sourceMappingURL=registry.js.map

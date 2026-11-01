@@ -1,0 +1,6 @@
+import type { LoggingConfig } from './types.js';
+/** A minimal production-safe template that writes structured logs to stdout. */
+export declare function createDefaultLoggingConfig(): LoggingConfig;
+/** A fallback for tests and runtimes that intentionally disable logging. */
+export declare function createSilentLoggingConfig(): LoggingConfig;
+//# sourceMappingURL=config.d.ts.map

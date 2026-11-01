@@ -1,0 +1,14 @@
+import { type ReactElement } from 'react';
+export interface MailSyncPolicyValue {
+    readonly receivedAfter: string;
+}
+export interface MailSyncPolicyFieldsProps {
+    readonly value: MailSyncPolicyValue;
+    readonly labels: {
+        readonly receivedAfter: string;
+    };
+    readonly disabled?: boolean;
+    readonly onChange: (value: MailSyncPolicyValue) => void;
+}
+export declare function MailSyncPolicyFields({ value, labels, disabled, onChange, }: MailSyncPolicyFieldsProps): ReactElement;
+//# sourceMappingURL=mail-sync-policy-fields.d.ts.map

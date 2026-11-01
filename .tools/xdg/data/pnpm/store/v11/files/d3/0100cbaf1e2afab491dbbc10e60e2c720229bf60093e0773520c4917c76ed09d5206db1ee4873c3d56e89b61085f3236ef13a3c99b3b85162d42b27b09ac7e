@@ -1,0 +1,9 @@
+import type { CliCommand, CliDescription, CliManifest } from './types.js';
+/** A command as it is typed: its words, its positional arguments, and its required flags. */
+export declare function cliUsageOf(command: CliCommand, bin?: string): string;
+/**
+ * The caller's commands as compact text an agent reads before using the CLI (`GET /api/cli/llms.txt`): how the CLI
+ * answers, then one line per command with its usage, summary, and the action it needs, grouped by its first word.
+ */
+export declare function renderCliReference(manifest: CliManifest, description?: CliDescription): string;
+//# sourceMappingURL=reference.d.ts.map

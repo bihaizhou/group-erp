@@ -1,0 +1,296 @@
+import { notifyMailMessageChange } from './realtime.js';
+import { MailAccountRemovals } from './runtime/account-removals.js';
+import { MailBackgroundTasks } from './runtime/background-tasks.js';
+import { MailOutboxRelay } from './runtime/outbox-relay.js';
+import { MailPushSubscriptions } from './runtime/push-subscriptions.js';
+import { MailSyncScheduler } from './operations/schedule-sync.js';
+import { randomUUID } from 'node:crypto';
+import { mailSyncDateMonthsAgo } from '../shared/mail-sync-date.js';
+import { createSyncMailboxJob } from './jobs/sync-mailbox.js';
+import { createSendScheduledMailJob } from './jobs/send-scheduled-mail.js';
+import { mailLogError, writeMailLog } from './logging.js';
+import { SendMailOperation } from './operations/send-mail.js';
+import { SyncMailboxOperation } from './operations/sync-mailbox.js';
+import { DEFAULT_MAIL_AUTOMATIC_SYNC_INTERVAL_MS, resolveMailSyncBatchSize, } from './config.js';
+export class MailRuntime {
+    options;
+    operation;
+    scheduler;
+    subscriptions;
+    relay;
+    removals;
+    removalPromise;
+    tasks = new MailBackgroundTasks();
+    closePromise;
+    unsubscribeJobs;
+    startPromise;
+    relayTimer;
+    automaticSyncTimer;
+    publishPromise;
+    automaticSyncPromise;
+    closed = false;
+    constructor(options) {
+        this.options = options;
+        this.removals = new MailAccountRemovals(options);
+        this.scheduler = new MailSyncScheduler(options.store, resolveMailSyncBatchSize(options.syncBatchSize));
+        this.subscriptions = new MailPushSubscriptions(options);
+        this.operation = new SyncMailboxOperation(options);
+        const syncMailbox = createSyncMailboxJob((payload) => this.operation.execute(payload));
+        const send = new SendMailOperation({ ...options, outbox: this });
+        const sendScheduledMail = createSendScheduledMailJob(async (payload) => {
+            const scheduled = await options.store.getScheduledSubmission(payload.submissionId);
+            if (!scheduled || scheduled.submission.status !== 'pending')
+                return;
+            try {
+                await send.execute({ actorId: scheduled.actorId }, scheduled.input, {
+                    scheduledDelivery: true,
+                });
+            }
+            catch (error) {
+                writeMailLog(options.logger, 'error', {
+                    event: 'mail.send.scheduled_failed',
+                    submissionId: payload.submissionId,
+                    err: mailLogError(error),
+                }, 'Scheduled Mail submission failed.');
+                await options.store.failScheduledSubmission(payload.submissionId, {
+                    code: 'MAIL_SCHEDULED_SEND_FAILED',
+                    message: error instanceof Error
+                        ? error.message
+                        : 'The scheduled message could not be sent.',
+                    category: 'content',
+                    retryable: false,
+                });
+                notifyMailMessageChange(options.messageChangeNotifier, scheduled.actorId, options.logger);
+            }
+        });
+        this.relay = new MailOutboxRelay(options, { executor: options.executor, syncMailbox, sendScheduledMail }, (accountId) => this.activatePushSync(accountId));
+        this.unsubscribeJobs = options.executor.subscribe((event) => {
+            if (event.name !== 'JobError' || event.reason === 'interrupted')
+                return;
+            // Handlers log their own failures; this adds the job's identity and attempt.
+            writeMailLog(options.logger, 'warn', {
+                event: 'mail.job.failed',
+                jobId: event.jobId,
+                jobName: event.jobName,
+                attempt: event.attempt,
+                reason: event.reason,
+                err: mailLogError(event.error),
+            }, 'Mail background job failed.');
+        });
+        // Register before setup(): setup() starts consuming, and a task left waiting by an earlier run must find its handler.
+        options.executor.registerJob(syncMailbox);
+        options.executor.registerJob(sendScheduledMail);
+    }
+    start() {
+        if (this.closed)
+            return Promise.resolve();
+        this.startPromise ??= this.startInternal().catch((error) => {
+            this.startPromise = undefined;
+            throw error;
+        });
+        return this.startPromise;
+    }
+    async startInternal() {
+        await this.options.executor.setup();
+        if (this.closed)
+            return;
+        this.relayTimer = setInterval(() => this.kick(), this.options.relayIntervalMs ?? 1_000);
+        this.relayTimer.unref();
+        this.automaticSyncTimer = setInterval(() => this.scheduleAutomaticSync(), 60_000);
+        this.automaticSyncTimer.unref();
+        this.kick();
+        this.scheduleAutomaticSync();
+    }
+    scheduleAutomaticSync() {
+        if (this.closed || this.automaticSyncPromise)
+            return;
+        this.automaticSyncPromise = this.tasks
+            .run(async () => {
+            await this.runMaintenance();
+            await this.createAutomaticSyncRuns();
+        }, undefined)
+            .then(() => undefined)
+            .catch((error) => {
+            writeMailLog(this.options.logger, 'error', { err: mailLogError(error) }, 'Automatic Mail synchronization sweep failed.');
+        })
+            .finally(() => {
+            this.automaticSyncPromise = undefined;
+        });
+    }
+    createAutomaticSyncRuns() {
+        return this.tasks.run(() => this.sweepAccounts(), 0);
+    }
+    async sweepAccounts() {
+        let created = 0;
+        const accounts = await this.options.store.listAllAccounts();
+        for (const account of accounts) {
+            if (account.status !== 'active')
+                continue;
+            try {
+                await this.subscriptions.maintain(account);
+            }
+            catch (error) {
+                writeMailLog(this.options.logger, 'error', { accountId: account.id, err: mailLogError(error) }, 'Mail push subscription maintenance failed.');
+            }
+            try {
+                const lastSyncedAt = await this.options.store.getLastSyncedAt?.(account.id);
+                if (!isAutomaticSyncDue(lastSyncedAt, this.options.automaticSyncIntervalMs)) {
+                    continue;
+                }
+                if (await this.createSyncRun(account.id))
+                    created += 1;
+            }
+            catch (error) {
+                writeMailLog(this.options.logger, 'error', { accountId: account.id, err: mailLogError(error) }, 'Automatic Mail synchronization could not be scheduled.');
+            }
+        }
+        if (created > 0)
+            this.kick();
+        return created;
+    }
+    async runMaintenance() {
+        const now = new Date().toISOString();
+        await this.runMaintenanceTask('recoverSyncRuns', async () => {
+            if (await this.options.store.recoverSyncRuns(now))
+                this.kick();
+        });
+        await this.runMaintenanceTask('cleanupExpiredAttachments', () => this.options.outboundAttachments?.cleanupExpired?.(now));
+        await this.runMaintenanceTask('deleteExpiredAuthorizationTransactions', () => this.options.store.deleteExpiredAuthorizationTransactions?.(now));
+        await this.runMaintenanceTask('deleteExpiredCredentials', () => this.options.credentials?.deleteExpired?.(now));
+        await this.runMaintenanceTask('deletePublishedOutbox', () => this.options.store.deletePublishedOutboxBefore?.(new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString()));
+    }
+    async runMaintenanceTask(task, execute) {
+        try {
+            await execute();
+        }
+        catch (error) {
+            writeMailLog(this.options.logger, 'error', { event: 'mail.maintenance.failed', task, err: mailLogError(error) }, 'Mail maintenance task failed.');
+        }
+    }
+    schedulePushSync(accountId) {
+        return this.tasks.run(() => this.activatePushSync(accountId), false);
+    }
+    async activatePushSync(accountId) {
+        const account = await this.options.store.getAccount(accountId);
+        if (!account || account.status !== 'active')
+            return false;
+        const requestToken = randomUUID();
+        await this.options.store.markPushSyncPending(accountId, requestToken);
+        const created = await this.createSyncRun(accountId);
+        if (created) {
+            await this.options.store.clearPushSyncPending(accountId, requestToken);
+            this.kick();
+        }
+        return created;
+    }
+    schedulePushSyncBatch(accounts) {
+        return this.tasks.run(async () => {
+            if (accounts.length === 0)
+                return;
+            const requestToken = randomUUID();
+            await this.options.store.markPushSyncPendingBatch(accounts.map((account) => account.id), requestToken);
+            // Persist before acknowledging the webhook; shutdown can leave pending work for recovery.
+            void this.tasks.run(() => this.activatePushSyncBatch(accounts, requestToken), undefined);
+        }, undefined);
+    }
+    async activatePushSyncBatch(accounts, requestToken) {
+        for (const account of accounts) {
+            try {
+                if (await this.createSyncRun(account.id)) {
+                    await this.options.store.clearPushSyncPending(account.id, requestToken);
+                    this.kick();
+                }
+                else {
+                    const current = await this.options.store.getAccount(account.id);
+                    if (!current || current.status !== 'active') {
+                        await this.options.store.clearPushSyncPending(account.id, requestToken);
+                    }
+                }
+            }
+            catch (error) {
+                writeMailLog(this.options.logger, 'error', { accountId: account.id, err: mailLogError(error) }, 'Push-triggered Mail synchronization could not be activated.');
+            }
+        }
+    }
+    async createSyncRun(accountId) {
+        const account = await this.options.store.getAccount(accountId);
+        if (!account || account.status !== 'active')
+            return false;
+        const cursor = await this.options.store.getSyncCursor(account.id);
+        const legacyInitialSyncDate = !cursor && !account.initialSyncReceivedAfter
+            ? new Date(`${mailSyncDateMonthsAgo(1)}T00:00:00Z`).toISOString()
+            : undefined;
+        return (await this.scheduler.request(account, account.userId, legacyInitialSyncDate ? { receivedAfter: legacyInitialSyncDate } : {})).created;
+    }
+    kick() {
+        this.scheduleAccountRemoval();
+        if (this.closed || this.publishPromise)
+            return;
+        queueMicrotask(() => {
+            if (this.closed || this.publishPromise)
+                return;
+            this.publishPromise = this.publishPending()
+                .catch((error) => {
+                writeMailLog(this.options.logger, 'error', { err: mailLogError(error) }, 'Mail Outbox Relay failed.');
+            })
+                .finally(() => {
+                this.publishPromise = undefined;
+            });
+        });
+    }
+    processAccountRemoval() {
+        if (this.removalPromise)
+            return this.removalPromise;
+        this.removalPromise = this.tasks
+            .run(() => this.removals.runBatch(), undefined)
+            .finally(() => {
+            this.removalPromise = undefined;
+        });
+        return this.removalPromise;
+    }
+    scheduleAccountRemoval() {
+        if (this.closed || this.removalPromise)
+            return;
+        void this.processAccountRemoval().catch((error) => {
+            writeMailLog(this.options.logger, 'error', { err: mailLogError(error) }, 'Mail account removal sweep failed.');
+        });
+    }
+    publishPending() {
+        return this.tasks.run(() => this.relay.publish(), undefined);
+    }
+    close() {
+        if (this.closePromise)
+            return this.closePromise;
+        this.closed = true;
+        this.closePromise = this.shutdown();
+        return this.closePromise;
+    }
+    async shutdown() {
+        // A start in progress sees `closed` after setup() and starts no timers.
+        await this.startPromise?.catch(() => undefined);
+        if (this.relayTimer)
+            clearInterval(this.relayTimer);
+        if (this.automaticSyncTimer)
+            clearInterval(this.automaticSyncTimer);
+        this.relayTimer = undefined;
+        this.automaticSyncTimer = undefined;
+        await this.tasks.close();
+        await this.publishPromise;
+        await this.automaticSyncPromise;
+        // Running tasks finish before the executor closes; tasks still waiting stay for the next start.
+        await this.options.executor.shutdown();
+        this.unsubscribeJobs();
+    }
+}
+export function createMailRuntime(options) {
+    return new MailRuntime(options);
+}
+export function isAutomaticSyncDue(lastSyncedAt, intervalMs = DEFAULT_MAIL_AUTOMATIC_SYNC_INTERVAL_MS, now = Date.now()) {
+    if (!lastSyncedAt)
+        return true;
+    const last = Date.parse(lastSyncedAt);
+    if (!Number.isFinite(last))
+        return true;
+    return now - last >= intervalMs;
+}
+//# sourceMappingURL=runtime.js.map

@@ -1,0 +1,40 @@
+import { sanitizeMailHtml } from './mail-template.js';
+/** Replaces the managed signature suffix without touching the user's message body. */
+export function replaceMailSignatureContent(content, signatures, signatureId) {
+    const text = stripKnownSuffix(content.text, signatures
+        .map((signature) => `\n\n-- \n${signature.text}`)
+        .filter((suffix) => suffix.trim()));
+    const html = stripKnownSuffix(content.html, signatures
+        .map((signature) => signatureHtmlSuffix(signature))
+        .filter(Boolean));
+    const signature = signatureId === '__none__'
+        ? undefined
+        : signatures.find((item) => signatureId ? item.id === signatureId : item.isDefault);
+    if (!signature)
+        return { text, html };
+    const signatureHtml = signatureHtmlSuffix(signature);
+    return {
+        text: signature.text.trim() ? `${text}\n\n-- \n${signature.text}` : text,
+        html: signatureHtml ? `${html}${signatureHtml}` : html,
+    };
+}
+function signatureHtmlSuffix(signature) {
+    const content = sanitizeMailHtml(signature.html ?? escapeHtmlForSignature(signature.text));
+    return content.trim()
+        ? `<br><br><div class="nocobase-mail-signature">${content}</div>`
+        : '';
+}
+function stripKnownSuffix(value, suffixes) {
+    const suffix = suffixes.find((candidate) => value.endsWith(candidate));
+    return suffix ? value.slice(0, -suffix.length) : value;
+}
+function escapeHtmlForSignature(value) {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;')
+        .replaceAll('\n', '<br>');
+}
+//# sourceMappingURL=mail-signature.js.map

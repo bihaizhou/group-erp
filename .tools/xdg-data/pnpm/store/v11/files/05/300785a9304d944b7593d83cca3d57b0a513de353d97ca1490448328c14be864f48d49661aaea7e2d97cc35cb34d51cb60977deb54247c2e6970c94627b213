@@ -1,0 +1,174 @@
+{
+  "name": "flydrive",
+  "description": "File storage library with unified API to manage files across multiple cloud storage providers like S3, GCS, R2 and so on",
+  "version": "2.2.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "type": "module",
+  "files": [
+    "build",
+    "!build/bin",
+    "!build/tests"
+  ],
+  "main": "build/index.js",
+  "exports": {
+    ".": "./build/index.js",
+    "./types": "./build/src/types.js",
+    "./drivers/fs": "./build/drivers/fs/main.js",
+    "./drivers/fs/types": "./build/drivers/fs/types.js",
+    "./drivers/gcs": "./build/drivers/gcs/main.js",
+    "./drivers/gcs/types": "./build/drivers/gcs/types.js",
+    "./drivers/s3": "./build/drivers/s3/main.js",
+    "./drivers/s3/types": "./build/drivers/s3/types.js"
+  },
+  "scripts": {
+    "pretest": "npm run lint",
+    "test": "c8 npm run quick:test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "clean": "del-cli build",
+    "typecheck": "tsc --noEmit",
+    "precompile": "npm run lint && npm run clean",
+    "compile": "tsdown && tsc --emitDeclarationOnly --declaration",
+    "build": "npm run compile",
+    "prepublishOnly": "npm run build",
+    "release": "release-it",
+    "quick:test": "node --import=@poppinss/ts-exec bin/test.ts"
+  },
+  "devDependencies": {
+    "@adonisjs/env": "^7.1.0",
+    "@adonisjs/eslint-config": "^3.1.0",
+    "@adonisjs/prettier-config": "^1.5.0",
+    "@adonisjs/tsconfig": "^2.0.0",
+    "@aws-sdk/client-s3": "^3.1147.0",
+    "@aws-sdk/s3-request-presigner": "^3.1147.0",
+    "@google-cloud/storage": "^8.2.0",
+    "@japa/assert": "^4.2.0",
+    "@japa/file-system": "^3.0.0",
+    "@japa/runner": "^5.3.0",
+    "@poppinss/ts-exec": "^1.4.4",
+    "@release-it/conventional-changelog": "^12.0.2",
+    "@types/etag": "^1.8.4",
+    "@types/mime-types": "^3.0.1",
+    "@types/node": "^26.6.4",
+    "@types/sinon": "^22.0.0",
+    "c8": "^12.0.0",
+    "copyfiles": "^2.4.1",
+    "del-cli": "^7.0.0",
+    "eslint": "^10.12.0",
+    "get-stream": "^9.0.1",
+    "got": "^16.0.0",
+    "prettier": "^3.9.9",
+    "release-it": "^21.1.0",
+    "sinon": "^22.1.0",
+    "tsdown": "^0.23.0",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@humanwhocodes/retry": "^0.4.3",
+    "@poppinss/utils": "^7.1.1",
+    "etag": "^1.8.1",
+    "mime-types": "^3.0.2"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-s3": "^3.577.0 || ^3.1147.0",
+    "@aws-sdk/s3-request-presigner": "^3.577.0 || ^3.1147.0",
+    "@google-cloud/storage": "^7.10.2 || ^8.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-s3": {
+      "optional": true
+    },
+    "@aws-sdk/s3-request-presigner": {
+      "optional": true
+    },
+    "@google-cloud/storage": {
+      "optional": true
+    }
+  },
+  "overrides": {
+    "release-it": {
+      "undici": "^7.29.1"
+    },
+    "gaxios": {
+      "uuid": "^11.1.1"
+    }
+  },
+  "homepage": "https://github.com/flydrive-js/core#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flydrive-js/core.git"
+  },
+  "bugs": {
+    "url": "https://github.com/flydrive-js/core/issues"
+  },
+  "keywords": [
+    "filesystem",
+    "flydrive",
+    "s3",
+    "gcs",
+    "r2"
+  ],
+  "author": "virk,flydrive",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "tsdown": {
+    "entry": [
+      "./index.ts",
+      "./src/types.ts",
+      "./drivers/fs/main.ts",
+      "./drivers/fs/types.ts",
+      "./drivers/gcs/main.ts",
+      "./drivers/gcs/types.ts",
+      "./drivers/s3/main.ts",
+      "./drivers/s3/types.ts"
+    ],
+    "outDir": "./build",
+    "clean": true,
+    "format": "esm",
+    "minify": "dce-only",
+    "fixedExtension": false,
+    "dts": false,
+    "treeshake": false,
+    "sourcemaps": false,
+    "target": "esnext"
+  },
+  "release-it": {
+    "git": {
+      "requireCleanWorkingDir": true,
+      "requireUpstream": true,
+      "commitMessage": "chore(release): ${version}",
+      "tagAnnotation": "v${version}",
+      "push": true,
+      "tagName": "v${version}"
+    },
+    "github": {
+      "release": true
+    },
+    "npm": {
+      "publish": true,
+      "skipChecks": true
+    },
+    "plugins": {
+      "@release-it/conventional-changelog": {
+        "preset": {
+          "name": "angular"
+        }
+      }
+    }
+  },
+  "c8": {
+    "reporter": [
+      "text",
+      "html"
+    ],
+    "exclude": [
+      "tests/**"
+    ]
+  },
+  "prettier": "@adonisjs/prettier-config"
+}

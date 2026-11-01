@@ -1,0 +1,24 @@
+import type { Auth } from '@nocobase/app-plugin-authentication/server';
+import type { ApiDocsAccess, ApiDocumentFragment } from '@nocobase/app-server/router';
+/** The security scheme an API key satisfies, in `components.securitySchemes`. */
+export declare const API_KEY_SECURITY_SCHEME = "apiKeyAuth";
+/**
+ * Lets a request carrying a valid API key read the API documentation. The key is checked exactly as for any other
+ * request — Better Auth resolves it to its owner's session, which refuses a disabled, expired or unknown key and a key
+ * whose owner is disabled — but without extending a session, so reading the documentation changes no state.
+ *
+ * Allows nothing when the application has not configured this package's `apiKey()` Better Auth plugin, or when the
+ * request carries no key in the headers that plugin reads.
+ */
+export declare function createApiKeyApiDocsAccess(resolveAuth: () => Pick<Auth, 'getSession' | 'plugin'>): ApiDocsAccess;
+/**
+ * The API key header as the document's security scheme, `apiKeyAuth`, and a top-level requirement naming it, offered
+ * beside the session cookie's: a request carrying either is authenticated. The header is the first one this package's
+ * `apiKey()` Better Auth plugin reads a key from, `x-api-key` unless configured. Swagger UI's "Authorize" takes the key
+ * and sends it in that header.
+ *
+ * Contributes nothing when the application has not configured the `apiKey()` plugin, or when no configuration turns
+ * keys into sessions through a header, because then no request authenticates with a key.
+ */
+export declare function createApiKeySecurityFragment(resolveAuth: () => Pick<Auth, 'plugin'>): ApiDocumentFragment;
+//# sourceMappingURL=api-docs.d.ts.map

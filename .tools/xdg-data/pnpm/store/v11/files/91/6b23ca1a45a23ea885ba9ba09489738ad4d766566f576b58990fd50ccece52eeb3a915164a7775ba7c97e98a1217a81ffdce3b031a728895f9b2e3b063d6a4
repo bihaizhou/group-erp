@@ -1,0 +1,350 @@
+import { createTaskServiceResolver } from './task-container.js';
+import { loggingToken } from '../logging/token.js';
+import { snapshotDatabaseTaskConfig } from './task-config.js';
+import { resolveDatabaseConfig } from './resolve-config.js';
+import { planAppDatabaseTasks, } from './plan.js';
+import { resolveDatabaseDriver, } from '@nocobase/db';
+import { createAppDatabaseManager } from './manager.js';
+import { createAppMigrator } from './migrator.js';
+import { createAppSeeder } from './seeder.js';
+import { appDatabaseStorageExists, prepareAppDatabaseStorage, } from './storage.js';
+export class AppDatabaseTaskError extends Error {
+    result;
+    constructor(result, cause) {
+        const failed = result.results.find((entry) => entry.status === 'failed');
+        super(`Database ${failed?.kind} failed for connection "${failed?.connection}": ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+        this.result = result;
+        this.name = 'AppDatabaseTaskError';
+    }
+}
+/** Manual commands and startup share the same resolved, connection-bound plan. */
+export async function executeAppDatabasePlan(database, config, plan, { paths, drivers, fresh = false, force = false, operation = 'run', dryRun = false, runtimeConfig, container, } = {}) {
+    if (fresh) {
+        if (operation !== 'run')
+            throw new Error(`A fresh run cannot be combined with ${operation}.`);
+        assertFreshPlanOrder(plan);
+    }
+    if (operation === 'rollback' && plan.some((task) => task.kind === 'seeds')) {
+        throw new Error('A rollback covers migrations only; seeds have no down.');
+    }
+    if (operation === 'sample' &&
+        plan.some((task) => task.kind === 'migrations')) {
+        throw new Error('Sample data covers seeds only.');
+    }
+    if (operation === 'sample' && (dryRun || fresh)) {
+        throw new Error('Sample data has no dry run or fresh run.');
+    }
+    if (operation === 'unlock' && fresh) {
+        throw new Error('A fresh run cannot be combined with unlock.');
+    }
+    if (operation === 'unlock' && dryRun) {
+        throw new Error('An unlock has no dry run; it reports the lock it finds.');
+    }
+    const taskContainer = createTaskServiceResolver(container);
+    const taskConfig = snapshotDatabaseTaskConfig(runtimeConfig);
+    // Decided before any task runs: the migrations a run applies would make
+    // every database look installed by the time its seeds run.
+    const freshInstalls = operation === 'run' && !dryRun
+        ? await detectFreshInstalls(database, config, plan, {
+            paths,
+            drivers,
+            fresh,
+            runtimeConfig: taskConfig,
+            container: taskContainer,
+        })
+        : new Map();
+    const sampleData = taskConfig.get('app.sampleData') === true;
+    const result = {
+        ok: true,
+        status: 'completed',
+        results: [],
+    };
+    for (const [index, task] of plan.entries()) {
+        const identity = { connection: task.connection, kind: task.kind };
+        if (task.skipReason) {
+            result.results.push({
+                ...identity,
+                status: 'skipped',
+                reason: task.skipReason,
+            });
+            continue;
+        }
+        try {
+            // A dry run changes nothing, and opening a connection to storage that
+            // does not exist yet would create it: it answers for an empty database
+            // instead, without preparing storage or connecting.
+            const storageMissing = dryRun &&
+                !(await appDatabaseStorageExists(config, paths, task.connection, drivers));
+            if (!storageMissing) {
+                await prepareAppDatabaseStorage(config, paths, [task.connection], drivers);
+            }
+            const options = {
+                runtimeConfig: taskConfig,
+                container: taskContainer,
+                database,
+                connection: task.connection,
+                config: task.config,
+                sources: task.config.sources,
+                onStaleLock: (takeover) => reportStaleLock(container, task, takeover),
+            };
+            const freshInstall = freshInstalls.get(task.connection);
+            const completed = operation === 'unlock'
+                ? await unlockTask(task, options, force)
+                : operation === 'sample'
+                    ? await createAppSeeder(options).runSamples()
+                    : storageMissing
+                        ? await emptyDatabasePreview(operation, task, options, fresh)
+                        : operation === 'repair'
+                            ? task.kind === 'migrations'
+                                ? await createAppMigrator(options).repair({ dryRun })
+                                : await createAppSeeder(options).repair({ dryRun })
+                            : operation === 'rollback'
+                                ? await createAppMigrator(options).rollback({ dryRun })
+                                : dryRun
+                                    ? task.kind === 'migrations'
+                                        ? await createAppMigrator(options).pending({ fresh })
+                                        : await createAppSeeder(options).pending({ fresh })
+                                    : task.kind === 'migrations'
+                                        ? await (fresh
+                                            ? createAppMigrator(options).fresh()
+                                            : createAppMigrator(options).latest())
+                                        : await createAppSeeder({
+                                            ...options,
+                                            sample: {
+                                                enabled: freshInstall === true && sampleData,
+                                            },
+                                        }).run();
+            result.results.push({
+                ...identity,
+                ...completed,
+                ...(task.kind === 'seeds' &&
+                    freshInstall !== undefined &&
+                    completed.status === 'completed'
+                    ? { freshInstall }
+                    : {}),
+                ...(fresh ? { fresh: true } : {}),
+            });
+        }
+        catch (error) {
+            result.ok = false;
+            result.status = 'failed';
+            result.results.push({
+                ...identity,
+                status: 'failed',
+                error: error instanceof Error ? error.message : String(error),
+            });
+            result.results.push(...plan.slice(index + 1).map((pending) => ({
+                connection: pending.connection,
+                kind: pending.kind,
+                status: 'not-run',
+                reason: 'previous-task-failed',
+            })));
+            throw new AppDatabaseTaskError(result, error);
+        }
+    }
+    return result;
+}
+/**
+ * Which connections this run installs: those with a seeds task whose storage
+ * does not exist yet, or that hold neither seed history nor, when the plan
+ * migrates them too, migration history. A fresh run installs every one. Reads
+ * only, without creating a history table or the storage itself.
+ */
+async function detectFreshInstalls(database, config, plan, options) {
+    const installs = new Map();
+    for (const task of plan) {
+        if (task.kind !== 'seeds' || task.skipReason)
+            continue;
+        if (options.fresh) {
+            installs.set(task.connection, true);
+            continue;
+        }
+        if (!(await appDatabaseStorageExists(config, options.paths, task.connection, options.drivers))) {
+            installs.set(task.connection, true);
+            continue;
+        }
+        const common = {
+            runtimeConfig: options.runtimeConfig,
+            container: options.container,
+            database,
+            connection: task.connection,
+        };
+        const seeded = await createAppSeeder({
+            ...common,
+            config: task.config,
+            sources: task.config.sources,
+        }).history();
+        const migrations = plan.find((entry) => entry.kind === 'migrations' &&
+            entry.connection === task.connection &&
+            !entry.skipReason);
+        const migrated = migrations
+            ? await createAppMigrator({
+                ...common,
+                config: migrations.config,
+                sources: migrations.config.sources,
+            }).history()
+            : [];
+        installs.set(task.connection, seeded.length === 0 && migrated.length === 0);
+    }
+    return installs;
+}
+/**
+ * What a dry run reports for a database that does not exist yet: every task
+ * pending, nothing to roll back, nothing to repair.
+ */
+async function emptyDatabasePreview(operation, task, options, fresh) {
+    if (operation === 'rollback') {
+        return {
+            status: 'completed',
+            batch: 0,
+            rolledBack: [],
+            records: [],
+            dryRun: true,
+        };
+    }
+    if (operation === 'repair') {
+        return { status: 'completed', repaired: [], dryRun: true };
+    }
+    return task.kind === 'migrations'
+        ? createAppMigrator(options).pending({ fresh, withoutHistory: true })
+        : createAppSeeder(options).pending({ fresh, withoutHistory: true });
+}
+/** Releases whichever lock belongs to the task's kind. */
+async function unlockTask(task, options, force) {
+    const released = task.kind === 'migrations'
+        ? await createAppMigrator(options).unlock({ force })
+        : await createAppSeeder(options).unlock({ force });
+    // `reason` on a task result says why it was skipped, so the lock's own
+    // reason gets its own field rather than being read as a skip.
+    return {
+        status: 'completed',
+        released: released.released,
+        ...(released.lock ? { lock: released.lock } : {}),
+        ...(released.reason ? { lockReason: released.reason } : {}),
+    };
+}
+/**
+ * A lock taken over because its holder stopped beating means a previous run
+ * was killed. Nothing else records that, so it belongs in the application log.
+ */
+function reportStaleLock(container, task, takeover) {
+    if (!container?.has(loggingToken))
+        return;
+    container.resolve(loggingToken).getLogger('database').warn({
+        connection: task.connection,
+        kind: task.kind,
+        table: takeover.tableName,
+        lockedBy: takeover.lockedBy,
+        staleForMs: takeover.staleForMs,
+    }, `Took over the ${task.kind} lock "${takeover.tableName}" after its holder stopped responding; the run holding it did not shut down cleanly.`);
+}
+/**
+ * A fresh run drops a connection's managed schema inside its migrations task,
+ * so every other task on that connection has to come after it. The planner
+ * already orders tasks this way; the check guards hand-built plans, which
+ * would otherwise seed a database that is about to be emptied.
+ */
+function assertFreshPlanOrder(plan) {
+    const rebuilt = new Set();
+    for (const task of plan) {
+        if (task.skipReason)
+            continue;
+        if (task.kind === 'migrations') {
+            rebuilt.add(task.connection);
+            continue;
+        }
+        if (!rebuilt.has(task.connection)) {
+            throw new Error(`A fresh run must rebuild connection "${task.connection}" before its ${task.kind} run.`);
+        }
+    }
+    if (!rebuilt.size) {
+        throw new Error('A fresh run must include migrations.');
+    }
+}
+export async function runAppDatabaseTasks(config, options) {
+    const { paths, drivers } = options;
+    const kinds = Array.isArray(options.kind)
+        ? options.kind
+        : [options.kind];
+    if (options.fresh && !kinds.includes('migrations')) {
+        throw new Error('A fresh run must include migrations.');
+    }
+    config = await resolveDatabaseConfig({
+        ...config,
+        drivers: { ...config.drivers, ...drivers },
+    });
+    const plan = planAppDatabaseTasks(config, kinds, options);
+    if (!plan.length)
+        return { ok: true, status: 'not-configured', results: [] };
+    if (options.fresh) {
+        for (const task of plan) {
+            if (task.skipReason)
+                continue;
+            const connection = config.connections[task.connection];
+            const driver = resolveDatabaseDriver({
+                dialect: connection.dialect,
+                databaseDriver: connection.databaseDriver,
+            }, { ...config.drivers, ...drivers }, task.connection);
+            if (!driver?.resetManagedSchema) {
+                throw new Error(`Database driver for connection "${task.connection}" does not support managed schema reset.`);
+            }
+        }
+        if (!options.dryRun &&
+            options.confirmFresh &&
+            !(await options.confirmFresh(plan))) {
+            throw new Error('Fresh migration cancelled.');
+        }
+    }
+    const database = options.database
+        ? options.database()
+        : createAppDatabaseManager(config, paths, {
+            ...config.drivers,
+            ...drivers,
+        });
+    if (!database)
+        return { ok: true, status: 'not-configured', results: [] };
+    try {
+        return await executeAppDatabasePlan(database, config, plan, {
+            paths,
+            drivers,
+            fresh: options.fresh,
+            force: options.force,
+            operation: options.operation,
+            dryRun: options.dryRun,
+            runtimeConfig: options.runtimeConfig,
+            container: options.container,
+        });
+    }
+    finally {
+        if (!options.database)
+            await database.destroy();
+    }
+}
+export async function runAppMigrations(config, options) {
+    const result = await runAppDatabaseTasks(config, {
+        ...options,
+        kind: 'migrations',
+    });
+    const first = result.results[0];
+    return (first && {
+        status: first.status,
+        reason: first.reason,
+        batch: first.batch,
+        executed: first.executed,
+        skipped: first.skipped,
+    });
+}
+export async function runAppSeeds(config, options) {
+    const result = await runAppDatabaseTasks(config, {
+        ...options,
+        kind: 'seeds',
+    });
+    const first = result.results[0];
+    return (first && {
+        status: first.status,
+        reason: first.reason,
+        executed: first.executed,
+        skipped: first.skipped,
+    });
+}
+//# sourceMappingURL=tasks.js.map

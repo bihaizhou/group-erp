@@ -1,0 +1,14 @@
+import { type AuthorizationEnv, type CompositeResourceActions, type CompositeResourceApi, type CompositeResourceReference } from '@nocobase/authorization/core';
+import { type RepositoryApiAction } from '@nocobase/app-server/router';
+import type { MiddlewareHandler } from 'hono';
+export interface AuthorizeRepositoryOptions<A extends CompositeResourceActions> {
+    readonly repository: string;
+    readonly resource: CompositeResourceReference<A>;
+    readonly actions: Partial<Record<RepositoryApiAction, NoInfer<keyof A & string>>>;
+}
+export interface RepositoryAuthorizationHost {
+    readonly compositeResources: CompositeResourceApi;
+    middleware(): MiddlewareHandler<AuthorizationEnv>;
+}
+export declare function createCompositeRepositoryAuthorization<A extends CompositeResourceActions>(authz: RepositoryAuthorizationHost, options: AuthorizeRepositoryOptions<A>): MiddlewareHandler<AuthorizationEnv>;
+//# sourceMappingURL=authorize-repository.d.ts.map

@@ -1,0 +1,50 @@
+import { isDeepStrictEqual } from 'node:util';
+import { ResourceItems, } from '@nocobase/authorization/core';
+const DEFAULT_ACTIONS = [
+    'read',
+    'create',
+    'update',
+    'delete',
+];
+const actionsOf = (definition) => [
+    ...(definition.actions ?? DEFAULT_ACTIONS),
+];
+/** The `database.collection` items. Registration is the opt-in. */
+export class DatabaseCollectionRegistry {
+    items = new ResourceItems();
+    definitions = new Map();
+    reported = [];
+    add(definition) {
+        if (!definition.name)
+            throw new TypeError('A database collection registration needs a name');
+        const existing = this.definitions.get(definition.name);
+        if (existing) {
+            const [before, after] = [actionsOf(existing), actionsOf(definition)];
+            if (!isDeepStrictEqual([...before].sort(), [...after].sort()))
+                throw new Error(`Database collection ${definition.name} is already registered with actions [${before.join(', ')}]; another registration declares [${after.join(', ')}]`);
+            if (!isDeepStrictEqual(existing.title, definition.title) ||
+                !isDeepStrictEqual(existing.description, definition.description))
+                this.reported.push(`Database collection ${definition.name} was registered again with a different title or description; the first registration is kept`);
+            return;
+        }
+        this.items.add({
+            id: definition.name,
+            title: definition.title,
+            ...(definition.description === undefined
+                ? {}
+                : { description: definition.description }),
+            ...(definition.actions ? { actions: definition.actions } : {}),
+        });
+        this.definitions.set(definition.name, structuredClone({ ...definition }));
+    }
+    has(name) {
+        return this.definitions.has(name);
+    }
+    list() {
+        return structuredClone([...this.definitions.values()]);
+    }
+    warnings() {
+        return [...this.reported];
+    }
+}
+//# sourceMappingURL=collection-registry.js.map

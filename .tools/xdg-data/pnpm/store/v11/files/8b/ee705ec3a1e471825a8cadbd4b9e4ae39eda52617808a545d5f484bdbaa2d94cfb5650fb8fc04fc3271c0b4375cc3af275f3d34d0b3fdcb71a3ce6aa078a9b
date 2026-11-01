@@ -1,0 +1,116 @@
+import { toSubmissionView } from '../views.js';
+import { fromSubmissionRow } from './mappers.js';
+import { toMailMessage, toMailMessageSummary } from './mappers.js';
+export async function countMessageConversations(query, accountIds, rows) {
+    const counts = new Map();
+    const conversationIds = [
+        ...new Set(rows
+            .map((row) => row.providerConversationId)
+            .filter((conversationId) => Boolean(conversationId))),
+    ];
+    if (accountIds.length === 0)
+        return counts;
+    // The conversation detail view includes every non-draft message in a Provider
+    // conversation, so its badge must not be narrowed by the current mailbox
+    // folder, search, unread, or starred filters.
+    if (conversationIds.length > 0) {
+        const conversationCountRows = await query
+            .selectFrom('mailMessages')
+            .select(['mailMessages.accountId', 'mailMessages.providerConversationId'])
+            .select(({ fn }) => [fn.count('mailMessages.id').as('count')])
+            .where('mailMessages.accountId', 'in', accountIds)
+            .where('mailMessages.providerConversationId', 'in', conversationIds)
+            .where('mailMessages.draft', '=', false)
+            .groupBy([
+            'mailMessages.accountId',
+            'mailMessages.providerConversationId',
+        ])
+            .execute();
+        for (const row of conversationCountRows) {
+            counts.set(conversationGroupKey(row.accountId, row.providerConversationId), Number(row.count));
+        }
+    }
+    return counts;
+}
+export function conversationGroupKey(accountId, conversationId) {
+    return `${accountId}:conversation:${conversationId}`;
+}
+export async function loadMailMessages(query, rows) {
+    if (rows.length === 0)
+        return [];
+    const relations = await loadMessageRelations(query, rows);
+    const states = await query
+        .selectFrom('mailDraftStates')
+        .select(['accountId', 'providerMessageId', 'revision'])
+        .where('accountId', 'in', [...new Set(rows.map((row) => row.accountId))])
+        .where('providerMessageId', 'in', rows.map((row) => row.providerMessageId))
+        .execute();
+    const revisions = new Map(states.map((state) => [
+        `${state.accountId}:${state.providerMessageId}`,
+        Number(state.revision),
+    ]));
+    return rows.map((row) => ({
+        draftRevision: row.draft
+            ? revisions.get(`${row.accountId}:${row.providerMessageId}`)
+            : undefined,
+        ...toMailMessage(row, relations.folderIdsByMessageId.get(row.id) ?? [], relations.labelIdsByMessageId.get(row.id) ?? []),
+        scheduledSend: row.scheduledSubmissionId
+            ? relations.submissions.get(row.scheduledSubmissionId)
+            : undefined,
+    }));
+}
+export async function loadMailMessageSummaries(query, rows) {
+    if (rows.length === 0)
+        return [];
+    const relations = await loadMessageRelations(query, rows);
+    return rows.map((row) => ({
+        ...toMailMessageSummary(row, relations.folderIdsByMessageId.get(row.id) ?? [], relations.labelIdsByMessageId.get(row.id) ?? []),
+        scheduledSend: row.scheduledSubmissionId
+            ? relations.submissions.get(row.scheduledSubmissionId)
+            : undefined,
+    }));
+}
+async function loadMessageRelations(query, rows) {
+    const messageIds = rows.map((row) => row.id);
+    const [folderRows, labelRows] = await Promise.all([
+        query
+            .selectFrom('mailMessageFolders')
+            .select(['messageId', 'providerFolderId'])
+            .where('messageId', 'in', messageIds)
+            .execute(),
+        query
+            .selectFrom('mailMessageLabels')
+            .select(['messageId', 'labelId'])
+            .where('messageId', 'in', messageIds)
+            .execute(),
+    ]);
+    const folderIdsByMessageId = new Map();
+    for (const folderRow of folderRows) {
+        const folderIds = folderIdsByMessageId.get(folderRow.messageId) ?? [];
+        folderIds.push(folderRow.providerFolderId);
+        folderIdsByMessageId.set(folderRow.messageId, folderIds);
+    }
+    const labelIdsByMessageId = new Map();
+    for (const labelRow of labelRows) {
+        const labelIds = labelIdsByMessageId.get(labelRow.messageId) ?? [];
+        labelIds.push(labelRow.labelId);
+        labelIdsByMessageId.set(labelRow.messageId, labelIds);
+    }
+    const ids = rows.flatMap((row) => row.scheduledSubmissionId ? [row.scheduledSubmissionId] : []);
+    const submissions = ids.length
+        ? await query
+            .selectFrom('mailSubmissions')
+            .selectAll()
+            .where('id', 'in', ids)
+            .execute()
+        : [];
+    return {
+        folderIdsByMessageId,
+        labelIdsByMessageId,
+        submissions: new Map(submissions.map((row) => [
+            row.id,
+            toSubmissionView(fromSubmissionRow(row)),
+        ])),
+    };
+}
+//# sourceMappingURL=message-queries.js.map

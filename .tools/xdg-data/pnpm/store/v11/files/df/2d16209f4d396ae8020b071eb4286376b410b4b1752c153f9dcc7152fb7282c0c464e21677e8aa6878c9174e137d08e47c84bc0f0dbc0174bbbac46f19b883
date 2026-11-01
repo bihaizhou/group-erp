@@ -1,0 +1,55 @@
+import { type EnvMap } from '../config/index.js';
+import { AppScopeLifecycle } from '../runtime/lifecycle.js';
+import type { AppPathOptions, AppScope } from '../runtime/types.js';
+export interface LoadStandaloneAppEnvOptions {
+    readonly rootDir: string;
+    readonly files?: readonly string[];
+    readonly baseEnv?: EnvMap;
+    readonly overrides?: EnvMap;
+}
+export declare function loadStandaloneAppEnv(options: LoadStandaloneAppEnvOptions): EnvMap;
+export interface StandaloneAppScopeOptions {
+    readonly id?: string;
+    readonly appName: string;
+    readonly basePath: string;
+    readonly paths: AppPathOptions;
+    readonly configPath?: string;
+    readonly env: EnvMap;
+    readonly abortReason?: unknown;
+    readonly consoleLogStream?: 'stdout' | 'stderr';
+}
+export interface CreateStandaloneScopeOptions {
+    readonly rootDir?: string;
+    readonly deploymentRootDir?: string;
+    readonly paths?: AppPathOptions;
+    readonly appName?: string;
+    readonly basePath?: string;
+    readonly configPath?: string;
+    /** Final environment overrides applied after dotenv files and process.env. */
+    readonly env?: EnvMap;
+    readonly abortReason?: unknown;
+    /** See {@link AppScope.consoleLogStream}. */
+    readonly consoleLogStream?: 'stdout' | 'stderr';
+}
+export interface ResolveStandaloneAppPathsOptions {
+    readonly rootDir?: string;
+    readonly deploymentRootDir?: string;
+    readonly paths?: AppPathOptions;
+}
+export declare class StandaloneAppScope extends AppScopeLifecycle implements AppScope {
+    readonly mode: "standalone";
+    readonly id: string;
+    readonly appName: string;
+    readonly basePath: string;
+    readonly paths: AppPathOptions;
+    readonly rootDir: string;
+    readonly dataDir: string | undefined;
+    readonly clientDir: string | undefined;
+    readonly configPath: string | undefined;
+    readonly env: EnvMap;
+    readonly consoleLogStream: 'stdout' | 'stderr' | undefined;
+    constructor(options: StandaloneAppScopeOptions);
+}
+export declare function createStandaloneScope(options: CreateStandaloneScopeOptions): StandaloneAppScope;
+export declare function resolveStandaloneAppPaths(options: ResolveStandaloneAppPathsOptions): AppPathOptions;
+//# sourceMappingURL=scope.d.ts.map

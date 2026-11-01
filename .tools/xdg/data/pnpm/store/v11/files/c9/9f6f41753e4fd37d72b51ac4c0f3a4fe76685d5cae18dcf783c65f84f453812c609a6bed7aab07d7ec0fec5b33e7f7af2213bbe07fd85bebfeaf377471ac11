@@ -1,0 +1,17 @@
+import type { NotificationAttemptRecord, NotificationDeliveryRecord, NotificationLogCursor, NotificationLogRecord, NotificationRetryAuditRecord, NotificationStore } from './store.js';
+export interface NotificationLogDetails {
+    readonly log: Omit<NotificationLogRecord, 'messageSnapshot'>;
+    readonly deliveries: readonly {
+        readonly delivery: Omit<NotificationDeliveryRecord, 'recipientSnapshot' | 'messageSnapshot' | 'leaseToken' | 'leaseExpiresAt'>;
+        readonly attempts: readonly NotificationAttemptRecord[];
+        readonly retryAudits: readonly NotificationRetryAuditRecord[];
+    }[];
+}
+export declare class NotificationLogs {
+    private readonly store;
+    constructor(store: NotificationStore);
+    list(limit?: number): Promise<readonly Omit<NotificationLogRecord, 'messageSnapshot'>[]>;
+    listDetails(limit?: number, before?: NotificationLogCursor): Promise<readonly NotificationLogDetails[]>;
+    get(id: string): Promise<NotificationLogDetails | undefined>;
+}
+//# sourceMappingURL=logs.d.ts.map

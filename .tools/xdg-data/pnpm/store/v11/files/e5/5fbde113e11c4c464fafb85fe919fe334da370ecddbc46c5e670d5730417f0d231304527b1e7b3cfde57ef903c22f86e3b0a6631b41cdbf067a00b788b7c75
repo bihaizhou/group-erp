@@ -1,0 +1,27 @@
+import { ConfigMergeError } from './errors.js';
+import { cloneConfigValue, configValueType, isConfigMap } from './value.js';
+export function mergeConfigMaps(destination, source, options) {
+    const output = cloneConfigValue(destination);
+    mergeInto(output, source, options, options.path ?? []);
+    return output;
+}
+function mergeInto(destination, source, options, path) {
+    for (const [key, next] of Object.entries(source)) {
+        const current = destination[key];
+        const nextPath = [...path, key];
+        if (isConfigMap(current) && isConfigMap(next)) {
+            destination[key] = mergeConfigMaps(current, next, {
+                ...options,
+                path: nextPath,
+            });
+            continue;
+        }
+        if (options.strict &&
+            current !== undefined &&
+            configValueType(current) !== configValueType(next)) {
+            throw new ConfigMergeError(nextPath.join(options.delimiter), configValueType(current), configValueType(next));
+        }
+        destination[key] = cloneConfigValue(next);
+    }
+}
+//# sourceMappingURL=merge.js.map

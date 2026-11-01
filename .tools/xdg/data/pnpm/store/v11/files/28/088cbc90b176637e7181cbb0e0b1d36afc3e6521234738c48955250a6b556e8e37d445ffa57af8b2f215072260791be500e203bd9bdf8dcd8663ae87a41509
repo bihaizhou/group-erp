@@ -1,0 +1,25 @@
+import { type AppConfigLayers, type VariablesManifest } from '@nocobase/app-server/config';
+import type { AppCommandRuntime } from '../context.ts';
+type ConfigMap = AppConfigLayers['defaults'];
+export interface ConfigVariablesOptions {
+    /** Loads the application exactly as a start would, without starting it. */
+    readonly loadRuntime: () => Promise<AppCommandRuntime>;
+    /** Where to write the manifest as JSON, relative to the working directory; nothing is written when left out. */
+    readonly out?: string;
+}
+export interface ConfigVariablesResult {
+    readonly manifest: VariablesManifest;
+    /** The file written, when `out` was given. */
+    readonly file?: string;
+}
+/**
+ * Builds the variables manifest: every environment variable the application reads, with what each sets and whether a
+ * deployment must supply it. A variable is required when the code defaults and `config.example.yml` give its path no
+ * value, an example placeholder such as `admin123` counting as none, and nothing can generate one. Values from the
+ * environment and `config.yml` play no part, so the manifest is the same on every machine.
+ */
+export declare function runConfigVariables(options: ConfigVariablesOptions): Promise<ConfigVariablesResult>;
+/** `config.example.yml` beside the deployment root, parsed, or nothing when the application ships none. */
+export declare function readConfigExample(deploymentRootDir: string): Promise<ConfigMap | undefined>;
+export {};
+//# sourceMappingURL=config-variables.d.ts.map

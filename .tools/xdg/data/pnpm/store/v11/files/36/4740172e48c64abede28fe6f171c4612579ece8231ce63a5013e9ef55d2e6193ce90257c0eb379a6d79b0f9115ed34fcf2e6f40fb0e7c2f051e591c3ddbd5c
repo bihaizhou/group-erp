@@ -1,0 +1,9 @@
+interface Credentials {
+    accessKeyId: string;
+    secretAccessKey: string;
+    sessionToken: string;
+    expiration: Date;
+}
+export declare function createAliyunEcsRamRoleProvider(roleName?: string): () => Promise<Credentials>;
+export {};
+//# sourceMappingURL=aliyun-ecs-ram-role.d.ts.map

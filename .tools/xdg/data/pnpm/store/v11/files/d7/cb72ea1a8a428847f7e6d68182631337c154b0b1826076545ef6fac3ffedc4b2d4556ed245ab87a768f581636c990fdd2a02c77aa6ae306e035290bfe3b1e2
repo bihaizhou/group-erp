@@ -1,0 +1,39 @@
+import { readFile, stat } from 'node:fs/promises';
+import path from 'node:path';
+export function fileProvider(filePath, options = {}) {
+    const normalizedPath = path.resolve(filePath);
+    return {
+        name: options.name ?? `file:${normalizedPath}`,
+        async read(context) {
+            let value;
+            let attributes;
+            try {
+                [value, attributes] = await Promise.all([
+                    readFile(normalizedPath, { signal: context.signal }),
+                    stat(normalizedPath),
+                ]);
+            }
+            catch (error) {
+                if (options.optional && isMissingFileError(error)) {
+                    return {
+                        kind: 'map',
+                        value: {},
+                    };
+                }
+                throw error;
+            }
+            return {
+                kind: 'bytes',
+                value,
+                metadata: {
+                    lastModified: attributes.mtime,
+                    etag: `${attributes.size}-${attributes.mtimeMs}`,
+                },
+            };
+        },
+    };
+}
+function isMissingFileError(error) {
+    return error instanceof Error && 'code' in error && error.code === 'ENOENT';
+}
+//# sourceMappingURL=file.js.map

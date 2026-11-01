@@ -1,0 +1,27 @@
+import { type AddressObject } from 'mailparser';
+import type { MailAddress, NormalizedMailAttachment } from '../../../shared/mail.js';
+export declare function normalizeAttachment(folder: string, uidValidity: string, uid: number, attachment: {
+    filename?: string;
+    contentType: string;
+    size: number;
+    contentId?: string;
+    related?: boolean;
+}, index: number): NormalizedMailAttachment;
+export declare function addresses(value: AddressObject | AddressObject[] | undefined): MailAddress[];
+export declare function envelopeAddress(value: {
+    address?: string;
+    name?: string;
+} | undefined): MailAddress | undefined;
+export declare function envelopeAddresses(value: readonly {
+    address?: string;
+    name?: string;
+}[] | undefined): MailAddress[];
+export declare function references(value: string | string[] | undefined): string[];
+export declare function preview(text: string | undefined): string | undefined;
+export declare function toIsoDate(value: Date | string | undefined): string | undefined;
+export declare function toHeader(value: MailAddress): {
+    address: string;
+    name?: string;
+};
+export declare function bufferStream(value: Buffer): ReadableStream<Uint8Array>;
+//# sourceMappingURL=normalize.d.ts.map

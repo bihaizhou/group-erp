@@ -1,0 +1,14 @@
+import { type Command } from '@oclif/core';
+import type { Interfaces } from '@oclif/core';
+import { AppCommand } from '../../context.ts';
+import { type ConfigVariablesResult } from '../../lib/config-variables.ts';
+export default class AppConfigVariables extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static flags: {
+        out: Interfaces.OptionFlag<string | undefined>;
+    };
+    run(): Promise<ConfigVariablesResult>;
+}
+//# sourceMappingURL=variables.d.ts.map

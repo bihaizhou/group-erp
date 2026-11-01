@@ -1,0 +1,2 @@
+export type { NotificationConfig } from './types.js';
+//# sourceMappingURL=config.d.ts.map

@@ -1,0 +1,41 @@
+import { AppCommand } from '../../context.ts';
+import type { Command } from '@oclif/core';
+interface LocaleSide {
+    readonly side: 'client' | 'server';
+    readonly directory: string;
+    readonly locales: readonly string[];
+}
+export interface LocaleCheckResult {
+    readonly ok: boolean;
+    readonly sides: readonly LocaleSide[];
+    readonly clientOnly: readonly string[];
+    readonly serverOnly: readonly string[];
+}
+/** One side as `locales check` reports it: the directory is left out, since it is always `<side>/locales`. */
+export interface LocalesCheckSide {
+    readonly side: 'client' | 'server';
+    readonly locales: readonly string[];
+}
+/**
+ * What `locales check` returns, and what `error.details` carries when the two sides disagree. Under `--json` the
+ * envelope's `ok` says whether they agree.
+ */
+export interface LocalesCheckCommandResult {
+    readonly sides: readonly LocalesCheckSide[];
+    readonly clientOnly: readonly string[];
+    readonly serverOnly: readonly string[];
+}
+/**
+ * Compares the languages the two halves of an application declare.
+ *
+ * Exported so it can be exercised against a fixture directory; the command itself only formats what this returns.
+ */
+export declare function checkAppLocales(root: string): Promise<LocaleCheckResult>;
+export default class AppI18nCheck extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    run(): Promise<LocalesCheckCommandResult>;
+}
+export {};
+//# sourceMappingURL=check.d.ts.map

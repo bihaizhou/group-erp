@@ -1,0 +1,10 @@
+import { Hono } from 'hono';
+import type { ApiDocsService } from './service.js';
+/** The Swagger UI files the page loads, with their content types. The build copies exactly these into `dist/swagger-ui`. */
+export declare const swaggerUiAssets: Readonly<Record<string, string>>;
+/**
+ * `GET /swagger` (the OpenAPI document), `GET /swagger/docs` (Swagger UI) and the page's files, mounted under `/api`.
+ * Every one is hidden from the document it serves and guarded by the service's access checks.
+ */
+export declare function createApiDocsRouter(service: ApiDocsService): Hono;
+//# sourceMappingURL=docs-routes.d.ts.map

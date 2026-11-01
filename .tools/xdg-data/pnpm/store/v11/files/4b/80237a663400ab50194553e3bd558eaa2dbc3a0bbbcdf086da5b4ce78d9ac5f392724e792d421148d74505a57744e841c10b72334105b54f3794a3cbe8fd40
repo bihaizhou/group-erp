@@ -1,0 +1,37 @@
+import type { LocaleResource } from '@nocobase/i18n';
+declare const enUS: {
+    inbox: {
+        eyebrow: string;
+        title: string;
+        unreadCount: string;
+        description: string;
+        markAllRead: string;
+        messagesTitle: string;
+        messagesDescription: string;
+        unreadFilter: string;
+        unavailable: string;
+        retry: string;
+        loading: string;
+        emptyTitle: string;
+        emptyDescription: string;
+        loadingMore: string;
+        loadMore: string;
+        scrollMore: string;
+        noMore: string;
+        expand: string;
+        collapse: string;
+        channel: string;
+        open: string;
+        markUnread: string;
+        markRead: string;
+        delete: string;
+        errors: {
+            update: string;
+            loadMore: string;
+            markAllRead: string;
+        };
+    };
+};
+export type InAppNotificationClientResource = LocaleResource<typeof enUS>;
+export default enUS;
+//# sourceMappingURL=en-US.d.ts.map

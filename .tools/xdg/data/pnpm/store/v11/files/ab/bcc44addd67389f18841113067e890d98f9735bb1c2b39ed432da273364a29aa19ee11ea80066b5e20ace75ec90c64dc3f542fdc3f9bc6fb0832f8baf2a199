@@ -1,0 +1,12 @@
+export class ServiceProvider {
+    app;
+    constructor(app) {
+        this.app = app;
+    }
+    register() { }
+    async boot() { }
+    async start() { }
+    async ready() { }
+    async shutdown() { }
+}
+//# sourceMappingURL=provider.js.map

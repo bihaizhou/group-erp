@@ -1,0 +1,8 @@
+import { type QueryAdapter } from '@nocobase/db';
+import { type MailMessage, type MailMessageSummary } from '../../shared/mail.js';
+import { type MessageRow } from './rows.js';
+export declare function countMessageConversations(query: QueryAdapter, accountIds: readonly string[], rows: readonly MessageRow[]): Promise<ReadonlyMap<string, number>>;
+export declare function conversationGroupKey(accountId: string, conversationId: string): string;
+export declare function loadMailMessages(query: QueryAdapter, rows: readonly MessageRow[]): Promise<MailMessage[]>;
+export declare function loadMailMessageSummaries(query: QueryAdapter, rows: readonly MessageRow[]): Promise<MailMessageSummary[]>;
+//# sourceMappingURL=message-queries.d.ts.map

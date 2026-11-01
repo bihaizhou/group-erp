@@ -1,0 +1,8 @@
+import { type AppClientPluginFactory } from '@nocobase/app-client/plugins';
+/**
+ * Registers the plugin with the client application. It contributes no pages: an application that wants a page for
+ * managing keys builds it on `apiKeyClient` and declares it among its own routes.
+ */
+declare const apiKeys: AppClientPluginFactory;
+export default apiKeys;
+//# sourceMappingURL=plugin.d.ts.map

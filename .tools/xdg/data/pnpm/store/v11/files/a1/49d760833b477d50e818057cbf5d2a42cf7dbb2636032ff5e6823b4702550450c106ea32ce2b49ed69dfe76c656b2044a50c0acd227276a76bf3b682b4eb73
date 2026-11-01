@@ -1,0 +1,471 @@
+import { generateSpecs, uniqueSymbol, } from 'hono-openapi';
+import { findTargetHandler, isMiddleware } from 'hono/utils/handler';
+import { apiNotFoundHandler } from '../api-error.js';
+import { apiDocumentBaseComponents, invalidInputDescription, invalidInputResponseName, } from './components.js';
+import { expandRepositoryOperations } from './repository-document.js';
+const httpMethods = [
+    'get',
+    'put',
+    'post',
+    'delete',
+    'options',
+    'head',
+    'patch',
+    'trace',
+];
+function isRouterSource(source) {
+    return 'apiRouter' in source;
+}
+function forwardedOf(source) {
+    return isRouterSource(source) ? source.forwardedApiRoutes : undefined;
+}
+function resolveApiRouter(source) {
+    const router = isRouterSource(source) ? source.apiRouter : source;
+    if (!router) {
+        throw new Error('The application has not registered its routes yet. Start it before inspecting its API.');
+    }
+    return router;
+}
+/** The `describeRoute()` declaration a handler carries, if it is one. */
+export function describeSpecOf(handler) {
+    const metadata = findTargetHandler(handler)[uniqueSymbol];
+    return metadata?.spec;
+}
+function pathPrefixOf(path) {
+    return path.endsWith('/*') ? path.slice(0, -2) : path;
+}
+/**
+ * Every endpoint of an API router with what `describeRoute()` declares for it, in registration order. The application's
+ * catch-all for unknown paths is not an endpoint and is left out. A declaration applied with `router.use()` counts for
+ * the paths below it, as it does in the document.
+ *
+ * For an application, or anything else carrying `forwardedApiRoutes`, the routes of every router registered with
+ * `addApiRouter` follow at their own prefix, judged the same way, and every endpoint registered with
+ * `addUndeclaredApiRoute` follows as undeclared.
+ */
+export function inspectApiRoutes(source, prefix = '/api') {
+    const declarations = inspectRouter(resolveApiRouter(source), prefix);
+    const forwarded = forwardedOf(source);
+    for (const registration of forwarded?.routers ?? []) {
+        const base = forwardedPath(registration);
+        for (const route of inspectRouter(registration.router, registration.prefix)) {
+            declarations.push(isForwardedTo(registration, route.path)
+                ? route
+                : {
+                    method: route.method,
+                    path: route.path,
+                    declared: false,
+                    hidden: false,
+                    reason: `Declared outside the forwarded path ${base}, which the dispatcher never forwards to this router.`,
+                });
+        }
+    }
+    for (const { method, path, reason } of forwarded?.undeclared ?? [])
+        declarations.push({
+            method,
+            path,
+            declared: false,
+            hidden: false,
+            ...(reason ? { reason } : {}),
+        });
+    return declarations;
+}
+/** The full path a dispatcher forwards to a registered router: its prefix followed by its scope. */
+export function forwardedPath(registration) {
+    return joinPath(registration.prefix, registration.scope ?? '/');
+}
+/** Whether the dispatcher forwards a request for `path`, a full path such as `/api/authorization/x`, to the router. */
+export function isForwardedTo(registration, path) {
+    const base = forwardedPath(registration);
+    return path === base || path.startsWith(base === '/' ? '/' : `${base}/`);
+}
+function joinPath(prefix, path) {
+    return `${prefix}${path === '/' ? '' : path}` || '/';
+}
+function inspectRouter(router, prefix) {
+    const contexts = [];
+    const endpoints = new Map();
+    for (const route of router.routes) {
+        const target = findTargetHandler(route.handler);
+        if (target === apiNotFoundHandler)
+            continue;
+        const spec = describeSpecOf(route.handler);
+        const key = `${route.method} ${route.path}`;
+        const middleware = isMiddleware(target);
+        if (route.method === 'ALL' && middleware) {
+            if (spec)
+                contexts.push({ prefix: pathPrefixOf(route.path), spec });
+            continue;
+        }
+        let endpoint = endpoints.get(key);
+        if (!endpoint && !middleware) {
+            endpoint = { method: route.method, path: route.path, specs: [] };
+            endpoints.set(key, endpoint);
+        }
+        if (endpoint && spec)
+            endpoint.specs.push(spec);
+        // A describeRoute() registered before the endpoint's handler under the same method and path.
+        if (!endpoint && spec) {
+            endpoints.set(key, {
+                method: route.method,
+                path: route.path,
+                specs: [spec],
+            });
+        }
+    }
+    const declarations = [];
+    for (const endpoint of endpoints.values()) {
+        const applicable = [
+            ...contexts
+                .filter((context) => endpoint.path === context.prefix ||
+                endpoint.path.startsWith(`${context.prefix}/`))
+                .map((context) => context.spec),
+            ...endpoint.specs,
+        ];
+        let hidden = false;
+        let operationId;
+        let summary;
+        const tags = new Set();
+        for (const spec of applicable) {
+            if (spec.hide)
+                hidden = true;
+            if (typeof spec.operationId === 'string')
+                operationId = spec.operationId;
+            if (spec.summary)
+                summary = spec.summary;
+            for (const tag of spec.tags ?? [])
+                tags.add(tag);
+        }
+        declarations.push({
+            method: endpoint.method,
+            path: joinPath(prefix, endpoint.path),
+            declared: applicable.length > 0,
+            hidden,
+            ...(operationId ? { operationId } : {}),
+            ...(tags.size > 0 ? { tags: [...tags] } : {}),
+            ...(summary ? { summary } : {}),
+        });
+    }
+    return declarations;
+}
+/**
+ * The endpoints that declare nothing: neither `describeRoute({...})` nor `describeRoute({ hide: true })`. For an
+ * application this includes the routes behind runtime dispatchers, and every endpoint registered with
+ * `addUndeclaredApiRoute`. Each is a defect the API document check reports.
+ */
+export function findUndeclaredApiRoutes(source, prefix = '/api') {
+    return inspectApiRoutes(source, prefix)
+        .filter((route) => !route.declared)
+        .map(({ method, path }) => ({ method, path }));
+}
+/**
+ * Generate the OpenAPI 3.1 document for an API router: every route declared with `describeRoute()` and not hidden,
+ * data endpoints expanded from their Collections, and the fragments merged in.
+ */
+export async function generateApiDocument(source, options) {
+    const router = resolveApiRouter(source);
+    const prefix = options.prefix ?? '/api';
+    const base = apiDocumentBaseComponents();
+    const generated = await generateRouterSpecs(router, options, base);
+    const paths = {};
+    for (const [path, item] of Object.entries(generated.paths)) {
+        paths[joinPath(prefix, path)] = item;
+    }
+    const document = {
+        openapi: '3.1.0',
+        // hono-openapi fills in a description of its own when none is given.
+        info: {
+            title: options.info.title,
+            version: options.info.version,
+            ...(options.info.description
+                ? { description: options.info.description }
+                : {}),
+        },
+        ...(generated.servers ? { servers: generated.servers } : {}),
+        paths,
+        components: {
+            ...generated.components,
+            schemas: { ...base.schemas, ...generated.components.schemas },
+            responses: { ...base.responses, ...generated.components.responses },
+        },
+    };
+    const warn = options.onWarning ?? (() => undefined);
+    // Routes behind a runtime dispatcher are declared routes too: merged before the fragments, so a fragment operation on
+    // the same method and path is the one dropped. Their components are generated from the same base, so the shared
+    // ones are identical and stay shared.
+    for (const forwarded of (options.forwarded ?? forwardedOf(source))?.routers ??
+        []) {
+        const specs = await generateRouterSpecs(forwarded.router, options, apiDocumentBaseComponents());
+        const forwardedPaths = {};
+        for (const [path, item] of Object.entries(specs.paths)) {
+            const full = joinPath(forwarded.prefix, path);
+            // A route outside the forwarded path is never reached; `inspectApiRoutes` reports it instead.
+            if (isForwardedTo(forwarded, full))
+                forwardedPaths[full] = item;
+        }
+        mergeApiDocumentFragment(document, {
+            owner: forwarded.owner,
+            paths: forwardedPaths,
+            components: specs.components,
+        }, warn);
+    }
+    // Data endpoints are expanded once every router is in, so a dispatcher forwarding one documents it in full too.
+    // Fragments come after: they carry finished operations, never a data endpoint placeholder.
+    await expandRepositoryOperations(document);
+    for (const fragment of options.fragments ?? []) {
+        mergeApiDocumentFragment(document, fragment, warn);
+    }
+    document.tags = collectTags(document, options.fragments ?? []);
+    return document;
+}
+async function generateRouterSpecs(router, options, base) {
+    const specs = await generateSpecs(router, {
+        documentation: {
+            info: {
+                title: options.info.title,
+                version: options.info.version,
+                ...(options.info.description
+                    ? { description: options.info.description }
+                    : {}),
+            },
+            ...(options.servers ? { servers: [...options.servers] } : {}),
+            components: base,
+        },
+        // The 400 for invalid input is added below, also to an operation that declares a 400 of its own.
+        defaultValidationErrorResponse: false,
+        excludeMethods: ['OPTIONS'],
+    });
+    addInvalidInputResponses(specs.paths, validatedOperations(router));
+    return specs;
+}
+/** An OpenAPI path for a Hono path, `/apps/:appId{[a-z]+}` becoming `/apps/{appId}`, as hono-openapi converts it. */
+function toOpenApiPath(path) {
+    return path
+        .split('/')
+        .map((segment) => {
+        if (!segment.startsWith(':'))
+            return segment;
+        const match = /^:([^{?]+)/.exec(segment);
+        return `{${match ? match[1] : segment.slice(1).replace(/\?$/, '')}}`;
+    })
+        .join('/');
+}
+/** The operations of a router that validate their input with `apiValidator()` (or any hono-openapi validator). */
+function validatedOperations(router) {
+    const endpoints = new Set();
+    const prefixes = [];
+    for (const route of router.routes) {
+        const metadata = findTargetHandler(route.handler)[uniqueSymbol];
+        // describeRoute() metadata carries `spec`; a validator's carries the schema conversion instead.
+        if (!metadata || 'spec' in metadata || !('toOpenAPISchema' in metadata))
+            continue;
+        const path = toOpenApiPath(route.path);
+        if (route.method === 'ALL')
+            prefixes.push(pathPrefixOf(path));
+        else
+            endpoints.add(`${route.method} ${path}`);
+    }
+    return { endpoints, prefixes };
+}
+/**
+ * Document the 400 an `apiValidator()` answers on every operation that has one, and on no other. A route declares a
+ * 400 itself only for another reason, such as a failed precondition: a declared `apiErrorResponse(400)` without a
+ * description already covers invalid input and is kept as it is, and a declared 400 with a description keeps it after
+ * the description of invalid input.
+ */
+function addInvalidInputResponses(paths, validated) {
+    for (const [path, item] of Object.entries(paths)) {
+        for (const method of httpMethods) {
+            const operation = item?.[method];
+            if (!operation)
+                continue;
+            const covered = validated.endpoints.has(`${method.toUpperCase()} ${path}`) ||
+                validated.prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+            if (!covered)
+                continue;
+            const responses = (operation.responses ??= {});
+            const declared = responses['400'];
+            if (!declared) {
+                responses['400'] = {
+                    $ref: `#/components/responses/${invalidInputResponseName}`,
+                };
+            }
+            else if (!('$ref' in declared)) {
+                responses['400'] = {
+                    ...declared,
+                    description: `${invalidInputDescription}\n\n${declared.description}`,
+                };
+            }
+        }
+    }
+}
+function collectTags(document, fragments) {
+    const described = new Map();
+    for (const tag of [
+        ...(document.tags ?? []),
+        ...fragments.flatMap((fragment) => fragment.tags ?? []),
+    ]) {
+        const existing = described.get(tag.name);
+        described.set(tag.name, existing
+            ? {
+                ...tag,
+                ...existing,
+                description: existing.description ?? tag.description,
+            }
+            : tag);
+    }
+    const used = new Set();
+    for (const item of Object.values(document.paths ?? {})) {
+        for (const method of httpMethods) {
+            for (const tag of item?.[method]?.tags ?? [])
+                used.add(tag);
+        }
+    }
+    return [...used]
+        .sort((left, right) => left.localeCompare(right))
+        .map((name) => described.get(name) ?? { name });
+}
+const componentKinds = [
+    'schemas',
+    'responses',
+    'parameters',
+    'examples',
+    'requestBodies',
+    'headers',
+    'securitySchemes',
+    'links',
+    'callbacks',
+    'pathItems',
+];
+function defaultNamespace(owner) {
+    const bare = owner.replace(/^@[^/]+\//, '').replace(/^app-plugin-/, '');
+    return bare.replace(/[-_.\s]+([a-zA-Z0-9])/g, (_match, letter) => letter.toUpperCase());
+}
+function capitalize(value) {
+    return value.charAt(0).toUpperCase() + value.slice(1);
+}
+function uniqueName(base, taken) {
+    if (!taken(base))
+        return base;
+    let index = 2;
+    while (taken(`${base}${index}`))
+        index += 1;
+    return `${base}${index}`;
+}
+function rewriteRefs(value, renames) {
+    if (Array.isArray(value))
+        return value.map((item) => rewriteRefs(item, renames));
+    if (typeof value !== 'object' || value === null)
+        return value;
+    const result = {};
+    for (const [key, child] of Object.entries(value)) {
+        result[key] =
+            key === '$ref' && typeof child === 'string'
+                ? (renames.get(child) ?? child)
+                : rewriteRefs(child, renames);
+    }
+    return result;
+}
+function sameJson(left, right) {
+    return JSON.stringify(left) === JSON.stringify(right);
+}
+/**
+ * Merge one fragment into a document in place.
+ *
+ * - A component whose name is free is added; one identical to an existing component is shared; one that differs is
+ *   renamed with the fragment's namespace in PascalCase as prefix (`AuthSession`; a security scheme takes it in
+ *   camelCase, `authCookieAuth`), and every `$ref` and security requirement in the fragment follows the rename.
+ * - An operation whose method and path the document already has is dropped with a warning: a declared route is what
+ *   actually answers.
+ * - An `operationId` already in use is prefixed with the namespace (`authSignIn`), then numbered if still taken.
+ * - Tags merge by name; a description already in the document wins.
+ * - Security requirements are appended to the document's top-level `security` unless an identical one is already
+ *   there, following any rename of the security schemes they name.
+ */
+export function mergeApiDocumentFragment(document, fragment, onWarning = () => undefined) {
+    const namespace = fragment.namespace ?? defaultNamespace(fragment.owner);
+    const components = (document.components ??= {});
+    const renames = new Map();
+    const additions = [];
+    const fragmentComponents = (fragment.components ?? {});
+    for (const kind of componentKinds) {
+        for (const [name, component] of Object.entries(fragmentComponents[kind] ?? {})) {
+            const existing = components[kind]?.[name];
+            if (existing === undefined) {
+                additions.push([kind, name, component]);
+                continue;
+            }
+            if (sameJson(existing, component))
+                continue;
+            // Security schemes are named in camelCase, as a requirement names them (`authCookieAuth`); every other component
+            // in PascalCase (`AuthSession`).
+            const renamed = uniqueName(kind === 'securitySchemes'
+                ? `${namespace}${capitalize(name)}`
+                : `${capitalize(namespace)}${name}`, (candidate) => components[kind]?.[candidate] !== undefined ||
+                fragmentComponents[kind]?.[candidate] !== undefined);
+            renames.set(`#/components/${kind}/${name}`, `#/components/${kind}/${renamed}`);
+            additions.push([kind, renamed, component]);
+            onWarning(`${fragment.owner}: component ${kind}/${name} differs from the one already in the API document and was renamed to ${renamed}.`);
+        }
+    }
+    for (const [kind, name, component] of additions) {
+        (components[kind] ??= {})[name] = rewriteRefs(component, renames);
+    }
+    // A security requirement names its scheme by key rather than by `$ref`, so a renamed scheme is followed here.
+    const schemeRenames = new Map();
+    for (const [from, to] of renames) {
+        const prefix = '#/components/securitySchemes/';
+        if (from.startsWith(prefix))
+            schemeRenames.set(from.slice(prefix.length), to.slice(prefix.length));
+    }
+    const renameSecurity = (requirements) => requirements.map((requirement) => Object.fromEntries(Object.entries(requirement).map(([name, scopes]) => [
+        schemeRenames.get(name) ?? name,
+        scopes,
+    ])));
+    if (fragment.security && fragment.security.length > 0) {
+        const security = (document.security ??= []);
+        for (const requirement of renameSecurity(fragment.security)) {
+            if (!security.some((existing) => sameJson(existing, requirement)))
+                security.push(requirement);
+        }
+    }
+    const operationIds = new Set();
+    for (const item of Object.values(document.paths ?? {})) {
+        for (const method of httpMethods) {
+            const operationId = item?.[method]?.operationId;
+            if (operationId)
+                operationIds.add(operationId);
+        }
+    }
+    const paths = (document.paths ??= {});
+    for (const [path, rawItem] of Object.entries(fragment.paths ?? {})) {
+        if (!rawItem)
+            continue;
+        const item = rewriteRefs(rawItem, renames);
+        const target = (paths[path] ??= {});
+        for (const [key, value] of Object.entries(item)) {
+            const method = key;
+            if (!httpMethods.includes(method)) {
+                if (!(key in target))
+                    target[key] = value;
+                continue;
+            }
+            if (target[method]) {
+                onWarning(`${fragment.owner}: ${method.toUpperCase()} ${path} is already declared by a route and was left out of the fragment.`);
+                continue;
+            }
+            const operation = { ...value };
+            if (operation.security && schemeRenames.size > 0)
+                operation.security = renameSecurity(operation.security);
+            if (operation.operationId && operationIds.has(operation.operationId)) {
+                const renamed = uniqueName(`${namespace}${capitalize(operation.operationId)}`, (candidate) => operationIds.has(candidate));
+                onWarning(`${fragment.owner}: operationId ${operation.operationId} of ${method.toUpperCase()} ${path} is already used and was renamed to ${renamed}.`);
+                operation.operationId = renamed;
+            }
+            if (operation.operationId)
+                operationIds.add(operation.operationId);
+            target[method] = operation;
+        }
+    }
+}
+//# sourceMappingURL=document.js.map

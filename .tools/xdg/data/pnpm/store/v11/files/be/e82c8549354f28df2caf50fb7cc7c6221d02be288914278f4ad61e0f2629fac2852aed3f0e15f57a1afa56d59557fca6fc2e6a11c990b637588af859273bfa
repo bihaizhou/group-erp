@@ -1,0 +1,20 @@
+import type { CollectionMetadataPage, CollectionMetadataSummary, DeleteCollectionMetadataOptions, ListCollectionMetadataOptions, PutCollectionMetadataOptions } from './document-store.js';
+import type { CollectionMetadataDocument, StoredCollectionMetadata } from './document.js';
+export declare function cloneStoredCollectionMetadata(stored: StoredCollectionMetadata): StoredCollectionMetadata;
+export declare function summarizeStoredCollectionMetadata(stored: StoredCollectionMetadata): CollectionMetadataSummary;
+export declare function paginateCollectionMetadata(stored: readonly StoredCollectionMetadata[], options?: ListCollectionMetadataOptions): CollectionMetadataPage;
+export interface ResolvedCollectionMetadataListOptions {
+    readonly limit: number;
+    readonly after?: string;
+}
+export declare function resolveCollectionMetadataListOptions(options?: ListCollectionMetadataOptions): ResolvedCollectionMetadataListOptions;
+export declare function createCollectionMetadataPage(stored: readonly StoredCollectionMetadata[], limit: number): CollectionMetadataPage;
+export declare function validatePutCollectionMetadataOptions(options: PutCollectionMetadataOptions): void;
+export declare function validateDeleteCollectionMetadataOptions(options: DeleteCollectionMetadataOptions): void;
+export declare function validateCollectionMetadataStoreName(name: string): void;
+/**
+ * A revision derived from the document itself, so two stores holding the same
+ * document — or one store re-initialized from unchanged files — report the
+ * same revision without anything having to be written down.
+ */
+export declare function contentRevision(document: CollectionMetadataDocument): string;

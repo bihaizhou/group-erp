@@ -1,0 +1,3 @@
+/** Bridge the App theme into an isolated, script-disabled message document. */
+export declare function observeMailBodyTheme(frame: HTMLIFrameElement, document: Document): () => void;
+//# sourceMappingURL=mail-body-theme.d.ts.map

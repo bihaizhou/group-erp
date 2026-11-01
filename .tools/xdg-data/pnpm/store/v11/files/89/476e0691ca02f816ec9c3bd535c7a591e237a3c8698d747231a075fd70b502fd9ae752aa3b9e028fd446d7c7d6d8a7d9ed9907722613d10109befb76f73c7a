@@ -1,0 +1,67 @@
+import type { JobExecutor } from '@nocobase/jobs';
+import { type MailLogger } from './logging.js';
+import type { MailMessageChangeNotifier } from './realtime.js';
+import type { MailOutboxPublisher } from './service.js';
+import type { MailProviderAdapterResolver, MailCredentialVault } from './contracts/provider.js';
+import type { MailStore } from './contracts/persistence.js';
+import type { MailOutboundAttachmentStorage } from '../shared/mail.js';
+import type { MailRuntimeService } from './contracts/service.js';
+export type MailRuntimeLogger = MailLogger;
+export interface MailRuntimeOptions {
+    readonly store: MailStore;
+    readonly adapters: MailProviderAdapterResolver;
+    /**
+     * Runs sync and scheduled send tasks. The runtime owns its lifecycle: it registers the jobs on construction, sets
+     * the executor up in `start()`, and shuts it down in `close()`.
+     */
+    readonly executor: JobExecutor;
+    readonly logger?: MailRuntimeLogger;
+    readonly relayIntervalMs?: number;
+    readonly automaticSyncIntervalMs?: number;
+    readonly syncBatchSize?: number;
+    readonly outboundAttachments?: MailOutboundAttachmentStorage;
+    readonly credentials?: MailCredentialVault;
+    readonly pushWebhookUrl?: string;
+    readonly pushWebhookSecret?: string;
+    readonly messageChangeNotifier?: MailMessageChangeNotifier;
+}
+export declare class MailRuntime implements MailOutboxPublisher, MailRuntimeService {
+    private readonly options;
+    private readonly operation;
+    private readonly scheduler;
+    private readonly subscriptions;
+    private readonly relay;
+    private readonly removals;
+    private removalPromise?;
+    private readonly tasks;
+    private closePromise?;
+    private readonly unsubscribeJobs;
+    private startPromise?;
+    private relayTimer?;
+    private automaticSyncTimer?;
+    private publishPromise?;
+    private automaticSyncPromise?;
+    private closed;
+    constructor(options: MailRuntimeOptions);
+    start(): Promise<void>;
+    private startInternal;
+    scheduleAutomaticSync(): void;
+    createAutomaticSyncRuns(): Promise<number>;
+    private sweepAccounts;
+    private runMaintenance;
+    private runMaintenanceTask;
+    schedulePushSync(accountId: string): Promise<boolean>;
+    private activatePushSync;
+    schedulePushSyncBatch(accounts: readonly import('../shared/mail.js').MailAccount[]): Promise<void>;
+    private activatePushSyncBatch;
+    private createSyncRun;
+    kick(): void;
+    processAccountRemoval(): Promise<void>;
+    private scheduleAccountRemoval;
+    publishPending(): Promise<void>;
+    close(): Promise<void>;
+    private shutdown;
+}
+export declare function createMailRuntime(options: MailRuntimeOptions): MailRuntime;
+export declare function isAutomaticSyncDue(lastSyncedAt: string | undefined, intervalMs?: number, now?: number): boolean;
+//# sourceMappingURL=runtime.d.ts.map

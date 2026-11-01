@@ -1,0 +1,11 @@
+import type { PhysicalColumnDefault, PhysicalDataType, PhysicalReferentialAction } from '../types.js';
+export interface PhysicalTypeNormalizationStrategy {
+    readonly temporal?: (type: string) => PhysicalDataType | undefined;
+    readonly special?: (type: string, base: string) => PhysicalDataType | undefined;
+    readonly temporalPrecision?: (type: string, temporal: PhysicalDataType | undefined) => number | undefined;
+    readonly defaultTemporalPrecision?: number;
+}
+export declare function normalizePhysicalDataType(strategy: PhysicalTypeNormalizationStrategy, nativeType: string): PhysicalDataType;
+export declare function temporalFractionalSecondsPrecision(strategy: PhysicalTypeNormalizationStrategy, nativeType: string): number | undefined;
+export declare function parseColumnDefault(expression: unknown): PhysicalColumnDefault | undefined;
+export declare function normalizeReferentialAction(action: unknown): PhysicalReferentialAction | undefined;

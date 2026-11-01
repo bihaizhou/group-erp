@@ -1,0 +1,6 @@
+import { UsersProvider } from './users.js';
+export const serviceProviders = [
+    UsersProvider,
+];
+export default serviceProviders;
+//# sourceMappingURL=index.js.map

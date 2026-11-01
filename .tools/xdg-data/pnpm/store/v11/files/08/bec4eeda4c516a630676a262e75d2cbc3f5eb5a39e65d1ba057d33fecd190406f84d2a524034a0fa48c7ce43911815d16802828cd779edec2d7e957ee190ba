@@ -1,0 +1,99 @@
+import { ConfigPathError } from './errors.js';
+import { createConfigRecord, isConfigArray, isConfigMap } from './value.js';
+const forbiddenSegments = new Set([
+    '__proto__',
+    'prototype',
+    'constructor',
+]);
+export function splitConfigPath(path, delimiter) {
+    if (!delimiter)
+        throw new ConfigPathError(path, 'delimiter cannot be empty');
+    if (!path)
+        return [];
+    const segments = path.split(delimiter);
+    for (const segment of segments) {
+        if (!segment)
+            throw new ConfigPathError(path, 'segments cannot be empty');
+        if (forbiddenSegments.has(segment)) {
+            throw new ConfigPathError(path, `segment "${segment}" is forbidden`);
+        }
+    }
+    return segments;
+}
+export function getConfigValue(root, segments) {
+    let value = root;
+    for (const segment of segments) {
+        if (isConfigArray(value)) {
+            if (!/^\d+$/.test(segment))
+                return undefined;
+            const item = value[Number(segment)];
+            if (item === undefined)
+                return undefined;
+            value = item;
+            continue;
+        }
+        if (!isConfigMap(value) || !Object.hasOwn(value, segment))
+            return undefined;
+        value = value[segment];
+    }
+    return value;
+}
+export function setConfigValue(root, segments, value) {
+    if (segments.length === 0) {
+        throw new ConfigPathError('', 'the root cannot be set with set()');
+    }
+    let target = root;
+    for (const segment of segments.slice(0, -1)) {
+        const existing = target[segment];
+        if (isConfigMap(existing)) {
+            target = existing;
+        }
+        else {
+            const child = createConfigRecord();
+            target[segment] = child;
+            target = child;
+        }
+    }
+    target[segments.at(-1)] = value;
+}
+export function deleteConfigValue(root, segments) {
+    if (segments.length === 0) {
+        for (const key of Object.keys(root))
+            delete root[key];
+        return;
+    }
+    const parents = [];
+    let target = root;
+    for (const segment of segments.slice(0, -1)) {
+        const child = target[segment];
+        if (!isConfigMap(child))
+            return;
+        parents.push([target, segment]);
+        target = child;
+    }
+    delete target[segments.at(-1)];
+    for (const [parent, key] of parents.reverse()) {
+        const child = parent[key];
+        if (isConfigMap(child) && Object.keys(child).length === 0)
+            delete parent[key];
+    }
+}
+export function buildConfigIndex(root, delimiter) {
+    const flat = new Map();
+    const parts = new Map();
+    const visit = (value, path) => {
+        if (path.length > 0) {
+            const key = path.join(delimiter);
+            flat.set(key, value);
+            parts.set(key, [...path]);
+        }
+        if (isConfigMap(value)) {
+            for (const [key, child] of Object.entries(value)) {
+                visit(child, [...path, key]);
+            }
+        }
+    };
+    visit(root, []);
+    return { flat, parts };
+}
+//# sourceMappingURL=path.js.map

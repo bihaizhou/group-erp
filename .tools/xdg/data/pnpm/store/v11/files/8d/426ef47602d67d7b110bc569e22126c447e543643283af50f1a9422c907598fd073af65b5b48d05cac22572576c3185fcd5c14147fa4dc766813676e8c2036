@@ -1,0 +1,47 @@
+import { summarizeNotificationDeliveries } from './store.js';
+export class NotificationLogs {
+    store;
+    constructor(store) {
+        this.store = store;
+    }
+    async list(limit) {
+        return (await this.store.listLogs(limit)).map(redactLog);
+    }
+    async listDetails(limit, before) {
+        const records = await this.store.listLogs(limit, before);
+        const details = await Promise.all(records.map((record) => this.get(record.id)));
+        return details.filter((item) => item !== undefined);
+    }
+    async get(id) {
+        const log = await this.store.getLog(id);
+        if (!log)
+            return undefined;
+        const deliveryRecords = await this.store.listDeliveries(id);
+        const deliveries = await Promise.all(deliveryRecords.map(async (delivery) => {
+            const [attempts, retryAudits] = await Promise.all([
+                this.store.listAttempts(delivery.id),
+                this.store.listRetryAudits(delivery.id),
+            ]);
+            return {
+                delivery: redactDelivery(delivery),
+                attempts,
+                retryAudits,
+            };
+        }));
+        const currentLog = {
+            ...log,
+            status: summarizeNotificationDeliveries(deliveryRecords),
+            updatedAt: deliveryRecords.reduce((latest, delivery) => delivery.updatedAt > latest ? delivery.updatedAt : latest, log.updatedAt),
+        };
+        return { log: redactLog(currentLog), deliveries };
+    }
+}
+function redactLog(record) {
+    const { messageSnapshot: _messageSnapshot, ...safe } = record;
+    return safe;
+}
+function redactDelivery(record) {
+    const { recipientSnapshot: _recipientSnapshot, messageSnapshot: _messageSnapshot, leaseToken: _leaseToken, leaseExpiresAt: _leaseExpiresAt, ...safe } = record;
+    return safe;
+}
+//# sourceMappingURL=logs.js.map

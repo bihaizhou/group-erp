@@ -1,0 +1,15 @@
+/**
+ * Namespaces and logical queue names are used as given: never trimmed or
+ * case-folded, and encoded before they reach a key or a file name.
+ */
+export declare function assertQueueName(label: 'namespace' | 'queue name', value: unknown): asserts value is string;
+/** The input every persistent backend derives a queue's physical identity from. */
+export declare function queueIdentity(namespace: string, queue: string): string;
+export interface RedisQueueIdentity {
+    /** BullMQ `prefix`: a hash tag keeps every key of the queue in one Cluster slot. */
+    readonly prefix: string;
+    /** BullMQ queue name. */
+    readonly name: string;
+}
+export declare function redisQueueIdentity(namespace: string, queue: string): RedisQueueIdentity;
+//# sourceMappingURL=naming.d.ts.map

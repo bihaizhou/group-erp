@@ -1,0 +1,21 @@
+import { type Command } from '@oclif/core';
+import type { Interfaces } from '@oclif/core';
+import { AppCommand } from '../../context.ts';
+import { type ConfigCheckResult } from '../../lib/config-check.ts';
+/**
+ * What `config check` reports, on success and, as `error.details`, on failure: every finding — warnings included —
+ * each connection it tried, and what the browser receives.
+ */
+export type AppConfigCheckResult = Omit<ConfigCheckResult, 'ok'>;
+export default class AppConfigCheck extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static flags: {
+        connect: Interfaces.BooleanFlag<boolean | undefined>;
+        strict: Interfaces.BooleanFlag<boolean>;
+    };
+    run(): Promise<AppConfigCheckResult>;
+    private report;
+}
+//# sourceMappingURL=check.d.ts.map

@@ -1,0 +1,11 @@
+import type { Command } from '@oclif/core';
+import type { AppTool } from '../tools/run-tool.ts';
+import { ToolCommand, type ToolCommandOptions } from '../lib/tool-command.ts';
+export default class Build extends ToolCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    protected readonly tool: AppTool;
+    protected readonly toolOptions: ToolCommandOptions;
+}
+//# sourceMappingURL=build.d.ts.map

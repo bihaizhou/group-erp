@@ -1,0 +1,123 @@
+import { resolveDatabaseDriver } from './resolve-driver.js';
+import { createMigrator } from '../migration/migrator.js';
+import { createSeeder } from '../seed/seeder.js';
+import { DirectoryCollectionMetadataStore } from '../metadata/directory-document-store.js';
+import { DefaultConnectionFactory } from './factory.js';
+import { KnexConnectionAdapter } from './internal/knex/adapter.js';
+export class CollectionMetadataStoreRequiredError extends Error {
+    connection;
+    code = 'COLLECTION_METADATA_STORE_REQUIRED';
+    constructor(connection) {
+        super(`External database connection "${connection}" requires an explicit Collection Metadata Store.`);
+        this.connection = connection;
+        this.name = 'CollectionMetadataStoreRequiredError';
+    }
+}
+export function createDatabaseManager(config) {
+    return new DefaultDatabaseManager(config, new DefaultConnectionFactory({
+        knex: new KnexConnectionAdapter(),
+    }));
+}
+export class DefaultDatabaseManager {
+    config;
+    factory;
+    connections = new Map();
+    constructor(config, factory) {
+        this.config = config;
+        this.factory = factory;
+    }
+    connection(name = this.getDefaultConnectionName()) {
+        const existing = this.connections.get(name);
+        if (existing) {
+            return existing;
+        }
+        const connectionConfig = this.config.connections[name];
+        if (!connectionConfig) {
+            throw new Error(`Database connection "${name}" is not configured.`);
+        }
+        const resolvedConnectionConfig = {
+            ...connectionConfig,
+            databaseDriver: resolveDatabaseDriver(connectionConfig, this.config.drivers, name),
+        };
+        const metadataStore = resolveMetadataStore(resolvedConnectionConfig.metadataStore ?? this.config.metadataStore);
+        if (resolvedConnectionConfig.schemaManagement === 'external' &&
+            !metadataStore) {
+            throw new CollectionMetadataStoreRequiredError(name);
+        }
+        const connection = this.factory.create({
+            name,
+            config: resolvedConnectionConfig,
+            metadataStore,
+        });
+        this.connections.set(name, connection);
+        return connection;
+    }
+    builder(name) {
+        return this.connection(name).builder;
+    }
+    query(name) {
+        return this.connection(name).query;
+    }
+    collections(name) {
+        return this.connection(name).collections;
+    }
+    repository(collection, connection) {
+        return this.connection(connection).repository(collection);
+    }
+    createMigrator(options) {
+        return createMigrator({ ...options, database: this });
+    }
+    createSeeder(options) {
+        return createSeeder({ ...options, database: this });
+    }
+    async connect(name) {
+        return this.connection(name).connect();
+    }
+    async transaction(fn, name) {
+        return this.connection(name).transaction(fn);
+    }
+    async disconnect(name = this.getDefaultConnectionName()) {
+        const connection = this.connections.get(name);
+        if (!connection) {
+            return;
+        }
+        await connection.disconnect();
+    }
+    async reconnect(name = this.getDefaultConnectionName()) {
+        const connection = this.connection(name);
+        return connection.reconnect();
+    }
+    async destroy() {
+        await Promise.all([...this.connections.values()].map((connection) => connection.disconnect()));
+        this.connections.clear();
+    }
+    getDefaultConnectionName() {
+        const name = this.config.default ?? Object.keys(this.config.connections)[0];
+        if (!name) {
+            throw new Error('No database connections configured.');
+        }
+        return name;
+    }
+}
+/**
+ * A store is either an instance or its declarative form. Telling them apart by
+ * the presence of `initialize` rather than by a `type` field keeps a custom
+ * store that happens to carry a `type` property from being mistaken for
+ * configuration.
+ */
+function resolveMetadataStore(value) {
+    if (value === undefined)
+        return undefined;
+    if (typeof value.initialize === 'function') {
+        return value;
+    }
+    const config = value;
+    switch (config.type) {
+        case 'directory':
+            return new DirectoryCollectionMetadataStore({
+                directory: config.directory,
+            });
+        default:
+            throw new Error(`Unknown Collection metadata store type "${String(config.type)}".`);
+    }
+}

@@ -1,0 +1,12 @@
+import { SendMailOperation } from '../operations/send-mail.js';
+import { type MailMessage, type MailOperationContext, type MailResolveDraftConflictInput } from '../../shared/mail.js';
+import { type MailServiceDependencies } from './dependencies.js';
+export declare class MailDraftsService {
+    private readonly dependencies;
+    constructor(dependencies: MailServiceDependencies<'getAccount' | 'getIdentity' | 'getMessage' | 'getOutboundAttachment' | 'saveMessage' | 'localizeDraft', 'adapters' | 'messageChangeNotifier' | 'logger'>, _sendMail: SendMailOperation);
+    saveDraft(context: MailOperationContext, input: import('../../shared/mail.js').MailComposeInput): Promise<MailMessage>;
+    resolveDraftConflict(context: MailOperationContext, input: MailResolveDraftConflictInput): Promise<MailMessage>;
+    private createLocalDraftMessage;
+    private loadLocalDraftAttachments;
+}
+//# sourceMappingURL=drafts.d.ts.map

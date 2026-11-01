@@ -1,0 +1,61 @@
+import type { Knex } from 'knex';
+import type { DatabaseConnection } from '../../../database/connection.js';
+import type { TransactionCallbacks } from '../../../database/internal/transaction-callbacks.js';
+import type { RepositoryEventErrorContext, RepositoryEventMetaBag, RepositoryMutationCount, RepositoryMutationOperation, RepositoryMutationRows } from '../../events/types.js';
+import { type RepositoryMutationRegistry, type RepositoryMutationSubscription } from './registry.js';
+/** The event whose `inTransaction` listener made a write. */
+export interface RepositoryOperationParent {
+    readonly operationId: string;
+    readonly depth: number;
+}
+/**
+ * What an execution adapter needs from the connection it was created on to
+ * deliver events. Absent on a connection that must stay silent, such as the
+ * one a migration or seed task writes through.
+ */
+export interface RepositoryEventsBinding {
+    readonly registry: RepositoryMutationRegistry;
+    readonly connectionName: string;
+    /** Layer-1 scope of the transaction the connection belongs to; none on a root connection. */
+    readonly callbacks: TransactionCallbacks | undefined;
+    readonly parent: RepositoryOperationParent | undefined;
+    readonly maxDepth: number;
+    /**
+     * Open an implicit transaction through the connection, so the listeners of
+     * a call made without one still receive a transaction connection and
+     * `afterCommit` delivery goes through layer 1.
+     */
+    transaction<T>(execute: (binding: RepositoryEventsBinding, client: Knex.Transaction) => Promise<T>): Promise<T>;
+    /** The connection an `inTransaction` listener of `parent` receives. */
+    listenerConnection(parent: RepositoryOperationParent): DatabaseConnection;
+    /**
+     * The root connection an `afterCommit` listener receives, whose writes
+     * descend from `parent`: the batch it was handed.
+     */
+    afterCommitConnection(parent: RepositoryOperationParent): DatabaseConnection;
+    reportError(error: unknown, context: RepositoryEventErrorContext): void;
+}
+/** One Repository call that matched at least one subscription. */
+export interface RepositoryMutationCall {
+    readonly binding: RepositoryEventsBinding;
+    readonly operation: RepositoryMutationOperation;
+    readonly collection: string;
+    readonly scope: 'transaction' | 'connection';
+    readonly subscriptions: readonly RepositoryMutationSubscription[];
+    readonly meta: RepositoryEventMetaBag;
+    readonly operationId: string;
+    readonly depth: number;
+}
+/**
+ * Start a call. A write made by an `inTransaction` listener is one level
+ * deeper than the call that triggered it; past the connection's limit the
+ * write is refused before it runs, so a listener that keeps writing to what
+ * it observes fails instead of looping.
+ */
+export declare function beginRepositoryMutationCall(binding: RepositoryEventsBinding, operation: RepositoryMutationOperation, collection: string, scope: 'transaction' | 'connection', subscriptions: readonly RepositoryMutationSubscription[], meta: RepositoryEventMetaBag | undefined): RepositoryMutationCall;
+/**
+ * Emit the event of a finished call: reserve its place in the `afterCommit`
+ * batch, run the `inTransaction` listeners in registration order, and give
+ * up the place if one throws. A call that wrote nothing emits nothing.
+ */
+export declare function emitRepositoryMutation(call: RepositoryMutationCall, payload: RepositoryMutationRows | RepositoryMutationCount): Promise<void>;

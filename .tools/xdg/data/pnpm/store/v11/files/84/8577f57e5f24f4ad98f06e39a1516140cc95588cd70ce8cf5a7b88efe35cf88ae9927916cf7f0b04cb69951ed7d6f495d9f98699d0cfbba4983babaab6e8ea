@@ -1,0 +1,99 @@
+import { type DatabaseDriverRegistration, type DatabaseManager } from '@nocobase/db';
+import type { AppPaths } from '../config/index.js';
+import type { AppDatabaseTasksResult } from './tasks.js';
+import type { AppDatabaseConfig } from './types.js';
+/**
+ * Reads every Collection a connection resolves and writes it under
+ * `database/<connection>/collections/<name>/` as three files, plus a
+ * connection-level manifest. The directory is a cache for every connection,
+ * external ones included: nothing here is read back at runtime, the generator
+ * may rewrite or delete any of it, and migrations — or, for an external
+ * connection, the database it points at and its hand-written
+ * `database/<connection>/metadata/` — remain the authority.
+ */
+export interface AppCollectionsArtifactOptions {
+    readonly paths?: AppPaths;
+    readonly drivers?: Record<string, DatabaseDriverRegistration>;
+    /** One connection; defaults to the default connection. Exclusive with `all`. */
+    readonly connection?: string;
+    /** Every configured connection, external ones included. */
+    readonly all?: boolean;
+    /** Compare the generated result with the files on disk and write nothing. */
+    readonly check?: boolean;
+    /** Reuse an open manager instead of creating and destroying one. */
+    readonly database?: DatabaseManager;
+}
+export type AppCollectionsArtifactDifferenceKind = 'missing' | 'stale' | 'unexpected';
+/** One file that differs between the database and the directory; `path` is relative to the collections directory. */
+export interface AppCollectionsArtifactDifference {
+    path: string;
+    kind: AppCollectionsArtifactDifferenceKind;
+}
+export interface AppCollectionsArtifactManifestSummary {
+    dialect: string;
+    /** An `external` connection has no migration history, so `migrationHead` is always `null` there. */
+    schemaManagement: 'managed' | 'external';
+    migrationHead: string | null;
+    collections: string[];
+}
+export interface AppCollectionsArtifactConnectionResult {
+    connection: string;
+    /** Absolute path of `database/<connection>/collections`. */
+    directory: string;
+    status: 'completed' | 'stale' | 'failed';
+    manifest?: AppCollectionsArtifactManifestSummary;
+    /** Files created or rewritten, relative to `directory`. Empty in check mode. */
+    written?: string[];
+    /** Files removed because their Collection no longer exists. Empty in check mode. */
+    deleted?: string[];
+    /** Collections whose three files already matched. */
+    unchanged?: number;
+    /** Check mode only. */
+    differences?: AppCollectionsArtifactDifference[];
+    /**
+     * Check mode only. False when `directory` does not exist: nothing has been
+     * generated for this connection yet, which a reader has to tell apart from
+     * artifacts that have drifted, because every expected file is then reported
+     * `missing` and the two look alike.
+     */
+    directoryExists?: boolean;
+    /**
+     * Hand-written metadata documents, in this connection's metadata directory,
+     * that name a Collection the database does not have. Reported for a person
+     * to fix or remove; the generator never touches that directory.
+     */
+    unusedMetadata?: string[];
+    error?: string;
+}
+export interface AppCollectionsArtifactResult {
+    ok: boolean;
+    status: 'completed' | 'stale' | 'failed' | 'not-configured';
+    check: boolean;
+    results: AppCollectionsArtifactConnectionResult[];
+}
+export declare function generateAppCollectionsArtifact(config: AppDatabaseConfig, options?: AppCollectionsArtifactOptions): Promise<AppCollectionsArtifactResult>;
+/** How one connection's Collection cache refresh went, after the migrations that made it stale. */
+export interface AppCollectionsRefreshResult {
+    connection: string;
+    status: 'completed' | 'failed';
+    written?: string[];
+    deleted?: string[];
+    error?: string;
+}
+export interface RefreshAppCollectionsArtifactOptions {
+    readonly paths?: AppPaths;
+    /** The manager the migrations ran on, so the cache reads the state they left behind. */
+    readonly database: DatabaseManager;
+}
+/**
+ * Regenerates the Collection cache of every connection whose schema a
+ * database run changed: migrations executed, rolled back, or rebuilt from
+ * empty. Seeds write rows, never structure, and a preview changes nothing, so
+ * neither triggers a refresh. Returns `undefined` when nothing changed.
+ *
+ * A failure is reported in the result, never raised: the migrations it
+ * follows are already committed, and the cache can always be rebuilt with
+ * `collections generate`.
+ */
+export declare function refreshAppCollectionsArtifact(config: AppDatabaseConfig, result: AppDatabaseTasksResult, options: RefreshAppCollectionsArtifactOptions): Promise<AppCollectionsRefreshResult[] | undefined>;
+//# sourceMappingURL=collections-artifact.d.ts.map

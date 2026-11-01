@@ -1,0 +1,11 @@
+import type { Authorization, AuthorizationDecision, AuthorizationRouteHandler } from '@nocobase/authorization/core';
+import type { PermissionSetsApi } from '@nocobase/authorization/permission-sets';
+import type { AuthorizationExtensionHost } from '../host.js';
+export declare const INSPECTOR_SETTINGS = "authorization.inspector";
+/** A decision, with the underlying checks of a composite action. */
+export type InspectedDecision = AuthorizationDecision & {
+    readonly checks?: readonly unknown[];
+};
+/** Every `/inspector` route, gated by `settings:authorization.inspector` `inspect`. */
+export declare function createInspectorHandler(host: AuthorizationExtensionHost & Pick<Authorization, 'for'>, permissionSets: Pick<PermissionSetsApi, 'getEffective' | 'protection' | 'listAssignments'>): AuthorizationRouteHandler;
+//# sourceMappingURL=inspector.d.ts.map

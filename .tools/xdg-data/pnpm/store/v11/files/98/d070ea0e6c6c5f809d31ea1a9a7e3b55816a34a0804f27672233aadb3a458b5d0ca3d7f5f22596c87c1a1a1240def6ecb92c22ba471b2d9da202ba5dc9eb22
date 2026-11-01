@@ -1,0 +1,10 @@
+import { RepositoryError } from './errors.js';
+export function normalizeEnumValue(field, value, code = 'INVALID_MUTATION', path = ['values', field.name]) {
+    if (value === null &&
+        (code === 'INVALID_FILTER' ||
+            (field.nullable !== false && !field.primaryKey)))
+        return null;
+    if (typeof value === 'string' && field.values?.includes(value))
+        return value;
+    throw new RepositoryError(code, `Field "${field.name}" requires an allowed enum member${field.nullable !== false ? ' or null' : ''}.`, { field: field.name, path });
+}

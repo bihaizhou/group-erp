@@ -1,0 +1,9 @@
+import { useCallback, useSyncExternalStore } from 'react';
+import { useAuthorizationClient } from './use-authorization-client.js';
+export function useAuthorizationRevision() {
+    const client = useAuthorizationClient();
+    const subscribe = useCallback((listener) => client.onInvalidated(listener), [client]);
+    const getSnapshot = useCallback(() => client.revision(), [client]);
+    return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+//# sourceMappingURL=use-authorization-revision.js.map

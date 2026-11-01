@@ -1,0 +1,107 @@
+{
+  "name": "@nocobase/app-plugin-authentication",
+  "displayName": "Authentication App Plugin",
+  "description": "Authentication plugin for NocoBase applications.",
+  "version": "2.0.0-beta.9",
+  "type": "module",
+  "sideEffects": false,
+  "prettier": "@nocobase/dev-config/prettier",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./testing": {
+      "types": "./dist/server/testing.d.ts",
+      "import": "./dist/server/testing.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
+    },
+    "./client/plugin": {
+      "types": "./dist/client/plugin.d.ts",
+      "import": "./dist/client/plugin.js"
+    },
+    "./client/actions": {
+      "types": "./dist/client/actions/index.d.ts",
+      "import": "./dist/client/actions/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.zh-CN.md",
+    "CHANGELOG.md",
+    "skills"
+  ],
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-router": "^7.0.0",
+    "@nocobase/app-client": "^3.0.0-beta.1",
+    "@nocobase/app-server": "^2.0.0-beta.7",
+    "@nocobase/db": "^1.0.0-beta.20",
+    "@nocobase/service-provider": "^0.0.2-beta.2",
+    "@nocobase/caching": "^0.1.0-beta.3",
+    "@nocobase/i18n": "^1.0.0-beta.7"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.52",
+    "better-auth": "1.7.5",
+    "hono": "^4.13.2",
+    "knex": "^3.1.0",
+    "zod": "^4.6.5",
+    "@nocobase/snowflake": "^1.0.0-beta.4",
+    "@nocobase/mailer": "^0.1.0-beta.0"
+  },
+  "devDependencies": {
+    "@base-ui/react": "^1.6.0",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "class-variance-authority": "^0.7.1",
+    "eslint": "^10.0.0",
+    "jsdom": "^30.0.1",
+    "prettier": "^3.9.6",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router": "^7.0.2",
+    "shadcn": "^4.13.1",
+    "tailwindcss": "^4.1.4",
+    "tw-animate-css": "^1.2.5",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10",
+    "@nocobase/app-client": "3.0.0-beta.1",
+    "@nocobase/app-server": "2.0.0-beta.7",
+    "@nocobase/db": "1.0.0-beta.20",
+    "@nocobase/app-testing": "0.1.0-beta.4",
+    "@nocobase/dev-config": "0.1.0-beta.22",
+    "@nocobase/service-provider": "0.0.2-beta.2"
+  },
+  "scripts": {
+    "clean": "node ./scripts/clean-dist.mjs",
+    "build": "pnpm clean && tsc -p tsconfig.json && tsc -p tsconfig.migrations.json && nocobase-db-manifests",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.migrations.json --noEmit",
+    "test": "vitest run",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix --max-warnings 0",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
+    "fix": "pnpm lint:fix && pnpm format"
+  }
+}

@@ -1,0 +1,6 @@
+import type { MailMessage } from '../mail-client.js';
+/** For a script-disabled sandboxed iframe only; never inject into the App DOM. */
+export declare function createMailMessageDocument(message: Pick<MailMessage, 'accountId' | 'id' | 'attachments'>, html: string, scope?: 'personal' | 'management', quoteLabel?: string): string;
+/** Preserves mail formatting for delivery; render only inside a sandboxed frame. */
+export declare function sanitizeForwardMailHtml(html: string): string;
+//# sourceMappingURL=mail-message-document.d.ts.map

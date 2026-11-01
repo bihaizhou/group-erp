@@ -1,0 +1,47 @@
+import { createKeyring, inspectSecret, isSecretsError, SecretsError, } from '@nocobase/secrets';
+export { SecretsError, isSecretsError, } from '@nocobase/secrets';
+export const SECRETS_NOT_CONFIGURED_MESSAGE = 'No secrets key is configured. Run pnpm nocobase config init, or set secrets.keys in the configuration file (SECRETS_KEYS in the environment) to a random key such as one from: openssl rand -hex 32.';
+/**
+ * The service over the configured keys. Without keys, or with keys that fail validation, it is not ready rather than
+ * failing to construct: a command that never touches a secret still runs, and every use reports what to configure.
+ */
+export function createSecretsService(config) {
+    let keyring;
+    let unavailable;
+    if (!config.keys || config.keys.length === 0) {
+        unavailable = new SecretsError('SECRETS_NOT_CONFIGURED', SECRETS_NOT_CONFIGURED_MESSAGE);
+    }
+    else {
+        try {
+            keyring = createKeyring(config.keys);
+        }
+        catch (error) {
+            if (!isSecretsError(error))
+                throw error;
+            unavailable = error;
+        }
+    }
+    const require = () => {
+        if (keyring)
+            return keyring;
+        throw unavailable;
+    };
+    const stores = new Map();
+    return {
+        ready: keyring !== undefined,
+        currentVersion: keyring?.currentVersion,
+        seal: (plaintext, options) => require().seal(plaintext, options),
+        open: (sealed, options) => require().open(sealed, options),
+        inspect: (sealed) => inspectSecret(sealed),
+        needsReseal: (sealed) => inspectSecret(sealed).version !== require().currentVersion,
+        keyring: (purpose) => require().derive(purpose),
+        registerStore(store) {
+            if (stores.has(store.name)) {
+                throw new Error(`A secrets store named ${store.name} is already registered.`);
+            }
+            stores.set(store.name, store);
+        },
+        stores: () => [...stores.values()],
+    };
+}
+//# sourceMappingURL=service.js.map

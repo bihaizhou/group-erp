@@ -1,0 +1,13 @@
+import type { BackendFactory } from 'bullmq';
+import type { QueueImplementation, QueueRuntime, QueueRuntimeContext } from '../runtime.js';
+/**
+ * The BullMQ implementation: every `adapter: redis` configuration runs on it,
+ * with the backend factory its `queueBackend` names, or BullMQ's own Redis
+ * backend when it names none.
+ */
+export declare class RedisQueueImplementation implements QueueImplementation {
+    private readonly backendFactory;
+    constructor(backendFactory: (name: string | undefined) => BackendFactory);
+    createRuntime(context: QueueRuntimeContext): QueueRuntime;
+}
+//# sourceMappingURL=index.d.ts.map

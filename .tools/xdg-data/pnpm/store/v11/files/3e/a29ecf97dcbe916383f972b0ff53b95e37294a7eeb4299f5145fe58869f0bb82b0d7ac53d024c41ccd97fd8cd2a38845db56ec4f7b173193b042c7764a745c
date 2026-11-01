@@ -1,0 +1,1 @@
+{"version":3,"file":"sign-up.d.ts","sourceRoot":"","sources":["../../client/sign-up.ts"],"names":[],"mappings":"AAEA,OAAO,QAAQ,sBAAsB,CAAC;IACpC,2GAA2G;IAC3G,UAAU,eAAe;QACvB,IAAI,EAAE;YACJ,gBAAgB,CAAC,EAAE;gBAAE,OAAO,CAAC,EAAE,OAAO,CAAC;gBAAC,aAAa,CAAC,EAAE,OAAO,CAAA;aAAE,CAAC;SACnE,CAAC;KACH;CACF;AAED;;;;;;GAMG;AACH,wBAAgB,kBAAkB,IAAI,OAAO,CAU5C"}

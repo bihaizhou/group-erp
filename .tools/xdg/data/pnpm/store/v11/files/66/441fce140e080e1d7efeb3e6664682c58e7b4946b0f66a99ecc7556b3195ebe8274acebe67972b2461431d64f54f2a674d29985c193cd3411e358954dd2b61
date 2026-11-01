@@ -1,0 +1,36 @@
+import type { CollectionMetadataStore, CollectionMetadataStoreConfig } from '@nocobase/db';
+import type { AppPaths } from '../config/index.js';
+import type { AppMetadataStoreConfig } from './types.js';
+/**
+ * Where a connection's generated Collection artifacts live:
+ * `database/<connection>/collections`, next to its `migrations` and `seeds`.
+ * Everything under it is a cache the generator owns, for every connection.
+ */
+export declare function resolveAppCollectionsDirectory(name: string, paths?: AppPaths): string;
+/**
+ * Where a connection's hand-written Collection metadata lives by default:
+ * `database/<connection>/metadata`, one `<name>.json` per Collection. It is
+ * the source an external connection's metadata store reads, and is committed.
+ * Kept apart from `collections/` so a directory is either written by people
+ * or generated, never both.
+ */
+export declare function resolveAppMetadataDirectory(name: string, paths?: AppPaths): string;
+/** Whether `directory` is, or lies inside, a connection's generated collections directory. */
+export declare function isAppCollectionsDirectory(directory: string, paths?: AppPaths): boolean;
+export interface ResolveAppMetadataStoreOptions {
+    readonly name: string;
+    readonly external: boolean;
+    /** The top-level `database.metadataStore`, which a connection without its own falls back to. */
+    readonly shared?: AppMetadataStoreConfig;
+    readonly paths?: AppPaths;
+}
+/**
+ * Turns the application-level forms into what `createDatabaseManager` takes:
+ * a string becomes a directory store on that path, a relative directory is
+ * resolved against the application root, and an external connection with no
+ * store at either level gets one on its own metadata directory. A store
+ * instance and a managed connection without configuration pass through.
+ */
+export declare function resolveAppMetadataStore(value: AppMetadataStoreConfig | undefined, options: ResolveAppMetadataStoreOptions): CollectionMetadataStore | CollectionMetadataStoreConfig | undefined;
+export declare function isCollectionMetadataStoreInstance(value: unknown): value is CollectionMetadataStore;
+//# sourceMappingURL=collections-directory.d.ts.map

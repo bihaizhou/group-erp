@@ -1,0 +1,56 @@
+{
+  "name": "@nocobase/db",
+  "version": "1.0.0-beta.20",
+  "type": "module",
+  "prettier": "@nocobase/dev-config/prettier",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./testing": {
+      "types": "./dist/src/testing.d.ts",
+      "import": "./dist/src/testing.js"
+    }
+  },
+  "files": [
+    "dist",
+    "skills"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "knex": "^3.1.0",
+    "@nocobase/service-provider": "^0.0.2-beta.2",
+    "@nocobase/repository-input": "^0.1.0-beta.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^10.0.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10",
+    "@nocobase/dev-config": "0.1.0-beta.22"
+  },
+  "scripts": {
+    "build": "node ./scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
+    "test": "vitest run tests --exclude **/tests/integration/**",
+    "test:coverage": "vitest run --coverage",
+    "api:check": "node ./scripts/check-public-api.mjs",
+    "api:update": "node ./scripts/check-public-api.mjs --write",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix --max-warnings 0",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm api:check && pnpm test && pnpm build",
+    "fix": "pnpm lint:fix && pnpm format"
+  }
+}

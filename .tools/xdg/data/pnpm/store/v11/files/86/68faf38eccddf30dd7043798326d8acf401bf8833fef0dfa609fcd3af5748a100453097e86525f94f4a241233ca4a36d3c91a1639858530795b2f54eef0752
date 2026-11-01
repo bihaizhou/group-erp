@@ -1,0 +1,32 @@
+import './subjects.js';
+import type { DatabaseConnection, DatabaseManager } from '@nocobase/db';
+import { type Authorization, type AuthorizationPlugin, type InvalidGrant } from '@nocobase/authorization/core';
+import { type PermissionSetsAuthorizationApi } from '@nocobase/authorization/permission-sets';
+import type { DatabaseAuthorizationApi } from './database/api.js';
+import { type PagesAuthorizationApi } from './pages-authorization.js';
+import { type SettingsAuthorizationApi } from './settings.js';
+import { type UiAuthorizationApi } from './ui.js';
+export interface AppPermissionSetsConfig {
+    /** The Permission Set that confers unrestricted access. */
+    rootSet?: string;
+    /** The Permission Set every signed-in user holds. */
+    defaultSet?: string;
+}
+export interface AuthorizationConfig {
+    permissionSets?: AppPermissionSetsConfig;
+    /** Plugins added after the built-in ones, such as the rule plugins. */
+    plugins?: readonly AuthorizationPlugin[];
+}
+export interface CreateAppAuthorizationOptions {
+    database?: DatabaseManager;
+    connection?: DatabaseConnection;
+    onUserPermissionsChanged?(userId: string): void | Promise<void>;
+    onAuthenticatedPermissionsChanged?(): void | Promise<void>;
+    /** Told once per stored composite grant that no longer expands; see `createAuthorization`. */
+    onInvalidGrant?(grant: InvalidGrant): void;
+    config?: AuthorizationConfig;
+}
+/** The application's Authorization with its built-in APIs. */
+export type AppAuthorization = Authorization & PermissionSetsAuthorizationApi<DatabaseConnection> & DatabaseAuthorizationApi & PagesAuthorizationApi & SettingsAuthorizationApi & UiAuthorizationApi;
+export declare function createAppAuthorization(options: CreateAppAuthorizationOptions): AppAuthorization;
+//# sourceMappingURL=authorization.d.ts.map

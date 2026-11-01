@@ -1,0 +1,131 @@
+import type { AppRuntimeLogging } from '../logging/config.js';
+import { Hono, type ExecutionContext } from 'hono';
+import type { AppConfigAccessor } from '../config/index.js';
+import type { AppPaths } from '../config/index.js';
+import { type AppHttpMiddleware, type AppRouteContribution } from '../router/index.js';
+import { type ApiForwardedRoutes } from '../router/openapi/document.js';
+import { ServiceContainer, type ServiceProviderLifecycle, type ServiceResolver } from '@nocobase/service-provider';
+import type { AppWebSocketHandler } from '@nocobase/app-websocket';
+import { type AppServerPluginLocales, type ResolvedAppServerPlugins } from '../plugins/index.js';
+import type { AppDatabaseTaskContributions } from '../database/types.js';
+export type ApplicationFetchHandler = (request: Request, env?: unknown, executionContext?: ExecutionContext) => Response | Promise<Response>;
+export type ApplicationWebSocketFactory = (container: ServiceResolver) => AppWebSocketHandler;
+export type ApplicationConfig = AppConfigAccessor;
+export interface ApplicationOptions<TConfig extends ApplicationConfig = ApplicationConfig> {
+    readonly config: TConfig;
+    readonly mode?: 'standalone' | 'embedded';
+    /** The application's resolved NODE_ENV, not the hosting process's environment. */
+    readonly nodeEnv?: string;
+    readonly paths: AppPaths;
+    readonly websocket?: ApplicationWebSocketFactory;
+    readonly runtimeLogging?: AppRuntimeLogging;
+    /** Where console log records go; see `AppScope.consoleLogStream`. */
+    readonly consoleLogStream?: 'stdout' | 'stderr';
+    readonly strictStartup?: boolean;
+}
+export type ApplicationServiceProviderConstructor<TConfig extends ApplicationConfig = ApplicationConfig, TArguments extends readonly unknown[] = []> = new (app: Application<TConfig>, ...args: TArguments) => ServiceProviderLifecycle;
+export interface ApplicationRuntimeContributions<TConfig extends ApplicationConfig = ApplicationConfig> {
+    readonly plugins: ResolvedAppServerPlugins;
+    readonly serviceProviders: readonly ApplicationServiceProviderConstructor<TConfig>[];
+    readonly routes: readonly AppRouteContribution<Application<TConfig>>[];
+    readonly locales?: AppServerPluginLocales;
+}
+export interface AddRoutesOptions {
+    /** Names the contribution, such as a plugin's package name, when start reports a duplicate API route. */
+    readonly owner?: string;
+}
+/**
+ * A composed NocoBase server application.
+ *
+ * The HTTP router is an application service, not the application itself.
+ * Application owns its resolved config, paths, service container and provider lifecycle,
+ * while fetch and websocket form its framework-neutral host boundary.
+ */
+export declare class Application<TConfig extends ApplicationConfig = ApplicationConfig> {
+    readonly strictStartup: boolean;
+    readonly runtimeLogging: AppRuntimeLogging | undefined;
+    readonly consoleLogStream: 'stdout' | 'stderr' | undefined;
+    readonly config: TConfig;
+    readonly mode: 'standalone' | 'embedded';
+    readonly nodeEnv: string | undefined;
+    readonly paths: AppPaths;
+    readonly container: ServiceContainer;
+    readonly fetch: ApplicationFetchHandler;
+    readonly websocket: AppWebSocketHandler;
+    private readonly providerRegistry;
+    private readonly websocketFactory;
+    private readonly usesDefaultWebSocket;
+    private serviceProvidersRegistered;
+    private routesRegistered;
+    private apiRouterValue;
+    private readonly httpMiddleware;
+    private readonly routes;
+    private startPromise;
+    private websocketHandler;
+    private appPackageName;
+    /** Defaults match an application that registered no server plugins. */
+    private databaseTaskContributionsValue;
+    private readonly localeContributions;
+    private applicationLocales;
+    /** Plugins still declaring the removed `queue: { jobs }` contribution. */
+    private readonly queueJobPlugins;
+    constructor(options: ApplicationOptions<TConfig>);
+    get appName(): string;
+    get publicBasePath(): string;
+    get router(): Hono;
+    /**
+     * The router every `/api` contribution is mounted into, once the application has started and registered its routes.
+     * The API document is generated from it, and `inspectApiRoutes(app)` reads it.
+     */
+    get apiRouter(): Hono | undefined;
+    /**
+     * The routes behind runtime dispatchers that plugins registered with the API documentation service, inspected by
+     * `inspectApiRoutes(app)` and documented along with `apiRouter`'s own. Empty when the application has no API
+     * documentation service.
+     */
+    get forwardedApiRoutes(): ApiForwardedRoutes;
+    addServiceProvider<TArguments extends readonly unknown[]>(Provider: ApplicationServiceProviderConstructor<TConfig, TArguments>, ...args: TArguments): void;
+    addServiceProviders(Providers: readonly ApplicationServiceProviderConstructor<TConfig>[]): void;
+    get databaseTaskContributions(): AppDatabaseTaskContributions;
+    addServerPlugins(serverPlugins: ResolvedAppServerPlugins): void;
+    addRuntimeContributions(runtime: ApplicationRuntimeContributions<TConfig>): void;
+    addApplicationLocales(locales: AppServerPluginLocales): void;
+    /**
+     * Adds a route contribution. `owner` names what contributed it, such as a plugin's package name, in the error that a
+     * duplicate API route raises at start; contributions added without one are named by their position.
+     */
+    addRoutes(routes: AppRouteContribution<Application<TConfig>>, options?: AddRoutesOptions): void;
+    addHttpMiddleware(middleware: AppHttpMiddleware<Application<TConfig>>): void;
+    registerProviders(): void;
+    start(): Promise<void>;
+    shutdown(): Promise<void>;
+    private getWebSocketHandler;
+    private startServiceProviders;
+    /**
+     * Builds the sample data services registered, once every provider is ready, so that a sample may go through any
+     * plugin's services. A sample that fails is logged and recorded as skipped rather than failing the start.
+     */
+    private buildSampleData;
+    /** Warns once per plugin whose `queue: { jobs }` contribution is no longer loaded. */
+    private reportQueueJobPlugins;
+    /**
+     * Refuses to start on a configuration that breaks a rule its sections declare. It runs here rather than when the
+     * runtime is resolved, so commands that only read the configuration, such as `config init` and `config check`, still
+     * load it and can report what is wrong.
+     */
+    private validateConfig;
+    /**
+     * Registers each plugin's locale loaders against its package name and brings the runtime up.
+     *
+     * Only the default language is read here; another one is imported the first time a request asks for it.
+     */
+    private registerLocales;
+    private registerRoutes;
+    /**
+     * The document's title and version, from the application's `package.json` or else its name, and its server: the
+     * public base path the API is served under.
+     */
+    private describeApiDocument;
+    private assertRoutesMutable;
+}
+//# sourceMappingURL=index.d.ts.map

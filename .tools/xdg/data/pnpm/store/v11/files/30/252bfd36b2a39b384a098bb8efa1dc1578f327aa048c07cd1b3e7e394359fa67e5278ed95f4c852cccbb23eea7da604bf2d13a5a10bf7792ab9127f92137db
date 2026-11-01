@@ -1,0 +1,26 @@
+import { type InfiniteData, type UseInfiniteQueryResult, type UseQueryResult } from '@tanstack/react-query';
+import { type InboxItem, type InboxListResponse, type InboxMutationAction } from '../api.js';
+/** The pages `useInboxItems` has loaded. */
+export type InboxPages = InfiniteData<InboxListResponse, string | undefined>;
+/** What `useInboxActions` returns. Both calls reject when the server refuses; the cache is restored first. */
+export interface InboxActions {
+    /** Marks one message read or unread, returning it, or deletes it, returning nothing. */
+    mark(id: string, action: InboxMutationAction): Promise<InboxItem | undefined>;
+    /** Marks every message read, returning how many changed. */
+    readAll(): Promise<number>;
+    /** Whether a call is in flight. */
+    readonly pending: boolean;
+}
+/** The viewer's messages, newest first, one page of `pageSize` at a time; `fetchNextPage()` loads the next. */
+export declare function useInboxItems(pageSize?: number): UseInfiniteQueryResult<InboxPages>;
+/** How many of the viewer's messages are unread. */
+export declare function useInboxUnreadCount(): UseQueryResult<number>;
+/** Marks, deletes and reads all, updating the cached list and count at once and refetching both once settled. */
+export declare function useInboxActions(): InboxActions;
+/**
+ * Refetches every inbox query when the inbox changes: a message arrives, is read or deleted, the realtime connection
+ * reopens, or the window regains focus. `extraTopics` are further realtime topics whose events refresh it too, such
+ * as an application's own topic for what it adds to each message.
+ */
+export declare function useInboxRefresh(extraTopics?: readonly string[]): void;
+//# sourceMappingURL=use-inbox.d.ts.map

@@ -1,0 +1,9 @@
+import { type Context } from 'react';
+export interface NotificationInAppRuntimeValue {
+    readonly unreadCount: number;
+    readonly revision: number;
+    refresh(): void;
+}
+export declare const NotificationInAppRuntimeContext: Context<NotificationInAppRuntimeValue | undefined>;
+export declare function useNotificationInAppRuntime(): NotificationInAppRuntimeValue;
+//# sourceMappingURL=notification-in-app-runtime.d.ts.map

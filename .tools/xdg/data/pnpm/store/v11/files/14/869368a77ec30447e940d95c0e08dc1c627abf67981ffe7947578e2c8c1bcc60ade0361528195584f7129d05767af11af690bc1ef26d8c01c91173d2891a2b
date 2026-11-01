@@ -1,0 +1,200 @@
+import { encodeAuthorizationTitle, decodeAuthorizationTitle, } from '@nocobase/authorization/core';
+export class DatabasePermissionSetStore {
+    connection;
+    lockTableName;
+    constructor(connection, lockTableName) {
+        this.connection = connection;
+        this.lockTableName = lockTableName;
+    }
+    transaction(run) {
+        return this.resolveLockTable().then(() => this.connection().transaction(run));
+    }
+    withTransaction(connection) {
+        return new DatabasePermissionSetStore(() => connection, this.lockTableName);
+    }
+    async list() {
+        const rows = await this.connection()
+            .query.selectFrom('authorizationPermissionSets')
+            .select(['key', 'title', 'grants'])
+            .orderBy('key', 'asc')
+            .execute();
+        return rows.map((row) => permissionSetFromRow(row));
+    }
+    async findAssignments(subjects) {
+        if (subjects.length === 0)
+            return [];
+        const rows = await this.connection()
+            .query.selectFrom('authorizationPermissionSetAssignments')
+            .select(['id', 'subjectType', 'subjectId', 'permissionSetKey'])
+            .where((builder) => builder.or(subjects.map((subject) => builder.and({
+            subjectType: subject.type,
+            subjectId: subject.id,
+        }))))
+            .execute();
+        return rows.map((row) => ({
+            id: String(row.id),
+            subject: {
+                type: String(row.subjectType),
+                id: String(row.subjectId),
+            },
+            permissionSet: String(row.permissionSetKey),
+        }));
+    }
+    async get(key) {
+        const row = await this.connection()
+            .query.selectFrom('authorizationPermissionSets')
+            .select(['key', 'title', 'grants'])
+            .where('key', '=', key)
+            .executeTakeFirst();
+        if (!row)
+            return undefined;
+        return permissionSetFromRow(row);
+    }
+    async create(input) {
+        const now = new Date();
+        await this.connection()
+            .query.insertInto('authorizationPermissionSets')
+            .values({
+            id: crypto.randomUUID(),
+            key: input.key,
+            title: encodeAuthorizationTitle(input.title),
+            grants: JSON.stringify(input.grants),
+            createdAt: now,
+            updatedAt: now,
+        })
+            .execute();
+        return input;
+    }
+    async update(key, input) {
+        await this.connection().transaction(async (connection) => {
+            await connection.query
+                .updateTable('authorizationPermissionSets')
+                .set({
+                key: input.key,
+                title: encodeAuthorizationTitle(input.title),
+                grants: JSON.stringify(input.grants),
+                updatedAt: new Date(),
+            })
+                .where('key', '=', key)
+                .execute();
+            if (key !== input.key) {
+                await connection.query
+                    .updateTable('authorizationPermissionSetAssignments')
+                    .set({ permissionSetKey: input.key })
+                    .where('permissionSetKey', '=', key)
+                    .execute();
+            }
+        });
+        return input;
+    }
+    async delete(key) {
+        await this.connection().transaction(async (connection) => {
+            await connection.query
+                .deleteFrom('authorizationPermissionSetAssignments')
+                .where('permissionSetKey', '=', key)
+                .execute();
+            await connection.query
+                .deleteFrom('authorizationPermissionSets')
+                .where('key', '=', key)
+                .execute();
+        });
+    }
+    async assign(input) {
+        const now = new Date();
+        await this.connection()
+            .query.insertInto('authorizationPermissionSetAssignments')
+            .values({
+            id: input.id,
+            subjectType: input.subject.type,
+            subjectId: input.subject.id,
+            permissionSetKey: input.permissionSet,
+            createdAt: now,
+            updatedAt: now,
+        })
+            .execute();
+        return input;
+    }
+    async revoke(id) {
+        await this.connection()
+            .query.deleteFrom('authorizationPermissionSetAssignments')
+            .where('id', '=', id)
+            .execute();
+    }
+    /**
+     * Serializes changes to one Permission Set on its own row, so a check that
+     * counts the assignments left cannot run against a snapshot another
+     * transaction is about to invalidate.
+     */
+    async lock(key) {
+        if (this.connection().dialect === 'sqlite') {
+            // SQLite has no row locks; writing the row takes the write lock instead.
+            await this.connection()
+                .query.updateTable('authorizationPermissionSets')
+                .set({ updatedAt: new Date() })
+                .where('key', '=', key)
+                .execute();
+            return;
+        }
+        const tableName = await this.resolveLockTable();
+        const knex = await this.connection().client();
+        await knex(tableName).where({ key }).select('id').forUpdate();
+    }
+    async resolveLockTable() {
+        // Resolve metadata before opening an owned transaction: even a metadata
+        // SELECT can establish an old repeatable-read snapshot before the guard.
+        if (this.lockTableName)
+            return this.lockTableName;
+        const physical = await this.connection().collections.getPhysical('authorizationPermissionSets');
+        if (!physical)
+            throw new Error('Permission Set schema is unavailable');
+        return (this.lockTableName = physical.tableName);
+    }
+    async listAssignments(permissionSet) {
+        let query = this.connection()
+            .query.selectFrom('authorizationPermissionSetAssignments')
+            .select(['id', 'subjectType', 'subjectId', 'permissionSetKey']);
+        if (permissionSet !== undefined) {
+            query = query.where('permissionSetKey', '=', permissionSet);
+        }
+        const rows = await query.orderBy('id', 'asc').execute();
+        return rows.map((row) => assignmentFromRow(row));
+    }
+}
+function permissionSetFromRow(row) {
+    const key = rowValue(row, 'key');
+    const title = rowValue(row, 'title');
+    const grants = rowValue(row, 'grants');
+    return {
+        key: scalarString(key, 'Permission Set key'),
+        ...(title == null ? {} : { title: decodeAuthorizationTitle(title) }),
+        grants: jsonValue(grants, []),
+    };
+}
+function assignmentFromRow(row) {
+    return {
+        id: scalarString(rowValue(row, 'id'), 'Permission Set assignment id'),
+        subject: {
+            type: scalarString(rowValue(row, 'subjectType'), 'Permission Set subject type'),
+            id: scalarString(rowValue(row, 'subjectId'), 'Permission Set subject id'),
+        },
+        permissionSet: scalarString(rowValue(row, 'permissionSetKey'), 'Permission Set assignment key'),
+    };
+}
+function rowValue(row, key) {
+    return Reflect.get(row, key);
+}
+function jsonValue(value, fallback) {
+    if (value == null)
+        return fallback;
+    return typeof value === 'string' ? JSON.parse(value) : value;
+}
+function scalarString(value, label) {
+    if (typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'bigint' ||
+        typeof value === 'boolean') {
+        return String(value);
+    }
+    throw new Error(`Invalid ${label}`);
+}
+//# sourceMappingURL=permission-sets.js.map

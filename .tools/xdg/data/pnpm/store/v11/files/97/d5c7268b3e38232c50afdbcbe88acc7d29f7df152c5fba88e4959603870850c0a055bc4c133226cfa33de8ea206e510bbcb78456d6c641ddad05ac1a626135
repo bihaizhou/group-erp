@@ -1,0 +1,9 @@
+import type { ReactElement, ReactNode } from 'react';
+export interface MailPageHeaderProps {
+    readonly eyebrow: string;
+    readonly title: string;
+    readonly description: string;
+    readonly actions?: ReactNode;
+}
+export declare function MailPageHeader({ eyebrow, title, description, actions, }: MailPageHeaderProps): ReactElement;
+//# sourceMappingURL=mail-page-header.d.ts.map

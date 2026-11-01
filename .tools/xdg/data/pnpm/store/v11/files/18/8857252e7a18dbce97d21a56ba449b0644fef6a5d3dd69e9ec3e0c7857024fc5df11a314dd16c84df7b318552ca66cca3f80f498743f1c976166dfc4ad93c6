@@ -1,0 +1,16 @@
+import { RedisQueueRuntime } from './runtime.js';
+/**
+ * The BullMQ implementation: every `adapter: redis` configuration runs on it,
+ * with the backend factory its `queueBackend` names, or BullMQ's own Redis
+ * backend when it names none.
+ */
+export class RedisQueueImplementation {
+    backendFactory;
+    constructor(backendFactory) {
+        this.backendFactory = backendFactory;
+    }
+    createRuntime(context) {
+        return new RedisQueueRuntime(context, this.backendFactory(context.config.queueBackend));
+    }
+}
+//# sourceMappingURL=index.js.map

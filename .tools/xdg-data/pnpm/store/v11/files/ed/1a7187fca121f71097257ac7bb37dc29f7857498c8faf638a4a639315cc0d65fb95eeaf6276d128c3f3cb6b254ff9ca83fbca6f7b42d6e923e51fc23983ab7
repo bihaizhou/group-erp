@@ -1,0 +1,87 @@
+import { type SchemaAdapter } from '../../schema/adapter.js';
+import { type CollectionMetadataInvalidator, type CollectionMetadataService } from '../../metadata/service.js';
+import { type LegacyMetadataExtractionDiagnostic } from '../../metadata/legacy-extraction.js';
+import type { ConnectionCollections } from '../registry/types.js';
+import type { AnyFieldDefinition, BuilderExecOptions, BuilderResult, CollectionAlterInput, CollectionCreateInput, CollectionDefinition, CollectionDefinitionInput, CollectionKind, CollectionOperation, ConstraintDefinition, FieldAlterInput, IndexDefinition, MaterializedViewCollectionInput, NamingOptions, RefreshMaterializedViewOptions, ViewCollectionInput } from '../types.js';
+export interface CollectionBuilderOptions {
+    schemaAdapter?: SchemaAdapter;
+    collections?: Pick<ConnectionCollections, 'get' | 'scan'>;
+    collectionMetadata?: CollectionMetadataService;
+    schemaInvalidator?: CollectionMetadataInvalidator;
+    naming?: NamingOptions;
+}
+export declare class CollectionMetadataFieldNotFoundError extends Error {
+    readonly collection: string;
+    readonly field: string;
+    readonly code: "COLLECTION_METADATA_FIELD_NOT_FOUND";
+    constructor(collection: string, field: string);
+}
+export declare class CollectionMetadataExtractionError extends Error {
+    readonly collection: string;
+    readonly diagnostics: readonly LegacyMetadataExtractionDiagnostic[];
+    readonly code: "COLLECTION_METADATA_EXTRACTION_FAILED";
+    constructor(collection: string, diagnostics: readonly LegacyMetadataExtractionDiagnostic[]);
+}
+export type CollectionRenameDependencyKind = 'relationTarget' | 'relationThrough' | 'foreignKey' | 'structuredView' | 'rawView';
+export interface CollectionRenameDependency {
+    kind: CollectionRenameDependencyKind;
+    collection: string;
+    path: string;
+}
+export declare class CollectionRenameDependencyError extends Error {
+    readonly code: "COLLECTION_RENAME_HAS_DEPENDENCIES";
+    readonly from: string;
+    readonly to: string;
+    readonly dependencies: CollectionRenameDependency[];
+    constructor(from: string, to: string, dependencies: CollectionRenameDependency[]);
+}
+export declare class CollectionRenameAtomicityError extends Error {
+    readonly from: string;
+    readonly to: string;
+    readonly code: "COLLECTION_RENAME_ATOMICITY_REQUIRED";
+    constructor(from: string, to: string);
+}
+export declare class CollectionRenameUnsupportedKindError extends Error {
+    readonly from: string;
+    readonly to: string;
+    readonly kind: Exclude<CollectionKind, 'table'>;
+    readonly code: "COLLECTION_RENAME_UNSUPPORTED_KIND";
+    constructor(from: string, to: string, kind: Exclude<CollectionKind, 'table'>);
+}
+export declare class CollectionBuilder {
+    private readonly schemaAdapter;
+    private readonly collections?;
+    private readonly collectionMetadata?;
+    private readonly schemaInvalidator?;
+    private readonly compiler;
+    private readonly plannedCollections;
+    constructor(options?: CollectionBuilderOptions);
+    createCollection(name: string, input: CollectionDefinitionInput, options?: BuilderExecOptions): Promise<BuilderResult>;
+    createCollections(inputs: readonly CollectionCreateInput[], options?: BuilderExecOptions): Promise<BuilderResult>;
+    hasCollection(name: string): Promise<boolean>;
+    /** Inspect the current definition before an incremental schema change. */
+    getCollection(name: string): Promise<CollectionDefinition | undefined>;
+    alterCollection(name: string, input: CollectionAlterInput, options?: BuilderExecOptions): Promise<BuilderResult>;
+    dropCollection(name: string, options?: BuilderExecOptions): Promise<BuilderResult>;
+    renameCollection(oldName: string, newName: string, options?: BuilderExecOptions): Promise<BuilderResult>;
+    createViewCollection(name: string, input: ViewCollectionInput, options?: BuilderExecOptions): Promise<BuilderResult>;
+    replaceViewCollection(name: string, input: ViewCollectionInput, options?: BuilderExecOptions): Promise<BuilderResult>;
+    createMaterializedViewCollection(name: string, input: MaterializedViewCollectionInput, options?: BuilderExecOptions): Promise<BuilderResult>;
+    refreshMaterializedViewCollection(name: string, options?: RefreshMaterializedViewOptions): Promise<BuilderResult>;
+    addField(collection: string, field: AnyFieldDefinition, options?: BuilderExecOptions): Promise<BuilderResult>;
+    alterField(collection: string, field: string, changes: FieldAlterInput, options?: BuilderExecOptions): Promise<BuilderResult>;
+    dropField(collection: string, field: string, options?: BuilderExecOptions): Promise<BuilderResult>;
+    addIndex(collection: string, index: IndexDefinition, options?: BuilderExecOptions): Promise<BuilderResult>;
+    dropIndex(collection: string, index: string, options?: BuilderExecOptions): Promise<BuilderResult>;
+    addConstraint(collection: string, constraint: ConstraintDefinition, options?: BuilderExecOptions): Promise<BuilderResult>;
+    dropConstraint(collection: string, constraint: string, options?: BuilderExecOptions): Promise<BuilderResult>;
+    apply(operations: CollectionOperation[], options?: BuilderExecOptions): Promise<BuilderResult>;
+    transaction<T>(fn: (builder: CollectionBuilder) => Promise<T>): Promise<T>;
+    private createCompilerContext;
+    private updatePlannedCollections;
+    private applyPlannedChanges;
+    private applyDocumentMetadataChanges;
+    private invalidatePhysicalSchema;
+    private assertDocumentMetadataWritable;
+}
+export declare function createCollectionBuilder(options?: CollectionBuilderOptions): CollectionBuilder;

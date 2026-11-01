@@ -1,0 +1,5 @@
+export { I18nProvider, NamespaceScope, useI18nRuntime, useOptionalI18nRuntime, useNamespace, useTranslation, withNamespace, } from './context.js';
+export { applyDocumentLocale, useLocale, } from './locale.js';
+export { createRefineI18nProvider, } from './refine.js';
+export { APP_NS, BASE_NAMESPACE, I18nRuntime } from '../core/index.js';
+//# sourceMappingURL=index.js.map

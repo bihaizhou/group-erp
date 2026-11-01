@@ -1,0 +1,1 @@
+{"version":3,"file":"use-mail-unread-count.d.ts","sourceRoot":"","sources":["../../../client/hooks/use-mail-unread-count.ts"],"names":[],"mappings":"AAeA,MAAM,WAAW,oBAAoB;IACnC,qFAAqF;IACrF,QAAQ,CAAC,WAAW,EAAE,MAAM,GAAG,SAAS,CAAC;IACzC,QAAQ,CAAC,OAAO,EAAE,OAAO,CAAC;IAC1B,mEAAmE;IACnE,QAAQ,CAAC,KAAK,EAAE,OAAO,CAAC;CACzB;AAYD;;;GAGG;AACH,wBAAgB,kBAAkB,IAAI,oBAAoB,CAkGzD"}

@@ -1,0 +1,29 @@
+import { AppI18nError } from '@nocobase/i18n/server';
+export const NOTIFICATION_NAMESPACE = '@nocobase/app-plugin-notification';
+export function notificationI18nText(key, defaultValue) {
+    return { ns: NOTIFICATION_NAMESPACE, key, defaultValue };
+}
+export function notificationTestError(code, key, options = {}) {
+    return new AppI18nError(code, {
+        ns: NOTIFICATION_NAMESPACE,
+        key,
+        ...options,
+    });
+}
+export const NOTIFICATION_PROVIDER_ERROR_CATEGORIES = [
+    'authentication',
+    'channel',
+    'configuration',
+    'content',
+    'network',
+    'provider',
+    'rate_limit',
+    'recipient',
+    'storage',
+    'timeout',
+    'unknown',
+];
+export function isNotificationProviderErrorCategory(value) {
+    return NOTIFICATION_PROVIDER_ERROR_CATEGORIES.some((category) => category === value);
+}
+//# sourceMappingURL=types.js.map

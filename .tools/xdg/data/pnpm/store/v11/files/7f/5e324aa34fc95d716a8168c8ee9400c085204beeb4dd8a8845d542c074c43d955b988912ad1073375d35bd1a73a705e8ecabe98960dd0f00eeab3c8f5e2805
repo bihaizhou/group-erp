@@ -1,0 +1,19 @@
+import type { MailScheduledSendTaskPayload, MailStore, MailSyncMailboxTaskPayload } from '../contracts/persistence.js';
+import type { MailLogger } from '../logging.js';
+import type { JobClass, JobExecutor } from '@nocobase/jobs';
+export interface MailOutboxJobs {
+    readonly executor: JobExecutor;
+    readonly syncMailbox: JobClass<MailSyncMailboxTaskPayload>;
+    readonly sendScheduledMail: JobClass<MailScheduledSendTaskPayload>;
+}
+export declare class MailOutboxRelay {
+    private readonly options;
+    private readonly jobs;
+    private readonly requestSync;
+    constructor(options: {
+        readonly store: Pick<MailStore, 'claimOutbox' | 'markOutboxPublished' | 'releaseOutbox'>;
+        readonly logger?: MailLogger;
+    }, jobs: MailOutboxJobs, requestSync: (accountId: string) => Promise<boolean>);
+    publish(): Promise<void>;
+}
+//# sourceMappingURL=outbox-relay.d.ts.map

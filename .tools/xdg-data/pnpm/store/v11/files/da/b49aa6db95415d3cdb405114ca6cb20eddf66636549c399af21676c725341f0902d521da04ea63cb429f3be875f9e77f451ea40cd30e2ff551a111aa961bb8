@@ -1,0 +1,177 @@
+import { randomUUID } from 'node:crypto';
+import { Queue, UnrecoverableError, WaitingError, Worker, } from 'bullmq';
+import { jobQueueName, } from '../backend.js';
+import { JobHandlerNotRegisteredError, JobInterruptedError, } from '../types.js';
+function retentionOptions(policy) {
+    if (typeof policy !== 'object')
+        return policy;
+    if (policy.count !== undefined) {
+        return {
+            count: policy.count,
+            ...(policy.age !== undefined ? { age: policy.age } : {}),
+        };
+    }
+    if (policy.age !== undefined)
+        return { age: policy.age };
+    // An object with neither bound retains all finished jobs.
+    return false;
+}
+export const defaultRedisJobFactories = {
+    queue: (config) => new Queue(jobQueueName(config), {
+        connection: { ...config.connection },
+        prefix: config.namespace,
+    }),
+    worker: (config, processor) => new Worker(jobQueueName(config), processor, {
+        connection: { ...config.connection },
+        prefix: config.namespace,
+        concurrency: config.concurrency,
+    }),
+};
+/**
+ * Uses only public BullMQ APIs. Graceful interruption returns unfinished work
+ * to waiting without spending a failure attempt; abrupt loss is recovered by
+ * BullMQ's lock expiry and stalled detection. Neither path rewrites payloads.
+ */
+export class RedisJobBackend {
+    config;
+    logger;
+    factories;
+    queue;
+    worker;
+    runner;
+    stopping = new AbortController();
+    closePromise;
+    constructor(config, logger, factories = defaultRedisJobFactories) {
+        this.config = config;
+        this.logger = logger;
+        this.factories = factories;
+    }
+    async open() {
+        this.stopping = new AbortController();
+        this.closePromise = undefined;
+        const queue = this.factories.queue(this.config);
+        this.queue = queue;
+        queue.on('error', (error) => this.report(error, 'queue'));
+        // Keep partial resources reachable so the executor owns failure cleanup.
+        await queue.waitUntilReady();
+    }
+    async enqueue(submission) {
+        const queue = this.queue;
+        if (!queue)
+            throw new Error('The job queue is not open.');
+        const jobId = randomUUID();
+        const enqueuedAt = Date.now();
+        await queue.add(submission.jobName, {
+            jobName: submission.jobName,
+            payload: submission.payload,
+            enqueuedAt,
+        }, {
+            jobId,
+            attempts: this.config.attempts,
+            removeOnComplete: retentionOptions(this.config.removeOnComplete),
+            removeOnFail: retentionOptions(this.config.removeOnFail),
+        });
+        return {
+            jobId,
+            jobName: submission.jobName,
+            enqueuedAt: new Date(enqueuedAt),
+        };
+    }
+    async consume(runner) {
+        if (!this.queue)
+            throw new Error('The job queue is not open.');
+        this.runner = runner;
+        // BullMQ supplies its cancellation signal only to three-argument processors.
+        const processor = (job, token, signal) => this.process(job, token, signal
+            ? AbortSignal.any([signal, this.stopping.signal])
+            : this.stopping.signal);
+        const worker = this.factories.worker(this.config, processor);
+        this.worker = worker;
+        worker.on('error', (error) => this.report(error, 'worker'));
+        await worker.waitUntilReady();
+    }
+    close() {
+        this.closePromise ??= this.closeResources();
+        return this.closePromise;
+    }
+    async closeResources() {
+        const worker = this.worker;
+        const queue = this.queue;
+        this.worker = undefined;
+        this.queue = undefined;
+        const errors = [];
+        // A processor can start after BullMQ takes cancelAllJobs' active snapshot.
+        this.stopping.abort();
+        if (worker) {
+            try {
+                worker.cancelAllJobs('The job executor is shutting down.');
+            }
+            catch (error) {
+                errors.push(error);
+            }
+            try {
+                // Graceful close waits for processors and their state transitions.
+                await worker.close();
+            }
+            catch (error) {
+                errors.push(error);
+            }
+        }
+        this.runner = undefined;
+        try {
+            await queue?.close();
+        }
+        catch (error) {
+            errors.push(error);
+        }
+        if (errors.length === 1)
+            throw errors[0];
+        if (errors.length > 1)
+            throw new AggregateError(errors, 'Failed to close the Redis job backend.');
+    }
+    async process(job, token, signal) {
+        if (this.stopping.signal.aborted) {
+            // Do not start user work after shutdown, even if BullMQ just acquired it.
+            if (!token)
+                throw new JobInterruptedError();
+            await job.moveToWait(token);
+            throw new WaitingError();
+        }
+        const runner = this.runner;
+        if (!runner)
+            throw new Error('The job executor is not consuming.');
+        if (!job.id)
+            throw new Error('The queued job has no identifier.');
+        try {
+            await runner.run({
+                jobId: job.id,
+                jobName: job.data.jobName,
+                payload: job.data.payload,
+                enqueuedAt: new Date(job.data.enqueuedAt),
+                runAt: new Date(job.processedOn ?? Date.now()),
+                attempt: job.attemptsStarted,
+                signal,
+                // Stored on the BullMQ job, where other processes can read it.
+                reportProgress: (progress) => job.updateProgress(progress),
+            });
+        }
+        catch (error) {
+            if (error instanceof JobHandlerNotRegisteredError) {
+                throw new UnrecoverableError(error.message);
+            }
+            if (error instanceof JobInterruptedError && signal.aborted) {
+                // Never transition without the current processor's ownership token.
+                if (!token)
+                    throw error;
+                await job.moveToWait(token);
+                // The public sentinel tells BullMQ not to acknowledge or fail this job.
+                throw new WaitingError();
+            }
+            throw error;
+        }
+    }
+    report(error, resource) {
+        this.logger?.error({ error, scope: this.config.scope, key: this.config.key }, `The job ${resource} reported an error`);
+    }
+}
+//# sourceMappingURL=backend.js.map

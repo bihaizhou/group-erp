@@ -1,0 +1,4 @@
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { Logging } from '@nocobase/logging';
+export declare const loggingToken: ServiceToken<Logging>;
+//# sourceMappingURL=token.d.ts.map

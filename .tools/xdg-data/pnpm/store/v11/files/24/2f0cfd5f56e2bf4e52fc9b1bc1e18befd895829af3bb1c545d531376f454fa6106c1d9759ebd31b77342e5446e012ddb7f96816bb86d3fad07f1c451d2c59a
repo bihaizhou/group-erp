@@ -1,0 +1,12 @@
+import { type AppClientRouteComponentLoader, type AppClientPluginFactory } from '@nocobase/app-client/plugins';
+export interface UsersClientOptions {
+    /** Replaces the invitation page, for example to match the application's own sign-in pages. */
+    readonly inviteComponentLoader?: AppClientRouteComponentLoader;
+}
+/**
+ * Registers the invitation page an invitation email links to. The plugin contributes no user management page: an
+ * application that manages users builds that page on `UsersClient` and declares it among its own routes.
+ */
+declare const users: AppClientPluginFactory<UsersClientOptions>;
+export default users;
+//# sourceMappingURL=plugin.d.ts.map

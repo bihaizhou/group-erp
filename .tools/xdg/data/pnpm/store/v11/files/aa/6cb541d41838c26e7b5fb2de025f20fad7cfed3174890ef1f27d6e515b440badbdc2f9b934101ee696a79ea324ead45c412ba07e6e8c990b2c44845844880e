@@ -1,0 +1,26 @@
+/**
+ * Refuses a second development server for one application root.
+ *
+ * Two of them are not caught by anything else: the port check advances to the
+ * next free port instead of failing, and the second server then dies where
+ * nothing points back at the cause — on the migration lock the first one is
+ * holding, before it ever binds a port. A stale lock left by a killed run is
+ * taken over rather than reported, because its process is gone.
+ */
+export function acquireDevInstanceLock({ rootDir, pid, startedAt, }: {
+    rootDir: any;
+    pid?: number | undefined;
+    startedAt?: number | undefined;
+}): {
+    acquired: boolean;
+    pid: any;
+    startedAt: any;
+    release?: undefined;
+} | {
+    acquired: boolean;
+    release(): void;
+    pid?: undefined;
+    startedAt?: undefined;
+};
+export const DEV_INSTANCE_LOCK_FILE: string;
+//# sourceMappingURL=instance-lock.d.mts.map

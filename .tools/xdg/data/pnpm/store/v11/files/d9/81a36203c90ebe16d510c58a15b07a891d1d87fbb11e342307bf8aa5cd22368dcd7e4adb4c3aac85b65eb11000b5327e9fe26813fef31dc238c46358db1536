@@ -1,0 +1,15 @@
+import type { ReactElement } from 'react';
+import type { MailLabel, MailLabelColor } from '../mail-client.js';
+export interface MailLabelTagProps {
+    readonly label: Pick<MailLabel, 'name' | 'color'>;
+    readonly className?: string;
+    readonly size?: 'sm' | 'md';
+}
+export declare function MailLabelTag({ label, className, size, }: MailLabelTagProps): ReactElement;
+export interface MailLabelColorDotProps {
+    readonly color: MailLabelColor;
+    readonly className?: string;
+    readonly size?: 'sm' | 'md';
+}
+export declare function MailLabelColorDot({ color, className, size, }: MailLabelColorDotProps): ReactElement;
+//# sourceMappingURL=mail-label-tag.d.ts.map

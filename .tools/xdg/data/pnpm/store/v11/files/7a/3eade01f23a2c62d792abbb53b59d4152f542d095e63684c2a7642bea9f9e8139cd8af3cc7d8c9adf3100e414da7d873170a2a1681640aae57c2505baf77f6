@@ -1,0 +1,8 @@
+import type { RealtimeClient } from '@nocobase/app-client';
+export interface MailFocusTarget {
+    addEventListener(type: 'focus', listener: EventListener): void;
+    removeEventListener(type: 'focus', listener: EventListener): void;
+}
+export declare function subscribeToMailInvalidations(realtime: RealtimeClient, target: MailFocusTarget, refresh: () => void, onFocus?: () => void): () => void;
+export declare const MAIL_UNREAD_COUNT_CHANGED_EVENT = "nocobase:mail-unread-count-changed";
+//# sourceMappingURL=subscription.d.ts.map

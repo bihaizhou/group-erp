@@ -1,0 +1,14 @@
+import type { MailAddress, MailFolderType, MailProviderResult, NormalizedMailAttachment } from '../../../shared/mail.js';
+import type { NormalizedMailMessage } from '../../contracts/provider.js';
+import type { GraphEmailAddress, GraphMessage, GraphProfile } from './types.js';
+export declare function normalizeGraphMessage(message: GraphMessage, attachments: readonly NormalizedMailAttachment[]): MailProviderResult<NormalizedMailMessage>;
+export declare function graphRecipient(address: MailAddress): GraphEmailAddress;
+export declare function microsoftIdentities(profile: GraphProfile, primaryAddress: string): readonly {
+    address: string;
+    displayName?: string;
+    isPrimary: boolean;
+    canSend: boolean;
+}[];
+export declare function graphFolderType(name: string | undefined, wellKnownName?: string): MailFolderType;
+export declare function htmlToText(value: string): string;
+//# sourceMappingURL=normalize.d.ts.map

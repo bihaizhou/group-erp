@@ -1,0 +1,12 @@
+import { ToolCommand } from "../lib/tool-command.js";
+export default class Dev extends ToolCommand {
+    static summary = 'Start the development server and restart it when sources or configuration change.';
+    static description = "Runs the registered plugins' beforeDev hooks first. `.env` and `.env.local` changes restart every development process, including Vite; `config.yml` changes restart only the server.";
+    tool = 'dev';
+    // The development processes load the application's TypeScript, so they run under its `tsx`.
+    toolOptions = {
+        hooks: true,
+        execArgv: ['--import', 'tsx', ...process.execArgv],
+    };
+}
+//# sourceMappingURL=dev.js.map

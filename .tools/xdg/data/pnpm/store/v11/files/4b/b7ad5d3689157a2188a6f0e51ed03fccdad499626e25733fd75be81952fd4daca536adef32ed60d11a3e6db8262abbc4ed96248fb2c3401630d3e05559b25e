@@ -1,0 +1,21 @@
+import { type MailLabel, type MailOperationContext, type MailSaveLabelInput, type MailSignature } from '../../shared/mail.js';
+import { type MailServiceDependencies } from './dependencies.js';
+export declare class MailPreferencesService {
+    private readonly dependencies;
+    constructor(dependencies: MailServiceDependencies<'createLabel' | 'deleteLabel' | 'deleteSignature' | 'deleteTemplate' | 'getAccount' | 'getIdentity' | 'getSignature' | 'listIdentities' | 'listLabels' | 'listSignatures' | 'listTemplates' | 'saveSignature' | 'saveTemplate' | 'updateIdentity' | 'updateLabel', never>);
+    listIdentities(context: MailOperationContext, accountId: string): Promise<readonly import('../../shared/mail.js').MailIdentity[]>;
+    updateIdentity(context: MailOperationContext, input: import('../../shared/mail.js').MailUpdateIdentityInput): Promise<import('../../shared/mail.js').MailIdentity>;
+    listSignatures(context: MailOperationContext, accountId: string): Promise<readonly MailSignature[]>;
+    saveSignature(context: MailOperationContext, input: import('../../shared/mail.js').MailSaveSignatureInput): Promise<MailSignature>;
+    updateSignature(context: MailOperationContext, input: import('../../shared/mail.js').MailUpdateSignatureInput): Promise<MailSignature>;
+    deleteSignature(context: MailOperationContext, accountId: string, signatureId: string): Promise<void>;
+    listLabels(context: MailOperationContext): Promise<readonly MailLabel[]>;
+    createLabel(context: MailOperationContext, input: MailSaveLabelInput): Promise<MailLabel>;
+    updateLabel(context: MailOperationContext, input: import('../../shared/mail.js').MailUpdateLabelInput): Promise<MailLabel>;
+    deleteLabel(context: MailOperationContext, labelId: string): Promise<void>;
+    listTemplates(context: MailOperationContext): Promise<readonly import('../../shared/mail.js').MailTemplate[]>;
+    saveTemplate(context: MailOperationContext, input: import('../../shared/mail.js').MailSaveTemplateInput): Promise<import('../../shared/mail.js').MailTemplate>;
+    updateTemplate(context: MailOperationContext, input: import('../../shared/mail.js').MailUpdateTemplateInput): Promise<import('../../shared/mail.js').MailTemplate>;
+    deleteTemplate(context: MailOperationContext, templateId: string): Promise<void>;
+}
+//# sourceMappingURL=preferences.d.ts.map

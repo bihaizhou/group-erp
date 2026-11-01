@@ -1,0 +1,57 @@
+const STORE = Symbol.for('@nocobase/app-cli.resolvedCli');
+const APP_STORE = Symbol.for('@nocobase/app-cli.application');
+const OPEN_RUNTIMES = Symbol.for('@nocobase/app-cli.openRuntimes');
+/**
+ * Records a loaded runtime until its scope is destroyed, so that the runner can close whatever a command left open.
+ * Returns the function that forgets it again.
+ */
+export function trackOpenRuntime(runtime) {
+    const host = globalThis;
+    const open = (host[OPEN_RUNTIMES] ??= new Set());
+    open.add(runtime);
+    return () => {
+        open.delete(runtime);
+    };
+}
+/** The runtimes still open, forgotten as they are returned. */
+export function takeOpenRuntimes() {
+    const open = globalThis[OPEN_RUNTIMES];
+    if (open === undefined)
+        return [];
+    const runtimes = [...open];
+    open.clear();
+    return runtimes;
+}
+/** Records the tree a run dispatches from, for the registry and for `nocobase commands`. */
+export function setResolvedCli(assembled) {
+    globalThis[STORE] = assembled;
+}
+/**
+ * The tree a run dispatches from. For a built-in command dispatched on its own it holds only that command; a command
+ * that reads the whole tree is never dispatched that way.
+ */
+export function resolvedCli() {
+    return globalThis[STORE];
+}
+export function resolvedCommands() {
+    return resolvedCli()?.commands ?? {};
+}
+/**
+ * The application behind this run.
+ *
+ * Stored for the same reason as the command map: a built-in command is loaded by oclif from a resolved path and cannot
+ * reach the application any other way. `dev` and `build` read the plugins' hooks from here, which is why the plugins
+ * are loaded lazily — a command that never asks does not pay for importing every plugin's CLI entry, and does not fail
+ * when one of them is broken.
+ */
+export function setApplicationState(state) {
+    globalThis[APP_STORE] = state;
+}
+export function applicationState() {
+    const state = globalThis[APP_STORE];
+    if (state === undefined) {
+        throw new Error('This command runs through the nocobase CLI, which records the application it runs in.');
+    }
+    return state;
+}
+//# sourceMappingURL=command-store.js.map

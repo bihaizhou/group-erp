@@ -1,0 +1,58 @@
+export class MailProvidersService {
+    dependencies;
+    constructor(dependencies) {
+        this.dependencies = dependencies;
+    }
+    listProviders() {
+        const registry = this.dependencies.registry;
+        const listConfigs = this.dependencies.listProviderConfigs;
+        if (!registry || !listConfigs)
+            return Promise.resolve([]);
+        return Promise.resolve().then(() => {
+            const configuredTypes = new Set();
+            const providers = listConfigs().flatMap((config) => {
+                configuredTypes.add(config.type);
+                const definition = registry.definition(config.type);
+                if (!definition || config.enabled === false)
+                    return [];
+                try {
+                    return [
+                        {
+                            type: definition.type,
+                            name: config.name,
+                            label: definition.label,
+                            capabilities: definition.capabilities,
+                            ...(definition.connection
+                                ? { connection: 'credentials' }
+                                : definition.authorization
+                                    ? { connection: 'oauth' }
+                                    : {}),
+                            configured: true,
+                        },
+                    ];
+                }
+                catch {
+                    return [];
+                }
+            });
+            for (const definition of registry.definitions()) {
+                if (configuredTypes.has(definition.type))
+                    continue;
+                providers.push({
+                    type: definition.type,
+                    name: definition.type,
+                    label: definition.label,
+                    capabilities: definition.capabilities,
+                    ...(definition.connection
+                        ? { connection: 'credentials' }
+                        : definition.authorization
+                            ? { connection: 'oauth' }
+                            : {}),
+                    configured: false,
+                });
+            }
+            return providers;
+        });
+    }
+}
+//# sourceMappingURL=providers.js.map

@@ -1,0 +1,14 @@
+import { normalizeRepositoryPolicy } from '@nocobase/db';
+const constraintsKey = '@nocobase/app-server/repository-constraints';
+export function addRepositoryRequestConstraint(context, constraint) {
+    const previous = getRepositoryRequestConstraints(context);
+    context.set(constraintsKey, [
+        ...previous,
+        { ...constraint, policy: normalizeRepositoryPolicy(constraint.policy) },
+    ]);
+}
+/** Server-owned request state, never populated from a request body. */
+export function getRepositoryRequestConstraints(context) {
+    return (context.get(constraintsKey) ?? []);
+}
+//# sourceMappingURL=repository-constraints.js.map

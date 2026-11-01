@@ -1,0 +1,69 @@
+export function resolveAuthorizationSubjects(identity) {
+    const subjects = [
+        { type: identity.principal.type, id: identity.principal.id },
+        ...(identity.subjects ?? []),
+    ];
+    const seen = new Set();
+    return subjects.filter((subject) => {
+        const key = `${subject.type}\u0000${subject.id}`;
+        if (seen.has(key))
+            return false;
+        seen.add(key);
+        return true;
+    });
+}
+/**
+ * What an application knows about its own subject types. Subject types are
+ * open strings the library never validates, so an undeclared type is not an
+ * unknown one — it is a type nothing further is known about.
+ */
+export class AuthorizationSubjectRegistry {
+    types = new Map();
+    /** Returns a function that removes the type again. */
+    add(type, definition) {
+        if (this.types.has(type)) {
+            throw new Error(`Authorization subject type already registered: ${type}`);
+        }
+        this.types.set(type, definition);
+        return () => {
+            if (this.types.get(type) === definition)
+                this.types.delete(type);
+        };
+    }
+    get(type) {
+        return this.types.get(type);
+    }
+    async resolveFor(principal) {
+        const subjects = await Promise.all([...this.types.entries()].map(async ([type, definition]) => ((await definition.resolveFor?.(principal)) ?? []).map((id) => ({
+            type,
+            id,
+        }))));
+        return this.filterActive(subjects.flat());
+    }
+    list() {
+        return [...this.types.keys()];
+    }
+    /** Subjects of an undeclared type pass through: nothing says otherwise. */
+    async filterActive(subjects, transaction) {
+        const declared = new Map();
+        for (const subject of subjects) {
+            if (!this.types.has(subject.type))
+                continue;
+            const ids = declared.get(subject.type) ?? new Set();
+            ids.add(subject.id);
+            declared.set(subject.type, ids);
+        }
+        if (declared.size === 0)
+            return subjects;
+        const active = new Map();
+        for (const [type, ids] of declared) {
+            const definition = this.types.get(type);
+            active.set(type, new Set(await definition.filterActive([...ids], transaction)));
+        }
+        return subjects.filter((subject) => {
+            const ids = active.get(subject.type);
+            return ids === undefined || ids.has(subject.id);
+        });
+    }
+}
+//# sourceMappingURL=subjects.js.map

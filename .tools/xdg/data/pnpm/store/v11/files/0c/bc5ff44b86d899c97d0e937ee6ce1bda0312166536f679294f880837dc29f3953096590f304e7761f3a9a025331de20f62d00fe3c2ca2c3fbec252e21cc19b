@@ -1,0 +1,104 @@
+import type { AccessConstraintService } from './constraints.js';
+import type { AuthorizationGrant, AuthorizationGrantService } from './grants.js';
+import type { AuthorizationTitle } from './titles.js';
+import type { AuthorizationDecision, AuthorizationRequest } from './types.js';
+export interface ResourceItemAction {
+    readonly name: string;
+    readonly title?: AuthorizationTitle;
+}
+/** One thing of a resource type that can be granted. */
+export interface ResourceItem {
+    readonly id: string;
+    readonly title: AuthorizationTitle;
+    readonly description?: AuthorizationTitle;
+    readonly actions: readonly ResourceItemAction[];
+}
+export interface ResourceItemDefinition {
+    readonly id: string;
+    readonly title: AuthorizationTitle;
+    readonly description?: AuthorizationTitle;
+    /** Omit to inherit every action the resource type declares. */
+    readonly actions?: readonly (string | ResourceItemAction)[];
+}
+/** The items of one catalog resource type. */
+export declare class ResourceItems {
+    private readonly entries;
+    constructor();
+    add(definition: ResourceItemDefinition): void;
+    has(id: string): boolean;
+    get(id: string): ResourceItem | undefined;
+    list(): readonly ResourceItem[];
+}
+export interface AuthorizationRuntimeContext {
+    readonly grants: AuthorizationGrantService;
+    readonly constraints: AccessConstraintService;
+}
+export type ResourceAuthorize<TParams = undefined> = (request: AuthorizationRequest<TParams>, context: AuthorizationRuntimeContext) => Promise<AuthorizationDecision>;
+export type ResourceAuthorizeUnrestricted<TParams = undefined> = (request: AuthorizationRequest<TParams>) => Promise<AuthorizationDecision>;
+/** An action every item of the type may declare, with its own judgement. */
+export interface ResourceTypeAction<TParams = undefined> {
+    readonly name: string;
+    readonly title?: AuthorizationTitle;
+    readonly authorize?: ResourceAuthorize<TParams>;
+    readonly authorizeUnrestricted?: ResourceAuthorizeUnrestricted<TParams>;
+}
+/** A resource type exists only for judgement and is never displayed. */
+export interface ResourceTypeDefinition<TParams = undefined> {
+    /** Any name except `composite`, which the core reserves for composites. */
+    readonly type: string;
+    /** A record type must declare its actions; a catalog type's items inherit them. */
+    readonly actions?: readonly (string | ResourceTypeAction<TParams>)[];
+    /**
+     * Whether a grant on this type can be narrowed to records, which is what a
+     * composite's data scope needs of its target. Defaults to false.
+     */
+    readonly recordAccess?: boolean;
+    /** Makes this a catalog type: only registered items and their actions pass. */
+    readonly items?: ResourceItems;
+    /** Defaults to `grantBacked()`. */
+    readonly authorize?: ResourceAuthorize<TParams>;
+    /** Defaults to permitting. Unsupported items and actions stay denied either way. */
+    readonly authorizeUnrestricted?: ResourceAuthorizeUnrestricted<TParams>;
+}
+export interface RegisteredResourceType {
+    readonly type: string;
+    /** The declared type-level actions. */
+    readonly actions: readonly ResourceItemAction[];
+    /** Whether a composite's data scope may target this type. */
+    readonly recordAccess: boolean;
+    /** Present on a catalog type; a record type has none. */
+    readonly items?: ResourceItems;
+}
+export interface GrantBackedOptions<TParams = undefined> {
+    /** A further condition checked once a matching grant exists. */
+    also?(request: AuthorizationRequest<TParams>, grants: readonly AuthorizationGrant[]): Promise<boolean>;
+}
+/** Permits when a policy-less grant matches the request. */
+export declare function grantBacked<TParams = undefined>(options?: GrantBackedOptions<TParams>): ResourceAuthorize<TParams>;
+/** The private judgement of one resource type. */
+export interface ResourceTypeHandler {
+    readonly type: string;
+    authorize(request: AuthorizationRequest<unknown>, context: AuthorizationRuntimeContext): Promise<AuthorizationDecision>;
+    authorizeUnrestricted(request: AuthorizationRequest<unknown>): Promise<AuthorizationDecision>;
+}
+/** Package-internal: the Authorization reads handlers, nobody else does. */
+export declare function resourceTypeHandler(registry: ResourceTypeRegistry, type: string): ResourceTypeHandler | undefined;
+/** Package-internal: registers the reserved `composite` type for `authz.compositeResources`. */
+export declare function addReservedResourceType<TParams>(registry: ResourceTypeRegistry, definition: ResourceTypeDefinition<TParams>): RegisteredResourceType;
+export declare const RESOURCE_ACTION_NOT_SUPPORTED = "RESOURCE_ACTION_NOT_SUPPORTED";
+export declare const UNRESTRICTED_ACCESS = "UNRESTRICTED_ACCESS";
+/**
+ * Every resource type. A catalog type has items and validates the item and
+ * action; a record type has none, validates only the action and leaves the
+ * record id to its own judgement.
+ */
+export declare class ResourceTypeRegistry {
+    private readonly registered;
+    constructor();
+    add<TParams = undefined>(definition: ResourceTypeDefinition<TParams>): RegisteredResourceType;
+    has(type: string): boolean;
+    /** Throws for a type nobody registered. */
+    get(type: string): RegisteredResourceType;
+    list(): readonly RegisteredResourceType[];
+}
+//# sourceMappingURL=resource-types.d.ts.map

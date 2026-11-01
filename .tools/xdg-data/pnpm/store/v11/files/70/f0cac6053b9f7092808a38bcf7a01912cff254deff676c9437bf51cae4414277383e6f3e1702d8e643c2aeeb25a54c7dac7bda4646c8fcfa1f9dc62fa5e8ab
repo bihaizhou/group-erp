@@ -1,0 +1,20 @@
+import type { DatabaseConnection } from '@nocobase/db';
+import type { DatabaseConnectionSource } from '@nocobase/app-plugin-authorization/server/extension';
+import type { SharingRule } from '@nocobase/authorization/sharing-rules';
+import type { SharingRuleStore } from '@nocobase/authorization/sharing-rules';
+export declare class DatabaseSharingRuleStore implements SharingRuleStore<DatabaseConnection> {
+    private readonly connection;
+    constructor(connection: DatabaseConnectionSource);
+    withTransaction(connection: DatabaseConnection): SharingRuleStore<DatabaseConnection>;
+    create(rule: SharingRule): Promise<SharingRule>;
+    update(key: string, rule: SharingRule): Promise<SharingRule>;
+    delete(key: string): Promise<void>;
+    get(key: string): Promise<SharingRule | undefined>;
+    list(): Promise<readonly SharingRule[]>;
+    private replaceAssignments;
+    private loadAssignments;
+    private toValues;
+    private toUpdateValues;
+    private fromRow;
+}
+//# sourceMappingURL=sharing-rules.d.ts.map

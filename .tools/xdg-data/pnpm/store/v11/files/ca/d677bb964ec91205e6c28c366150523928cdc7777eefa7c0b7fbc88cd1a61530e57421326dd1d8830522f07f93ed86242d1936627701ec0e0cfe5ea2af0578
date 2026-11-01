@@ -1,0 +1,42 @@
+import type { DatabaseDriverRegistration } from '@nocobase/db';
+import type { AppDatabaseConfig } from './types.js';
+/** A dialect this runtime loads a driver for without the application registering one. */
+export type OfficialDialect = 'sqlite' | 'mysql' | 'postgres' | 'mssql' | 'oracle' | 'dameng' | 'kingbase' | 'oceanbase';
+/**
+ * The dialects above, as a list tooling can name them from.
+ *
+ * Anything that has to present the choice to a person — `nocobase config init`, the documentation it prints —
+ * reads this rather than keeping its own copy. A separate list is one that silently stops matching the loaders the
+ * day a dialect is added, and the mismatch only shows up as a dialect the CLI offers and the runtime cannot load.
+ */
+export declare const OFFICIAL_DIALECTS: readonly OfficialDialect[];
+/** A connection whose official driver package is not installed. */
+export interface MissingDatabaseDriver {
+    readonly connection: string;
+    readonly dialect: OfficialDialect;
+    readonly packageName: string;
+}
+/**
+ * Every configured connection whose driver is missing, reported at once.
+ *
+ * Stopping at the first one turned a configuration with two missing drivers — the Examples template on PostgreSQL
+ * still needs SQLite for its analytics connection — into two failed starts, each naming half the problem. The
+ * connections are listed so tooling can point at each one, and the message carries the single command that installs
+ * all of them.
+ *
+ * The remedy names the application rather than "here" on purpose: in a deployment this runs from a built `dist`, where
+ * installing a driver is undone by the next build. The driver has to reach the application's dependencies, and a
+ * deployment has to be built again afterwards.
+ */
+export declare class MissingDatabaseDriversError extends Error {
+    readonly missing: readonly MissingDatabaseDriver[];
+    constructor(missing: readonly MissingDatabaseDriver[]);
+}
+/** Configuration properties needed for driver loading; other properties are preserved. */
+export type DatabaseConfigInput = Pick<AppDatabaseConfig, 'default' | 'drivers' | 'connections'>;
+export type ResolvedDatabaseConfig<TConfig extends DatabaseConfigInput> = Omit<TConfig, 'drivers'> & {
+    drivers: Record<string, DatabaseDriverRegistration>;
+};
+/** Load only configured official dialects before constructing a synchronous manager. */
+export declare function resolveDatabaseConfig<TConfig extends DatabaseConfigInput>(config: TConfig): Promise<ResolvedDatabaseConfig<TConfig>>;
+//# sourceMappingURL=resolve-config.d.ts.map

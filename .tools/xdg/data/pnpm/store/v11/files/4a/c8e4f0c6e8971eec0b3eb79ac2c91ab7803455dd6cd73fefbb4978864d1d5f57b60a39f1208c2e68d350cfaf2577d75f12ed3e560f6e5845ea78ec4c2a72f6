@@ -1,0 +1,25 @@
+import type { DatabaseConnection, DatabaseManager } from '@nocobase/db';
+import type { PermissionSetsApi } from '@nocobase/authorization/permission-sets';
+import type { UserAdministrationService } from '@nocobase/app-plugin-authentication';
+import { type InvitationSite } from '../invitations/service.js';
+import { type InvitationMailer } from '../invitations/mail.js';
+import { type UserManagementService, type UserRoleScopeRegistry } from '../tokens.js';
+export declare function createUserRoleScopeRegistry(): UserRoleScopeRegistry;
+export interface CreateUserManagementServiceOptions {
+    readonly database: DatabaseManager;
+    readonly users: UserAdministrationService;
+    readonly roleScopes: UserRoleScopeRegistry;
+    /**
+     * Absent in an application assembled without authorization. When present,
+     * disabling an account asks it whether that account is the last one able to
+     * use a Permission Set the application must always keep in use.
+     */
+    readonly permissionSets?: PermissionSetsApi<DatabaseConnection>;
+    readonly onRoleScopesChanged?: (userId: string) => void | Promise<void>;
+    /** Sends invitation emails; without one, authorized inviters deliver links themselves. */
+    readonly mailer?: InvitationMailer;
+    /** Links use publicOrigin when configured, or the origin each caller passes. */
+    readonly site?: InvitationSite;
+}
+export declare function createUserManagementService(options: CreateUserManagementServiceOptions): UserManagementService;
+//# sourceMappingURL=users.d.ts.map

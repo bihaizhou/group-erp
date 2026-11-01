@@ -1,0 +1,25 @@
+import type { AppPaths } from '../config/index.js';
+import type { AppDatabaseConfig } from './types.js';
+export type ConnectionCheckStatus = 'ok' | 'failed' | 'skipped';
+export interface ConnectionCheckResult {
+    readonly name: string;
+    readonly dialect: string;
+    readonly status: ConnectionCheckStatus;
+    /** Why the connection failed, or why it was not tried. Never carries credentials. */
+    readonly reason?: string;
+}
+export interface CheckConnectionsOptions {
+    /** Connections to try; the rest are reported as skipped. Defaults to every configured connection. */
+    readonly include?: (name: string, dialect: string) => boolean;
+    readonly timeoutMs?: number;
+}
+/**
+ * Opens one connection per configured database and hands it straight back.
+ *
+ * Taking a connection from the pool is what proves the address, port, credentials and database name are right, and it
+ * needs no SQL — a probe query would have to be spelled differently for Oracle and Dameng than for everything else.
+ * `DatabaseConnection.connect()` is deliberately not used: it also loads the collection registry, which reads metadata
+ * tables and so reports a fresh database that has not been migrated yet as broken.
+ */
+export declare function checkConnections(database: AppDatabaseConfig, paths: AppPaths, options?: CheckConnectionsOptions): Promise<readonly ConnectionCheckResult[]>;
+//# sourceMappingURL=connection-check.d.ts.map

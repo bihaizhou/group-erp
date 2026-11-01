@@ -1,0 +1,7 @@
+export interface ServeSpaAssetOptions {
+    rootDir: string;
+    basePath: string;
+    cacheControl?: string;
+}
+export declare function serveSpaAsset(request: Request, options: ServeSpaAssetOptions): Promise<Response>;
+//# sourceMappingURL=static-assets.d.ts.map

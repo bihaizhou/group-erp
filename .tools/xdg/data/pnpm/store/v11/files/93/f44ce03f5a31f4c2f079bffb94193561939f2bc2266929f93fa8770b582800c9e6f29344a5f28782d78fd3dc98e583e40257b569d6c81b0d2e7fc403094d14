@@ -1,0 +1,184 @@
+import { encodeRealtimeClientMessage, parseRealtimeServerMessage, validateRealtimeTopic, } from './protocol.js';
+export function createRealtimeClient(options) {
+    let socket;
+    let reconnectTimer;
+    let pingTimer;
+    let reconnectCount = 0;
+    let manuallyClosed = false;
+    const openListeners = new Set();
+    const errorListeners = new Set();
+    const topicListeners = new Map();
+    const client = {
+        get connected() {
+            return socket?.readyState === WebSocket.OPEN;
+        },
+        subscribe(topic, listener) {
+            validateRealtimeTopic(topic);
+            const listeners = topicListeners.get(topic) ?? new Set();
+            const wasEmpty = listeners.size === 0;
+            listeners.add(listener);
+            topicListeners.set(topic, listeners);
+            if (wasEmpty && client.connected) {
+                sendSubscription(topic);
+            }
+            else if (!socket) {
+                connect();
+            }
+            return () => {
+                listeners.delete(listener);
+                if (listeners.size > 0)
+                    return;
+                topicListeners.delete(topic);
+                send({ type: 'unsubscribe', topic });
+                if (topicListeners.size === 0)
+                    client.close();
+            };
+        },
+        onOpen(listener) {
+            openListeners.add(listener);
+            return () => {
+                openListeners.delete(listener);
+            };
+        },
+        onError(listener) {
+            errorListeners.add(listener);
+            return () => {
+                errorListeners.delete(listener);
+            };
+        },
+        reconnect() {
+            if (topicListeners.size === 0)
+                return;
+            manuallyClosed = false;
+            reconnectCount = 0;
+            stopPing();
+            socket?.close();
+            socket = undefined;
+            connect();
+        },
+        close() {
+            manuallyClosed = true;
+            clearReconnectTimer();
+            stopPing();
+            socket?.close();
+            socket = undefined;
+        },
+    };
+    function connect() {
+        if (typeof WebSocket === 'undefined')
+            return;
+        if (socket?.readyState === WebSocket.CONNECTING ||
+            socket?.readyState === WebSocket.OPEN) {
+            return;
+        }
+        const resolvedUrl = options.resolveUrl();
+        if (!resolvedUrl)
+            return;
+        const websocketUrl = toWebSocketUrl(resolvedUrl);
+        if (!websocketUrl)
+            return;
+        manuallyClosed = false;
+        clearReconnectTimer();
+        const nextSocket = new WebSocket(websocketUrl);
+        socket = nextSocket;
+        nextSocket.onopen = () => {
+            if (socket !== nextSocket)
+                return;
+            reconnectCount = 0;
+            startPing();
+            for (const topic of topicListeners.keys())
+                sendSubscription(topic);
+            for (const listener of openListeners) {
+                notifyListener(listener, 'Realtime open listener failed.');
+            }
+        };
+        nextSocket.onmessage = (event) => {
+            if (socket !== nextSocket || typeof event.data !== 'string')
+                return;
+            let message;
+            try {
+                message = parseRealtimeServerMessage(event.data);
+            }
+            catch (error) {
+                console.warn('Unable to parse NocoBase realtime message.', error);
+                return;
+            }
+            if (message.type === 'event') {
+                for (const listener of topicListeners.get(message.topic) ?? []) {
+                    notifyListener(() => listener(message), `Realtime listener for topic "${message.topic}" failed.`);
+                }
+            }
+            else if (message.type === 'error') {
+                for (const listener of errorListeners) {
+                    notifyListener(() => listener(message), 'Realtime error listener failed.');
+                }
+            }
+        };
+        nextSocket.onerror = () => {
+            // The close event owns reconnection because browsers do not expose a
+            // useful WebSocket error reason.
+        };
+        nextSocket.onclose = () => {
+            if (socket !== nextSocket)
+                return;
+            socket = undefined;
+            stopPing();
+            if (!manuallyClosed && topicListeners.size > 0)
+                scheduleReconnect();
+        };
+    }
+    function send(message) {
+        if (!client.connected)
+            return false;
+        socket?.send(encodeRealtimeClientMessage(message));
+        return true;
+    }
+    function sendSubscription(topic) {
+        send({ type: 'subscribe', id: `subscribe:${topic}`, topic });
+    }
+    function scheduleReconnect() {
+        clearReconnectTimer();
+        const maxInterval = options.reconnectMaxInterval ?? 30000;
+        const delay = Math.min(maxInterval, 1000 * 2 ** Math.min(reconnectCount, 5));
+        reconnectCount += 1;
+        reconnectTimer = setTimeout(connect, delay);
+    }
+    function clearReconnectTimer() {
+        if (reconnectTimer)
+            clearTimeout(reconnectTimer);
+        reconnectTimer = undefined;
+    }
+    function startPing() {
+        stopPing();
+        pingTimer = setInterval(() => send({ type: 'ping' }), options.pingInterval ?? 300000);
+    }
+    function stopPing() {
+        if (pingTimer)
+            clearInterval(pingTimer);
+        pingTimer = undefined;
+    }
+    return client;
+}
+function notifyListener(listener, message) {
+    try {
+        listener();
+    }
+    catch (error) {
+        console.error(message, error);
+    }
+}
+function toWebSocketUrl(value) {
+    const absolute = /^[a-z][a-z\d+.-]*:/i.test(value);
+    if (!absolute && typeof window === 'undefined')
+        return undefined;
+    const base = typeof window === 'undefined' ? undefined : window.location.href;
+    const url = new URL(value, base);
+    if (url.protocol === 'http:')
+        url.protocol = 'ws:';
+    if (url.protocol === 'https:')
+        url.protocol = 'wss:';
+    if (url.protocol !== 'ws:' && url.protocol !== 'wss:')
+        return undefined;
+    return url.toString();
+}
+//# sourceMappingURL=client.js.map

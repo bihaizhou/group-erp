@@ -1,0 +1,33 @@
+import { ApiError, type ApiErrorStatus, type ApiFieldViolation } from '@nocobase/app-server/router';
+import { type AppI18nError } from '@nocobase/i18n/server';
+import type { Context, ErrorHandler } from 'hono';
+/** The error domain of every notification route: the plugin's URL namespace. */
+export declare const NOTIFICATION_ERROR_DOMAIN = "notifications";
+export interface NotificationApiErrorOptions {
+    readonly status: ApiErrorStatus;
+    readonly reason: string;
+    /** Key in this plugin's server locale resources, such as `errors.logNotFound`. */
+    readonly key: string;
+    readonly params?: Readonly<Record<string, unknown>>;
+    readonly fieldViolations?: readonly ApiFieldViolation[];
+    readonly cause?: unknown;
+}
+/**
+ * Builds an `ApiError` whose developer `message` is the English text of `key` and whose `localizedMessage` is the same
+ * text translated into the request's locale, when the i18n middleware resolved one.
+ */
+export declare function notificationApiError(context: Context, options: NotificationApiErrorOptions): ApiError;
+/**
+ * Translates an `AppI18nError` raised by the notification runtime into the standard error. The runtime throws these
+ * because it does not know the request's locale; the route does.
+ */
+export declare function notificationApiErrorFromI18n(context: Context, error: AppI18nError): ApiError;
+/**
+ * The `onError` of every notification router. It translates the runtime's localized errors and leaves everything else to
+ * the framework's handler, which renders what it recognizes, such as `ApiError`, in the standard body, so a router
+ * answers the same way mounted on a bare Hono, and rethrows the rest to the application.
+ */
+export declare const notificationErrorHandler: ErrorHandler;
+/** Whether `error` is a notification runtime error this plugin's routes translate. */
+export declare function isNotificationI18nError(error: unknown): error is AppI18nError;
+//# sourceMappingURL=http-errors.d.ts.map

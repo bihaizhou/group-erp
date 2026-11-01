@@ -1,0 +1,8 @@
+import { Button as ButtonPrimitive } from '@base-ui/react/button';
+import type { ReactElement } from 'react';
+export type ButtonProps = ButtonPrimitive.Props & {
+    readonly size?: 'default' | 'xs' | 'sm' | 'lg' | 'icon' | 'icon-xs' | 'icon-sm' | 'icon-lg';
+    readonly variant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'destructive' | 'link';
+};
+export declare function Button({ className, variant, size, ...props }: ButtonProps): ReactElement;
+//# sourceMappingURL=button.d.ts.map

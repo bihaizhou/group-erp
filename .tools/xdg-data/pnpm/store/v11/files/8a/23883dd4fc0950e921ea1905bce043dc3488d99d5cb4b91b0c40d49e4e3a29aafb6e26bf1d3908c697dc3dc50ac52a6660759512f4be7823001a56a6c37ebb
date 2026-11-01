@@ -1,0 +1,52 @@
+import type { AppCliPlugin } from '../plugins/types.ts';
+import type { AppLocation } from './location.ts';
+/** An installed direct dependency whose `package.json` names a CLI entry. */
+export interface CliPackage {
+    readonly packageName: string;
+    /** The topic its commands mount under, from its name alone. */
+    readonly topic: string;
+    /** Where the package is installed in the application's `node_modules`. */
+    readonly directory: string;
+    /** `nocobase.cli.entry` as the package wrote it; checked when the entry is loaded, not when it is found. */
+    readonly entry: unknown;
+    /** The package's `exports`, which the entry is resolved through. */
+    readonly exports: unknown;
+}
+/** A direct dependency the application requires but whose `package.json` its `node_modules` does not hold. */
+export interface UnavailableCliPackage {
+    readonly packageName: string;
+    /** The topic it would own if it contributes commands, known from its name alone. */
+    readonly topic: string;
+}
+export interface CliPackages {
+    readonly installed: readonly CliPackage[];
+    readonly unavailable: readonly UnavailableCliPackage[];
+}
+/** Which CLI packages a run imports, and which only claim their topics. */
+export interface CliPackageSelection {
+    readonly load: readonly CliPackage[];
+    /** Topic to owning package, for the packages this run does not import. */
+    readonly claimed: Readonly<Record<string, string>>;
+}
+/** The CLI packages among the application's direct dependencies. Reads JSON only and never throws. */
+export declare function findCliPackages(location: AppLocation): CliPackages;
+/**
+ * The CLI packages a run with these arguments imports. A command under a package's topic imports that package; help
+ * for the whole tree and the commands that read it (`commands`) import every one. Every other run imports none and
+ * lets them claim their topics, so a collision is reported whichever command was run. A package the application also
+ * registers in `cli/plugins.ts` is left to that registration.
+ */
+export declare function selectCliPackages(found: CliPackages, options: {
+    /**
+     * The first word of the command line, before a space or a colon, or `undefined` for a bare `nocobase` or one that
+     * starts with a flag.
+     */
+    readonly head: string | undefined;
+    /** Whether the run reads the whole command tree. */
+    readonly wholeTree: boolean;
+    /** Packages `cli/plugins.ts` registers. */
+    readonly registered: ReadonlySet<string>;
+}): CliPackageSelection;
+/** Imports each package's entry and checks it is the CLI plugin that package defines. */
+export declare function loadCliPackages(packages: readonly CliPackage[]): Promise<AppCliPlugin[]>;
+//# sourceMappingURL=cli-packages.d.ts.map

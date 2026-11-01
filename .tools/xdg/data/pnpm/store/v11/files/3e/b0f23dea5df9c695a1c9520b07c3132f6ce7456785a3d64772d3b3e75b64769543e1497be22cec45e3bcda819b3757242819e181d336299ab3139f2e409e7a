@@ -1,0 +1,28 @@
+import { realtimeClientToken, useService } from '@nocobase/app-client';
+import { useEffect, useEffectEvent } from 'react';
+import { subscribeToMailInvalidations } from '../subscription.js';
+/** Coalesces provider events and reconnects without coupling subscriptions to view state. */
+export function useMailInvalidations(refresh, onFocus) {
+    const realtime = useService(realtimeClientToken);
+    const onChange = useEffectEvent(refresh);
+    const onWindowFocus = useEffectEvent(onFocus);
+    useEffect(() => {
+        let timer;
+        const scheduleRefresh = () => {
+            if (timer !== undefined)
+                return;
+            timer = setTimeout(() => {
+                timer = undefined;
+                if (onChange() === false)
+                    scheduleRefresh();
+            }, 100);
+        };
+        const unsubscribe = subscribeToMailInvalidations(realtime, window, scheduleRefresh, () => onWindowFocus());
+        return () => {
+            if (timer !== undefined)
+                clearTimeout(timer);
+            unsubscribe();
+        };
+    }, [realtime]);
+}
+//# sourceMappingURL=use-mail-invalidations.js.map

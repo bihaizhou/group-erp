@@ -1,0 +1,11 @@
+import { type NotificationProviderDefinition } from '@nocobase/app-plugin-notification';
+import type { PreparedImMessage } from '../channel.js';
+export interface DingTalkWebhookProviderConfig {
+    readonly provider: 'dingtalk-webhook';
+    readonly enabled?: boolean;
+    readonly webhookUrl: string;
+    readonly secret?: string;
+}
+export declare function defineDingTalkWebhookProviderConfig(input: Omit<DingTalkWebhookProviderConfig, 'provider'>): DingTalkWebhookProviderConfig;
+export declare function createDingTalkWebhookProviderDefinition(): NotificationProviderDefinition<DingTalkWebhookProviderConfig, PreparedImMessage>;
+//# sourceMappingURL=dingtalk.d.ts.map

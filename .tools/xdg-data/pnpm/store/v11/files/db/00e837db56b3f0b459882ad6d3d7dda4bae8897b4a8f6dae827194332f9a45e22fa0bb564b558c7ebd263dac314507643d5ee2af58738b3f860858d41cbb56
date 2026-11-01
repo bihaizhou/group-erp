@@ -1,0 +1,3 @@
+/** Change the selected blocks using the browser's native editing command. */
+export declare function setMailEditorHeading(editor: HTMLElement, tag: string): void;
+//# sourceMappingURL=mail-editor-headings.d.ts.map

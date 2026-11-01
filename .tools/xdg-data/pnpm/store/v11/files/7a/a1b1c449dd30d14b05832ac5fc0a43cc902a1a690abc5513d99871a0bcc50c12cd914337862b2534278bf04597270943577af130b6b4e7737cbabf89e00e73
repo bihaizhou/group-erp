@@ -1,0 +1,57 @@
+import { COLLECTION_ARTIFACT_FORMAT_VERSION, } from './format.js';
+import { stableJson } from './stable-json.js';
+export function serializeCollectionArtifact(input) {
+    const collection = {
+        formatVersion: COLLECTION_ARTIFACT_FORMAT_VERSION,
+        name: input.name,
+        collection: input.resolution.collection,
+        warnings: sortWarnings(input.resolution.warnings),
+    };
+    const metadata = {
+        formatVersion: COLLECTION_ARTIFACT_FORMAT_VERSION,
+        name: input.name,
+        document: input.metadata ?? null,
+    };
+    const schema = {
+        formatVersion: COLLECTION_ARTIFACT_FORMAT_VERSION,
+        name: input.name,
+        physical: input.physical,
+    };
+    return {
+        collection: stableJson(collection),
+        metadata: stableJson(metadata),
+        schema: stableJson(schema),
+    };
+}
+export function serializeCollectionArtifactManifest(input) {
+    const manifest = {
+        formatVersion: COLLECTION_ARTIFACT_FORMAT_VERSION,
+        generated: true,
+        connection: input.connection,
+        dialect: input.dialect,
+        schemaManagement: input.schemaManagement,
+        migrationHead: input.migrationHead,
+        collections: [...input.collections].sort(),
+    };
+    return stableJson(manifest);
+}
+/**
+ * Warnings are a set: the resolver reports them in the order it happened to
+ * visit fields, which is not part of their meaning. Field, index and relation
+ * arrays inside the definition are left alone — their order is.
+ */
+function sortWarnings(warnings) {
+    return [...warnings].sort((a, b) => {
+        const left = warningSortKey(a);
+        const right = warningSortKey(b);
+        return left < right ? -1 : left > right ? 1 : 0;
+    });
+}
+function warningSortKey(warning) {
+    return [
+        warning.code,
+        warning.path?.join('.') ?? '',
+        warning.aspect ?? '',
+        warning.message,
+    ].join('\x00');
+}

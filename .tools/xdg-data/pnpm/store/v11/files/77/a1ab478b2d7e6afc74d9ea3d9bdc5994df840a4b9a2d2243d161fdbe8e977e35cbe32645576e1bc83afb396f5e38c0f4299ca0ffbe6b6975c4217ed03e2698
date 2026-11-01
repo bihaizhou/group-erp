@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "files": {
+    "202608190002_create_notification_in_app_items.js": {
+      "sourceChecksum": "852e0b7f98d8dd12ad843e0f27cb22ad9fb4b3ab70f4f3a57fe1f933101d1cab",
+      "artifactChecksum": "21f09ad9f264a3ebc39d44713c2aff7fe2636fb8b1f90f3685a95c384880e677"
+    },
+    "202609180001_notification_in_app_instant_columns.js": {
+      "sourceChecksum": "2a1708c4203b2fc60ffe3739cf508bf4e848e631018ff90258389142f8730c30",
+      "artifactChecksum": "f4bb3cf4ebd89dfaf825b8ba3ad766494f1ceaf36c1fabfdff0a67eb78573a66"
+    },
+    "202609200002_notification_in_app_target.js": {
+      "sourceChecksum": "654b8a6471ed5bbd101d8387264d53dc5d278deb0bf925196001c19caec38f77",
+      "artifactChecksum": "74b96f8ed27f381c39c8a114adc42bc1577b9f974b4954662d7e06b41ea5f52d"
+    }
+  }
+}

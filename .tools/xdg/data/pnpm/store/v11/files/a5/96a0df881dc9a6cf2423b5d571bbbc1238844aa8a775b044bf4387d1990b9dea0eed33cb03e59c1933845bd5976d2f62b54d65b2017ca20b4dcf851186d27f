@@ -1,0 +1,50 @@
+export function resolveDatabaseFields(configs, action) {
+    const fields = unionFields(configs.map((config) => config.fields));
+    return action === 'read'
+        ? { input: [], output: fields }
+        : { input: fields, output: [] };
+}
+/**
+ * The field allowlist one action's Policy node carries: what a read returns,
+ * and what a write accepts. `'*'` becomes the Collection's fields because a
+ * Policy node reads an absent allowlist as no fields rather than as every one.
+ * For a write that is every field db lets a write name: a Policy naming an
+ * auto-increment, generated or version field is refused as a whole, so `'*'`
+ * on such a Collection would otherwise fail every write. A primary key with a
+ * database default is the database's to assign too, so a create omits it.
+ */
+export function resolveActionFields(action, fields, collection) {
+    if (action === 'read')
+        return fields.output === '*' ? collection.fields : fields.output;
+    if (fields.input !== '*')
+        return fields.input;
+    return action === 'create' && collection.generatedPrimaryKey
+        ? collection.writableFields.filter((field) => field !== collection.primaryKey)
+        : collection.writableFields;
+}
+export function databaseFieldsAllowed(requested, allowed) {
+    const includes = (fields, permitted) => fields === undefined ||
+        permitted === '*' ||
+        fields.every((field) => permitted.includes(field));
+    return (includes(requested?.input, allowed.input) &&
+        includes(requested?.output, allowed.output) &&
+        includes(requested?.filter, allowed.output) &&
+        includes(requested?.sort, allowed.output) &&
+        includes(requested?.group, allowed.output));
+}
+export function databaseCollectionFieldsKnown(collection, requested) {
+    const registered = new Set(collection.fields);
+    return [
+        requested?.input,
+        requested?.output,
+        requested?.filter,
+        requested?.sort,
+        requested?.group,
+    ].every((fields) => fields === undefined || fields.every((field) => registered.has(field)));
+}
+function unionFields(values) {
+    return values.includes('*')
+        ? '*'
+        : [...new Set(values.flatMap((value) => value ?? []))];
+}
+//# sourceMappingURL=field-access.js.map

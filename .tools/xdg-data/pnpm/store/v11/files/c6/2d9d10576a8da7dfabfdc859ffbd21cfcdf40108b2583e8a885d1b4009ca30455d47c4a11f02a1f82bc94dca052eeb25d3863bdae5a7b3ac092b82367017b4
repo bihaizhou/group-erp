@@ -1,0 +1,5 @@
+export declare class KeyedLock {
+    private readonly tails;
+    run<T>(key: string, operation: () => T | Promise<T>): Promise<T>;
+}
+//# sourceMappingURL=keyed-lock.d.ts.map

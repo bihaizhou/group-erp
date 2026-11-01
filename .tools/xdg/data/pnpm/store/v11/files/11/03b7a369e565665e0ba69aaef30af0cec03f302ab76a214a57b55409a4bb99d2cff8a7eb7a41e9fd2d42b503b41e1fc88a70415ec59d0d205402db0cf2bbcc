@@ -1,0 +1,233 @@
+import { validateNotificationTarget, } from '@nocobase/app-plugin-notification';
+import { randomUUID } from 'node:crypto';
+export class MemoryInAppStore {
+    items = new Map();
+    async deliver(input) {
+        const existing = [...this.items.values()].find((item) => item.deliveryId === input.deliveryId);
+        if (existing)
+            return existing;
+        const item = {
+            id: randomUUID(),
+            deliveryId: input.deliveryId,
+            notificationId: input.notificationId,
+            userId: input.userId,
+            title: input.message.title,
+            body: input.message.body,
+            target: validateNotificationTarget(input.message.target),
+            createdAt: input.createdAt,
+            updatedAt: input.createdAt,
+        };
+        this.items.set(item.id, item);
+        return item;
+    }
+    async list(input) {
+        return [...this.items.values()]
+            .filter((item) => item.userId === input.userId &&
+            (!input.unreadOnly || !item.readAt) &&
+            (!input.before || isBefore(item, input.before)))
+            .sort(compareItemsDescending)
+            .slice(0, input.limit ?? 25);
+    }
+    async countUnread(userId) {
+        return (await this.list({
+            userId,
+            unreadOnly: true,
+            limit: Number.MAX_SAFE_INTEGER,
+        })).length;
+    }
+    async update(input) {
+        const item = this.items.get(input.id);
+        if (!item || item.userId !== input.userId)
+            return undefined;
+        const next = {
+            ...item,
+            readAt: input.action === 'read'
+                ? new Date().toISOString()
+                : input.action === 'unread'
+                    ? undefined
+                    : item.readAt,
+            updatedAt: new Date().toISOString(),
+        };
+        if (input.action === 'delete')
+            this.items.delete(item.id);
+        else
+            this.items.set(item.id, next);
+        return next;
+    }
+    async markAllRead(userId) {
+        let count = 0;
+        for (const item of this.items.values())
+            if (item.userId === userId && !item.readAt) {
+                this.items.set(item.id, {
+                    ...item,
+                    readAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                });
+                count++;
+            }
+        return count;
+    }
+}
+export class DatabaseInAppStore {
+    database;
+    constructor(database) {
+        this.database = database;
+    }
+    async deliver(input) {
+        const item = {
+            id: randomUUID(),
+            deliveryId: input.deliveryId,
+            notificationId: input.notificationId,
+            userId: input.userId,
+            title: input.message.title,
+            body: input.message.body,
+            target: validateNotificationTarget(input.message.target),
+            createdAt: input.createdAt,
+            updatedAt: input.createdAt,
+        };
+        try {
+            await this.database
+                .query()
+                .insertInto('notificationInAppItems')
+                .values(toRow(item))
+                .execute();
+        }
+        catch (error) {
+            const existing = await this.database
+                .query()
+                .selectFrom('notificationInAppItems')
+                .selectAll()
+                .where('deliveryId', '=', input.deliveryId)
+                .executeTakeFirst();
+            if (existing)
+                return fromRow(existing);
+            throw error;
+        }
+        return item;
+    }
+    async list(input) {
+        let query = this.database
+            .query()
+            .selectFrom('notificationInAppItems')
+            .selectAll()
+            .where('userId', '=', input.userId)
+            .orderBy('createdAt', 'desc')
+            .orderBy('id', 'desc')
+            .limit(input.limit ?? 25);
+        if (input.unreadOnly)
+            query = query.where('readAt', 'is', null);
+        if (input.before)
+            query = query.where((builder) => builder.or([
+                builder('createdAt', '<', input.before?.createdAt),
+                builder.and([
+                    builder('createdAt', '=', input.before?.createdAt),
+                    builder('id', '<', input.before?.id),
+                ]),
+            ]));
+        return (await query.execute()).map(fromRow);
+    }
+    async countUnread(userId) {
+        const rows = await this.database
+            .query()
+            .selectFrom('notificationInAppItems')
+            .select(({ fn }) => [fn.countAll().as('count')])
+            .where('userId', '=', userId)
+            .where('readAt', 'is', null)
+            .executeTakeFirst();
+        return Number(rows?.count ?? 0);
+    }
+    async update(input) {
+        const now = new Date().toISOString();
+        if (input.action === 'delete') {
+            const current = await this.database
+                .query()
+                .selectFrom('notificationInAppItems')
+                .selectAll()
+                .where('id', '=', input.id)
+                .where('userId', '=', input.userId)
+                .executeTakeFirst();
+            if (!current)
+                return undefined;
+            const result = await this.database
+                .query()
+                .deleteFrom('notificationInAppItems')
+                .where('id', '=', input.id)
+                .where('userId', '=', input.userId)
+                .execute();
+            return result.deletedCount === 1
+                ? { ...fromRow(current), updatedAt: now }
+                : undefined;
+        }
+        const set = input.action === 'read'
+            ? { readAt: now, updatedAt: now }
+            : { readAt: null, updatedAt: now };
+        const result = await this.database
+            .query()
+            .updateTable('notificationInAppItems')
+            .set(set)
+            .where('id', '=', input.id)
+            .where('userId', '=', input.userId)
+            .execute();
+        if (result.updatedCount !== 1)
+            return undefined;
+        const row = await this.database
+            .query()
+            .selectFrom('notificationInAppItems')
+            .selectAll()
+            .where('id', '=', input.id)
+            .executeTakeFirst();
+        return row ? fromRow(row) : undefined;
+    }
+    async markAllRead(userId) {
+        const result = await this.database
+            .query()
+            .updateTable('notificationInAppItems')
+            .set({
+            readAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        })
+            .where('userId', '=', userId)
+            .where('readAt', 'is', null)
+            .execute();
+        return result.updatedCount ?? 0;
+    }
+}
+export function createInAppStore(database) {
+    return database ? new DatabaseInAppStore(database) : new MemoryInAppStore();
+}
+function fromRow(row) {
+    return {
+        id: row.id,
+        deliveryId: row.deliveryId,
+        notificationId: row.notificationId,
+        userId: row.userId,
+        title: row.title,
+        body: row.body,
+        target: validateNotificationTarget(row.target),
+        readAt: row.readAt ?? undefined,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+    };
+}
+function toRow(item) {
+    return {
+        id: item.id,
+        deliveryId: item.deliveryId,
+        notificationId: item.notificationId,
+        userId: item.userId,
+        title: item.title,
+        body: item.body,
+        target: item.target ?? null,
+        readAt: item.readAt,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+    };
+}
+function compareItemsDescending(a, b) {
+    return b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id);
+}
+function isBefore(item, cursor) {
+    return (item.createdAt < cursor.createdAt ||
+        (item.createdAt === cursor.createdAt && item.id < cursor.id));
+}
+//# sourceMappingURL=store.js.map

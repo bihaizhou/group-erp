@@ -1,0 +1,13 @@
+import { type CliApplication, type CliBrand } from './cli-brand.ts';
+export interface CliLinkResult {
+    readonly bin: string;
+    readonly version: string;
+    /** The command: the link that was made. */
+    readonly command: string;
+    /** The package the link runs. */
+    readonly packageDir: string;
+    readonly skills: readonly string[];
+}
+/** Links the application's CLI `brand` as a command in `binDir`. */
+export declare function linkCli(application: CliApplication, brand: CliBrand, binDir: string): Promise<CliLinkResult>;
+//# sourceMappingURL=cli-link.d.ts.map

@@ -1,0 +1,3 @@
+import type { FieldDefinition } from '../collection/types.js';
+import { type RepositoryErrorCode } from './errors.js';
+export declare function normalizeEnumValue(field: FieldDefinition, value: unknown, code?: RepositoryErrorCode, path?: readonly (string | number)[]): string | null;

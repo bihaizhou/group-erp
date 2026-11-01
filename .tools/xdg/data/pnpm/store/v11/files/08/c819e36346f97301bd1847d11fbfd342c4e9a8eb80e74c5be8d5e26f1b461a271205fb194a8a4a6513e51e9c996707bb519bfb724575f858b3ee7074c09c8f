@@ -1,0 +1,59 @@
+import type { PreparedJob } from '../message.js';
+import type { QueueRuntime, QueueRuntimeContext } from '../runtime.js';
+import type { RateLimitOptions } from '../types.js';
+/**
+ * One logical queue held in this process, following BullMQ's observable
+ * rules rather than its internals: jobs without a priority run first and in
+ * order, then prioritized ones by priority; retries follow the backoff; the
+ * rate limit counts starts per window. Unfinished jobs reach the state file
+ * only at close.
+ */
+export declare class MemoryQueueRuntime implements QueueRuntime {
+    private readonly context;
+    private readonly file;
+    /** Every unfinished job: waiting, delayed and active. */
+    private readonly jobs;
+    private waiting;
+    private readonly timers;
+    private readonly active;
+    private readonly running;
+    private readonly completed;
+    private readonly failed;
+    private readonly finished;
+    private readonly failures;
+    private sequence;
+    private concurrency;
+    private rateLimit;
+    private windowStart;
+    private windowCount;
+    private rateTimer;
+    private consuming;
+    private stopping;
+    private opened;
+    private pumpQueued;
+    constructor(context: QueueRuntimeContext);
+    open(): Promise<void>;
+    add(jobs: readonly PreparedJob[]): Promise<string[]>;
+    startConsuming(concurrency: number): Promise<void>;
+    pauseConsuming(): Promise<void>;
+    setConcurrency(concurrency: number): void;
+    setRateLimit(rateLimit: RateLimitOptions | null): Promise<void>;
+    drain(delayed: boolean): Promise<void>;
+    stopConsuming(): Promise<void>;
+    close(): Promise<void>;
+    /** Interrupted jobs first, then waiting ones in order, then delayed ones. */
+    private snapshot;
+    private restore;
+    private nextSequence;
+    /** Non-prioritized jobs first, then by priority, then in sequence. */
+    private enqueue;
+    private delay;
+    private schedulePump;
+    private pump;
+    private takeRateLimitSlot;
+    private clearRateTimer;
+    private execute;
+    private finish;
+    private trim;
+}
+//# sourceMappingURL=runtime.d.ts.map

@@ -1,0 +1,55 @@
+import type { AuthorizationTitle } from './titles.js';
+import type { Principal } from './types.js';
+export interface RecordAccessContext<P = unknown> {
+    principal: Principal;
+    collection: string;
+    action: string;
+    params: P;
+}
+/** A named way to select records. The database adapter owns the result. */
+export interface RecordAccessDefinition<P = unknown, R = unknown> {
+    readonly key: string;
+    readonly title?: AuthorizationTitle;
+    readonly description?: AuthorizationTitle;
+    /** Collection names it applies to; `*` applies to every collection. */
+    readonly collections: readonly string[];
+    readonly paramsSchema?: unknown;
+    resolve(this: void, context: RecordAccessContext<P>): R | Promise<R>;
+}
+/** The serializable half of a definition, for type-safe grants and options. */
+export interface RecordAccessReference<K extends string = string> {
+    readonly key: K;
+    readonly collections: readonly string[];
+}
+type RecordAccessMetadata<K extends string> = Omit<RecordAccessDefinition, 'resolve' | 'key'> & {
+    key: K;
+};
+export declare class RecordAccessBuilder<K extends string, P = unknown> {
+    private readonly metadata;
+    private readonly resolveFn;
+    constructor(metadata: RecordAccessMetadata<K>, resolve?: RecordAccessDefinition<P>['resolve']);
+    title(title: AuthorizationTitle): RecordAccessBuilder<K, P>;
+    description(description: AuthorizationTitle): RecordAccessBuilder<K, P>;
+    collections(...collections: string[]): RecordAccessBuilder<K, P>;
+    /** Declares the params type; the optional schema describes it to editors. */
+    params<T>(paramsSchema?: unknown): RecordAccessBuilder<K, T>;
+    resolver(resolve: (context: RecordAccessContext<P>) => unknown): RecordAccessBuilder<K, P>;
+    build(): RecordAccessDefinition<P> & {
+        readonly key: K;
+    };
+    reference(): RecordAccessReference<K>;
+}
+/** Builds a definition; `authz.recordAccess.define` registers it. */
+export declare function defineRecordAccess<const K extends string, P = unknown>(key: K, configure: (access: RecordAccessBuilder<K>) => RecordAccessBuilder<K, P>): RecordAccessBuilder<K, P>;
+export declare class RecordAccessRegistry {
+    private readonly entries;
+    define<K extends string, P>(definition: (RecordAccessDefinition<P> & {
+        readonly key: K;
+    }) | RecordAccessBuilder<K, P>): RecordAccessReference<K>;
+    get(key: string): RecordAccessDefinition | undefined;
+    list(): readonly RecordAccessDefinition[];
+    listFor(collection: string): readonly RecordAccessDefinition[];
+    resolve(key: string, context: RecordAccessContext): Promise<unknown>;
+}
+export {};
+//# sourceMappingURL=record-access.d.ts.map

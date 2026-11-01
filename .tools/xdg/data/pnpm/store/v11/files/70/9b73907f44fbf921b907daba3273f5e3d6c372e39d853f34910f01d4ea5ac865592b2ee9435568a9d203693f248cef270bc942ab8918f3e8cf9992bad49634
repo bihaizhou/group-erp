@@ -1,0 +1,29 @@
+import { type MailLogger } from '../logging.js';
+import type { MailProviderAdapterResolver } from '../contracts/provider.js';
+import type { MailSyncCursor } from '../../shared/mail.js';
+import type { MailStore, MailSyncMailboxTaskPayload } from '../contracts/persistence.js';
+import { type MailMessageChangeNotifier } from '../realtime.js';
+export interface SyncMailboxOperationDependencies {
+    readonly logger?: MailLogger;
+    readonly store: MailStore;
+    readonly adapters: MailProviderAdapterResolver;
+    readonly leaseMs?: number;
+    readonly messageChangeNotifier?: MailMessageChangeNotifier;
+}
+export declare class SyncMailboxOperation {
+    private readonly dependencies;
+    constructor(dependencies: SyncMailboxOperationDependencies);
+    execute(payload: MailSyncMailboxTaskPayload): Promise<void>;
+    private executeTask;
+    private failSyncRun;
+    private logFields;
+    private commitSyncStep;
+    private isCancelledOrRemoved;
+    private startLeaseHeartbeat;
+    private executeStep;
+    private prepare;
+    private importHistoryPage;
+    private importChangePage;
+}
+export type SyncCursor = MailSyncCursor;
+//# sourceMappingURL=sync-mailbox.d.ts.map

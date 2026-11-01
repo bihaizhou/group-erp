@@ -1,0 +1,18 @@
+/** Tracks work from admission through completion, including direct runtime calls. */
+export class MailBackgroundTasks {
+    pending = new Set();
+    closed = false;
+    run(task, closedResult) {
+        if (this.closed)
+            return Promise.resolve(closedResult);
+        const promise = Promise.resolve().then(task);
+        this.pending.add(promise);
+        void promise.then(() => this.pending.delete(promise), () => this.pending.delete(promise));
+        return promise;
+    }
+    async close() {
+        this.closed = true;
+        await Promise.allSettled([...this.pending]);
+    }
+}
+//# sourceMappingURL=background-tasks.js.map

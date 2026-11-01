@@ -1,0 +1,73 @@
+{
+  "name": "@nocobase/app-plugin-notification-providers",
+  "displayName": "Notification Providers App Plugin",
+  "description": "Provides built-in notification Channels and Providers.",
+  "version": "0.2.0-beta.12",
+  "type": "module",
+  "prettier": "@nocobase/dev-config/prettier",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "CHANGELOG.md",
+    "README.md"
+  ],
+  "main": "./dist/server/index.js",
+  "types": "./dist/server/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./email": {
+      "types": "./dist/server/email/index.d.ts",
+      "import": "./dist/server/email/index.js"
+    },
+    "./im": {
+      "types": "./dist/server/im/index.d.ts",
+      "import": "./dist/server/im/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@nocobase/mailer": "^0.1.0-beta.0"
+  },
+  "peerDependencies": {
+    "@nocobase/app-plugin-notification": "^1.0.0-beta.27",
+    "@nocobase/service-provider": "^0.0.2-beta.2",
+    "@nocobase/i18n": "^1.0.0-beta.7",
+    "@nocobase/app-server": "^2.0.0-beta.6"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "eslint": "^10.0.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10",
+    "nodemailer": "^9.0.5",
+    "resend": "^6.22.1",
+    "@types/nodemailer": "^8.0.1",
+    "@nocobase/dev-config": "0.1.0-beta.22"
+  },
+  "scripts": {
+    "clean": "node ./scripts/clean-dist.mjs",
+    "build": "node ./scripts/clean-dist.mjs && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.type-tests.json --noEmit",
+    "test": "vitest run",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix --max-warnings 0",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
+    "fix": "pnpm lint:fix && pnpm format"
+  }
+}

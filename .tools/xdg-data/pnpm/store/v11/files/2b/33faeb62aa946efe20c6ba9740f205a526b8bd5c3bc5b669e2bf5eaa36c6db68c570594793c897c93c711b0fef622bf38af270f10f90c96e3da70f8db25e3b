@@ -1,0 +1,6 @@
+import { BackendScheduleExecutor } from '../executor.js';
+import { defaultRedisFactories, RedisScheduleBackend, } from './backend.js';
+export function createRedisScheduleExecutor(config, dependencies, factories = defaultRedisFactories) {
+    return new BackendScheduleExecutor(new RedisScheduleBackend(config, dependencies.logger, factories), dependencies.logger);
+}
+//# sourceMappingURL=index.js.map

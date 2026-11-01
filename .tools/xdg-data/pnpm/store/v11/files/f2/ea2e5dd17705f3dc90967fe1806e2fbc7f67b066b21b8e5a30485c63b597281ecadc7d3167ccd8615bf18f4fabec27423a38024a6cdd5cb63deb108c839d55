@@ -1,0 +1,3 @@
+import type { RepositoryRecord } from '../types.js';
+/** Private disk buffering preserves driver value types without retaining all roots in memory. */
+export declare function spoolRows(source: AsyncIterable<RepositoryRecord>, reverse: boolean): AsyncGenerator<RepositoryRecord>;

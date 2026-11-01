@@ -1,0 +1,55 @@
+import type { FilterAst } from '@nocobase/db';
+import type { AuthorizationCollection, DatabaseRecordAccess, ResolveAuthorizationCollection } from './model.js';
+import type { ReadPermission, RelationWritePermission } from './permissions.js';
+import { type DatabaseScope } from './scope.js';
+/** Resolved authorization output; structurally compatible with DB, independently owned. */
+export interface ResolvedReadPermission {
+    scope: true | FilterAst;
+    fields: readonly string[];
+    relations: Readonly<Record<string, ResolvedReadPermission>>;
+}
+export interface ResolvedRelationShape {
+    fields: readonly string[];
+    relations: Readonly<Record<string, ResolvedRelationWritePermission>>;
+    through?: false | {
+        fields: readonly string[];
+    };
+}
+export interface ResolvedThroughPermission {
+    through: false | {
+        fields: readonly string[];
+    };
+}
+export interface ResolvedRelationWritePermission {
+    scope: true | FilterAst;
+    create?: ResolvedRelationShape;
+    update?: ResolvedRelationShape;
+    upsert?: {
+        create: ResolvedRelationShape;
+        update: ResolvedRelationShape;
+    };
+    connect?: ResolvedThroughPermission;
+    disconnect?: Readonly<Record<string, never>>;
+    set?: ResolvedThroughPermission;
+    delete?: Readonly<Record<string, never>>;
+}
+export type ResolvedRelations = Readonly<Record<string, ResolvedReadPermission | ResolvedRelationWritePermission>>;
+interface RelationResolution {
+    resolveCollection: ResolveAuthorizationCollection;
+    resolveScope: (collection: AuthorizationCollection, rules: readonly DatabaseRecordAccess[]) => Promise<DatabaseScope>;
+}
+export declare class RelationPermissionResolver {
+    private readonly options;
+    constructor(options: RelationResolution);
+    resolve(source: AuthorizationCollection, permissions: false | Readonly<Record<string, ReadPermission | RelationWritePermission>> | undefined, action: string, depth?: number): Promise<ResolvedRelations>;
+    private shape;
+    private through;
+}
+/**
+ * DB has one target scope per relation. Intersect contributing scopes before
+ * uniting capabilities, so a capability never escapes its original scope.
+ * This is conservative when separate grants have different target scopes.
+ */
+export declare function mergeRelationPermissions(values: readonly ResolvedRelations[], action: string): ResolvedRelations;
+export {};
+//# sourceMappingURL=relation-access.d.ts.map

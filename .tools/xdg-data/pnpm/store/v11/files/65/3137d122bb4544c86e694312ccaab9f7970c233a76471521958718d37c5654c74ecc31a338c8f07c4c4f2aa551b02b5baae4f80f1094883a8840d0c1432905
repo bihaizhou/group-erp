@@ -1,0 +1,40 @@
+import type { DatabaseManager } from '@nocobase/db';
+import type { LifecycleStore } from './store.js';
+export interface RepositoryLifecycleStoreOptions {
+    /** The connection holding the records and the lifecycle collections. */
+    readonly connection?: string;
+    /** Collection names for the log and the effect runs; see {@link LIFECYCLE_COLLECTIONS}. */
+    readonly collections?: {
+        readonly transitions: string;
+        readonly effectRuns: string;
+    };
+}
+/**
+ * A store over `@nocobase/db` Repositories. Inside a transaction its
+ * `transactionHandle` is the transaction's `DatabaseConnection`: a service
+ * that reads from a guard must use it, because on SQLite the transaction
+ * holds the only connection and a read elsewhere would wait for it forever.
+ * A transaction `within` a caller's transaction connection is a savepoint on
+ * it, so a lifecycle call can join the caller's transaction; the connection
+ * must be a running transaction on the connection this store writes to.
+ * Records are read and written through the lifecycle's own collection, so
+ * its field types are encoded per dialect the way every other write to that
+ * collection is.
+ *
+ * Each log entry also stores `requestKey`, a non-null string column: its
+ * `requestId`, or `$v:<version>` without one (see `transitionRequestKey`).
+ * The log collection declares unique indexes on `(lifecycle, recordId,
+ * version)` and `(lifecycle, recordId, requestKey)`, the same on every
+ * dialect.
+ *
+ * Each effect run also stores `continuationDueAt`, a nullable `datetimeTz`
+ * column alongside the nullable `continuation` (json): the `dueAt` of a
+ * waiting continuation, and null when none waits, which is how the sweep
+ * finds the waiting runs that are due without filtering on JSON, and what a
+ * write that clears or rewrites a continuation is conditioned on. A second
+ * nullable `datetimeTz` column, `continuationAbandonedAt`, holds the
+ * `abandonedAt` of a continuation the sweep gave up on, so those runs can
+ * be listed, and kept from `prune()`, the same way.
+ */
+export declare function createRepositoryLifecycleStore(database: DatabaseManager, options?: RepositoryLifecycleStoreOptions): LifecycleStore;
+//# sourceMappingURL=repository-store.d.ts.map

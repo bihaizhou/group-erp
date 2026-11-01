@@ -1,0 +1,5 @@
+import { type NotificationProviderDefinition } from '@nocobase/app-plugin-notification';
+import type { PreparedEmailMessage, ResendProviderConfig } from '../types.js';
+export declare function defineResendProviderConfig(input: Omit<ResendProviderConfig, 'provider'>): ResendProviderConfig;
+export declare function createResendProviderDefinition(): NotificationProviderDefinition<ResendProviderConfig, PreparedEmailMessage>;
+//# sourceMappingURL=resend.d.ts.map

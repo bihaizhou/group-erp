@@ -1,0 +1,83 @@
+const NAMESPACE = 'databaseExplorer';
+/**
+ * The largest page the server accepts. `allCollections` reads whole listings,
+ * so it asks for the most it may to keep the number of round trips down.
+ */
+const MAX_PAGE_SIZE = 100;
+/** Typed reads against the plugin's endpoints. Every call is a GET; there is nothing to write. */
+export class DatabaseExplorerClient {
+    api;
+    constructor(api) {
+        this.api = api;
+    }
+    /** Every configured connection, with the default one named. */
+    async connections() {
+        const { data } = await this.api.request({ path: `${NAMESPACE}/connections`, query: {} });
+        return {
+            default: data.find((item) => item.isDefault)?.name ?? null,
+            items: data,
+        };
+    }
+    async collections(connection, query = {}) {
+        const { data, meta } = await this.api.request({
+            path: `${this.connectionPath(connection)}/collections`,
+            query: {
+                ...(query.pageSize === undefined ? {} : { pageSize: query.pageSize }),
+                // Passed back exactly as issued: the token encodes the filter it was
+                // created under and the server rejects a rewritten one.
+                ...(query.pageToken === undefined
+                    ? {}
+                    : { pageToken: query.pageToken }),
+            },
+        });
+        return {
+            items: data,
+            ...(meta?.nextPageToken === undefined
+                ? {}
+                : { nextPageToken: meta.nextPageToken }),
+        };
+    }
+    /**
+     * Reads every collection on a connection, following the cursor to the end.
+     *
+     * The page filters by name in the browser, which is only honest if it is
+     * filtering the whole set: stopping at the first page would hide collections
+     * a connection genuinely has and let a search come back empty for one of
+     * them. `maxPages` bounds the walk so a connection that keeps issuing
+     * tokens cannot hold the request open forever; the default reads up to
+     * 10,000 collections.
+     */
+    async allCollections(connection, maxPages = 100) {
+        const items = [];
+        let pageToken;
+        for (let page = 0; page < maxPages; page += 1) {
+            const result = await this.collections(connection, {
+                pageSize: MAX_PAGE_SIZE,
+                ...(pageToken === undefined ? {} : { pageToken }),
+            });
+            items.push(...result.items);
+            pageToken = result.nextPageToken;
+            if (pageToken === undefined)
+                return { items, truncated: false };
+        }
+        return { items, truncated: true };
+    }
+    collection(connection, collection) {
+        return this.get(this.collectionPath(connection, collection));
+    }
+    physicalCollection(connection, collection) {
+        return this.get(`${this.collectionPath(connection, collection)}/physicalSchema`);
+    }
+    connectionPath(connection) {
+        return `${NAMESPACE}/connections/${encodeURIComponent(connection)}`;
+    }
+    collectionPath(connection, collection) {
+        return `${this.connectionPath(connection)}/collections/${encodeURIComponent(collection)}`;
+    }
+    get(path) {
+        return this.api
+            .request({ path, query: {} })
+            .then(({ data }) => data);
+    }
+}
+//# sourceMappingURL=database-explorer-client.js.map

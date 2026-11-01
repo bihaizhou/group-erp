@@ -1,0 +1,26 @@
+import { AppCommand } from '../../context.ts';
+import { type Command } from '@oclif/core';
+import type { Interfaces } from '@oclif/core';
+import { type AppCollectionsDoctorConnectionResult } from '@nocobase/app-server/database';
+/** What `collections doctor` returns, which is `result` under `--json`. */
+export interface CollectionsDoctorResult {
+    /** `not-configured` when no database is configured, so nothing was checked; absent otherwise. */
+    readonly state?: 'not-configured';
+    /** Whether --fix deleted the records whose table is gone. */
+    readonly fix: boolean;
+    /** One entry per connection checked. */
+    readonly results: readonly AppCollectionsDoctorConnectionResult[];
+}
+export default class CollectionsDoctor extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static flags: {
+        all: Interfaces.BooleanFlag<boolean>;
+        connection: Interfaces.OptionFlag<string | undefined>;
+        fix: Interfaces.BooleanFlag<boolean>;
+    };
+    run(): Promise<CollectionsDoctorResult>;
+    private report;
+}
+//# sourceMappingURL=doctor.d.ts.map

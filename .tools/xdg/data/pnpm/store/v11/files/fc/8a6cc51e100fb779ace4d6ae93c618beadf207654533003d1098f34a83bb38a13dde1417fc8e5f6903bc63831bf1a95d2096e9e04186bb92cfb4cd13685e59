@@ -1,0 +1,18 @@
+import { type PropsWithChildren, type ReactElement } from 'react';
+import type { AuthClient } from './auth-client.js';
+export interface AuthenticationContextValue {
+    readonly client: AuthClient;
+    readonly session: AuthClient['$Infer']['Session'] | null;
+    readonly isPending: boolean;
+    readonly refresh: () => Promise<void>;
+}
+export declare function AuthenticationProvider({ children, }: PropsWithChildren): ReactElement;
+export declare function useAuthentication(): AuthenticationContextValue;
+export declare function useAuthenticationClient(): AuthClient;
+export default AuthenticationProvider;
+export declare function AuthenticationGuard({ mode, children, }: PropsWithChildren<{
+    mode: 'required' | 'guest';
+}>): ReactElement | null;
+export declare function RequiredAuthentication({ children, }: PropsWithChildren): ReactElement | null;
+export declare function GuestAuthentication({ children, }: PropsWithChildren): ReactElement | null;
+//# sourceMappingURL=auth-provider.d.ts.map

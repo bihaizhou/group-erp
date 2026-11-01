@@ -1,0 +1,20 @@
+import type { CollectionMetadataStore } from '../metadata/document-store.js';
+import type { ConnectionConfig } from './config.js';
+import type { DatabaseConnection } from './connection.js';
+export interface ConnectionAdapter<TConfig extends ConnectionConfig = ConnectionConfig> {
+    createConnection(context: ConnectionAdapterContext<TConfig>): DatabaseConnection;
+}
+export interface ConnectionAdapterContext<TConfig extends ConnectionConfig = ConnectionConfig> {
+    name: string;
+    config: TConfig;
+    metadataStore?: CollectionMetadataStore;
+}
+export interface ConnectionFactory {
+    create(context: ConnectionAdapterContext): DatabaseConnection;
+}
+export declare class DefaultConnectionFactory implements ConnectionFactory {
+    private readonly adapters;
+    private readonly defaultAdapter;
+    constructor(adapters: Record<string, ConnectionAdapter<any>>, defaultAdapter?: string);
+    create(context: ConnectionAdapterContext): DatabaseConnection;
+}

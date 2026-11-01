@@ -1,0 +1,4 @@
+import { NotificationProvider, } from './notification.js';
+const serviceProviders = [NotificationProvider];
+export default serviceProviders;
+//# sourceMappingURL=index.js.map

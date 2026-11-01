@@ -1,0 +1,114 @@
+import type { LifecycleStore } from './store.js';
+import type { JsonObject, JsonValue } from './types.js';
+export type ParameterReadMode = 'snapshot' | 'live';
+export interface ParameterBinding {
+    readonly state?: string;
+    readonly transition?: string;
+}
+export interface ReviewerSelection {
+    readonly group: number;
+    readonly type: string;
+    readonly referenceId: string;
+}
+export interface ConfigurableParameter {
+    readonly type: 'number' | 'string' | 'boolean' | 'object' | 'reviewers';
+    readonly title: string;
+    readonly readMode?: ParameterReadMode;
+    readonly bindings?: readonly ParameterBinding[];
+    readonly minimum?: number;
+    readonly maximum?: number;
+    /** Validates and normalizes the complete value, including object members. */
+    readonly parse: (value: unknown) => JsonValue;
+}
+export interface ParameterGroup {
+    readonly key: string;
+    readonly title: string;
+    readonly schemaVersion: number;
+    readonly fields: Readonly<Record<string, ConfigurableParameter>>;
+    /** Cross-field validation over the complete version. */
+    readonly validate?: (values: JsonObject) => void;
+    /** Fields whose joint constraint requires the same effective reading mode. */
+    readonly sameReadMode?: readonly (readonly string[])[];
+}
+export interface ParameterConfigurationDefinition {
+    readonly readMode?: ParameterReadMode;
+    readonly snapshotTransition?: string;
+    readonly groups: readonly ParameterGroup[];
+}
+export interface ParameterSource {
+    readonly group: string;
+    readonly revision: number;
+    readonly schemaVersion: number;
+    readonly origin: 'default' | 'configuration';
+    readonly readMode: ParameterReadMode;
+}
+export interface ParameterResolution {
+    readonly scope: string;
+    readonly values: JsonObject;
+    readonly sources: Readonly<Record<string, ParameterSource>>;
+}
+export interface ParameterSnapshot extends ParameterResolution {
+    readonly lifecycle: string;
+    readonly recordId: string;
+    readonly at: string;
+}
+export interface ParameterVersion {
+    readonly scope: string;
+    readonly group: string;
+    readonly revision: number;
+    readonly schemaVersion: number;
+    readonly values: JsonObject;
+    readonly actorId: string;
+    readonly at: string;
+}
+export interface ParameterUsage extends ParameterResolution {
+    readonly lifecycle: string;
+    readonly recordId: string;
+    readonly kind: 'transition' | 'action' | 'effect';
+    readonly associationId: string;
+    readonly attempt?: number;
+    readonly at: string;
+}
+export interface SaveParameterVersion {
+    readonly scope: string;
+    readonly group: ParameterGroup;
+    readonly values: JsonObject;
+    readonly expectedRevision: number;
+    readonly requestId: string;
+    readonly actorId: string;
+    readonly at: string;
+}
+export type ParameterConfigurationErrorCode = 'CONFIGURATION_CONFLICT' | 'CONFIGURATION_INVALID' | 'CONFIGURATION_INCOMPATIBLE' | 'CONFIGURATION_REQUEST_REUSED' | 'PARAMETER_SNAPSHOT_REQUIRED' | 'PARAMETER_ATTEMPT_STALE';
+export declare class ParameterConfigurationError extends Error {
+    readonly code: ParameterConfigurationErrorCode;
+    constructor(code: ParameterConfigurationErrorCode, message: string);
+}
+/** Optional capability: unconfigured runtimes never require these collections. */
+export interface LifecycleParameterStore {
+    read(scope: string, group: string, transaction?: unknown): Promise<ParameterVersion | undefined>;
+    save(input: SaveParameterVersion, transaction?: unknown): Promise<ParameterVersion>;
+    snapshot(scope: string, lifecycle: string, recordId: string, transaction?: unknown): Promise<ParameterSnapshot | undefined>;
+    saveSnapshot(snapshot: ParameterSnapshot, transaction: unknown): Promise<void>;
+    usage(lifecycle: string, kind: ParameterUsage['kind'], associationId: string, attempt?: number, transaction?: unknown): Promise<ParameterUsage | undefined>;
+    saveUsage(usage: ParameterUsage, transaction?: unknown): Promise<void>;
+    listUsage(scope: string, lifecycle: string, recordId: string, transaction?: unknown): Promise<readonly ParameterUsage[]>;
+}
+export declare const LIFECYCLE_PARAMETER_COLLECTIONS: Readonly<Record<'heads' | 'versions' | 'selections' | 'requests' | 'snapshots' | 'usages', string>>;
+export declare function parameterIdentity(...parts: readonly (string | number)[]): string;
+export declare function normalizeParameterValues(group: ParameterGroup, values: JsonObject): JsonObject;
+/** The same transactional adapter works with Memory and Repository LifecycleStores. */
+export declare class StoredLifecycleParameters implements LifecycleParameterStore {
+    private readonly store;
+    private readonly collections;
+    constructor(store: LifecycleStore, collections?: typeof LIFECYCLE_PARAMETER_COLLECTIONS);
+    private transaction;
+    private version;
+    read(scope: string, group: string, transaction?: unknown): Promise<ParameterVersion | undefined>;
+    save(input: SaveParameterVersion, transaction?: unknown): Promise<ParameterVersion>;
+    snapshot(scope: string, lifecycle: string, recordId: string, transaction?: unknown): Promise<ParameterSnapshot | undefined>;
+    saveSnapshot(snapshot: ParameterSnapshot, transaction: unknown): Promise<void>;
+    usage(lifecycle: string, kind: ParameterUsage['kind'], associationId: string, attempt?: number, transaction?: unknown): Promise<ParameterUsage | undefined>;
+    listUsage(scope: string, lifecycle: string, recordId: string, transaction?: unknown): Promise<readonly ParameterUsage[]>;
+    saveUsage(usage: ParameterUsage, transaction?: unknown): Promise<void>;
+}
+//# sourceMappingURL=parameter-configuration.d.ts.map

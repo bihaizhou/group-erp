@@ -1,0 +1,10 @@
+import type { ComponentProps, ReactElement } from 'react';
+export type CardProps = ComponentProps<'div'> & {
+    readonly size?: 'default' | 'sm';
+};
+export declare function Card({ className, size, ...props }: CardProps): ReactElement;
+export declare function CardHeader({ className, ...props }: ComponentProps<'div'>): ReactElement;
+export declare function CardTitle({ className, ...props }: ComponentProps<'div'>): ReactElement;
+export declare function CardDescription({ className, ...props }: ComponentProps<'div'>): ReactElement;
+export declare function CardContent({ className, ...props }: ComponentProps<'div'>): ReactElement;
+//# sourceMappingURL=card.d.ts.map

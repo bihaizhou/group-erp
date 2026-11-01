@@ -1,0 +1,31 @@
+/**
+ * When the sweep is due to try a run's continuation: its `dueAt` while it
+ * waits, and null when the run has none or it was given up on. A store
+ * keeps it where a query and a conditional write can compare it, such as
+ * the Repository store's `continuationDueAt` column.
+ */
+export function waitingDueAt(continuation) {
+    return continuation && !continuation.abandonedAt ? continuation.dueAt : null;
+}
+/**
+ * When the sweep gave up on a run's continuation, and null when the run has
+ * none or it still waits. A store keeps it where a query can find it, such
+ * as the Repository store's `continuationAbandonedAt` column.
+ */
+export function abandonedAt(continuation) {
+    return continuation?.abandonedAt ?? null;
+}
+/**
+ * The key a store deduplicates log entries by: the entry's `requestId`, or
+ * `$v:<version>` when it has none. It is never null, so one unique index on
+ * `(lifecycle, recordId, requestKey)` behaves the same on every dialect,
+ * whether that dialect lets a unique index hold several NULLs, counts NULL
+ * as a value, or treats rows whose other columns match as duplicates.
+ * Request ids starting with `$` are reserved — the runtime refuses them from
+ * callers and itself uses only `$run:` — so the derived key never collides
+ * with one.
+ */
+export function transitionRequestKey(entry) {
+    return entry.requestId ?? `$v:${String(entry.version)}`;
+}
+//# sourceMappingURL=store.js.map

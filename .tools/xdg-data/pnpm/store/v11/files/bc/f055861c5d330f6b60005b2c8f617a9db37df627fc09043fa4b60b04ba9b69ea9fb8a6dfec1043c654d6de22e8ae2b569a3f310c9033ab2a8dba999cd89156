@@ -1,0 +1,12 @@
+import { createApiClient, resolveAppUrl, } from '@nocobase/app-client';
+import { NotificationClient } from './notification-client.js';
+let notificationClient;
+export function configureNotificationClient(api) {
+    notificationClient = new NotificationClient(api);
+    return notificationClient;
+}
+export function getNotificationClient() {
+    notificationClient ??= new NotificationClient(createApiClient({ baseURL: resolveAppUrl('/api') }));
+    return notificationClient;
+}
+//# sourceMappingURL=runtime.js.map

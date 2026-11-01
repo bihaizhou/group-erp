@@ -1,0 +1,8 @@
+export function canListen(host: any, port: any): Promise<boolean>;
+export function findAvailablePort({ excludedPorts, host, label, preferredPort, }: {
+    excludedPorts?: never[] | undefined;
+    host: any;
+    label: any;
+    preferredPort: any;
+}): Promise<any>;
+//# sourceMappingURL=ports.d.mts.map

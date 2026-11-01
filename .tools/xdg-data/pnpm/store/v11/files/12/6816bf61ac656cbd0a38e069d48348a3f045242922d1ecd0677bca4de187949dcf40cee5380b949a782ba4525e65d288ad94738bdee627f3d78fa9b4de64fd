@@ -1,0 +1,22 @@
+/**
+ * The optimal string alignment distance between `a` and `b`, ignoring case: inserting, deleting or substituting a
+ * character costs one, and so does swapping two adjacent ones, which is the typo `--froce` makes.
+ */
+export declare function editDistance(a: string, b: string): number;
+/** How many edits `input` may be away from a name for that name to count as what was meant. */
+export declare function typoAllowance(input: string): number;
+/**
+ * How far `candidate` is from `input`, or `undefined` when it is too far to suggest. A candidate that starts with an
+ * input of three or more characters is always close enough, so `--dry` finds `--dry-run`.
+ */
+export declare function matchDistance(input: string, candidate: string): number | undefined;
+/** A candidate and how far it is from what was typed. */
+export interface ScoredMatch {
+    readonly candidate: string;
+    readonly distance: number;
+}
+/** The closest of `matches`, nearest first and alphabetically among equals, at most `limit` of them. */
+export declare function nearest(matches: Iterable<ScoredMatch>, limit?: number): string[];
+/** The `candidates` close enough to `input` to be what was meant, nearest first, at most `limit` of them. */
+export declare function closestMatches(input: string, candidates: Iterable<string>, limit?: number): string[];
+//# sourceMappingURL=distance.d.ts.map

@@ -1,0 +1,12 @@
+/** Query keys of the inbox hooks. Everything sits under `all`, so one invalidation refreshes the list and the count. */
+export interface InboxKeys {
+    readonly all: readonly ['notificationInApp', 'inbox'];
+    readonly items: readonly ['notificationInApp', 'inbox', 'items'];
+    readonly unread: readonly ['notificationInApp', 'inbox', 'unread'];
+    /** One paged list; `items` prefixes every page size. */
+    page(pageSize: number): readonly ['notificationInApp', 'inbox', 'items', number];
+}
+export declare const inboxKeys: InboxKeys;
+/** The page size the hooks use when none is given. */
+export declare const INBOX_PAGE_SIZE = 25;
+//# sourceMappingURL=keys.d.ts.map

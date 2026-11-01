@@ -1,0 +1,7 @@
+import { type MailLabelColor } from '../../shared/mail.js';
+export declare function normalizeMailLabelColor(value: unknown, fallback?: MailLabelColor): MailLabelColor;
+export declare function hashState(state: string): string;
+export declare function normalizeAddress(address: string): string;
+export declare function normalizeMailSyncDate(value: unknown): string;
+export declare function boundedInteger(value: number | undefined, fallback: number, minimum: number, maximum: number): number;
+//# sourceMappingURL=input.d.ts.map

@@ -1,0 +1,146 @@
+import { declaredFlags, isAppPathFlag, } from "../command/flags.js";
+/** Every visible command and topic in `assembled`, sorted by id and name. */
+export function describeCommandTree(assembled, { bin }) {
+    const commands = [];
+    for (const [key, command] of Object.entries(assembled.commands)) {
+        if (command.hidden === true)
+            continue;
+        const id = key.split(':').join(' ');
+        const origin = assembled.commandOrigins[key] ?? {
+            source: 'builtin',
+            developmentOnly: false,
+        };
+        const render = (text) => renderTemplate(text, bin, id);
+        const flags = describeFlags(command);
+        commands.push({
+            id,
+            summary: textOrNull(command.summary, render),
+            description: textOrNull(command.description, render),
+            source: origin.source,
+            ...(origin.package === undefined ? {} : { package: origin.package }),
+            developmentOnly: origin.developmentOnly,
+            json: command.enableJsonFlag === true,
+            dryRun: flags.some((flag) => flag.name === 'dry-run'),
+            force: flags.some((flag) => flag.name === 'force'),
+            args: describeArgs(command),
+            flags,
+            examples: describeExamples(command.examples, bin, render),
+        });
+    }
+    const topics = Object.entries(assembled.topics).map(([name, topic]) => {
+        const origin = assembled.topicOrigins[name] ?? { source: 'builtin' };
+        return {
+            name,
+            description: topic.description,
+            source: origin.source,
+            ...(origin.package === undefined ? {} : { package: origin.package }),
+        };
+    });
+    return {
+        commands: commands.sort((a, b) => a.id.localeCompare(b.id)),
+        topics: topics.sort((a, b) => a.name.localeCompare(b.name)),
+    };
+}
+/** The catalog for people: each command's id and summary, top-level commands first, then one group per topic. */
+export function formatCommandCatalog(catalog) {
+    const width = Math.max(0, ...catalog.commands.map((c) => c.id.length)) + 2;
+    const topics = new Map(catalog.topics.map((topic) => [topic.name, topic]));
+    const groups = new Map();
+    for (const command of catalog.commands) {
+        const [head = command.id] = command.id.split(' ');
+        const group = topics.has(head) ? head : '';
+        groups.set(group, [...(groups.get(group) ?? []), command]);
+    }
+    const blocks = [];
+    const line = (command) => `  ${command.id.padEnd(width)}${command.summary ?? ''}`.trimEnd();
+    const topLevel = groups.get('');
+    if (topLevel !== undefined) {
+        blocks.push(['Commands', ...topLevel.map(line)].join('\n'));
+    }
+    for (const [name, commands] of groups) {
+        if (name === '')
+            continue;
+        const description = topics.get(name)?.description;
+        const heading = description === undefined ? name : `${name}: ${description}`;
+        blocks.push([heading, ...commands.map(line)].join('\n'));
+    }
+    return blocks.join('\n\n');
+}
+function describeArgs(command) {
+    return Object.entries(command.args ?? {})
+        .filter(([, arg]) => arg.hidden !== true)
+        .map(([name, arg]) => ({
+        name,
+        description: arg.description ?? null,
+        required: arg.required === true,
+    }));
+}
+function describeFlags(command) {
+    return Object.entries(declaredFlags(command))
+        .filter(([name, flag]) => name !== 'json' && flag.hidden !== true)
+        .map(([name, flag]) => describeFlag(name, flag));
+}
+function describeFlag(name, flag) {
+    const fixedDefault = flag.default !== undefined && typeof flag.default !== 'function';
+    const options = flag.type === 'option' ? flag.options : undefined;
+    return {
+        name,
+        ...(flag.char === undefined ? {} : { char: flag.char }),
+        type: flag.type === 'boolean' ? 'boolean' : 'option',
+        description: flag.description ?? flag.summary ?? null,
+        required: flag.required === true,
+        multiple: flag.type === 'option' && flag.multiple === true,
+        ...(flag.type === 'boolean' && flag.allowNo
+            ? { allowNo: true }
+            : {}),
+        ...(fixedDefault ? { default: flag.default } : {}),
+        ...(fixedDefault && isAppPathFlag(flag)
+            ? { defaultRelativeTo: 'application-root' }
+            : {}),
+        ...(options === undefined ? {} : { options: [...options] }),
+    };
+}
+/**
+ * Examples as oclif's help lays them out: a string is one command per line, unless its first line is prose and the
+ * rest are commands, in which case the first line describes them.
+ */
+function describeExamples(examples, bin, render) {
+    const described = [];
+    for (const example of examples ?? []) {
+        if (typeof example !== 'string') {
+            described.push({
+                command: render(example.command),
+                description: render(example.description),
+            });
+            continue;
+        }
+        const lines = example
+            .split(/\r?\n/u)
+            .map((text) => render(text).trim())
+            .filter(Boolean);
+        const isCommand = (text) => text.startsWith(`${bin} `) || text === bin || text.startsWith('$ ');
+        const [first, ...rest] = lines;
+        if (first !== undefined &&
+            rest.length > 0 &&
+            !isCommand(first) &&
+            rest.every(isCommand)) {
+            for (const command of rest) {
+                described.push({ command, description: first });
+            }
+            continue;
+        }
+        for (const command of lines)
+            described.push({ command });
+    }
+    return described;
+}
+function textOrNull(text, render) {
+    return text === undefined || text === '' ? null : render(text);
+}
+/** Fills in the two placeholders oclif's own help renders in examples and descriptions. */
+function renderTemplate(text, bin, id) {
+    return text
+        .replaceAll(/<%[=-]\s*config\.bin\s*%>/gu, bin)
+        .replaceAll(/<%[=-]\s*command\.id\s*%>/gu, id);
+}
+//# sourceMappingURL=catalog.js.map

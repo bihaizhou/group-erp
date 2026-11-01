@@ -1,0 +1,89 @@
+import { Hono } from 'hono';
+import { NotificationLogs } from './logs.js';
+import { type NotificationRegistry } from './registry.js';
+import { type NotificationStore } from './store.js';
+import type { ProviderSendResult, NotificationDeliveryStatusSnapshot, NotificationManagerOptions, NotificationRetryDeliveryInput, NotificationSendInput, NotificationSendResult, NotificationStatusChangedFilter, NotificationStatusChangedListener, NotificationStatusSnapshot, NotificationTestActor, NotificationTestSendRequest, NotificationTestTargetDescriptor } from './types.js';
+export declare class NotificationIdempotencyConflictError extends Error {
+    readonly idempotencyKey: string;
+    readonly code = "IDEMPOTENCY_KEY_CONFLICT";
+    constructor(idempotencyKey: string);
+}
+/**
+ * A Channel cannot reach its transport: it is not enabled, its Provider changed or is not registered, or creating the
+ * Channel or Provider runtime failed (an SMTP transport that cannot be built, for example). Routes answer it with 503;
+ * any other error is a defect and is left to the application.
+ */
+export declare class NotificationTransportUnavailableError extends Error {
+    readonly code = "NOTIFICATION_TRANSPORT_UNAVAILABLE";
+    constructor(message: string, options?: {
+        readonly cause?: unknown;
+    });
+}
+export declare class NotificationDeliveryRetryError extends Error {
+    readonly deliveryId: string;
+    readonly code = "NOTIFICATION_DELIVERY_RETRY_NOT_ALLOWED";
+    constructor(deliveryId: string, message: string);
+}
+export declare class NotificationManager<TChannels extends {
+    readonly [TType in keyof TChannels]: import('./types.js').NotificationChannelSchema;
+}> {
+    private readonly options;
+    readonly router: Hono;
+    readonly logs: NotificationLogs;
+    readonly store: NotificationStore;
+    readonly registry: NotificationRegistry;
+    private readonly channelManager;
+    private readonly deliveryJob;
+    private readonly reconcileJob;
+    private readonly runtimePromises;
+    private readonly retryTimers;
+    private readonly statusSubscriptions;
+    private nextStatusSequence;
+    private activated;
+    private activation?;
+    private started;
+    private startPromise?;
+    constructor(options: NotificationManagerOptions<TChannels>);
+    activate(): Promise<void>;
+    private activateInternal;
+    listTestTargets(): readonly NotificationTestTargetDescriptor[];
+    sendTest(request: NotificationTestSendRequest, actor: NotificationTestActor): Promise<NotificationSendResult>;
+    getTestStatus(notificationId: string, actor: NotificationTestActor): Promise<import('./logs.js').NotificationLogDetails | undefined>;
+    private resolveTestTarget;
+    start(): Promise<void>;
+    private startInternal;
+    /** Credentials must never enter notification snapshots or persistent job payloads. */
+    sendTransient(input: {
+        readonly channel: string;
+        readonly message: object;
+    }): Promise<readonly ProviderSendResult[]>;
+    send(input: NotificationSendInput<TChannels>): Promise<NotificationSendResult>;
+    private sendExpanded;
+    getByIdempotencyKey(idempotencyKey: string): Promise<NotificationStatusSnapshot | undefined>;
+    getNotification(notificationId: string): Promise<NotificationStatusSnapshot | undefined>;
+    onStatusChanged(filter: NotificationStatusChangedFilter, listener: NotificationStatusChangedListener): () => void;
+    retryDelivery(input: NotificationRetryDeliveryInput): Promise<NotificationDeliveryStatusSnapshot>;
+    close(): Promise<void>;
+    private dispatch;
+    private scheduleRetry;
+    private clearRetryTimers;
+    private reconcile;
+    private statusSnapshot;
+    private deliverySnapshot;
+    private emitStatusChanged;
+    private scheduleStatusChanged;
+    private emitCurrentStatus;
+    private notifySubscription;
+    private issueStatusSequence;
+    private ensureRuntime;
+    private createRuntime;
+}
+export declare function createNotificationManager<const TConfig extends Readonly<Record<string, import('./types.js').NotificationChannelConfig>>>(options: Omit<NotificationManagerOptions<import('./types.js').ConfiguredNotificationChannels<TConfig>>, 'config'> & {
+    readonly config: Omit<import('./types.js').NotificationConfig, 'channels'> & {
+        readonly channels: TConfig;
+    };
+}): NotificationManager<import('./types.js').ConfiguredNotificationChannels<TConfig>>;
+export declare function createNotificationManager<TChannels extends {
+    readonly [K in keyof TChannels]: import('./types.js').NotificationChannelSchema;
+}>(options: NotificationManagerOptions<TChannels>): NotificationManager<TChannels>;
+//# sourceMappingURL=manager.d.ts.map

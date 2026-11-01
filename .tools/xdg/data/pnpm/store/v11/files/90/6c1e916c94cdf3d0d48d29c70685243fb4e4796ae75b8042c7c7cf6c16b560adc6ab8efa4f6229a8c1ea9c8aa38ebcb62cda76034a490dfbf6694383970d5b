@@ -1,0 +1,48 @@
+/** `nocobase.cli` in an application's `package.json`. The shape is `AppCliBrand` of `@nocobase/app-cli-client`. */
+export interface CliBrand {
+    /** The command, such as `acme`: also the product the application serves it as, and so a lowercase name. */
+    readonly bin: string;
+    readonly displayName?: string;
+    readonly description?: string;
+    /** `.<bin>` when left out. */
+    readonly stateDir?: string;
+    readonly homeEnv?: string;
+    readonly envPrefix?: string;
+    readonly keychainEnv?: string;
+    readonly keychainService?: string;
+    /** `<stateDir>/run.json` when left out. */
+    readonly runCredentialsFile?: string;
+    readonly exampleServer?: string;
+    readonly auth?: {
+        readonly clientId?: string;
+        readonly basePath?: string;
+    };
+    readonly manifestPath?: string;
+    /** Skill directories, relative to the application, the packaged CLI ships in `skills/`. */
+    readonly skills?: readonly string[];
+    /** The packaged CLI's version; the application's when left out. */
+    readonly version?: string;
+}
+/** The application's manifest, as far as packaging its CLI reads it. */
+export interface CliApplication {
+    readonly root: string;
+    readonly name: string;
+    readonly version: string;
+    /** Undefined when the application declares no CLI. */
+    readonly brand: CliBrand | undefined;
+}
+/** Checks `value` as a `nocobase.cli` object, and returns it typed. */
+export declare function parseCliBrand(value: unknown): CliBrand;
+/** The application at `root`, with its `nocobase.cli` if it declares one. */
+export declare function readCliApplication(root: string): Promise<CliApplication>;
+/** The application's CLI, or a failure saying how to declare one. */
+export declare function requireCliBrand(application: CliApplication): CliBrand;
+/** The brand the packaged CLI carries: what it reads at run time, without what only packaging uses. */
+export declare function runtimeBrand(brand: CliBrand): CliBrand;
+/**
+ * The entry of a packaged or linked CLI, `bin/run.js`: it runs `@nocobase/app-cli-client` with the `nocobase.cli` of
+ * the package it sits in. `sourceHooks` lets it run workspace packages from their TypeScript sources, which import their
+ * siblings by the compiled name (`./x.js`), as a link inside a source checkout does.
+ */
+export declare function cliEntry(bin: string, sourceHooks: boolean): string;
+//# sourceMappingURL=cli-brand.d.ts.map

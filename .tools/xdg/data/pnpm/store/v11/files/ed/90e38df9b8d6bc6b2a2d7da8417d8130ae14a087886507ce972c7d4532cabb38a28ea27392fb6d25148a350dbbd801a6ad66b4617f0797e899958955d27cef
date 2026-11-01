@@ -1,0 +1,86 @@
+import { createMailTransport, isMailChannelConfig, } from '@nocobase/mailer';
+import { createServiceToken, ServiceProvider, } from '@nocobase/service-provider';
+import { defineAppConfig, envString, } from '../config/index.js';
+export const mailerToken = createServiceToken('@nocobase/app-server/mailer');
+export const validateMailChannels = (config, context) => {
+    for (const [name, channel] of Object.entries(config.channels ?? {})) {
+        if (!channel ||
+            typeof channel !== 'object' ||
+            Reflect.get(channel, 'enabled') === false)
+            continue;
+        const provider = Reflect.get(channel, 'provider');
+        if ((provider === 'smtp' || provider === 'resend') &&
+            !isMailChannelConfig(channel))
+            context.error(`channels.${name}`, 'Invalid built-in email channel configuration.');
+    }
+};
+/** Declare the existing notification section without installing any notification plugin. */
+export function defineMailChannelsConfig(definition) {
+    const extra = definition.validate
+        ? Array.isArray(definition.validate)
+            ? definition.validate
+            : [definition.validate]
+        : [];
+    return defineAppConfig({
+        ...definition,
+        validate: [validateMailChannels, ...extra],
+        env: {
+            SMTP_PASSWORD: envString('channels.system-email.auth.pass', {
+                secret: true,
+                required: false,
+            }),
+            RESEND_API_KEY: envString('channels.system-email.apiKey', {
+                secret: true,
+                required: false,
+            }),
+            ...definition.env,
+        },
+    });
+}
+export function createMailer(config) {
+    const transports = new Map();
+    let closed = false;
+    const available = (channel) => {
+        const value = config.channels[channel];
+        return !closed && isMailChannelConfig(value) && value.enabled !== false;
+    };
+    return {
+        available,
+        async send(channel, message, options) {
+            const value = config.channels[channel];
+            if (!available(channel) || !isMailChannelConfig(value))
+                return {
+                    status: 'failed',
+                    disposition: 'never',
+                    error: {
+                        category: 'configuration',
+                        message: 'Email channel unavailable.',
+                    },
+                };
+            let transport = transports.get(channel);
+            if (!transport) {
+                transport = createMailTransport(value);
+                transports.set(channel, transport);
+            }
+            return transport.send(message, options);
+        },
+        async close() {
+            if (closed)
+                return;
+            closed = true;
+            await Promise.all([...transports.values()].map((transport) => transport.close()));
+        },
+    };
+}
+export class MailerProvider extends ServiceProvider {
+    name = '@nocobase/app-server/mailer';
+    register() {
+        this.app.container.singleton(mailerToken, () => createMailer(this.app.config.get('notification') ?? {
+            channels: {},
+        }));
+    }
+    async shutdown() {
+        await this.app.container.resolveIfCreated(mailerToken)?.close();
+    }
+}
+//# sourceMappingURL=index.js.map

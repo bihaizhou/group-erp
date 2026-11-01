@@ -1,0 +1,624 @@
+import { type LifecycleParameterStore, type ParameterResolution } from './parameter-configuration.js';
+import { type Lifecycle, type LifecycleDescription } from './definition.js';
+import { type Blocker, type InputProblem } from './errors.js';
+import { type ExtraGuard } from './plan.js';
+import { type EffectRun, type EffectRunQuery, type LifecycleStore, type TransitionEntry } from './store.js';
+import { type JsonObject, type LifecycleActor, type LifecycleRecord, type LifecycleTypes, type ParametersOf, type RecordId, type ServicesOf } from './types.js';
+/**
+ * Hands a queued effect run to whatever executes it. The runtime calls it
+ * after a transition commits and when a retry is due; executing means calling
+ * {@link LifecycleRuntime.runEffect}. A dispatch that is lost is not fatal:
+ * the run stays queued and {@link LifecycleRuntime.recover} hands it over again.
+ */
+export interface EffectDispatcher {
+    dispatch(runId: string, options: {
+        readonly runAfter: string | null;
+    }): Promise<void>;
+}
+export interface LifecycleLogger {
+    warn(message: string, details?: unknown): void;
+    error(message: string, details?: unknown): void;
+}
+export interface LifecycleRuntimeOptions {
+    readonly store: LifecycleStore;
+    /** Defaults to running each effect in process before `fire()` returns. */
+    readonly dispatcher?: EffectDispatcher;
+    readonly clock?: () => Date;
+    readonly logger?: LifecycleLogger;
+    /** How long an attempt may run before `recover()` takes it back. Defaults to 5 minutes. */
+    readonly leaseMs?: number;
+    /** Called before every attempt; a test throws from it to simulate a failure. */
+    readonly beforeEffect?: (effect: string, attempt: number) => void | Promise<void>;
+    /** How `reclaim()` retries the continuations that wait on their runs. */
+    readonly continuations?: ContinuationSweepOptions;
+}
+/**
+ * How the sweep retries waiting continuations. After the n-th refused try a
+ * continuation waits `backoffMs × factor^(n-1)`, capped at `maxMs`, before
+ * the sweep tries it again, and each sweep tries at most `batchSize` of the
+ * due ones, those due longest first. A `CONFLICT` is not counted and is
+ * tried again after `backoffMs`. An error that is not a refusal, such as a
+ * database failing mid-try, is not counted either, but backs off as a
+ * refusal does, each such try taking the delay one step further (see
+ * {@link PendingContinuation.errorTries}). After `maxAttempts` counted tries
+ * the sweep gives up on it: see {@link PendingContinuation.abandonedAt}. So
+ * only refusals lead to giving up: an outage never does, and neither does a
+ * bug that throws an ordinary error, which is tried at most hourly and
+ * logged on its 1st, 2nd, 4th… try until it is fixed.
+ */
+export interface ContinuationSweepOptions {
+    /** Defaults to 100. */
+    readonly batchSize?: number;
+    /** Defaults to a minute. */
+    readonly backoffMs?: number;
+    /** Defaults to 2. */
+    readonly factor?: number;
+    /** Defaults to an hour. */
+    readonly maxMs?: number;
+    /** Defaults to 10, which the default backoff reaches after about four hours. */
+    readonly maxAttempts?: number;
+}
+/**
+ * Services, or a factory for them. The factory receives the store's
+ * `transactionHandle` while a transition is decided, and `undefined`
+ * elsewhere, so a guard can read through the transaction it runs in.
+ */
+export type ServicesSource<T extends LifecycleTypes> = ServicesOf<T> | ((transactionHandle: unknown) => ServicesOf<T>);
+/** Server-owned context supplied to an asynchronous parameter reader. */
+export interface ParameterReadContext<T extends LifecycleTypes> {
+    readonly lifecycle: string;
+    readonly record: T['record'] | null;
+    /** Creation values before a record has an identity. */
+    readonly values?: Readonly<Record<string, unknown>>;
+    readonly transactionHandle: unknown;
+    readonly purpose: 'transition' | 'create' | 'preview' | 'effect' | 'action';
+    readonly transition?: string;
+    readonly runId?: string;
+    readonly attempt?: number;
+}
+export type ParameterProvider<T extends LifecycleTypes> = (context: ParameterReadContext<T>) => Promise<Partial<ParametersOf<T>>>;
+export interface ParameterConfigurationRegistration<T extends LifecycleTypes> {
+    readonly store: LifecycleParameterStore;
+    readonly scope: (context: ParameterReadContext<T>) => string;
+    /** Explicitly routes existing records through their original contract. */
+    readonly legacyRecord?: (record: T['record']) => boolean;
+    /** Refuses a submitted record whose historical snapshot cannot be recovered. */
+    readonly snapshotRequired?: (record: T['record']) => boolean;
+}
+export interface RegisterOptions<T extends LifecycleTypes> {
+    readonly services?: ServicesSource<T>;
+    /** Administrator overrides, read on every transition so a change applies at once. */
+    readonly parameters?: () => Partial<ParametersOf<T>>;
+    /** Async overrides; mutually exclusive with the legacy synchronous reader. */
+    readonly parameterProvider?: ParameterProvider<T>;
+    readonly parameterConfiguration?: ParameterConfigurationRegistration<T>;
+}
+/**
+ * What the record must still be when the transition is decided, checked
+ * inside its transaction. A page passes the version it showed, so a
+ * decision made on a stale screen is refused rather than applied.
+ */
+export interface FireExpectation {
+    readonly version?: number | null;
+    /** The record must have been in its state since before this instant. */
+    readonly changedBefore?: string;
+}
+export interface FireOptions {
+    /** A human action: refuses system-only transitions with NOT_MANUAL. */
+    readonly manual?: boolean;
+    readonly actor: LifecycleActor;
+    readonly input?: JsonObject;
+    readonly expect?: FireExpectation;
+    /**
+     * The caller's key for this request — a form submission, a webhook
+     * delivery. Sent again for the same record and transition, it finds the
+     * first request's log entry and changes nothing; sent for another
+     * transition, it is refused with `REQUEST_REUSED`. Reuse it for the
+     * retries of one action, and take a new one for each new decision. An
+     * empty key is refused with `INVALID_REQUEST_ID`, and so is one starting
+     * with `$`, which is the library's own, such as the one an effect's
+     * continuation is logged under.
+     */
+    readonly requestId?: string;
+    /**
+     * A transaction to join instead of opening one: the `transactionHandle`
+     * an `onTransition` or a services factory receives, or the
+     * `@nocobase/db` connection the caller's own transaction received, on the
+     * connection the store writes to. The transition is nested in it, so a
+     * refusal undoes only the transition's own writes, and its effects and
+     * listeners wait for the outermost commit — a rollback drops them. When
+     * `fire()` returns, its effect runs are still queued.
+     */
+    readonly transaction?: unknown;
+}
+export interface FireResult {
+    /**
+     * The record as this transition committed it, or as it is now for a
+     * replay. When a hook moved it on through `tx`, the record as that left it.
+     */
+    readonly record: LifecycleRecord;
+    readonly entry: TransitionEntry;
+    /**
+     * Empty for a replay. When a hook moved the record on through `tx`, only
+     * the runs of the transition's own effects, not the entered state's.
+     */
+    readonly effectRuns: readonly EffectRun[];
+    /** True when a request with this `requestId` had already fired this transition. */
+    readonly replayed?: boolean;
+}
+/** An effect run, and whether this process knows the effect it names. */
+export interface EffectRunView extends EffectRun {
+    /**
+     * False for an effect no registered lifecycle declares: renamed or
+     * removed, or known only to another process in a rolling deploy. Such a
+     * run stays queued rather than being given up on.
+     */
+    readonly registered: boolean;
+}
+export interface RetryRunOptions {
+    /**
+     * Retry even though the run's `onFailure` has already moved the record on,
+     * or its continuation still waits to, which is then dropped. Only when it
+     * is known that the failed attempts had no effect: a payment the provider
+     * confirms was never made. A success then still continues only if the
+     * record's state allows `onSuccess`.
+     */
+    readonly force?: boolean;
+    /** Why the retry was forced, for the log. */
+    readonly reason?: string;
+}
+export interface PruneOptions {
+    /** Runs last changed before this instant. */
+    readonly olderThan: Date | string;
+    /** Defaults to succeeded and cancelled runs. */
+    readonly statuses?: readonly EffectRun['status'][];
+}
+export interface AvailableTransition {
+    readonly name: string;
+    readonly title: string;
+    readonly to: readonly string[];
+    /**
+     * Whether every guard lets this actor fire it now, asked with no input.
+     * A transition whose answer depends on its input — approving one line of
+     * many — is asked with `can()` and that input instead.
+     */
+    readonly allowed: boolean;
+    /** Why not, when it is not allowed: one entry per guard that refused. */
+    readonly blockers: readonly Blocker[];
+}
+/**
+ * The answer of `runtime.can()`: allowed, or the reasons it is not — what is
+ * wrong with the input, or who or what refuses.
+ */
+export interface TransitionCheck {
+    readonly allowed: boolean;
+    readonly blockers: readonly Blocker[];
+    /** What `validate` found wrong with the input; empty when no input was given. */
+    readonly problems: readonly InputProblem[];
+}
+export interface CanOptions {
+    /**
+     * The input the click would send, such as the line an "approve this line"
+     * button names. Given, it is validated first and the guards see it; absent,
+     * nothing is validated and the guards see `{}`, as in `available()`.
+     */
+    readonly input?: JsonObject;
+}
+export interface CreateOptions {
+    readonly actor: LifecycleActor;
+    /** One of the lifecycle's initial states; the default one when absent. */
+    readonly state?: string;
+    /** Kept on the creation's log entry, as a transition's input is. */
+    readonly input?: JsonObject;
+    /** A transaction to join instead of opening one; see {@link FireOptions.transaction}. */
+    readonly transaction?: unknown;
+}
+/**
+ * One store transaction shared by the caller and its hooks. Each fire or
+ * create nests through the public API as a savepoint: a caught refusal
+ * undoes that call, and an uncaught error rolls back the outer transaction.
+ * Events and effects wait for the outermost commit.
+ */
+export interface LifecycleTransaction {
+    /** The store's handle for this transaction, such as a `@nocobase/db` connection: write other rows through it. */
+    readonly handle: unknown;
+    /** The runtime's clock when the transaction began. */
+    readonly now: Date;
+    /** The record as this transaction sees it. */
+    read(lifecycle: string, id: RecordId): Promise<LifecycleRecord | undefined>;
+    fire(lifecycle: string, id: RecordId, transition: string, options: FireOptions): Promise<FireResult>;
+    create(lifecycle: string, values: Readonly<Record<string, unknown>>, options: CreateOptions): Promise<FireResult>;
+    /**
+     * Runs once the outermost transaction commits: a notification about rows
+     * written in it. Callbacks and the events and effect dispatch of each
+     * lifecycle call in the transaction run in the order they were
+     * registered, so a callback registered before a `tx.fire()` runs before
+     * that transition's events, and one that must follow them is registered
+     * after the call. Nothing runs on a rollback. Best effort, as listeners
+     * are — a callback that throws is logged, and nothing runs it again after
+     * a crash.
+     */
+    afterCommit(callback: () => void | Promise<void>): void;
+}
+/** What happened, told after it committed. */
+export interface LifecycleEvent {
+    readonly lifecycle: string;
+    /** The transition, or `CREATE_TRANSITION` for a creation. */
+    readonly transition: string;
+    readonly from: string | null;
+    readonly to: string;
+    /** The record as the transition committed it. */
+    readonly record: LifecycleRecord;
+    readonly entry: TransitionEntry;
+    readonly actor: LifecycleActor;
+}
+/** A transition the record's new state now allows, before any guard is asked. */
+export interface AnnounceEvent extends LifecycleEvent {
+    readonly next: string;
+}
+/**
+ * Which events a listener hears. `transition` matches the transition that
+ * committed (for `announce`, the one now allowed); `state` matches the state
+ * entered.
+ */
+export interface EventFilter {
+    readonly lifecycle?: string;
+    readonly transition?: string;
+    readonly state?: string;
+}
+export type LifecycleListener<E> = (event: E) => void | Promise<void>;
+/** The log entry `runtime.create()` writes, so a record's history starts at its creation. */
+export declare const CREATE_TRANSITION: string;
+/**
+ * Everything a page needs to show one record and its buttons: the record,
+ * its state and version, what the actor may do and why not, and its history.
+ */
+export interface RecordView {
+    /** Effective values for this authoritative record preview, including its snapshot. */
+    readonly parameterValues?: Readonly<object>;
+    readonly record: LifecycleRecord;
+    readonly state: string;
+    /** Pass it back as `expect.version` so a stale screen is refused. */
+    readonly version: number | null;
+    readonly available: readonly AvailableTransition[];
+    readonly history: RecordHistory;
+}
+export interface RecordHistory {
+    readonly transitions: readonly TransitionEntry[];
+    readonly effectRuns: readonly EffectRun[];
+}
+/**
+ * Fires transitions, runs their effects and sweeps triggers for every
+ * registered lifecycle. It keeps no state of its own: the store holds the
+ * records, the transition log and the effect runs, so any process holding a
+ * runtime over the same store can continue another one's work.
+ */
+export declare class LifecycleRuntime {
+    private readonly store;
+    private readonly dispatcher;
+    private readonly clock;
+    private readonly logger;
+    private readonly leaseMs;
+    private readonly beforeEffect;
+    private readonly continuations;
+    private readonly lifecycles;
+    private readonly subscriptions;
+    /** Attempts running in this process, so `cancelRun()` can abort them. */
+    private readonly attempts;
+    /**
+     * The records each running transition's transaction moved on, by the
+     * transaction's handle: what a hook fired through `tx`, or through a
+     * lifecycle call given that handle as its `transaction`. See `runSteps()`.
+     */
+    private readonly moves;
+    /**
+     * How many sweeps in a row a trigger was refused on a record by a
+     * lifecycle call inside its transition, and with which code, so the log
+     * says so on the 1st, 2nd, 4th… sweep. Bounded: the oldest are forgotten.
+     */
+    private readonly triggerRefusals;
+    private readonly parameterExecution;
+    constructor(options: LifecycleRuntimeOptions);
+    register<T extends LifecycleTypes>(lifecycle: Lifecycle<T>, options?: RegisterOptions<T>): void;
+    /**
+     * Adds a guard to transitions of a registered lifecycle from outside its
+     * definition, the way another plugin would veto approvals while a budget
+     * is frozen. `'*'` adds it to every transition. Its refusals join the
+     * blockers of `available()`, `can()` and `fire()`. Returns a function that
+     * removes it again.
+     */
+    addGuard<T extends LifecycleTypes>(name: string, transitions: string | readonly string[], guard: ExtraGuard<T>): () => void;
+    describe(name: string): LifecycleDescription;
+    /** Defaults plus synchronous overrides; excludes parameterProvider values. */
+    parameters(name: string): object;
+    /** Resolves current overrides. This does not persist snapshots or usage facts. */
+    resolveParameters(name: string, context: Omit<ParameterReadContext<LifecycleTypes>, 'lifecycle'>): Promise<Readonly<object>>;
+    /** Runs one server-owned action with the same values as its same-record tx.fire calls. */
+    withParameterExecution<R>(name: string, id: RecordId, work: (parameters: Readonly<object>, tx: LifecycleTransaction, resolution: ParameterResolution | undefined) => Promise<R>, options?: {
+        readonly transaction?: unknown;
+        readonly actionId?: string;
+    }): Promise<R>;
+    private inParameterExecution;
+    private readConfiguredParameters;
+    private bindParameterSnapshot;
+    private recordParameterUsage;
+    /**
+     * Fires one transition. The state check, the record update, the log entry
+     * and the effect runs it owes are one transaction; effects are dispatched
+     * and listeners told only after it commits. With `transaction`, that is
+     * the caller's: the transition is nested in it and its effects wait for
+     * its outermost commit.
+     */
+    fire(name: string, id: RecordId, transition: string, options: FireOptions): Promise<FireResult>;
+    /** Runs work on the store; each tx call nests as a savepoint. */
+    transaction<R>(work: (tx: LifecycleTransaction) => Promise<R>): Promise<R>;
+    private scope;
+    /**
+     * Runs a transition's hooks in order. A hook has moved the record on once
+     * a lifecycle call it made on this transaction — `tx.fire()`, or a call
+     * given its handle as `transaction` — completed a transition of this
+     * lifecycle on this record, directly or through the calls that one made in
+     * turn. Returns the record as it then is, read once, without running the
+     * steps after that one; undefined when every step ran without moving it.
+     * Only transitions count: a hook that advances the version itself, as a
+     * fence or an edit does, or that fires another lifecycle sharing the
+     * record's version field, has not moved this lifecycle's record on.
+     */
+    private runSteps;
+    /**
+     * After a lifecycle call joined `outer` and committed into it: what it
+     * moved — `key`, its own record, unless it moved nothing — and what the
+     * calls made inside it moved, are told to the transition running on
+     * `outer`, if one is. A call refused or rolled back never gets here.
+     */
+    private noteMoves;
+    /**
+     * Listens to transitions after they commit: `completed` once per
+     * transition (and creation), `entered` once per state entered, and
+     * `announce` once per transition the new state allows — what a to-do list
+     * needs. Delivery is best effort: a listener that throws is logged and the
+     * caller is not told, and nothing is delivered again after a crash, so
+     * work that must happen belongs in an effect. Returns a function that
+     * stops listening.
+     */
+    on(event: 'completed' | 'entered', filter: EventFilter, listener: LifecycleListener<LifecycleEvent>): () => void;
+    on(event: 'announce', filter: EventFilter, listener: LifecycleListener<AnnounceEvent>): () => void;
+    /**
+     * The transitions the record's state allows, each with whether `actor`
+     * may fire it now and, if not, every reason why.
+     */
+    available(name: string, id: RecordId, actor: LifecycleActor): Promise<AvailableTransition[]>;
+    private availableFrom;
+    /**
+     * Whether `actor` may fire `transition` on the record now, with `input`
+     * when the answer depends on it. A transition the record's state does not
+     * allow is refused with a `state` blocker before anything else is asked;
+     * input that `validate` refuses is answered with its problems before any
+     * guard is asked, as `fire()` would. It is a preview: `fire()` decides
+     * again inside its transaction.
+     */
+    can(name: string, id: RecordId, transition: string, actor: LifecycleActor, options?: CanOptions): Promise<TransitionCheck>;
+    /**
+     * Creates a record through the lifecycle: in one transaction it checks the
+     * definition's `create` — the values, then the guard — and writes the
+     * record in an initial state, a log entry from nothing, and the effect runs
+     * the state's `onEnter` owes, so a record's history starts where it does.
+     * A refusal writes nothing and is a `LifecycleError` as a transition's is.
+     * With `transaction`, the creation joins the caller's transaction as
+     * `fire()` does, so a parent can create its children in its own.
+     */
+    create(name: string, values: Readonly<Record<string, unknown>>, options: CreateOptions): Promise<FireResult>;
+    /** The names of the registered lifecycles. */
+    names(): string[];
+    /** One record with what a page shows for it; see {@link RecordView}. */
+    view(name: string, id: RecordId, actor: LifecycleActor): Promise<RecordView>;
+    history(name: string, id: RecordId): Promise<RecordHistory>;
+    /**
+     * Runs one attempt of a queued effect run. Claiming it is a conditional
+     * update, so two workers handed the same run execute it once; every later
+     * write names the attempt it belongs to, so an attempt `recover()` took
+     * back cannot record a result over the attempt that replaced it.
+     */
+    runEffect(runId: string, signal?: AbortSignal): Promise<EffectRun | undefined>;
+    /**
+     * Effect runs for an operations page: the stuck, the failed, the dead,
+     * those whose continuation is pending (`continuationPending: true`) and
+     * those whose continuation the sweep gave up on
+     * (`continuationAbandoned: true`). Each says whether this process knows
+     * its effect.
+     */
+    listEffectRuns(query?: EffectRunQuery): Promise<EffectRunView[]>;
+    /**
+     * Runs a failed, dead or cancelled run again, with a fresh budget of
+     * attempts — once whatever made it fail is fixed. A run whose `onFailure`
+     * already moved the record on is refused with `RUN_SETTLED`: the record
+     * has left the state the effect served, and a success now would do its
+     * work without the record following, as a payment made while the report
+     * waits for reconciliation. Recover through the record's own transitions,
+     * or pass `force` when the failed attempts are known to have had no
+     * effect. The attempt count goes on from where it was: an earlier attempt
+     * still finishing somewhere cannot pass for a new one.
+     *
+     * A failed run whose `onFailure` is still pending, or was given up on by
+     * the sweep, is refused the same way, since its continuation is due to
+     * move the record on: continue it with `continueRun()`, or retry it with
+     * `force`, which drops it.
+     *
+     * Those are the only settled runs it refuses; it also refuses a run that
+     * is not failed, dead or cancelled with `INVALID_STATE`, and one whose
+     * effect this process does not know with `UNKNOWN_EFFECT`. A dead or
+     * cancelled run, a run whose effect has no `onFailure`, or one whose
+     * continuation was refused because the record moved on is retried without
+     * `force` even when the record has since left the state the effect served
+     * or entered it again; check the record before retrying such a run, or its
+     * success may do the work twice.
+     */
+    retryRun(runId: string, options?: RetryRunOptions): Promise<EffectRun | undefined>;
+    /**
+     * Tries a run's pending continuation once, now, rather than waiting for
+     * the next `reclaim()`: once the deploy or the definition fix that it
+     * waited for is live, or once the sweep has given up on it. Returns the
+     * run as it then is, its continuation cleared, or undefined when there is
+     * no such run. The effect never runs again, and the effect need not be
+     * known here, only its lifecycle. A refusal is thrown as the error it is:
+     * one saying the record moved on (`RECORD_NOT_FOUND`, `INVALID_STATE`,
+     * `GUARD_REJECTED`) also drops the continuation, and so does
+     * `INVALID_STATE` when the record has left the stay an `onEnter` effect's
+     * run was queued for, even to enter the same state again; any other
+     * refusal leaves it pending with the new error and counts the try, a
+     * `CONFLICT` or an error that is not a refusal without counting it, and a
+     * continuation the sweep gave up on stays given up on. A run with nothing pending is refused with
+     * `NO_CONTINUATION`, and one whose lifecycle this process does not know
+     * with `UNKNOWN_LIFECYCLE`.
+     */
+    continueRun(runId: string): Promise<EffectRun | undefined>;
+    /**
+     * Gives up on a queued or running run. A running attempt in this process
+     * is aborted; one elsewhere finds the run cancelled when it finishes and
+     * its outcome is discarded. Nothing follows from a cancelled run.
+     */
+    cancelRun(runId: string): Promise<EffectRun | undefined>;
+    /**
+     * Deletes finished runs last changed before `olderThan`; returns how many.
+     * A run that holds a continuation is kept, whether it waits or the sweep
+     * gave up on it: its outcome never moved the record, and the run is the
+     * only record of it — a payment made for a report that never became paid.
+     * Once `continueRun()` fires it, or a forced retry drops it, the run is
+     * pruned as any other.
+     */
+    prune(options: PruneOptions): Promise<number>;
+    /**
+     * Fires every trigger whose records have waited long enough. Run it on a
+     * schedule; it is safe to run on several instances at once, because each
+     * transition is a conditional update and a record moved by one sweep is
+     * refused by the other. A trigger fires at most `batchSize` transitions
+     * per sweep; records its guard refuses stay idle and are paged past, so
+     * they cannot keep the records behind them from being reached.
+     */
+    runTriggers(): Promise<number>;
+    /**
+     * Hands over again what no process is working on, without waiting for a
+     * restart: every attempt whose lease has expired — its process stopped, or
+     * stalled past `leaseMs` — and every queued run that has been due for
+     * longer than a lease, whose dispatch was lost. It then tries again the
+     * pending continuations that are due; see {@link ContinuationSweepOptions}
+     * and `continueRun()`. Run it on the same
+     * schedule as `runTriggers()`. Returns how many runs it handed over or
+     * continued.
+     */
+    reclaim(): Promise<number>;
+    /**
+     * Tries once each pending continuation that is due, at most `batchSize`
+     * of them and those due longest first, and returns how many fired. A
+     * continuation refused again with the error it was refused with before is
+     * logged as a warning on its 2nd, 4th, 8th… try, and one failing again
+     * with the same error that is not a refusal on its 2nd, 4th, 8th such try;
+     * a different refusal or error is logged as an error, since something has
+     * changed, and so is giving up on it. A run whose lifecycle this process does not know — a rolling
+     * deploy — is put off by its current backoff without counting a try, so
+     * it leaves the batch to the runs behind it.
+     */
+    private continuePending;
+    /** Logs a refused try of the sweep, as `continuePending()` describes. */
+    private reportRefusal;
+    /** Logs once that the sweep gave up on a run's continuation. */
+    private gaveUp;
+    /**
+     * Puts off a run whose lifecycle this process does not know by the
+     * backoff it is at, without counting a try: an unregistered lifecycle
+     * says nothing about the continuation, and counting it would give up on
+     * continuations a rolling deploy is about to serve.
+     */
+    private putOff;
+    /**
+     * One try of a run's pending continuation, in a transaction of its own:
+     * the continuation is cleared on the condition that the run, and the
+     * continuation it holds, are still as they were read, and its transition
+     * is decided nested, so a refusal undoes only the transition and what its
+     * `onTransition` wrote. It is logged under the request id the run's
+     * outcome would have used, so a continuation that already fired replays
+     * rather than firing twice, and it is dropped once the record has left
+     * the stay an `onEnter` effect's run was queued for. A conflict, or
+     * anything that is not a refusal, rolls the whole try back, and is then
+     * recorded on the continuation in a write of its own, pushing its due time
+     * back without counting toward giving up.
+     */
+    private tryContinuation;
+    /**
+     * A continuation after one more failed try at `at`: what failed it, its
+     * next due time and, once it has been refused `maxAttempts` times, the
+     * instant the sweep gives up on it. A `refusal` counts toward giving up
+     * and backs off by the refusals so far; a `conflict` counts nothing and
+     * is due again after `backoffMs`; an `error` that is not a refusal counts
+     * in `errorTries` only and backs off by every counted try so far, so an
+     * outage is tried less and less often, up to `maxMs`, and never given up
+     * on. One already given up on stays given up on.
+     */
+    private refusedContinuation;
+    /**
+     * Whether the record has left the stay `run` was queued for, when the run
+     * serves one: an effect of the entered state's `onEnter` does, while an
+     * effect the transition itself declares does not, and its continuation is
+     * checked only against the state the record is in, as any transition is.
+     * The stay ends with the first transition of its lifecycle logged after
+     * the run's own, other than one the run's outcome fired. A self-transition
+     * ends it too: it leaves the state and enters it again, queuing the
+     * state's onEnter effects anew. An edit that advances the version outside
+     * the lifecycle logs nothing and does not end it. The answer is the refusal a continuation gets for it. Only the
+     * entries after the run's own are read.
+     */
+    private stayEnded;
+    /** When a continuation refused `attempts` times, the last at `at`, is due again. */
+    private continuationDue;
+    /** Counts one more sweep a trigger was refused on a record; see `triggerRefusals`. */
+    private countTriggerRefusal;
+    /**
+     * Hands over again every queued run, and takes back every attempt whose
+     * process stopped answering. Call it once a process starts.
+     */
+    recover(): Promise<number>;
+    /**
+     * Queued runs due for longer than a lease. A dispatched run is claimed long
+     * before that, so one still queued was never handed over: the dispatch
+     * failed, or the timer waiting out its backoff died with its process. A run
+     * naming an effect this process does not know stays for one that does.
+     */
+    private strandedRuns;
+    private knows;
+    private takeBackStale;
+    private get;
+    private handOver;
+    /**
+     * Decides and writes one transition on `store`, which is a transaction.
+     * Everything it checks comes before anything it writes, so a refusal
+     * leaves the transaction as it found it.
+     */
+    private decide;
+    private decideWithParameters;
+    private enterWith;
+    /** What follows a commit: listeners hear of it, and its effects are handed over. */
+    private settle;
+    /**
+     * Tells the listeners about a committed transition; a failing listener is
+     * logged, never thrown. They hear of the record as this transition wrote
+     * it. A transition whose record a hook moved on is still `completed` and
+     * `entered`, but announces nothing: its state no longer allows anything,
+     * and the transition that moved it on announces what the record's state
+     * does.
+     */
+    private emit;
+    /** Writes a queued run for each effect a log entry owes. */
+    private owe;
+    private require;
+    /** What a guard sees outside a transition: the input asked about, if any, and no transaction. */
+    private guardContext;
+    /**
+     * An `EffectFailure`'s details as `onFailure` receives them. Details that
+     * are not JSON — a BigInt, a cycle — would otherwise stop the outcome from
+     * being recorded at all and leave the run claimed; they are dropped
+     * instead, and the failure is recorded as any other.
+     */
+    private failureDetails;
+    private discarded;
+}
+//# sourceMappingURL=runtime.d.ts.map

@@ -1,0 +1,2 @@
+export { default } from '../../locales/en-US.js';
+//# sourceMappingURL=en-US.js.map

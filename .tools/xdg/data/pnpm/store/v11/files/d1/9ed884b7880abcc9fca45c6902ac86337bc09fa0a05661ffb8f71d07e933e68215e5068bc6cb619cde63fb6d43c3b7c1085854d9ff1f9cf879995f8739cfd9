@@ -1,0 +1,4 @@
+import type { NormalizedMailMessage } from '../contracts/provider.js';
+/** A durable, retryable message identity when provider content cannot be decoded. */
+export declare function incompleteMessage(providerMessageId: string, code: string, metadata?: Partial<NormalizedMailMessage>): NormalizedMailMessage;
+//# sourceMappingURL=incomplete-message.d.ts.map

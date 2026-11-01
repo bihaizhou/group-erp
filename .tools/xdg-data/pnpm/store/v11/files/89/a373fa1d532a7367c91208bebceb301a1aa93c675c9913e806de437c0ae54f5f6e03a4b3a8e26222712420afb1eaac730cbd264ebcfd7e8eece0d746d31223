@@ -1,0 +1,36 @@
+import type { ScheduleJob } from '@nocobase/jobs';
+import type { ScheduleOccurrenceStore } from './occurrences.js';
+import type { JsonObject } from './schedules/define.js';
+import type { ScheduleTargetRegistry } from './schedules/registry.js';
+/** What a schedule's rule and dispatch are built from: a definition or its stored row. */
+export interface ScheduleJobSpec {
+    readonly id: string;
+    readonly cron: string;
+    readonly timezone: string;
+    readonly from?: Date;
+    readonly to?: Date;
+    readonly target: {
+        readonly type: string;
+        readonly config: JsonObject;
+    };
+    readonly definitionHash: string;
+}
+/** Stored with the rule; a firing reads the job it was created from rather than this. */
+export interface ScheduleDispatchPayload {
+    readonly target: {
+        readonly type: string;
+        readonly config: JsonObject;
+    };
+    readonly definitionHash: string;
+}
+export interface ScheduleDispatchDependencies {
+    readonly targets: ScheduleTargetRegistry;
+    readonly occurrences: ScheduleOccurrenceStore;
+}
+/**
+ * The executor job of one schedule. Its name is the schedule id, a SHA-256
+ * hex digest, so it never contains the `:` job names must not. `limit` is the
+ * applied limit — what remains of the definition's limit — or undefined.
+ */
+export declare function createScheduleDispatchJob(spec: ScheduleJobSpec, limit: number | undefined, dependencies: ScheduleDispatchDependencies): ScheduleJob<ScheduleDispatchPayload>;
+//# sourceMappingURL=dispatch.d.ts.map

@@ -1,0 +1,9 @@
+import type { SpaClientConfigMap } from './types.js';
+export interface ServeSpaIndexOptions {
+    readonly clientConfig?: SpaClientConfigMap;
+    readonly publicConfig?: SpaClientConfigMap;
+    /** The path the application is mounted at, which the page's relative URLs are resolved against. */
+    readonly publicBasePath?: string;
+}
+export declare function serveSpaIndex(indexPath: string, options?: ServeSpaIndexOptions): Promise<Response>;
+//# sourceMappingURL=serve-index.d.ts.map

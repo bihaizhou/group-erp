@@ -1,0 +1,65 @@
+export class DefaultRelationFieldMutationBuilder {
+    constructor() {
+        this.created = [];
+        this.connected = [];
+        this.disconnected = [];
+        this.clear = false;
+        this.updates = [];
+        this.upserts = [];
+        this.deletes = [];
+    }
+    create(values, options = {}) {
+        this.created.push({
+            kind: 'create',
+            values,
+            clientKey: options.clientKey,
+            through: options.through,
+        });
+        return this;
+    }
+    connect(values, options) {
+        this.connected.push(options?.through === undefined
+            ? values
+            : { where: values, through: options.through });
+        return this;
+    }
+    disconnect(values) {
+        if (values === undefined)
+            this.clear = true;
+        else
+            this.disconnected.push(values);
+        return this;
+    }
+    set(values) {
+        this.replacement = [...values];
+        return this;
+    }
+    update(input) {
+        this.updates.push(input);
+        return this;
+    }
+    upsert(input) {
+        this.upserts.push(input);
+        return this;
+    }
+    delete(input = {}) {
+        this.deletes.push(input);
+        return this;
+    }
+    toState() {
+        return {
+            create: [...this.created],
+            connect: [...this.connected],
+            disconnect: this.clear
+                ? true
+                : this.disconnected.length > 0
+                    ? [...this.disconnected]
+                    : undefined,
+            set: this.replacement,
+            update: [...this.updates],
+            upsert: [...this.upserts],
+            delete: [...this.deletes],
+        };
+    }
+}
+//# sourceMappingURL=relation-mutation-builder.js.map

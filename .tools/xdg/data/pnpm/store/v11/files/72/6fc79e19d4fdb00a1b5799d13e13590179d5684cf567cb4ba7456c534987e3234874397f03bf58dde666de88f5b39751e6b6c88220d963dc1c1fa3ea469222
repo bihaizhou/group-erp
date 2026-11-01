@@ -1,0 +1,32 @@
+import { type DatabaseManager } from '@nocobase/db';
+import { type MailListConversationMessagesInput, type MailListMessagesInput, type MailMessage, type MailMessageSummary, type MailPage } from '../../shared/mail.js';
+import { type MailStore } from '../contracts/persistence.js';
+import { type NormalizedMailMessage } from '../contracts/provider.js';
+export declare class MailMessagesStore {
+    private readonly database;
+    private readonly accounts;
+    saveMessageContent(accountId: string, messageId: string, message: NormalizedMailMessage): Promise<MailMessage>;
+    constructor(database: DatabaseManager, accounts: Pick<MailStore, 'listAccounts' | 'listAllAccounts' | 'getAccount'>);
+    /** Detach an editable draft from provider message IDs that can change on save. */
+    localizeDraft(accountId: string, messageId: string): Promise<MailMessage>;
+    closeDraft(accountId: string, messageId?: string, draftKey?: string): Promise<void>;
+    saveMessage(accountId: string, message: NormalizedMailMessage): Promise<MailMessage>;
+    listImapProviderMessageIds(accountId: string): Promise<readonly string[]>;
+    listMessages(userId: string, input: MailListMessagesInput): Promise<MailPage<MailMessageSummary>>;
+    listAllMessages(input: MailListMessagesInput): Promise<MailPage<MailMessageSummary>>;
+    private listMessagesForAccounts;
+    getMessage(userId: string, accountId: string, messageId: string): Promise<MailMessage | undefined>;
+    getMessageForAccount(accountId: string, messageId: string): Promise<MailMessage | undefined>;
+    listConversationMessages(userId: string, accountId: string, conversationId: string, input?: MailListConversationMessagesInput): Promise<MailPage<MailMessage>>;
+    updateMessageState(accountId: string, messageId: string, state: {
+        readonly read?: boolean;
+        readonly starred?: boolean;
+        readonly note?: string | null;
+        readonly todo?: boolean;
+    }): Promise<MailMessage | undefined>;
+    updateMessageLabels(accountId: string, messageId: string, addLabelIds: readonly string[], removeLabelIds: readonly string[]): Promise<MailMessage | undefined>;
+    countUnreadMessages(userId: string): Promise<number>;
+    moveMessage(accountId: string, messageId: string, providerMessageId: string, providerFolderId: string): Promise<MailMessage | undefined>;
+    deleteMessage(accountId: string, messageId: string, expectedUpdatedAt?: string, acceptedSubmissionId?: string): Promise<boolean>;
+}
+//# sourceMappingURL=messages.d.ts.map

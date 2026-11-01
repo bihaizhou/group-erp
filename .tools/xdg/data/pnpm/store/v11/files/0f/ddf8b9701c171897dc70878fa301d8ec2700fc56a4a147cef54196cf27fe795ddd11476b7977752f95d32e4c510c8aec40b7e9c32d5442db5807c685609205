@@ -1,0 +1,8 @@
+/** Tracks work from admission through completion, including direct runtime calls. */
+export declare class MailBackgroundTasks {
+    private readonly pending;
+    private closed;
+    run<T>(task: () => Promise<T>, closedResult: T): Promise<T>;
+    close(): Promise<void>;
+}
+//# sourceMappingURL=background-tasks.d.ts.map

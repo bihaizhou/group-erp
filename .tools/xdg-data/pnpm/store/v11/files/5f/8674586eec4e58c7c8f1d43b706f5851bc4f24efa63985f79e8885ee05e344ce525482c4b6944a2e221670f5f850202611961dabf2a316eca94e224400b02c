@@ -1,0 +1,17 @@
+import { TextDecoder, TextEncoder } from 'node:util';
+import { parse, stringify } from 'yaml';
+import { assertConfigMap } from '../value.js';
+const decoder = new TextDecoder();
+const encoder = new TextEncoder();
+export function yamlParser() {
+    return {
+        name: 'yaml',
+        parse(input) {
+            return assertConfigMap(parse(decoder.decode(input)));
+        },
+        serialize(value) {
+            return encoder.encode(stringify(value));
+        },
+    };
+}
+//# sourceMappingURL=yaml.js.map

@@ -1,0 +1,4 @@
+import { type AppClientPluginFactory } from '@nocobase/app-client/plugins';
+declare const plugin: AppClientPluginFactory;
+export default plugin;
+//# sourceMappingURL=plugin.d.ts.map

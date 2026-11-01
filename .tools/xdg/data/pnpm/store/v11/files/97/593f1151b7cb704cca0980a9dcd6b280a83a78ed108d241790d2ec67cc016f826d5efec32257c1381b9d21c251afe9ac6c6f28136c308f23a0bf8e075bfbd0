@@ -1,0 +1,2 @@
+export declare const I18N_PLUGIN_NS = "@nocobase/app-plugin-i18n";
+//# sourceMappingURL=index.d.ts.map

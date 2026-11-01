@@ -1,0 +1,41 @@
+import { emptyDatabaseTaskContainer } from '../../task-container.js';
+import { emptyDatabaseTaskConfig, } from '../../task-config.js';
+import { unobservedRepository } from '../../repository/internal/events/unobserved.js';
+import { TASK_LOCK_SCOPE } from './lock.js';
+export function createMigrationContext(connection, config = emptyDatabaseTaskConfig, container = emptyDatabaseTaskContainer) {
+    return {
+        config,
+        container,
+        builder: connection.builder,
+        query: connection.query,
+        repository: createTaskRepositoryAccessor(connection),
+        connection: createMigrationConnection(connection),
+    };
+}
+/**
+ * Collection-level access bound to the connection the task runs on. Shared by
+ * migrations and seeds so both reach the transaction's connection rather than
+ * the application's DatabaseManager, which their service container withholds
+ * for exactly that reason.
+ *
+ * Writes made here emit no Repository mutation events: a task runs while an
+ * application installs or upgrades, before the services listeners depend on
+ * are up, and its effect must not depend on which listeners happen to be
+ * registered.
+ */
+export function createTaskRepositoryAccessor(connection) {
+    return function repository(collectionName) {
+        return unobservedRepository(connection, collectionName);
+    };
+}
+export function createMigrationConnection(connection) {
+    return {
+        name: connection.name,
+        driver: connection.driver,
+        dialect: connection.dialect,
+        capabilities: connection.capabilities,
+        client: connection.client.bind(connection),
+        // Every wrapper made from one Database Connection shares its in-process lock claims.
+        [TASK_LOCK_SCOPE]: connection,
+    };
+}

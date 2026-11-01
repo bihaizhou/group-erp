@@ -1,0 +1,200 @@
+{
+  "name": "@nocobase/app-server",
+  "version": "2.0.0-beta.7",
+  "type": "module",
+  "prettier": "@nocobase/dev-config/prettier",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./application": {
+      "types": "./dist/application/index.d.ts",
+      "import": "./dist/application/index.js"
+    },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.js"
+    },
+    "./caching": {
+      "types": "./dist/caching/index.d.ts",
+      "import": "./dist/caching/index.js"
+    },
+    "./sample-data": {
+      "types": "./dist/sample-data/index.d.ts",
+      "import": "./dist/sample-data/index.js"
+    },
+    "./drive": {
+      "types": "./dist/drive/index.d.ts",
+      "import": "./dist/drive/index.js"
+    },
+    "./id-generator": {
+      "types": "./dist/id-generator/index.d.ts",
+      "import": "./dist/id-generator/index.js"
+    },
+    "./logging": {
+      "types": "./dist/logging/index.d.ts",
+      "import": "./dist/logging/index.js"
+    },
+    "./queue": {
+      "types": "./dist/queue/index.d.ts",
+      "import": "./dist/queue/index.js"
+    },
+    "./jobs": {
+      "types": "./dist/jobs/index.d.ts",
+      "import": "./dist/jobs/index.js"
+    },
+    "./session": {
+      "types": "./dist/session/index.d.ts",
+      "import": "./dist/session/index.js"
+    },
+    "./database": {
+      "types": "./dist/database/index.d.ts",
+      "import": "./dist/database/index.js"
+    },
+    "./node": {
+      "types": "./dist/node/index.d.ts",
+      "import": "./dist/node/index.js"
+    },
+    "./plugins": {
+      "types": "./dist/plugins/index.d.ts",
+      "import": "./dist/plugins/index.js"
+    },
+    "./realtime": {
+      "types": "./dist/realtime/index.d.ts",
+      "import": "./dist/realtime/index.js"
+    },
+    "./router": {
+      "types": "./dist/router/index.d.ts",
+      "import": "./dist/router/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "import": "./dist/runtime/index.js"
+    },
+    "./proxy": {
+      "types": "./dist/proxy/index.d.ts",
+      "import": "./dist/proxy/index.js"
+    },
+    "./spa": {
+      "types": "./dist/spa/index.d.ts",
+      "import": "./dist/spa/index.js"
+    },
+    "./support": {
+      "types": "./dist/support/index.d.ts",
+      "import": "./dist/support/index.js"
+    },
+    "./i18n": {
+      "types": "./dist/i18n/index.d.ts",
+      "import": "./dist/i18n/index.js"
+    },
+    "./secrets": {
+      "types": "./dist/secrets/index.d.ts",
+      "import": "./dist/secrets/index.js"
+    },
+    "./mailer": {
+      "types": "./dist/mailer/index.d.ts",
+      "import": "./dist/mailer/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "@sinclair/typebox": "^0.34.52",
+    "hono": "^4.13.2",
+    "@standard-schema/spec": "^1.0.0",
+    "hono-openapi": "^1.3.3",
+    "zod": "^4.6.5",
+    "openapi-types": "^12.1.3",
+    "@nocobase/app-websocket": "^0.0.2-beta.0",
+    "@nocobase/config": "^0.1.0-beta.3",
+    "@nocobase/drive": "^0.1.0-beta.5",
+    "@nocobase/logging": "^0.1.0-beta.7",
+    "@nocobase/realtime": "^0.0.2-beta.1",
+    "@nocobase/secrets": "^0.1.0-beta.1",
+    "@nocobase/snowflake": "^1.0.0-beta.4",
+    "@nocobase/mailer": "^0.1.0-beta.0",
+    "@nocobase/session": "^0.1.0-beta.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "eslint": "^10.0.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10",
+    "swagger-ui-dist": "^5.33.1",
+    "@nocobase/db-mysql": "0.1.0-beta.5",
+    "@nocobase/db-mssql": "0.1.0-beta.4",
+    "@nocobase/db-oracle": "0.1.0-beta.4",
+    "@nocobase/db-postgres": "0.1.0-beta.4",
+    "@nocobase/db-sqlite": "0.1.0-beta.5",
+    "@nocobase/db-testing": "0.1.0-beta.2",
+    "@nocobase/api-client": "1.0.0-beta.4",
+    "@nocobase/dev-config": "0.1.0-beta.22"
+  },
+  "peerDependencies": {
+    "@nocobase/db-dameng": "^0.1.0-beta.4",
+    "@nocobase/db-kingbase": "^0.1.0-beta.4",
+    "@nocobase/db-oceanbase": "^0.1.0-beta.4",
+    "@nocobase/i18n": "^1.0.0-beta.7",
+    "@nocobase/caching": "^0.1.0-beta.3",
+    "@nocobase/db": "^1.0.0-beta.20",
+    "@nocobase/service-provider": "^0.0.2-beta.2",
+    "@nocobase/queue": "^0.1.0-beta.9",
+    "@nocobase/jobs": "^0.1.0-beta.3",
+    "@nocobase/db-sqlite": "^0.1.0-beta.5",
+    "@nocobase/db-postgres": "^0.1.0-beta.4",
+    "@nocobase/db-mysql": "^0.1.0-beta.5",
+    "@nocobase/db-oracle": "^0.1.0-beta.4",
+    "@nocobase/db-mssql": "^0.1.0-beta.4"
+  },
+  "peerDependenciesMeta": {
+    "@nocobase/db-sqlite": {
+      "optional": true
+    },
+    "@nocobase/db-mysql": {
+      "optional": true
+    },
+    "@nocobase/db-postgres": {
+      "optional": true
+    },
+    "@nocobase/db-mssql": {
+      "optional": true
+    },
+    "@nocobase/db-oracle": {
+      "optional": true
+    },
+    "@nocobase/db-dameng": {
+      "optional": true
+    },
+    "@nocobase/db-kingbase": {
+      "optional": true
+    },
+    "@nocobase/db-oceanbase": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "clean": "node ./scripts/clean-dist.mjs",
+    "build": "pnpm clean && tsc -p tsconfig.json && node ./scripts/copy-swagger-ui.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.tests.json",
+    "test": "vitest run",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix --max-warnings 0",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
+    "fix": "pnpm lint:fix && pnpm format"
+  }
+}

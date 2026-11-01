@@ -1,0 +1,5 @@
+import { type AppServerPlugin } from '@nocobase/app-server/plugins';
+import type { AuthenticationProviderConfig } from './providers/authentication.js';
+declare const authenticationPlugin: AppServerPlugin<AuthenticationProviderConfig>;
+export default authenticationPlugin;
+//# sourceMappingURL=plugin.d.ts.map

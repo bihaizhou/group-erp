@@ -1,0 +1,12 @@
+import type { CollectionMetadataStore, CollectionMetadataSummary } from '../document-store.js';
+export type CollectionMetadataNamingSnapshot = readonly CollectionMetadataSummary[];
+interface NamingSnapshotSource {
+    read(): Promise<CollectionMetadataNamingSnapshot>;
+    invalidate(): void;
+}
+/** Internal opt-in: custom stores retain their existing list semantics. */
+export declare function registerMetadataNamingSnapshot(store: CollectionMetadataStore, source: NamingSnapshotSource): void;
+export declare function listMetadataNamingSnapshot(store: CollectionMetadataStore): Promise<CollectionMetadataNamingSnapshot>;
+export declare function readMetadataNamingSnapshot(store: CollectionMetadataStore): Promise<CollectionMetadataNamingSnapshot>;
+export declare function invalidateMetadataNamingSnapshot(store: CollectionMetadataStore): void;
+export {};

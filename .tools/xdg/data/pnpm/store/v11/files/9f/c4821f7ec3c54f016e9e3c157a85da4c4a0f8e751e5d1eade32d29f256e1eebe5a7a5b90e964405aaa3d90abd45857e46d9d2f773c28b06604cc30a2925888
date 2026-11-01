@@ -1,0 +1,9 @@
+import type { AppTool } from '../tools/run-tool.ts';
+import { ToolCommand, type ToolCommandOptions } from '../lib/tool-command.ts';
+export default class Dev extends ToolCommand {
+    static summary: string;
+    static description: string;
+    protected readonly tool: AppTool;
+    protected readonly toolOptions: ToolCommandOptions;
+}
+//# sourceMappingURL=dev.d.ts.map

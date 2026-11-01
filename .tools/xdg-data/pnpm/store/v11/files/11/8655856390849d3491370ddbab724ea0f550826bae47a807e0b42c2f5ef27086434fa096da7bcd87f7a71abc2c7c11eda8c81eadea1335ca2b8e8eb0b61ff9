@@ -1,0 +1,8 @@
+import { type ReactElement, type ReactNode } from 'react';
+import type { MailMessageSummary } from '../mail-client.js';
+export declare function MailScheduledStatus({ message, variant, action, }: {
+    readonly message: MailMessageSummary;
+    readonly variant?: 'compact' | 'banner';
+    readonly action?: ReactNode;
+}): ReactElement | null;
+//# sourceMappingURL=mail-scheduled-status.d.ts.map

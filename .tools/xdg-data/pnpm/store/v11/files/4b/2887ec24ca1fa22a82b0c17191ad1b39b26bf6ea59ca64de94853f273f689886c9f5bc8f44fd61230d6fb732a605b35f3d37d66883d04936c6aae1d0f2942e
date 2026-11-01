@@ -1,0 +1,7 @@
+import { useRender } from '@base-ui/react/use-render';
+import type { ReactElement } from 'react';
+export type BadgeProps = useRender.ComponentProps<'span'> & {
+    readonly variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost' | 'link';
+};
+export declare function Badge({ className, variant, render, ...props }: BadgeProps): ReactElement;
+//# sourceMappingURL=badge.d.ts.map

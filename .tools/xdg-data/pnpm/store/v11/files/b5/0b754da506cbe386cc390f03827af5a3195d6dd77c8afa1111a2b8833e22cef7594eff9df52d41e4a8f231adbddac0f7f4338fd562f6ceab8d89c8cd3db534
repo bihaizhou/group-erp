@@ -1,0 +1,6 @@
+export declare function parseJson<T>(value: T | string, label: string): T;
+export declare function jsonOrNull(value: unknown): string | null;
+export declare function chunks<T>(values: readonly T[], size: number): readonly T[][];
+export declare function toIsoString(value: unknown): string;
+export declare function normalizeAddress(address: string): string;
+//# sourceMappingURL=serialization.d.ts.map

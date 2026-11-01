@@ -1,0 +1,11 @@
+export type CollectionMetadataIssueCode = 'COLLECTION_METADATA_VERSION_UNSUPPORTED' | 'COLLECTION_METADATA_REQUIRED' | 'COLLECTION_METADATA_TYPE_INVALID' | 'COLLECTION_METADATA_UNKNOWN_PROPERTY' | 'COLLECTION_METADATA_NAME_INVALID' | 'COLLECTION_METADATA_NAME_CONFLICT' | 'COLLECTION_METADATA_OPTIMISTIC_LOCK_INVALID' | 'COLLECTION_METADATA_RELATION_INVALID';
+export interface CollectionMetadataIssue {
+    code: CollectionMetadataIssueCode;
+    path: readonly (string | number)[];
+    message: string;
+}
+export declare class CollectionMetadataValidationError extends Error {
+    readonly issues: readonly CollectionMetadataIssue[];
+    readonly code: "COLLECTION_METADATA_INVALID";
+    constructor(issues: readonly CollectionMetadataIssue[]);
+}

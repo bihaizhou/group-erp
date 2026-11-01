@@ -1,0 +1,6 @@
+import { jsx as _jsx } from "react/jsx-runtime";
+import { cn } from 'cn';
+export function Label({ className, ...props }) {
+    return _jsx("label", { className: cn('text-sm font-medium', className), ...props });
+}
+//# sourceMappingURL=label.js.map

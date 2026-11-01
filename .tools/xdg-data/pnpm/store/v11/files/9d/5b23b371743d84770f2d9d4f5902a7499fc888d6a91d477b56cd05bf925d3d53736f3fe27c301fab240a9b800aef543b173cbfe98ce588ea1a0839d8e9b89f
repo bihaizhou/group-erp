@@ -1,0 +1,1 @@
+{"version":3,"file":"static-assets.d.ts","sourceRoot":"","sources":["../../src/spa/static-assets.ts"],"names":[],"mappings":"AASA,MAAM,WAAW,oBAAoB;IACnC,OAAO,EAAE,MAAM,CAAC;IAChB,QAAQ,EAAE,MAAM,CAAC;IACjB,YAAY,CAAC,EAAE,MAAM,CAAC;CACvB;AAED,wBAAsB,aAAa,CACjC,OAAO,EAAE,OAAO,EAChB,OAAO,EAAE,oBAAoB,GAC5B,OAAO,CAAC,QAAQ,CAAC,CAqBnB"}

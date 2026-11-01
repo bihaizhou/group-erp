@@ -1,0 +1,31 @@
+import type { AuthorizationIdentity, AuthorizationSubject } from './types.js';
+export declare function resolveAuthorizationSubjects(identity: AuthorizationIdentity): readonly AuthorizationSubject[];
+export interface AuthorizationSubjectTypeExtensions {
+}
+export interface AuthorizationSubjectType<TTransaction = unknown> extends AuthorizationSubjectTypeExtensions {
+    /** Subjects of this type inherited by a principal, such as current team memberships. */
+    resolveFor?(principal: AuthorizationIdentity['principal']): Promise<readonly string[]>;
+    /**
+     * Narrows the ids of this one type to the ones that still confer anything.
+     * Batched on purpose: one query answers the whole set. The caller's
+     * transaction is passed on when there is one, so the answer reads the
+     * snapshot that transaction has already locked.
+     */
+    filterActive(ids: readonly string[], transaction?: TTransaction): Promise<readonly string[]>;
+}
+/**
+ * What an application knows about its own subject types. Subject types are
+ * open strings the library never validates, so an undeclared type is not an
+ * unknown one — it is a type nothing further is known about.
+ */
+export declare class AuthorizationSubjectRegistry {
+    private readonly types;
+    /** Returns a function that removes the type again. */
+    add<TTransaction = unknown>(type: string, definition: AuthorizationSubjectType<TTransaction>): () => void;
+    get(type: string): AuthorizationSubjectType<unknown> | undefined;
+    resolveFor(principal: AuthorizationIdentity['principal']): Promise<readonly AuthorizationSubject[]>;
+    list(): readonly string[];
+    /** Subjects of an undeclared type pass through: nothing says otherwise. */
+    filterActive(subjects: readonly AuthorizationSubject[], transaction?: unknown): Promise<readonly AuthorizationSubject[]>;
+}
+//# sourceMappingURL=subjects.d.ts.map

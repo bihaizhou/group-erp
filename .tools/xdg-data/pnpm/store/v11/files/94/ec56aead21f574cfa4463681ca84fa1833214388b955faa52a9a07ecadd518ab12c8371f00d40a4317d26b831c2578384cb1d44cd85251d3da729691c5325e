@@ -1,0 +1,12 @@
+export async function mapConcurrent(values, concurrency, map) {
+    const result = new Array(values.length);
+    let index = 0;
+    await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, async () => {
+        while (index < values.length) {
+            const current = index++;
+            result[current] = await map(values[current]);
+        }
+    }));
+    return result;
+}
+//# sourceMappingURL=concurrency.js.map

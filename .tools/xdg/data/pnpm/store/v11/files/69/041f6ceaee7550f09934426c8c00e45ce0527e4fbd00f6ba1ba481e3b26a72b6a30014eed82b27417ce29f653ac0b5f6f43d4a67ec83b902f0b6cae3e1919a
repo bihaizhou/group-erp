@@ -1,0 +1,9 @@
+import { createContext, useContext } from 'react';
+export const NotificationInAppRuntimeContext = createContext(undefined);
+export function useNotificationInAppRuntime() {
+    const value = useContext(NotificationInAppRuntimeContext);
+    if (!value)
+        throw new Error('NotificationInAppProvider is required.');
+    return value;
+}
+//# sourceMappingURL=notification-in-app-runtime.js.map

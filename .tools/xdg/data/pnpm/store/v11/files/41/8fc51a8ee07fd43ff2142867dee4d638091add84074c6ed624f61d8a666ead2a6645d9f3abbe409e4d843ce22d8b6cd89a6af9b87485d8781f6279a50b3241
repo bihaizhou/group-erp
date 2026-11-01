@@ -1,0 +1,20 @@
+import type { DatabaseConnection } from '@nocobase/db';
+import type { DatabaseConnectionSource } from '@nocobase/app-plugin-authorization/server/extension';
+import type { RestrictionRule } from '@nocobase/authorization/restriction-rules';
+import type { RestrictionRuleStore } from '@nocobase/authorization/restriction-rules';
+export declare class DatabaseRestrictionRuleStore implements RestrictionRuleStore<DatabaseConnection> {
+    private readonly connection;
+    constructor(connection: DatabaseConnectionSource);
+    withTransaction(connection: DatabaseConnection): RestrictionRuleStore<DatabaseConnection>;
+    create(rule: RestrictionRule): Promise<RestrictionRule>;
+    update(key: string, rule: RestrictionRule): Promise<RestrictionRule>;
+    delete(key: string): Promise<void>;
+    get(key: string): Promise<RestrictionRule | undefined>;
+    list(): Promise<readonly RestrictionRule[]>;
+    private toValues;
+    private toUpdateValues;
+    private replaceAssignments;
+    private loadAssignments;
+    private fromRow;
+}
+//# sourceMappingURL=restriction-rules.d.ts.map

@@ -1,0 +1,17 @@
+import { type MailFolder, type MailListMessagesInput, type MailManagedAccountView, type MailManagementMessageActionInput, type MailManagementMessageActionResult, type MailMessage, type MailMessageSummary, type MailOffsetPage, type MailOperationContext, type MailPage, type MailSubmissionLogView, type MailSyncRunView } from '../../shared/mail.js';
+import { type MailServiceDependencies } from './dependencies.js';
+/** Trusted management entry: callers must authorize mail.management access. */
+export declare class MailManagementService {
+    private readonly dependencies;
+    private readonly mutations;
+    constructor(dependencies: MailServiceDependencies<'deleteMessage' | 'getAccount' | 'getMessageForAccount' | 'listAllAccounts' | 'listAllMessages' | 'listAllSubmissions' | 'listAllSyncRuns' | 'listFolders' | 'moveMessage' | 'updateMessageState', 'adapters' | 'messageChangeNotifier' | 'logger' | 'registry' | 'users'>);
+    listManagedAccounts(context: MailOperationContext): Promise<readonly MailManagedAccountView[]>;
+    listManagedSyncRunsPage(context: MailOperationContext, offset: number, limit: number): Promise<MailOffsetPage<MailSyncRunView>>;
+    listManagedSubmissionsPage(_context: MailOperationContext, offset: number, limit: number): Promise<MailOffsetPage<MailSubmissionLogView>>;
+    listManagedFolders(_context: MailOperationContext, accountId: string): Promise<readonly MailFolder[]>;
+    listManagedMessages(_context: MailOperationContext, input: MailListMessagesInput): Promise<MailPage<MailMessageSummary>>;
+    getManagedMessage(_context: MailOperationContext, accountId: string, messageId: string): Promise<MailMessage | undefined>;
+    manageMessages(context: MailOperationContext, input: MailManagementMessageActionInput): Promise<MailManagementMessageActionResult>;
+    private executeManagedMessageAction;
+}
+//# sourceMappingURL=management.d.ts.map

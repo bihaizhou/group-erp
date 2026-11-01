@@ -1,0 +1,8 @@
+import { type AppClientPluginFactory } from '@nocobase/app-client/plugins';
+/**
+ * Registers the locales for the resource title the plugin's server registers with the authorization catalog. It
+ * contributes no pages: an application that edits these rules builds its page on the plugin's API among its own routes.
+ */
+declare const authzSharingRules: AppClientPluginFactory;
+export default authzSharingRules;
+//# sourceMappingURL=plugin.d.ts.map

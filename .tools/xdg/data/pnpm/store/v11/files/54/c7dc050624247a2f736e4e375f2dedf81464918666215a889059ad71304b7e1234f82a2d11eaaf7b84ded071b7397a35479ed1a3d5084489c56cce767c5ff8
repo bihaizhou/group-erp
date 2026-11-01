@@ -1,0 +1,4 @@
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { NocoBaseSessionManager } from '@nocobase/session';
+export declare const sessionManagerToken: ServiceToken<NocoBaseSessionManager>;
+//# sourceMappingURL=token.d.ts.map

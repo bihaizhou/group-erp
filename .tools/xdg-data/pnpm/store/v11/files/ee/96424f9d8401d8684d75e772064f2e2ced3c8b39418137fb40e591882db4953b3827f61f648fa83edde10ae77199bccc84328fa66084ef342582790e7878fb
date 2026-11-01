@@ -1,0 +1,8 @@
+/** The error domain of the API keys plugin: its URL namespace. */
+export declare const API_KEYS_ERROR_DOMAIN = "apiKeys";
+/**
+ * The plugin's own errors as `ApiError`, domain `apiKeys`, with their code as the reason; anything else is returned
+ * unchanged for `apiErrorHandler`. Exported so an application's own key routes answer the same way.
+ */
+export declare function toApiKeysApiError(error: unknown): unknown;
+//# sourceMappingURL=errors.d.ts.map

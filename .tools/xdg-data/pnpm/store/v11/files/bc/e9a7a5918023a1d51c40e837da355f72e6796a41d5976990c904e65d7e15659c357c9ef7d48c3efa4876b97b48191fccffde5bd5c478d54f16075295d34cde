@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "files": {
+    "202608210003_create_sharing_rules.js": {
+      "sourceChecksum": "64a61d83aabc4e4d773acfad3a2df31935c4060694d199004a05245ddd0d5c99",
+      "artifactChecksum": "76dc12fd8658fedac1cb6cea55b3c03d5cebf54ec8a351c608d096d3569218c7"
+    }
+  }
+}

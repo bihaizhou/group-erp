@@ -1,0 +1,14 @@
+import type { MailAccount, MailProviderConfig } from '../shared/mail.js';
+import type { MailProviderAdapter, MailProviderAdapterResolver, MailProviderContext, MailProviderRegistry } from './contracts/provider.js';
+export interface DefaultMailProviderAdapterResolverOptions {
+    readonly registry: MailProviderRegistry;
+    readonly context: MailProviderContext;
+    readonly resolveConfig?: (account: MailAccount) => Promise<MailProviderConfig> | MailProviderConfig;
+}
+export declare class DefaultMailProviderAdapterResolver implements MailProviderAdapterResolver {
+    private readonly options;
+    constructor(options: DefaultMailProviderAdapterResolverOptions);
+    resolve(account: MailAccount, _signal?: AbortSignal): Promise<MailProviderAdapter>;
+}
+export declare function createMailProviderAdapterResolver(options: DefaultMailProviderAdapterResolverOptions): DefaultMailProviderAdapterResolver;
+//# sourceMappingURL=adapter-resolver.d.ts.map

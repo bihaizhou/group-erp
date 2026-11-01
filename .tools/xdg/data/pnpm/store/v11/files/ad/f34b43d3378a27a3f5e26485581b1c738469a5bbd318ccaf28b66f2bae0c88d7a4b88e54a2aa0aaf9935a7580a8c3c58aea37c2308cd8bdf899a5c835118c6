@@ -1,0 +1,3 @@
+import type { ComponentProps, ReactElement } from 'react';
+export declare function Label({ className, ...props }: ComponentProps<'label'>): ReactElement;
+//# sourceMappingURL=label.d.ts.map

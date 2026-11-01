@@ -1,0 +1,4 @@
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { InAppStore } from './store.js';
+export declare const inAppNotificationStoreToken: ServiceToken<InAppStore>;
+//# sourceMappingURL=tokens.d.ts.map

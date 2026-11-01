@@ -1,0 +1,143 @@
+import { createTaskServiceResolver } from './task-container.js';
+import { snapshotDatabaseTaskConfig } from './task-config.js';
+import { existsSync } from 'node:fs';
+import { createMigrator, loadMigrations, } from '@nocobase/db';
+export function createAppMigrator(options) {
+    return {
+        async latest() {
+            if (!hasMigrationDirectory(options)) {
+                return skippedMigrationResult();
+            }
+            return completedRunResult(await createDatabaseMigrator(options).latest());
+        },
+        async fresh() {
+            const connection = options.database.connection(options.connection);
+            await connection.resetManagedSchema();
+            if (!hasMigrationDirectory(options)) {
+                return {
+                    status: 'completed',
+                    batch: 0,
+                    executed: [],
+                    skipped: [],
+                };
+            }
+            return completedRunResult(await createDatabaseMigrator(options).latest());
+        },
+        async pending(pendingOptions = {}) {
+            if (!hasMigrationDirectory(options)) {
+                // `fresh()` empties the schema whether or not there is anything to
+                // apply afterwards, so a fresh plan still has something to do.
+                return pendingOptions.fresh
+                    ? { status: 'completed', pending: [], skipped: [], dryRun: true }
+                    : { status: 'skipped', reason: 'missing-directory' };
+            }
+            const migrations = await loadMigrations(createDatabaseMigratorOptions(options));
+            return pendingTasksResult(migrations, pendingOptions.fresh || pendingOptions.withoutHistory
+                ? []
+                : await createDatabaseMigrator(options).history());
+        },
+        async history() {
+            return createDatabaseMigrator(options).history();
+        },
+        async rollback(rollbackOptions) {
+            if (!hasMigrationDirectory(options)) {
+                return skippedMigrationResult();
+            }
+            return completedRollbackResult(await createDatabaseMigrator(options).rollback(rollbackOptions));
+        },
+        // Unlocking needs no migration directory: the lock exists whether or not
+        // this application owns migrations, because plugins and startup share it.
+        async unlock(releaseOptions) {
+            return {
+                status: 'completed',
+                ...(await createDatabaseMigrator(options).unlock(releaseOptions)),
+            };
+        },
+        async repair(repairOptions) {
+            if (!hasMigrationDirectory(options)) {
+                return skippedMigrationResult();
+            }
+            return completedRepairResult(await createDatabaseMigrator(options).repair(repairOptions));
+        },
+    };
+}
+function createDatabaseMigrator(options) {
+    return createMigrator(createDatabaseMigratorOptions(options));
+}
+function createDatabaseMigratorOptions(options) {
+    const common = {
+        config: snapshotDatabaseTaskConfig(options.runtimeConfig),
+        container: createTaskServiceResolver(options.container),
+        database: options.database,
+        connection: options.connection,
+        tableName: options.config.tableName,
+        lockTableName: options.config.lockTableName,
+        extensions: options.config.extensions,
+        onChecksumMismatch: options.config.onChecksumMismatch,
+        onStaleLock: options.onStaleLock,
+    };
+    if (options.sources) {
+        return {
+            ...common,
+            sources: options.sources,
+        };
+    }
+    return {
+        ...common,
+        directory: options.config.directory,
+        packageName: options.config.packageName,
+    };
+}
+function hasMigrationDirectory(options) {
+    if (options.sources) {
+        return options.sources.some((source) => existsSync(source.directory));
+    }
+    return existsSync(options.config.directory);
+}
+function skippedMigrationResult() {
+    return {
+        status: 'skipped',
+        reason: 'missing-directory',
+    };
+}
+/** Splits loaded tasks into those a run would execute and those it would skip. */
+export function pendingTasksResult(tasks, history) {
+    const executed = new Set(history.map((record) => record.name));
+    return {
+        status: 'completed',
+        pending: tasks
+            .filter((task) => !executed.has(task.name))
+            .map((task) => task.name),
+        skipped: tasks
+            .filter((task) => executed.has(task.name))
+            .map((task) => task.name),
+        dryRun: true,
+    };
+}
+function completedRunResult(result) {
+    return {
+        status: 'completed',
+        batch: result.batch,
+        executed: result.executed,
+        skipped: result.skipped,
+        warnings: result.warnings,
+    };
+}
+function completedRollbackResult(result) {
+    return {
+        status: 'completed',
+        batch: result.batch,
+        rolledBack: result.rolledBack,
+        records: result.records,
+        warnings: result.warnings,
+        dryRun: result.dryRun,
+    };
+}
+function completedRepairResult(result) {
+    return {
+        status: 'completed',
+        repaired: result.repaired,
+        dryRun: result.dryRun,
+    };
+}
+//# sourceMappingURL=migrator.js.map

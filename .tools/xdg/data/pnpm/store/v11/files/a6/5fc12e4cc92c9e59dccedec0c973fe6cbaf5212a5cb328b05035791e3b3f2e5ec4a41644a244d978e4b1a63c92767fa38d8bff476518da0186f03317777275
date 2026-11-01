@@ -1,0 +1,324 @@
+import { RepositoryError } from './errors.js';
+export const relationWriteOperations = [
+    'create',
+    'update',
+    'upsert',
+    'connect',
+    'disconnect',
+    'set',
+    'delete',
+];
+export function invalidWritePolicy(message, path) {
+    throw new RepositoryError('INVALID_WRITE_POLICY', message, { path });
+}
+function object(value) {
+    return (typeof value === 'object' &&
+        value !== null &&
+        (Object.getPrototypeOf(value) === Object.prototype ||
+            Object.getPrototypeOf(value) === null));
+}
+function name(value, path) {
+    if (typeof value !== 'string' ||
+        !value ||
+        value.includes('.') ||
+        value.includes('*'))
+        invalidWritePolicy('Expected a direct field or relation name without wildcards.', path);
+}
+function keys(value, allowed, path) {
+    if (!object(value))
+        invalidWritePolicy('Expected a plain policy object.', path);
+    for (const key of Reflect.ownKeys(value))
+        if (typeof key !== 'string' || !allowed.includes(key))
+            invalidWritePolicy(`Unsupported policy option: ${String(key)}.`, [
+                ...path,
+                String(key),
+            ]);
+}
+function fieldPolicy(value, path) {
+    keys(value, ['fields'], path);
+    if (value.fields === undefined || value.fields === false)
+        return Object.freeze({ fields: false });
+    if (!Array.isArray(value.fields))
+        invalidWritePolicy('fields must be false or an array of direct field names.', [...path, 'fields']);
+    const fields = [];
+    for (const [index, field] of value.fields.entries()) {
+        name(field, [...path, 'fields', index]);
+        if (fields.includes(field))
+            invalidWritePolicy('fields must not contain duplicates.', [
+                ...path,
+                'fields',
+                index,
+            ]);
+        fields.push(field);
+    }
+    return Object.freeze({ fields: Object.freeze(fields) });
+}
+function throughPolicy(value, path) {
+    keys(value, ['through'], path);
+    return Object.freeze({
+        through: value.through === undefined || value.through === false
+            ? false
+            : fieldPolicy(value.through, [...path, 'through']),
+    });
+}
+function snapshot(value, path, mode, ancestors, allowThrough = false) {
+    keys(value, allowThrough ? ['fields', 'relations', 'through'] : ['fields', 'relations'], path);
+    if (ancestors.has(value))
+        invalidWritePolicy('Policy must not contain cycles.', path);
+    ancestors.add(value);
+    const fields = fieldPolicy({ fields: value.fields }, path);
+    let relations = false;
+    if (value.relations !== undefined && value.relations !== false) {
+        if (!object(value.relations))
+            invalidWritePolicy('relations must be false or a plain object.', [
+                ...path,
+                'relations',
+            ]);
+        const relationMap = value.relations;
+        const entries = Reflect.ownKeys(relationMap).map((relation) => {
+            name(relation, [...path, 'relations', String(relation)]);
+            const rule = relationMap[relation];
+            const rulePath = [...path, 'relations', relation];
+            name(relation, rulePath);
+            keys(rule, mode === 'create' ? ['create', 'connect'] : relationWriteOperations, rulePath);
+            const operationEntries = Object.getOwnPropertyNames(rule).map((operation) => {
+                const config = rule[operation];
+                const operationPath = [...rulePath, operation];
+                switch (operation) {
+                    case 'create':
+                        return [
+                            operation,
+                            snapshot(config, operationPath, 'create', ancestors, true),
+                        ];
+                    case 'update':
+                        return [
+                            operation,
+                            snapshot(config, operationPath, 'update', ancestors),
+                        ];
+                    case 'upsert':
+                        return [
+                            operation,
+                            upsertSnapshot(config, operationPath, ancestors),
+                        ];
+                    case 'connect':
+                    case 'set':
+                        return [operation, throughPolicy(config, operationPath)];
+                    default:
+                        keys(config, [], operationPath);
+                        return [operation, Object.freeze({})];
+                }
+            });
+            return [relation, Object.freeze(Object.fromEntries(operationEntries))];
+        });
+        relations = Object.freeze(Object.fromEntries(entries));
+    }
+    ancestors.delete(value);
+    return Object.freeze({
+        ...fields,
+        relations,
+        ...(allowThrough ? throughPolicy({ through: value.through }, path) : {}),
+    });
+}
+function upsertSnapshot(value, path, ancestors) {
+    keys(value, ['create', 'update'], path);
+    return Object.freeze({
+        create: snapshot(value.create, [...path, 'create'], 'create', ancestors),
+        update: snapshot(value.update, [...path, 'update'], 'update', ancestors),
+    });
+}
+// Builder state is private; callbacks cannot replace a branch with a foreign builder.
+class FieldsBuilder {
+    path;
+    data = {};
+    declared = new Set();
+    constructor(path) {
+        this.path = path;
+    }
+    reserve(key) {
+        if (this.declared.has(key))
+            invalidWritePolicy('Policy member may only be declared once.', [
+                ...this.path,
+                key,
+            ]);
+        this.declared.add(key);
+    }
+    fields(...fields) {
+        this.reserve('fields');
+        this.data.fields = [...fields];
+        return this;
+    }
+    result() {
+        return this.data;
+    }
+}
+function callback(configure, builder, path) {
+    if (typeof configure !== 'function' || configure(builder) !== builder)
+        invalidWritePolicy('Policy callback must synchronously return its own builder.', path);
+}
+class RecordBuilder extends FieldsBuilder {
+    relations = new Map();
+    relation(relation, configure) {
+        name(relation, [...this.path, 'relations']);
+        this.reserve(`relations.${relation}`);
+        const builder = new RelationBuilder([...this.path, 'relations', relation]);
+        callback(configure, builder, builder.location);
+        this.relations.set(relation, builder.result());
+        this.data.relations = Object.fromEntries(this.relations);
+        return this;
+    }
+    through(configure) {
+        this.reserve('through');
+        const builder = new FieldsBuilder([...this.path, 'through']);
+        callback(configure, builder, [...this.path, 'through']);
+        this.data.through = builder.result();
+        return this;
+    }
+}
+class EdgeBuilder {
+    path;
+    value;
+    declared = false;
+    constructor(path) {
+        this.path = path;
+    }
+    through(configure) {
+        if (this.declared)
+            invalidWritePolicy('through may only be declared once.', this.path);
+        this.declared = true;
+        const builder = new FieldsBuilder([...this.path, 'through']);
+        callback(configure, builder, [...this.path, 'through']);
+        this.value = fieldPolicy(builder.result(), [...this.path, 'through']);
+        return this;
+    }
+    result() {
+        return { through: this.value };
+    }
+}
+class BranchBuilder {
+    path;
+    branches = new Map();
+    constructor(path) {
+        this.path = path;
+    }
+    branch(key, configure) {
+        if (this.branches.has(key))
+            invalidWritePolicy('Upsert branch may only be declared once.', [
+                ...this.path,
+                key,
+            ]);
+        this.branches.set(key, undefined);
+        const builder = new RecordBuilder([...this.path, key]);
+        callback(configure, builder, [...this.path, key]);
+        this.branches.set(key, builder.result());
+        return this;
+    }
+    create(configure) {
+        return this.branch('create', configure);
+    }
+    update(configure) {
+        return this.branch('update', configure);
+    }
+    result() {
+        return Object.fromEntries(this.branches);
+    }
+}
+class RelationBuilder {
+    location;
+    operations = new Map();
+    constructor(location) {
+        this.location = location;
+    }
+    reserve(key) {
+        if (this.operations.has(key))
+            invalidWritePolicy('Relation operation may only be declared once.', [
+                ...this.location,
+                key,
+            ]);
+        this.operations.set(key, undefined);
+        return [...this.location, key];
+    }
+    create(configure) {
+        const path = this.reserve('create');
+        const builder = new RecordBuilder(path);
+        callback(configure, builder, path);
+        this.operations.set('create', builder.result());
+        return this;
+    }
+    update(configure) {
+        const path = this.reserve('update');
+        const builder = new RecordBuilder(path);
+        callback(configure, builder, path);
+        this.operations.set('update', builder.result());
+        return this;
+    }
+    upsert(configure) {
+        const path = this.reserve('upsert');
+        const builder = new BranchBuilder(path);
+        callback(configure, builder, path);
+        this.operations.set('upsert', builder.result());
+        return this;
+    }
+    edge(operation, configure) {
+        const path = this.reserve(operation);
+        const builder = new EdgeBuilder(path);
+        if (configure !== undefined)
+            callback(configure, builder, path);
+        this.operations.set(operation, builder.result());
+        return this;
+    }
+    connect(configure) {
+        return this.edge('connect', configure);
+    }
+    set(configure) {
+        return this.edge('set', configure);
+    }
+    disconnect() {
+        this.reserve('disconnect');
+        this.operations.set('disconnect', {});
+        return this;
+    }
+    delete() {
+        this.reserve('delete');
+        this.operations.set('delete', {});
+        return this;
+    }
+    result() {
+        return Object.fromEntries(this.operations);
+    }
+}
+/** Build a detached, frozen policy. No fields or relations are allowed by default. */
+export function buildWritePolicy(input = {}) {
+    return normalizeWritePolicy(input, 'update');
+}
+/** Build independent create/update rules for a root upsert. Both branches are required. */
+export function buildUpsertWritePolicy(input) {
+    let value = input;
+    if (typeof input === 'function') {
+        const builder = new BranchBuilder(['writePolicy']);
+        callback(input, builder, ['writePolicy']);
+        value = builder.result();
+    }
+    return upsertSnapshot(value, ['writePolicy'], new Set());
+}
+export function normalizeWritePolicy(input, mode) {
+    let value = input;
+    if (typeof input === 'function') {
+        const builder = new RecordBuilder(['writePolicy']);
+        callback(input, builder, ['writePolicy']);
+        value = builder.result();
+    }
+    return snapshot(value, ['writePolicy'], mode, new Set());
+}
+export function normalizeFieldWritePolicy(input) {
+    let value = input;
+    if (typeof input === 'function') {
+        const builder = new FieldsBuilder(['writePolicy']);
+        callback(input, builder, ['writePolicy']);
+        value = builder.result();
+    }
+    return fieldPolicy(value, ['writePolicy']);
+}
+export function assertWriteEnabled(policy) {
+    if (policy === false)
+        throw new RepositoryError('WRITE_FORBIDDEN', 'Writing is disabled by writePolicy.', { path: ['writePolicy'] });
+}

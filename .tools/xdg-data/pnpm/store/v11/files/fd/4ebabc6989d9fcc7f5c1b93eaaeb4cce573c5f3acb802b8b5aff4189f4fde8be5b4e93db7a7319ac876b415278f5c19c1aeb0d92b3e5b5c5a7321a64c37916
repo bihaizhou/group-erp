@@ -1,0 +1,8 @@
+import type { ReactElement } from 'react';
+import { type MailAccountCredentials } from '../components/index.js';
+export interface MailAccountsPageProps {
+    readonly providerKeys?: readonly string[];
+    readonly credentialDefaults?: Pick<MailAccountCredentials, 'username' | 'password'>;
+}
+export default function MailAccountsPage({ providerKeys, credentialDefaults, }?: MailAccountsPageProps): ReactElement;
+//# sourceMappingURL=mail-accounts-page.d.ts.map

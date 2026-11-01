@@ -1,0 +1,29 @@
+import { type EnvMap } from '../config/index.js';
+import type { AppPathOptions, AppScope } from './types.js';
+export interface ResolveAppRoutingOptions {
+    readonly name: string;
+    readonly publicBasePath: string;
+    readonly internalBasePath?: string;
+}
+export interface ResolvedAppRouting {
+    readonly name: string;
+    readonly publicBasePath: string;
+    readonly internalBasePath: string;
+}
+export interface ResolveAppScopeRuntimeOptions {
+    readonly routing?: {
+        readonly internalBasePath?: string;
+    };
+    readonly envOverrides?: EnvMap;
+}
+export interface ResolvedAppScopeRuntime {
+    readonly mode: 'standalone' | 'embedded';
+    readonly env: EnvMap;
+    readonly paths: AppPathOptions;
+    readonly routing: ResolvedAppRouting;
+}
+export declare function resolveAppScopeRuntime(scope: AppScope, options?: ResolveAppScopeRuntimeOptions): ResolvedAppScopeRuntime;
+export declare function resolveAppScopePaths(scope: AppScope): AppPathOptions;
+export declare function resolveAppScopeEnv(scope: AppScope, _paths: AppPathOptions, overrides?: EnvMap): EnvMap;
+export declare function resolveAppRouting(options: ResolveAppRoutingOptions): ResolvedAppRouting;
+//# sourceMappingURL=scope.d.ts.map

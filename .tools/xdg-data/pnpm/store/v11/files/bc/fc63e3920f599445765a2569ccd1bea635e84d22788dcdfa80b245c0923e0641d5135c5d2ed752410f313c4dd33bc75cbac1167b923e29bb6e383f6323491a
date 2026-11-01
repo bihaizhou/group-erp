@@ -1,0 +1,17 @@
+import type { ServiceProviderLifecycle } from './provider.js';
+export declare class ServiceProviderRegistry {
+    private readonly providers;
+    private phase;
+    private shutdownPromise;
+    add(provider: ServiceProviderLifecycle): void;
+    registerAll(): void;
+    bootAll(): Promise<void>;
+    startAll(): Promise<void>;
+    readyAll(): Promise<void>;
+    shutdown(): Promise<void>;
+    private runPhase;
+    private shutdownAfterFailure;
+    private shutdownAll;
+    private assertPhase;
+}
+//# sourceMappingURL=registry.d.ts.map

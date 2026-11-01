@@ -1,0 +1,10 @@
+import TOML from '@iarna/toml';
+import { assertConfigMap } from '../value.js';
+export function tomlParser() {
+    return {
+        name: 'toml',
+        parse: (input) => assertConfigMap(TOML.parse(new TextDecoder().decode(input))),
+        serialize: (value) => new TextEncoder().encode(TOML.stringify(value)),
+    };
+}
+//# sourceMappingURL=toml.js.map

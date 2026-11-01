@@ -1,0 +1,26 @@
+import { AppCommand } from '../../context.ts';
+import { type Command } from '@oclif/core';
+import type { Interfaces } from '@oclif/core';
+import { type AppCollectionsArtifactConnectionResult } from '@nocobase/app-server/database';
+/** What `collections generate` returns, which is `result` under `--json`. */
+export interface CollectionsGenerateResult {
+    /** `not-configured` when no database is configured, so nothing was generated; absent otherwise. */
+    readonly state?: 'not-configured';
+    /** Whether this was a --check run, which compares and writes nothing. */
+    readonly check: boolean;
+    /** One entry per connection generated or checked. */
+    readonly results: readonly AppCollectionsArtifactConnectionResult[];
+}
+export default class AppCollectionsGenerate extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static flags: {
+        all: Interfaces.BooleanFlag<boolean>;
+        connection: Interfaces.OptionFlag<string | undefined>;
+        check: Interfaces.BooleanFlag<boolean>;
+    };
+    run(): Promise<CollectionsGenerateResult>;
+    private report;
+}
+//# sourceMappingURL=generate.d.ts.map

@@ -1,0 +1,11 @@
+import { type TestDatabaseEnvironment, type TestDatabaseProvisioner } from '@nocobase/db/testing';
+import { type PostgresOptions } from './index.js';
+/**
+ * The server a test connects to, read from the variables the dialect's
+ * integration suite also uses. The defaults are those of the PostgreSQL
+ * service in the examples application's `docker-compose.yml`, which honours
+ * the same `POSTGRES_PORT`.
+ */
+export declare function postgresTestConnection(env: TestDatabaseEnvironment): PostgresOptions;
+/** Isolates each test database in its own schema of one server database. */
+export declare const testDatabaseProvisioner: TestDatabaseProvisioner;

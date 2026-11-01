@@ -1,0 +1,13 @@
+export const loggerLevels = [
+    'fatal',
+    'error',
+    'warn',
+    'info',
+    'debug',
+    'trace',
+    'silent',
+];
+export function isLoggerLevel(value) {
+    return (typeof value === 'string' && loggerLevels.some((level) => level === value));
+}
+//# sourceMappingURL=levels.js.map

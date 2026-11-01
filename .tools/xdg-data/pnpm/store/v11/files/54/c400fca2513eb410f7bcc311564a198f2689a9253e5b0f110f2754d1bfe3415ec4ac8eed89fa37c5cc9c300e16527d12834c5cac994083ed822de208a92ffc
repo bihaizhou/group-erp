@@ -1,0 +1,7 @@
+import type { DatabaseConnection } from '../../../database/connection.js';
+import type { Repository, RepositoryRecord } from '../../types.js';
+type UnobservedRepositoryFactory = (collection: string) => Repository;
+export declare function registerUnobservedRepositories(connection: DatabaseConnection, factory: UnobservedRepositoryFactory): void;
+/** A Repository that emits no events, or an ordinary one where the connection cannot provide that. */
+export declare function unobservedRepository<TRecord extends object = RepositoryRecord, TCreate extends object = Partial<TRecord>, TUpdate extends object = Partial<TRecord>>(connection: DatabaseConnection, collection: string): Repository<TRecord, TCreate, TUpdate>;
+export {};

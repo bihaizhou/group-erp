@@ -1,0 +1,64 @@
+/** Loads the runtime without creating the application, runs `fn`, then destroys the runtime scope. */
+export async function withAppRuntime(context, fn, options = {}) {
+    const runtime = await context.loadRuntime();
+    return settle(() => fn(runtime), () => [() => runtime.scope.destroy()], options);
+}
+/**
+ * Loads the runtime, creates the application, runs `fn`, then shuts the application down and destroys the scope. The
+ * application is created, not started: `fn` registers providers or starts it when it needs to.
+ */
+export async function withAppInstance(context, fn, options = {}) {
+    const runtime = await context.loadRuntime();
+    let app;
+    return settle(async () => {
+        app = await context.createApp(runtime);
+        return fn(app, runtime);
+    }, () => [
+        // A factory may bind runtime.app before throwing; dispose partial assembly too.
+        async () => (app ?? runtime.app)?.shutdown(),
+        () => runtime.scope.destroy(),
+        async () => {
+            delete runtime.app;
+        },
+    ], options);
+}
+async function settle(work, cleanup, { onCleanupFailure }) {
+    let result;
+    let failure;
+    let failed = false;
+    try {
+        result = await work();
+    }
+    catch (error) {
+        failed = true;
+        failure = error;
+    }
+    const cleanupErrors = [];
+    for (const step of cleanup()) {
+        try {
+            await step();
+        }
+        catch (error) {
+            cleanupErrors.push(error);
+        }
+    }
+    if (cleanupErrors.length > 0) {
+        const cleanupFailure = new AggregateError(cleanupErrors, `Application cleanup failed: ${cleanupErrors.map(describe).join('; ')}`);
+        if (onCleanupFailure !== undefined) {
+            onCleanupFailure(cleanupFailure);
+        }
+        else if (failed) {
+            throw new AggregateError([failure, ...cleanupErrors], `${describe(failure)}; application cleanup also failed`, { cause: failure });
+        }
+        else {
+            throw cleanupFailure;
+        }
+    }
+    if (failed)
+        throw failure;
+    return result;
+}
+function describe(error) {
+    return error instanceof Error ? error.message : String(error);
+}
+//# sourceMappingURL=lifecycle.js.map

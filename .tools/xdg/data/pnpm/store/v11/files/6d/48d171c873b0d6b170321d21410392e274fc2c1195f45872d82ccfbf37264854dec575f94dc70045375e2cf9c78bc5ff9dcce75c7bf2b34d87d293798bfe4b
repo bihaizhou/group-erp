@@ -1,0 +1,25 @@
+import { type RealtimeServerMessage } from './protocol.js';
+export type RealtimeEvent<Payload = unknown> = Extract<RealtimeServerMessage, {
+    readonly type: 'event';
+}> & {
+    readonly payload: Payload;
+};
+export type RealtimeErrorEvent = Extract<RealtimeServerMessage, {
+    readonly type: 'error';
+}>;
+export type RealtimeListener<Payload> = (event: RealtimeEvent<Payload>) => void;
+export interface RealtimeClient {
+    readonly connected: boolean;
+    subscribe<Payload>(topic: string, listener: RealtimeListener<Payload>): () => void;
+    onOpen(listener: () => void): () => void;
+    onError(listener: (event: RealtimeErrorEvent) => void): () => void;
+    reconnect(): void;
+    close(): void;
+}
+export interface RealtimeClientOptions {
+    readonly pingInterval?: number;
+    readonly reconnectMaxInterval?: number;
+    readonly resolveUrl: () => string | undefined;
+}
+export declare function createRealtimeClient(options: RealtimeClientOptions): RealtimeClient;
+//# sourceMappingURL=client.d.ts.map

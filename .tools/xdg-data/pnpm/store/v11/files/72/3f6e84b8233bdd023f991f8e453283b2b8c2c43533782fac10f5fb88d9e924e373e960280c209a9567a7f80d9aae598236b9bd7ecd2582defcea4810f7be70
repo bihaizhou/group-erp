@@ -1,0 +1,7 @@
+import { type AppClientPluginFactory } from '@nocobase/app-client/plugins';
+export interface NotificationClientOptions {
+    readonly placeholder?: never;
+}
+declare const notification: AppClientPluginFactory<NotificationClientOptions>;
+export default notification;
+//# sourceMappingURL=plugin.d.ts.map

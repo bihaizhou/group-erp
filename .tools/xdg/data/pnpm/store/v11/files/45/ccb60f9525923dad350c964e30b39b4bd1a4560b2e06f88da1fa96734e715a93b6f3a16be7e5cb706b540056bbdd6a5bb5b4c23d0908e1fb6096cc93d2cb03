@@ -1,0 +1,119 @@
+/** Directory, relative to a package root, that holds its App-facing skills. */
+export declare const PLUGIN_SKILLS_DIRECTORY = "skills";
+/** Directory, relative to an application root, that receives synchronized skills. */
+export declare const APP_SKILLS_DIRECTORY: string;
+/** Every synchronized skill directory starts with this prefix. */
+export declare const SKILL_NAME_PREFIX = "nocobase-";
+/**
+ * Directory, relative to an application root, that Claude Code reads skills from.
+ *
+ * `.agents/skills/` is the agent-neutral location this command owns, and Claude Code does not look there: it discovers
+ * skills only under `~/.claude/skills/` and `<project>/.claude/skills/`. An application that synchronized its skills
+ * would therefore still show none of them in Claude Code, while the globally installed NocoBase 2 skills its
+ * `AGENTS.md` tells agents to ignore stay available — exactly backwards. So every synchronized directory is mirrored
+ * here as a symbolic link. Links rather than copies because `.agents/skills/` is replaced wholesale on the next sync,
+ * and a copy taken from it silently becomes the stale second version of the same guidance.
+ */
+export declare const CLAUDE_SKILLS_DIRECTORY: string;
+export interface PluginLocation {
+    readonly packageName: string;
+    readonly pluginDirectory: string;
+}
+export interface PluginSkills extends PluginLocation {
+    readonly prefix: string;
+    readonly skills: readonly SkillSource[];
+    readonly skillsDirectory: string;
+}
+export interface SkillSource {
+    readonly name: string;
+    readonly packageName: string;
+    readonly sourcePath: string;
+}
+export interface SkillCopy {
+    readonly files: readonly string[];
+    readonly packageName: string;
+    readonly skillName: string;
+    readonly sourcePath: string;
+    readonly targetPath: string;
+}
+export interface SkillRemoval {
+    readonly files: readonly string[];
+    readonly packageName: string;
+    readonly skillName: string;
+    readonly targetPath: string;
+}
+export interface SkillsSyncPlan {
+    readonly appPackageName: string;
+    readonly appRoot: string;
+    readonly copies: readonly SkillCopy[];
+    readonly dryRun?: boolean;
+    readonly plugins: readonly {
+        readonly packageName: string;
+        readonly pluginDirectory: string;
+        readonly prefix: string;
+        readonly skills: readonly string[];
+    }[];
+    readonly removals: readonly SkillRemoval[];
+    readonly skillsRoot: string;
+    readonly ownership: Readonly<Record<string, string>>;
+}
+/**
+ * The skill directory prefix a plugin package owns. The prefix is the package
+ * name without its scope, so `@nocobase/app-plugin-scheduler` owns
+ * `nocobase-app-plugin-scheduler` and `nocobase-app-plugin-scheduler-<suffix>`.
+ */
+export declare function pluginSkillPrefix(packageName: string): string;
+/** Whether a skill directory name belongs to the plugin owning `prefix`. */
+export declare function isOwnedSkillName(prefix: string, skillName: string): boolean;
+/**
+ * The first-level skill directories a NocoBase package ships, with their names validated.
+ * A package without `skills/` yields an empty list: most packages ship no
+ * skills and must not produce warnings.
+ */
+export declare function collectPluginSkills({ packageName, pluginDirectory, }: PluginLocation): Promise<PluginSkills>;
+/**
+ * The full-overwrite plan: which upstream skill directories to copy in, and
+ * which tracked directories no longer exist upstream. A full application sync
+ * also prunes skills from removed packages; targeted syncs preserve other owners.
+ */
+export declare function planSkillsSync({ appPackageName, appRoot, plugins, pruneMissingPackages, }: {
+    appPackageName: string;
+    appRoot: string;
+    plugins: readonly PluginLocation[];
+    pruneMissingPackages?: boolean;
+}): Promise<SkillsSyncPlan>;
+/**
+ * Executes a plan. Upstream wins: every target directory that differs from its source is replaced wholesale.
+ *
+ * A target already identical to its source, a link already pointing at it and an unchanged ownership record are left
+ * untouched, so a sync with nothing new writes nothing. That keeps `pnpm install` from rewriting `.agents/` on every
+ * run, and lets it pass where `.agents/` is read-only but already current, as in a coding tool's sandbox.
+ */
+export declare function applySkillsSync(plan: SkillsSyncPlan): Promise<SkillsSyncPlan>;
+/** Plans removal from recorded ownership even when the package has already been uninstalled. */
+export declare function planPackageSkillRemovals(appRoot: string, packageName: string): Promise<string[]>;
+/** Removes only this package's synchronized skills and drops its ownership records. */
+export declare function removePackageSkills(appRoot: string, packageName: string): Promise<string[]>;
+/**
+ * Locates direct NocoBase dependencies and registered plugins in an application.
+ * Optional dependencies may be absent; required dependencies must be installed.
+ * The legacy plugin filter and result keys remain compatible with plugin callers.
+ */
+export declare function resolveInstalledPlugins({ appRoot, plugin, packageName: selectedPackage, }: {
+    appRoot: string;
+    plugin?: string;
+    packageName?: string;
+}): Promise<{
+    appPackageName: string;
+    appRoot: string;
+    plugins: PluginLocation[];
+}>;
+/** Renders a human-readable summary of a plan or result. */
+export declare function formatSkillsSyncSummary(plan: SkillsSyncPlan, { verbose }?: {
+    verbose?: boolean;
+}): string;
+/** Reads an application manifest, failing with the path when the JSON is bad. */
+export declare function readAppPackage(appRoot: string): Promise<Record<string, unknown>>;
+/** The plugin packages an application registers, in a stable order. */
+export declare function resolveRegisteredPluginNames(appRoot: string): Promise<string[]>;
+//# sourceMappingURL=skills-sync.d.ts.map

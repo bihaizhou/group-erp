@@ -1,0 +1,72 @@
+import type { PermissionFields, PermissionRecordAccess, ReadPermission, RelationShapePermission, RelationWritePermission, ThroughPermission, WritePermission } from './permissions.js';
+type FieldName<Row> = keyof Row & string;
+type Configure<T> = (builder: T) => T;
+type Reference = PermissionRecordAccess;
+/** Detached immutable builders; callbacks return the next value explicitly. */
+export declare class ReadPermissionBuilder<Row = Record<string, unknown>> {
+    private readonly value;
+    constructor(value?: ReadPermission);
+    fields(...fields: FieldName<Row>[]): ReadPermissionBuilder<Row>;
+    allFields(): ReadPermissionBuilder<Row>;
+    recordAccess(...rules: Reference[]): ReadPermissionBuilder<Row>;
+    relation<T = Record<string, unknown>>(name: string, configure: Configure<ReadPermissionBuilder<T>>): ReadPermissionBuilder<Row>;
+    build(): ReadPermission;
+}
+export declare class ThroughPermissionBuilder {
+    private readonly value;
+    constructor(value?: ThroughPermission);
+    through(configure: Configure<PermissionFieldsBuilder>): ThroughPermissionBuilder;
+    build(): ThroughPermission;
+}
+export declare class PermissionFieldsBuilder<Row = Record<string, unknown>> {
+    private readonly value;
+    constructor(value?: {
+        fields?: PermissionFields;
+    });
+    fields(...fields: FieldName<Row>[]): PermissionFieldsBuilder<Row>;
+    allFields(): PermissionFieldsBuilder<Row>;
+    build(): {
+        fields?: PermissionFields;
+    };
+}
+export type RelationPermissionConfigurator<C extends boolean> = Configure<RelationPermissionBuilder<C>>;
+export declare class WritePermissionBuilder<Row = Record<string, unknown>, C extends boolean = false, E extends boolean = false, N extends boolean = false> {
+    private readonly value;
+    private readonly createOnly;
+    private readonly allowThrough;
+    private readonly nested;
+    constructor(value?: WritePermission & ThroughPermission, createOnly?: C, allowThrough?: E, nested?: N);
+    fields(...fields: FieldName<Row>[]): WritePermissionBuilder<Row, C, E, N>;
+    allFields(): WritePermissionBuilder<Row, C, E, N>;
+    recordAccess(this: WritePermissionBuilder<Row, C, E, false>, ...rules: Reference[]): WritePermissionBuilder<Row, C, E, false>;
+    relation(name: string, configure: RelationPermissionConfigurator<C>): WritePermissionBuilder<Row, C, E, N>;
+    through(this: WritePermissionBuilder<Row, C, true, N>, configure: Configure<PermissionFieldsBuilder>): WritePermissionBuilder<Row, C, true, N>;
+    build(): WritePermission & ThroughPermission;
+}
+export declare class RelationPermissionBuilder<C extends boolean = false> {
+    private readonly createOnly;
+    private readonly value;
+    constructor(createOnly?: C, value?: RelationWritePermission);
+    recordAccess(...rules: Reference[]): RelationPermissionBuilder<C>;
+    private operation;
+    create<T = Record<string, unknown>>(configure: Configure<WritePermissionBuilder<T, C, true, true>>): RelationPermissionBuilder<C>;
+    update<T = Record<string, unknown>>(this: RelationPermissionBuilder<false>, configure: Configure<WritePermissionBuilder<T, false, false, true>>): RelationPermissionBuilder<false>;
+    upsert(this: RelationPermissionBuilder<false>, configure: Configure<PermissionUpsertBuilder>): RelationPermissionBuilder<false>;
+    connect(configure?: Configure<ThroughPermissionBuilder>): RelationPermissionBuilder<C>;
+    set(this: RelationPermissionBuilder<false>, configure?: Configure<ThroughPermissionBuilder>): RelationPermissionBuilder<false>;
+    disconnect(this: RelationPermissionBuilder<false>): RelationPermissionBuilder<false>;
+    delete(this: RelationPermissionBuilder<false>): RelationPermissionBuilder<false>;
+    build(): RelationWritePermission;
+}
+export declare class PermissionUpsertBuilder {
+    private readonly value;
+    constructor(value?: {
+        create?: RelationShapePermission;
+        update?: RelationShapePermission;
+    });
+    create<T = Record<string, unknown>>(configure: Configure<WritePermissionBuilder<T, false, false, true>>): PermissionUpsertBuilder;
+    update<T = Record<string, unknown>>(configure: Configure<WritePermissionBuilder<T, false, false, true>>): PermissionUpsertBuilder;
+    build(): NonNullable<RelationWritePermission['upsert']>;
+}
+export {};
+//# sourceMappingURL=permission-builders.d.ts.map

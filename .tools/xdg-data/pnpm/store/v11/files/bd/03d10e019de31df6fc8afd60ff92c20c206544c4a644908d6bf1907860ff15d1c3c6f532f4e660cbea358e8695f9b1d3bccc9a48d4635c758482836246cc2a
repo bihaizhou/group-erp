@@ -1,0 +1,5 @@
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+import { type AppRootRouteContribution } from '@nocobase/app-server/router';
+/** Public Provider callback protected by an unguessable URL secret and Provider client state. */
+export declare const mailPushWebhookRoutes: AppRootRouteContribution<AppPluginApplication>;
+//# sourceMappingURL=push-webhook.d.ts.map

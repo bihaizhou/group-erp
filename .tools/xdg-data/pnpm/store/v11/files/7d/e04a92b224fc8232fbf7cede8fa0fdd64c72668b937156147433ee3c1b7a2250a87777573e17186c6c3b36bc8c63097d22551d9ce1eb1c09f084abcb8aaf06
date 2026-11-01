@@ -1,0 +1,31 @@
+import { createHash, randomUUID } from 'node:crypto';
+import { EncryptJWT, jwtDecrypt } from 'jose';
+export function generateSessionId() {
+    return randomUUID();
+}
+export async function encryptSessionCookie(payload, secret, expiresAt) {
+    return new EncryptJWT({ sid: payload.sid })
+        .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
+        .setIssuedAt()
+        .setExpirationTime(Math.floor(expiresAt / 1000))
+        .encrypt(createSecretKey(secret));
+}
+export async function decryptSessionCookie(token, secrets) {
+    for (const secret of secrets) {
+        try {
+            const result = await jwtDecrypt(token, createSecretKey(secret));
+            const sid = result.payload.sid;
+            if (typeof sid === 'string' && sid) {
+                return { ...result.payload, sid };
+            }
+        }
+        catch {
+            continue;
+        }
+    }
+    return null;
+}
+function createSecretKey(secret) {
+    return createHash('sha256').update(secret).digest();
+}
+//# sourceMappingURL=crypto.js.map

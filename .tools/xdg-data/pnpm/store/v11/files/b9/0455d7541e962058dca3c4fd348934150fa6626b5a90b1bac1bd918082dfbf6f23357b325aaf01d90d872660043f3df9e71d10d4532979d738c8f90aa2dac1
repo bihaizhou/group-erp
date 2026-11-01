@@ -1,0 +1,49 @@
+import { createHmac } from 'node:crypto';
+import { notificationProviderText } from '../../i18n.js';
+import { postJson, validateHttpUrl } from '../../http.js';
+import { formatImText } from '../channel.js';
+import { evaluateJsonResult } from '../result.js';
+export function defineDingTalkWebhookProviderConfig(input) {
+    return { provider: 'dingtalk-webhook', ...input };
+}
+export function createDingTalkWebhookProviderDefinition() {
+    return {
+        type: 'dingtalk-webhook',
+        messageType: 'im',
+        label: notificationProviderText('test.providers.dingtalkWebhook', 'DingTalk webhook'),
+        validateConfig: validateDingTalkConfig,
+        async createProvider(_context, config) {
+            validateDingTalkConfig(config);
+            return {
+                type: 'dingtalk-webhook',
+                async send({ message, signal, deliveryId, }) {
+                    const timestamp = Date.now().toString();
+                    const url = new URL(config.webhookUrl);
+                    if (config.secret) {
+                        url.searchParams.set('timestamp', timestamp);
+                        url.searchParams.set('sign', createHmac('sha256', config.secret)
+                            .update(`${timestamp}\n${config.secret}`)
+                            .digest('base64'));
+                    }
+                    return postJson(url.toString(), message.content.payloads?.dingtalk ?? {
+                        msgtype: 'text',
+                        text: { content: formatImText(message.content) },
+                    }, { signal }, {
+                        headers: { 'x-nocobase-delivery-id': deliveryId },
+                        evaluateSuccess: (response) => evaluateJsonResult(response, {
+                            code: [['errcode']],
+                            message: [['errmsg']],
+                            success: (code) => code === 0,
+                        }),
+                    });
+                },
+            };
+        },
+    };
+}
+function validateDingTalkConfig(config) {
+    validateHttpUrl(config.webhookUrl, {
+        allowedHosts: ['oapi.dingtalk.com'],
+    });
+}
+//# sourceMappingURL=dingtalk.js.map

@@ -1,0 +1,17 @@
+import { defineMigration } from '@nocobase/db';
+const migration = defineMigration({
+    name: '202609080001_add_user_disabled_at',
+    async up({ builder }) {
+        await builder.alterCollection('user', (collection) => {
+            collection.datetime('disabledAt').nullable();
+        });
+    },
+    async down({ builder }) {
+        await builder.alterCollection('user', (collection) => {
+            collection.dropField('disabledAt');
+        });
+    },
+});
+export default migration;
+//# sourceMappingURL=202609080001_add_user_disabled_at.js.map
+// @nocobase/task-manifest v1

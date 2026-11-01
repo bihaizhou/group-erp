@@ -1,0 +1,9 @@
+import type { JobsConfig } from './config.js';
+import { type ManagedJobExecutorService, type JobExecutorServiceDependencies } from './service.js';
+/**
+ * Creates the jobs service for one application. `config` is the
+ * application's `jobs` section; `dependencies` carry what the package
+ * would otherwise have to read from the application.
+ */
+export declare function createJobExecutorService(config: JobsConfig | undefined, dependencies: JobExecutorServiceDependencies): ManagedJobExecutorService;
+//# sourceMappingURL=create.d.ts.map

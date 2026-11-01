@@ -1,0 +1,91 @@
+export class RecordAccessBuilder {
+    metadata;
+    resolveFn;
+    constructor(metadata, resolve) {
+        this.metadata = structuredClone(metadata);
+        this.resolveFn = resolve;
+    }
+    title(title) {
+        return new RecordAccessBuilder({ ...this.metadata, title }, this.resolveFn);
+    }
+    description(description) {
+        return new RecordAccessBuilder({ ...this.metadata, description }, this.resolveFn);
+    }
+    collections(...collections) {
+        return new RecordAccessBuilder({ ...this.metadata, collections }, this.resolveFn);
+    }
+    /** Declares the params type; the optional schema describes it to editors. */
+    params(paramsSchema) {
+        return new RecordAccessBuilder(paramsSchema === undefined
+            ? this.metadata
+            : { ...this.metadata, paramsSchema });
+    }
+    resolver(resolve) {
+        return new RecordAccessBuilder(this.metadata, resolve);
+    }
+    build() {
+        const resolve = this.resolveFn;
+        if (!resolve)
+            throw new TypeError('Record access requires a resolver');
+        return validateDefinition({ ...structuredClone(this.metadata), resolve });
+    }
+    reference() {
+        const { key, collections } = this.build();
+        return { key, collections: [...collections] };
+    }
+}
+/** Builds a definition; `authz.recordAccess.define` registers it. */
+export function defineRecordAccess(key, configure) {
+    if (!key)
+        throw new TypeError('A record access key is required');
+    return configure(new RecordAccessBuilder({ key, collections: [] }));
+}
+function validateDefinition(definition) {
+    if (!definition.key)
+        throw new TypeError('A record access key is required');
+    if (typeof definition.resolve !== 'function')
+        throw new TypeError('Record access requires a resolver');
+    if (!definition.collections.length ||
+        definition.collections.some((name) => typeof name !== 'string' || !name))
+        throw new TypeError('Record access requires collections');
+    return definition;
+}
+function applies(definition, collection) {
+    return definition.collections.some((name) => name === '*' || name === collection);
+}
+export class RecordAccessRegistry {
+    entries = new Map();
+    define(definition) {
+        const built = definition instanceof RecordAccessBuilder
+            ? definition.build()
+            : validateDefinition(definition);
+        if (this.entries.has(built.key))
+            throw new TypeError(`Record access already defined: ${built.key}`);
+        const { resolve, ...metadata } = built;
+        this.entries.set(built.key, {
+            ...structuredClone(metadata),
+            resolve: resolve,
+        });
+        return { key: built.key, collections: [...built.collections] };
+    }
+    get(key) {
+        const definition = this.entries.get(key);
+        if (!definition)
+            return undefined;
+        const { resolve, ...metadata } = definition;
+        return { ...structuredClone(metadata), resolve };
+    }
+    list() {
+        return [...this.entries.keys()].map((key) => this.get(key));
+    }
+    listFor(collection) {
+        return this.list().filter((definition) => applies(definition, collection));
+    }
+    async resolve(key, context) {
+        const definition = this.entries.get(key);
+        if (!definition || !applies(definition, context.collection))
+            throw new TypeError(`Unknown or inapplicable record access: ${key}`);
+        return definition.resolve(context);
+    }
+}
+//# sourceMappingURL=record-access.js.map

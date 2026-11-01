@@ -1,0 +1,13 @@
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { MailCredentialVault, MailProviderAdapterResolver, MailProviderRegistry } from './contracts/provider.js';
+import type { MailOutboundAttachmentStorage } from '../shared/mail.js';
+import type { MailService, MailRuntimeService } from './contracts/service.js';
+import type { MailStore } from './contracts/persistence.js';
+export declare const mailServiceToken: ServiceToken<MailService>;
+export declare const mailStoreToken: ServiceToken<MailStore>;
+export declare const mailCredentialVaultToken: ServiceToken<MailCredentialVault>;
+export declare const mailProviderRegistryToken: ServiceToken<MailProviderRegistry>;
+export declare const mailProviderAdapterResolverToken: ServiceToken<MailProviderAdapterResolver>;
+export declare const mailRuntimeToken: ServiceToken<MailRuntimeService>;
+export declare const mailOutboundAttachmentStorageToken: ServiceToken<MailOutboundAttachmentStorage>;
+//# sourceMappingURL=tokens.d.ts.map

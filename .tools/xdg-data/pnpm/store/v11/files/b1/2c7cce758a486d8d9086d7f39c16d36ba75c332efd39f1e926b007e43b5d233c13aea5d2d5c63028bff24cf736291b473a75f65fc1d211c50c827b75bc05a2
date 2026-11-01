@@ -1,0 +1,11 @@
+import { type DestinationStream } from 'pino';
+import type { Logger, LoggerConfig } from './types.js';
+export declare const defaultRedactPaths: readonly string[];
+export declare function createLogger(config?: LoggerConfig, destination?: DestinationStream): Logger;
+/** Message-first bridge for runtime infrastructure that also runs before App logging exists. */
+export declare function createDiagnosticLogger(logger?: Pick<Logger, 'info' | 'warn' | 'error'>): {
+    info(message: string, details?: unknown): void;
+    warn(message: string, details?: unknown): void;
+    error(message: string, details?: unknown): void;
+};
+//# sourceMappingURL=logger.d.ts.map

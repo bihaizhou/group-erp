@@ -1,0 +1,11 @@
+import type { AppLocationKind } from './builtin.ts';
+export interface AppLocation {
+    readonly kind: AppLocationKind;
+    /** The directory holding the `package.json` that decided `kind`; the starting directory when none was found. */
+    readonly root: string;
+}
+/** The application containing `start`, found by walking up to the nearest `package.json`. */
+export declare function locateApp(start: string): AppLocation;
+/** The application whose root is exactly `root`, for an entry point that already knows where it lives. */
+export declare function appAt(root: string): AppLocation;
+//# sourceMappingURL=location.d.ts.map

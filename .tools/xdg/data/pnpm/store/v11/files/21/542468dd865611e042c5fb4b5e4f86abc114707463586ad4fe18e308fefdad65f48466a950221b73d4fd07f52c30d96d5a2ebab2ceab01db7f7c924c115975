@@ -1,0 +1,8 @@
+import type { ComponentProps, ReactElement } from 'react';
+export type AlertProps = ComponentProps<'div'> & {
+    readonly variant?: 'default' | 'destructive';
+};
+export declare function Alert({ className, variant, ...props }: AlertProps): ReactElement;
+export declare function AlertTitle({ className, ...props }: ComponentProps<'div'>): ReactElement;
+export declare function AlertDescription({ className, ...props }: ComponentProps<'div'>): ReactElement;
+//# sourceMappingURL=alert.d.ts.map

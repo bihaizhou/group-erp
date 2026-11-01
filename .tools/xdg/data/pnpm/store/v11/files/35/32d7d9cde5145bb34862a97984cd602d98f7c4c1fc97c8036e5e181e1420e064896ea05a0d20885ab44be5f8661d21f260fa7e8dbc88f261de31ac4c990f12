@@ -1,0 +1,5 @@
+import type { ReactElement } from 'react';
+export { MAIL_UNREAD_COUNT_CHANGED_EVENT } from '../subscription.js';
+/** Mail center icon with a current-user unread badge. */
+export declare function MailNavigationIcon(): ReactElement;
+//# sourceMappingURL=mail-navigation-icon.d.ts.map

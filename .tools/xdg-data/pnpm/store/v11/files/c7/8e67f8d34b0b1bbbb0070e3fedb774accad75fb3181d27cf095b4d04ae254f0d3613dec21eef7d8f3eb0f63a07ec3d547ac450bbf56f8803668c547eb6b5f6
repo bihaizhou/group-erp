@@ -1,0 +1,25 @@
+/** A payload-only job. Subclasses declare their own stable static jobName. */
+export class Job {
+    payload;
+    constructor(payload) {
+        this.payload = payload;
+    }
+}
+export class JobHandlerNotRegisteredError extends Error {
+    jobName;
+    jobId;
+    constructor(jobName, jobId) {
+        super(`No handler is registered for job "${jobName}" (${jobId}) on this instance.`);
+        this.jobName = jobName;
+        this.jobId = jobId;
+        this.name = 'JobHandlerNotRegisteredError';
+    }
+}
+/** Throw only when an aborted attempt has not finished its work. */
+export class JobInterruptedError extends Error {
+    constructor(message = 'The job execution was interrupted.') {
+        super(message);
+        this.name = 'JobInterruptedError';
+    }
+}
+//# sourceMappingURL=types.js.map

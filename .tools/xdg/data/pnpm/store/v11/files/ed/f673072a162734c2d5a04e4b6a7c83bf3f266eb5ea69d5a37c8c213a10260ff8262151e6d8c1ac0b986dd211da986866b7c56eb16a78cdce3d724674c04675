@@ -1,0 +1,11 @@
+export { Authorization, createAuthorization, } from './authorization.js';
+export { CompositeResourceActionBuilder, CompositeResourceBuilder, CompositeResourceReference, dataScopeTarget, defineCompositeResource, } from './composite.js';
+export { AccessConstraintRegistry, } from './constraints.js';
+export { RecordAccessBuilder, RecordAccessRegistry, defineRecordAccess, } from './record-access.js';
+export { ResourceItems, ResourceTypeRegistry, grantBacked, } from './resource-types.js';
+export { AuthorizationRouteRegistry, } from './routes.js';
+export { parseRecordSelection, selection, } from './selection.js';
+export { AuthorizationSubjectRegistry, } from './subjects.js';
+export { decodeAuthorizationTitle, encodeAuthorizationTitle, parseAuthorizationTitle, } from './titles.js';
+export { AuthorizationDeniedError, keyScopeAllows, } from './types.js';
+//# sourceMappingURL=index.js.map

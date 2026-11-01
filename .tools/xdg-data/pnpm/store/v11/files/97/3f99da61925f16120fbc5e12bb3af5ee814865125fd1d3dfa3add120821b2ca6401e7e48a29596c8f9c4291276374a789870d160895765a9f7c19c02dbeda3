@@ -1,0 +1,21 @@
+export interface InvitationEmail {
+    readonly to: string;
+    readonly subject: string;
+    readonly text: string;
+    readonly html: string;
+}
+export interface InvitationMailer {
+    /** Submits the email; throws when no channel is configured or the submission is refused. */
+    send(email: InvitationEmail): Promise<void>;
+}
+/** Used when no channel is configured: delivery fails; authorized inviters can deliver the link themselves. */
+export declare const unconfiguredMailer: InvitationMailer;
+export declare function buildInvitationEmail(input: {
+    readonly to: string;
+    readonly appTitle: string;
+    readonly inviterName: string;
+    readonly summary: readonly string[];
+    readonly url: string;
+    readonly expiresAt: Date;
+}): InvitationEmail;
+//# sourceMappingURL=mail.d.ts.map

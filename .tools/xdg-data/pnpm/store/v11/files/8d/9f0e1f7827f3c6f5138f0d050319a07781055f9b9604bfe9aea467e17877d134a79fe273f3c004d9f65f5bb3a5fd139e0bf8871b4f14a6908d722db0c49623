@@ -1,0 +1,46 @@
+/** Which kind of transaction callback failed. */
+export type TransactionCallbackPhase = 'afterCommit' | 'afterRollback';
+export type AfterCommitCallback = () => void | Promise<void>;
+export type AfterRollbackCallback = (error: unknown) => void | Promise<void>;
+export type TransactionCallbackErrorReporter = (error: unknown, phase: TransactionCallbackPhase) => void;
+/**
+ * Callbacks registered on one transaction or savepoint.
+ *
+ * A savepoint's callbacks belong to the transaction that encloses it: when the
+ * savepoint is released they move to the parent and wait for the outermost
+ * commit, and when it rolls back its rollback callbacks run at once while its
+ * commit callbacks are dropped. Only the outermost scope runs commit callbacks,
+ * because nothing is durable before the outermost commit.
+ */
+export declare class TransactionCallbacks {
+    readonly parent: TransactionCallbacks | undefined;
+    private commitCallbacks;
+    private rollbackCallbacks;
+    private finished;
+    constructor(parent: TransactionCallbacks | undefined);
+    afterCommit(callback: AfterCommitCallback): void;
+    afterRollback(callback: AfterRollbackCallback): void;
+    /** The savepoint was released: its callbacks now wait on the parent. */
+    release(): void;
+    /**
+     * Runs the commit callbacks in registration order. A failing callback is
+     * reported and the rest still run: the transaction has committed, so an
+     * error here must not make the caller believe the write failed.
+     */
+    commit(report: TransactionCallbackErrorReporter): Promise<void>;
+    /** Drops the commit callbacks and runs the rollback callbacks in order. */
+    rollback(cause: unknown, report: TransactionCallbackErrorReporter): Promise<void>;
+    private finish;
+    /**
+     * A transaction connection that escaped its callback would otherwise accept
+     * a callback that can never run, and the work it stood for would silently
+     * never happen.
+     */
+    private assertOpen;
+}
+/**
+ * Outside a transaction there is nothing to wait for: the write a caller made
+ * has already committed. The callback starts at once and its failure is
+ * reported the same way a failure after a commit would be.
+ */
+export declare function runAfterCommitNow(callback: AfterCommitCallback, report: TransactionCallbackErrorReporter): void;

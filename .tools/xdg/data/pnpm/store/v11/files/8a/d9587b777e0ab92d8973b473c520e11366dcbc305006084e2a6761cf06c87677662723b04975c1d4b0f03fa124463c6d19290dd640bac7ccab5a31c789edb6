@@ -1,0 +1,8 @@
+const enUS = {
+    language: {
+        label: 'Language',
+        switchError: 'Unable to switch language.',
+    },
+};
+export default enUS;
+//# sourceMappingURL=en-US.js.map

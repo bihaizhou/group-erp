@@ -1,0 +1,3 @@
+import type { NotificationTestSendRequest } from './types.js';
+export declare function isNotificationTestSendRequest(value: unknown): value is NotificationTestSendRequest;
+//# sourceMappingURL=test-contract.d.ts.map

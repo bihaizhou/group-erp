@@ -1,0 +1,10 @@
+import type { AggregateBuilder, AggregateExpression, AggregateNode, RepositoryAggregateNumeric, RepositoryRecord } from './types.js';
+export declare class DefaultAggregateBuilder<TRecord extends object = RepositoryRecord> implements AggregateBuilder<TRecord> {
+    count(field?: keyof TRecord & string): AggregateExpression<number>;
+    sum(field: keyof TRecord & string): AggregateExpression<RepositoryAggregateNumeric | null>;
+    avg(field: keyof TRecord & string): AggregateExpression<RepositoryAggregateNumeric | null>;
+    min<TKey extends keyof TRecord & string>(field: TKey): AggregateExpression<TRecord[TKey] | null>;
+    max<TKey extends keyof TRecord & string>(field: TKey): AggregateExpression<TRecord[TKey] | null>;
+}
+export declare function aggregateExpressionToNode(alias: string, expression: AggregateExpression<unknown>): AggregateNode;
+//# sourceMappingURL=aggregate-builder.d.ts.map

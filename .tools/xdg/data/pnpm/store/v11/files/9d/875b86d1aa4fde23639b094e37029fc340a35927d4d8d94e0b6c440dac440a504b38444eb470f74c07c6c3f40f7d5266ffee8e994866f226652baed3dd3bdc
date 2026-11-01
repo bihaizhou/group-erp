@@ -1,0 +1,5 @@
+import type { EmailChannelConfig, SmtpProviderConfig, ResendProviderConfig } from './types.js';
+export declare function validateSmtpProviderConfig(config: SmtpProviderConfig): void;
+export declare function validateResendProviderConfig(config: ResendProviderConfig): void;
+export declare function isMailChannelConfig(value: unknown): value is EmailChannelConfig;
+//# sourceMappingURL=config.d.ts.map

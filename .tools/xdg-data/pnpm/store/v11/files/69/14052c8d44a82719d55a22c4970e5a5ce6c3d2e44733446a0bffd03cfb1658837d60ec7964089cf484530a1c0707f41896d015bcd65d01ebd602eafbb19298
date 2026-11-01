@@ -1,0 +1,22 @@
+import { defineClientPlugin, } from '@nocobase/app-client/plugins';
+import locales from './locales/index.js';
+import routes, { INVITE_ROUTE_ID } from './routes.js';
+/**
+ * Registers the invitation page an invitation email links to. The plugin contributes no user management page: an
+ * application that manages users builds that page on `UsersClient` and declares it among its own routes.
+ */
+const users = defineClientPlugin({
+    packageName: '@nocobase/app-plugin-users',
+    locales,
+    routes,
+    routeComponentOverrides: (options) => options.inviteComponentLoader
+        ? [
+            {
+                routeId: INVITE_ROUTE_ID,
+                componentLoader: options.inviteComponentLoader,
+            },
+        ]
+        : [],
+});
+export default users;
+//# sourceMappingURL=plugin.js.map

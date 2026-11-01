@@ -1,0 +1,38 @@
+import { Writable } from 'node:stream';
+import { type JournalPolicy } from './journal.js';
+export interface FileLogOptions extends JournalPolicy {
+    directory?: string;
+    name?: string;
+    maxFileSizeMB?: number;
+    maxTotalSizeMB?: number;
+}
+export interface LoggerFileOptions {
+    directory?: string;
+    enabled?: boolean;
+    name?: string;
+}
+export interface ConsoleLogOptions {
+    enabled?: boolean;
+    pretty?: boolean;
+    /**
+     * Color level labels in pretty output. Defaults to writing color only to a terminal, so piped or
+     * captured output stays plain; `NO_COLOR` disables it and `FORCE_COLOR` requests it.
+     */
+    color?: boolean;
+    /**
+     * Where console records go. Defaults to `stdout`, where a server's supervisor collects them. A command-line run sets
+     * `stderr`, so that records an application logs while a command runs never mix with the command's own result on
+     * stdout — a `--json` document in particular.
+     */
+    stream?: 'stdout' | 'stderr';
+}
+export interface LogOutputOptions {
+    file?: FileLogOptions;
+    console?: ConsoleLogOptions;
+}
+/** Logging failures must not recursively log or change application results. */
+export declare function reportLoggingFailure(message: string, error?: unknown): void;
+export declare function normalizeFileOptions(file?: FileLogOptions): FileLogOptions;
+/** Shared across named loggers and hosted lifecycle writers in the same process. */
+export declare function createLogOutput(options: LogOutputOptions): Writable;
+//# sourceMappingURL=output.d.ts.map

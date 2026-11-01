@@ -1,0 +1,4 @@
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { SecretsService } from './service.js';
+export declare const secretsServiceToken: ServiceToken<SecretsService>;
+//# sourceMappingURL=token.d.ts.map

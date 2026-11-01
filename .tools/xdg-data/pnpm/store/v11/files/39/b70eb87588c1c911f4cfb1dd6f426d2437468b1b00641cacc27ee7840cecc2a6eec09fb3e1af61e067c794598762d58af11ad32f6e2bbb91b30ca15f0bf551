@@ -1,0 +1,40 @@
+import type { MailFolder } from '../mail-client.js';
+export interface MailDefaultFolderNames {
+    readonly inbox: string;
+    readonly sent: string;
+    readonly drafts: string;
+    readonly trash: string;
+    readonly junk: string;
+    readonly archive: string;
+}
+export interface MailSystemFolderNames {
+    readonly allMail: string;
+    readonly chat: string;
+    readonly important: string;
+    readonly starred: string;
+    readonly unread: string;
+    readonly personal: string;
+    readonly social: string;
+    readonly promotions: string;
+    readonly updates: string;
+    readonly forums: string;
+}
+export interface MailFolderDisplayItem {
+    readonly folder: MailFolder;
+    readonly name: string;
+}
+/** Returns a localized display name for well-known provider folders and labels. */
+export declare function getMailFolderDisplayName(folder: MailFolder, defaultNames: MailDefaultFolderNames, systemNames: MailSystemFolderNames): string;
+/** Places core mail folders first, then provider system labels, then user folders. */
+export declare function getMailFolderDisplayItems(folders: readonly MailFolder[], defaultNames: MailDefaultFolderNames, systemNames: MailSystemFolderNames): readonly MailFolderDisplayItem[];
+export interface MailFolderSections {
+    readonly standard: readonly MailFolder[];
+    readonly other: readonly MailFolder[];
+}
+/** Creates the account-independent standard folders shown in the all-accounts view. */
+export declare function getVirtualMailFolders(names: MailDefaultFolderNames): readonly MailFolder[];
+/** Separates canonical standard folders from account-specific additional folders. */
+export declare function getMailFolderSections(accountId: string, folders: readonly MailFolder[], names: MailDefaultFolderNames): MailFolderSections;
+/** Returns the stable display order used when a Provider omits one or more standard folders. */
+export declare function mergeMailFolders(accountId: string, folders: readonly MailFolder[], names: MailDefaultFolderNames): readonly MailFolder[];
+//# sourceMappingURL=mail-folders.d.ts.map

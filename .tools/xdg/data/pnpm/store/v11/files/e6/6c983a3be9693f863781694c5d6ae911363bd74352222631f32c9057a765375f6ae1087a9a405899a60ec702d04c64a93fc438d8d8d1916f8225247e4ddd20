@@ -1,0 +1,7 @@
+const enUS = {
+    // Titles the server registers with the authorization catalog, which resolve in this plugin's namespace.
+    authorization: { title: 'Schedules', read: 'Read' },
+    nav: { automation: 'Automation' },
+};
+export default enUS;
+//# sourceMappingURL=en-US.js.map

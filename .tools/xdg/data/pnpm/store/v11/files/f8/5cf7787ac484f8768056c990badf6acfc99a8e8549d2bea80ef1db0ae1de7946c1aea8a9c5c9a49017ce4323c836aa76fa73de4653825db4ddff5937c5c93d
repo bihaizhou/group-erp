@@ -1,0 +1,20 @@
+/**
+ * The configuration source this application would read, or `undefined` when it has none.
+ *
+ * `APP_CONFIG_FILE` is answered even when the file is absent, because the runtime loads a configured path
+ * non-optionally: naming a file that is not there is an error worth reporting rather than a reason to keep looking.
+ */
+export function findConfigurationSource(rootDir: any, env: any): {
+    kind: string;
+    file: string;
+    configured: boolean;
+    exists: boolean;
+} | {
+    kind: string;
+    file: undefined;
+    configured: boolean;
+    exists: boolean;
+} | undefined;
+/** Stops with something the reader can run, rather than letting the server fail where nothing will show it. */
+export function assertConfigurationPresent(rootDir: any, env: any, label: any): void;
+//# sourceMappingURL=config-presence.d.mts.map

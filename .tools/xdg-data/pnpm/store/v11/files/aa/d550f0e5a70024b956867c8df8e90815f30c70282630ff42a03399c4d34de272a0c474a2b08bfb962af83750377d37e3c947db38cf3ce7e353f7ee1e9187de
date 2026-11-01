@@ -1,0 +1,8 @@
+/**
+ * Better Auth appends these origins to configured trustedOrigins instead of
+ * replacing the application's array. Only pass them to the local dev backend.
+ * @param {string | undefined} existing
+ * @param {number} port Actual allocated application server port.
+ */
+export function resolveDevTrustedOrigins(existing: string | undefined, port: number): string;
+//# sourceMappingURL=trusted-origins.d.mts.map

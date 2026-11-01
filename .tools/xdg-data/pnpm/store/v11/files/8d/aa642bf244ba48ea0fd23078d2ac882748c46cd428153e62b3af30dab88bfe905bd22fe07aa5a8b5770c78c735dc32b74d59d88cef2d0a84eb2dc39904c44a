@@ -1,0 +1,22 @@
+import { type DatabaseManager } from '@nocobase/db';
+import { type MailFolder, type MailIdentity, type MailLabel, type MailLabelColor, type MailSignature } from '../../shared/mail.js';
+import { type NormalizedMailFolder } from '../contracts/provider.js';
+export declare class MailMetadataStore {
+    private readonly database;
+    constructor(database: DatabaseManager);
+    listIdentities(accountId: string): Promise<readonly MailIdentity[]>;
+    replaceIdentities(accountId: string, identities: readonly MailIdentity[]): Promise<void>;
+    getIdentity(identityId: string): Promise<MailIdentity | undefined>;
+    updateIdentity(identityId: string, patch: Pick<MailIdentity, 'displayName'>): Promise<MailIdentity | undefined>;
+    listSignatures(accountId: string): Promise<readonly MailSignature[]>;
+    getSignature(signatureId: string): Promise<MailSignature | undefined>;
+    saveSignature(signature: MailSignature): Promise<MailSignature>;
+    deleteSignature(accountId: string, signatureId: string): Promise<boolean>;
+    listFolders(accountId: string): Promise<readonly MailFolder[]>;
+    listLabels(ownerId: string): Promise<readonly MailLabel[]>;
+    createLabel(ownerId: string, name: string, color: MailLabelColor): Promise<MailLabel>;
+    updateLabel(ownerId: string, labelId: string, patch: Pick<MailLabel, 'name' | 'color'>): Promise<MailLabel | undefined>;
+    deleteLabel(ownerId: string, labelId: string): Promise<boolean>;
+    saveFolder(accountId: string, folder: NormalizedMailFolder): Promise<MailFolder>;
+}
+//# sourceMappingURL=metadata.d.ts.map

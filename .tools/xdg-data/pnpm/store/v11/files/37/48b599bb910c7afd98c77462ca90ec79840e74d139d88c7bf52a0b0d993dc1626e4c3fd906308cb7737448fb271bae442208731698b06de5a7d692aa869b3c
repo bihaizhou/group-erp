@@ -1,0 +1,11 @@
+export function createDefaultCachingConfig() {
+    return {
+        default: 'memory',
+        providers: {
+            memory: {
+                driver: 'memory',
+            },
+        },
+    };
+}
+//# sourceMappingURL=config.js.map

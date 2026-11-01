@@ -1,0 +1,9 @@
+import { ServiceProvider } from '@nocobase/service-provider';
+import type { AppPluginApplication } from '../plugins/index.js';
+export declare class LoggingProvider extends ServiceProvider<AppPluginApplication> {
+    readonly name: string;
+    register(): void;
+    private createLoggingConfig;
+    shutdown(): Promise<void>;
+}
+//# sourceMappingURL=provider.d.ts.map

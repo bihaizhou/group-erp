@@ -1,0 +1,57 @@
+import type { ConfigMap } from '@nocobase/config';
+import { type EnvironmentMapping, type EnvironmentValueGenerator } from '@nocobase/config/providers/env';
+/**
+ * Values the templates' `config.example.yml` ship that only stand in for a real one. A path holding one of them in the
+ * example counts as having no value there, so a deployment is still asked for it. The application itself is not told:
+ * an example copied by hand keeps working exactly as before.
+ */
+export declare const KNOWN_EXAMPLE_PLACEHOLDERS: readonly string[];
+/** One variable in the manifest. `runtime` marks one the runtime reads itself rather than through a section. */
+export interface VariablesManifestEntry {
+    readonly name: string;
+    readonly path?: string;
+    readonly type: string;
+    readonly description?: string;
+    readonly secret: boolean;
+    readonly required: boolean;
+    /** The code defaults hold a value at the path. */
+    readonly hasDefault: boolean;
+    /** `config.example.yml` holds a value at the path that is not a known placeholder. */
+    readonly exampleProvided: boolean;
+    readonly firstStartOnly: boolean;
+    readonly generate: EnvironmentValueGenerator | null;
+    readonly runtime?: true;
+}
+/** `dist/variables.json`: every environment variable an application reads, as a deployment needs to know them. */
+export interface VariablesManifest {
+    readonly schemaVersion: 1;
+    readonly app: {
+        readonly name: string;
+        readonly version?: string;
+    };
+    readonly generatedAt: string;
+    readonly variables: readonly VariablesManifestEntry[];
+}
+export interface BuildVariablesManifestOptions {
+    readonly app: {
+        readonly name: string;
+        readonly version?: string;
+    };
+    /** What `AppConfig.environmentVariableMappings()` returns: absolute paths. */
+    readonly variables: Readonly<Record<string, EnvironmentMapping>>;
+    /** The code defaults, `AppConfig.layers().defaults`. */
+    readonly defaults: ConfigMap;
+    /** `config.example.yml`, parsed; left out when the application ships none. */
+    readonly example?: ConfigMap;
+    readonly generatedAt?: Date;
+}
+/** Whether a value, or any string inside it, is one of {@link KNOWN_EXAMPLE_PLACEHOLDERS}. */
+export declare function isExamplePlaceholder(value: unknown): boolean;
+/**
+ * Whether a deployment must supply a variable: the mapping says so, or else nothing else would give the path a value —
+ * no code default, no real value in `config.example.yml`, and no way for the deployment to generate one.
+ */
+export declare function requiredOf(mapping: EnvironmentMapping, defaults: ConfigMap, example: ConfigMap | undefined): boolean;
+/** Builds the manifest `pnpm nocobase config variables` prints and `pnpm build` writes to `dist/variables.json`. */
+export declare function buildVariablesManifest(options: BuildVariablesManifestOptions): VariablesManifest;
+//# sourceMappingURL=variables.d.ts.map

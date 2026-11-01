@@ -1,0 +1,13 @@
+import type { Command, Interfaces } from '@oclif/core';
+import { AppCommand } from '../../context.ts';
+import { type CliLinkResult } from '../../lib/cli-link.ts';
+export default class CliLink extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static flags: {
+        'bin-dir': Interfaces.OptionFlag<string | undefined>;
+    };
+    run(): Promise<CliLinkResult>;
+}
+//# sourceMappingURL=link.d.ts.map

@@ -1,0 +1,19 @@
+import type { CollectionMetadataStore, CollectionMetadataPage, CollectionMetadataStoreCapabilities, DeleteCollectionMetadataOptions, ListCollectionMetadataOptions, PutCollectionMetadataOptions } from '../document-store.js';
+import type { CollectionMetadataDocument, StoredCollectionMetadata } from '../document.js';
+export declare class TransactionCollectionMetadataStore implements CollectionMetadataStore {
+    private readonly base;
+    readonly capabilities: CollectionMetadataStoreCapabilities;
+    private readonly entries;
+    private committed;
+    private revision;
+    constructor(base: CollectionMetadataStore);
+    initialize(): Promise<void>;
+    get(name: string): Promise<StoredCollectionMetadata | undefined>;
+    list(options?: ListCollectionMetadataOptions): Promise<CollectionMetadataPage>;
+    put(input: CollectionMetadataDocument, options: PutCollectionMetadataOptions): Promise<StoredCollectionMetadata>;
+    delete(name: string, options: DeleteCollectionMetadataOptions): Promise<void>;
+    commit(): Promise<void>;
+    rollbackCommitted(): Promise<void>;
+    private load;
+    private nextRevision;
+}

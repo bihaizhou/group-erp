@@ -1,0 +1,3 @@
+import { type PropsWithChildren, type ReactElement } from 'react';
+export declare function AuthorizationProvider({ children, }: PropsWithChildren): ReactElement | null;
+//# sourceMappingURL=authorization-provider.d.ts.map

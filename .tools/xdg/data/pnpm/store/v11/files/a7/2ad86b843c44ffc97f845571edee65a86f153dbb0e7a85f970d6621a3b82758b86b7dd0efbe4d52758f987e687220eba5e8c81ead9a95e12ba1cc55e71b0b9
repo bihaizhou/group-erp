@@ -1,0 +1,166 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+import { STATUS_CODES } from 'node:http';
+import { WebSocketServer } from 'ws';
+const websocketServer = new WebSocketServer({
+    clientTracking: false,
+    noServer: true,
+});
+const responseHeadersToSkip = new Set([
+    'connection',
+    'content-length',
+    'keep-alive',
+    'transfer-encoding',
+    'upgrade',
+]);
+export function isWebSocketUpgrade(req) {
+    return firstHeaderValue(req.headers.upgrade)?.toLowerCase() === 'websocket';
+}
+export function createWebSocketUpgradeRequest(req, options = {}) {
+    return new Request(createRequestUrl(req), {
+        method: req.method ?? 'GET',
+        headers: createRequestHeaders(req),
+        signal: options.signal,
+    });
+}
+export function rejectWebSocketUpgrade(socket, status = 404, headers) {
+    const responseHeaders = ['Connection: close', 'Content-Length: 0'];
+    headers?.forEach((value, key) => {
+        if (!responseHeadersToSkip.has(key.toLowerCase())) {
+            responseHeaders.push(`${key}: ${value}`);
+        }
+    });
+    try {
+        socket.end(`HTTP/1.1 ${status.toString()} ${STATUS_CODES[status] ?? ''}\r\n${responseHeaders.join('\r\n')}\r\n\r\n`);
+    }
+    catch (error) {
+        socket.destroy(error instanceof Error ? error : new Error(String(error)));
+    }
+}
+export function acceptWebSocketUpgrade(req, socket, options) {
+    let connection = null;
+    websocketServer.handleUpgrade(req, socket, options.head ?? Buffer.alloc(0), (ws) => {
+        connection = new WsAppWebSocket(ws, options.request, options.events, options.signal);
+    });
+    return connection;
+}
+class WsAppWebSocket {
+    socket;
+    events;
+    signal;
+    url;
+    constructor(socket, request, events, signal) {
+        this.socket = socket;
+        this.events = events;
+        this.signal = signal;
+        this.url = new URL(request.url);
+        this.socket.on('message', this.handleMessage);
+        this.socket.once('close', this.handleClose);
+        this.socket.once('error', this.handleError);
+        this.signal?.addEventListener('abort', this.handleAbort, { once: true });
+        this.invoke(this.events.onOpen, { type: 'open' });
+    }
+    get protocol() {
+        return this.socket.protocol || null;
+    }
+    get readyState() {
+        return this.socket.readyState;
+    }
+    send(data, options = {}) {
+        if (this.socket.readyState !== this.socket.OPEN) {
+            return;
+        }
+        this.socket.send(data, { compress: options.compress });
+    }
+    close(code, reason) {
+        this.socket.close(code, reason);
+    }
+    handleMessage = (data, isBinary) => {
+        this.invoke(this.events.onMessage, {
+            type: 'message',
+            data: isBinary
+                ? rawDataToArrayBuffer(data)
+                : rawDataToBuffer(data).toString(),
+        });
+    };
+    handleClose = (code, reason) => {
+        this.signal?.removeEventListener('abort', this.handleAbort);
+        this.invoke(this.events.onClose, {
+            type: 'close',
+            code,
+            reason: reason.toString(),
+            wasClean: code !== 1006,
+        });
+    };
+    handleError = (error) => {
+        this.invoke(this.events.onError, { type: 'error', error }, false);
+    };
+    handleAbort = () => {
+        this.close(1001, 'app runtime closed');
+    };
+    invoke(handler, event, reportError = true) {
+        if (!handler) {
+            return;
+        }
+        try {
+            Promise.resolve(handler(event, this)).catch((error) => {
+                if (reportError) {
+                    this.handleError(asError(error));
+                }
+            });
+        }
+        catch (error) {
+            if (reportError) {
+                this.handleError(asError(error));
+            }
+        }
+    }
+}
+function createRequestHeaders(req) {
+    const headers = new Headers();
+    for (const [key, value] of Object.entries(req.headers)) {
+        if (Array.isArray(value)) {
+            for (const item of value) {
+                headers.append(key, item);
+            }
+        }
+        else if (value !== undefined) {
+            headers.set(key, value);
+        }
+    }
+    return headers;
+}
+function createRequestUrl(req) {
+    const host = firstHeaderValue(req.headers.host) ?? 'localhost';
+    const forwarded = firstHeaderValue(req.headers['x-forwarded-proto']);
+    const encrypted = req.socket
+        .encrypted;
+    const protocol = forwarded?.split(',')[0]?.trim() || (encrypted ? 'https' : 'http');
+    return new URL(req.url ?? '/', `${protocol}://${host}`);
+}
+function firstHeaderValue(value) {
+    return Array.isArray(value) ? value[0] : value;
+}
+function rawDataToBuffer(data) {
+    if (Array.isArray(data)) {
+        return Buffer.concat(data);
+    }
+    if (data instanceof ArrayBuffer) {
+        return Buffer.from(new Uint8Array(data));
+    }
+    return Buffer.from(data);
+}
+function rawDataToArrayBuffer(data) {
+    const buffer = rawDataToBuffer(data);
+    return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+}
+function asError(error) {
+    return error instanceof Error ? error : new Error(String(error));
+}
+//# sourceMappingURL=index.js.map

@@ -1,0 +1,135 @@
+import type { FilterAst } from '@nocobase/repository-input';
+import type { CollectionDefinition } from '../../collection/types.js';
+import type { RelationWritePolicy, WritePolicy } from '../write-policy.js';
+import type { NormalizedCreateNode, NormalizedDeleteNode, NormalizedReadNode, NormalizedRelationWriteNode, NormalizedRepositoryPolicy, NormalizedWriteNode, PolicyRef } from './types.js';
+/** The mutation nodes that carry a row scope. `create` is judged after the write. */
+export type PolicyMutationOperation = 'update' | 'delete';
+/**
+ * Resolve the read node, rejecting the call outright when reading is forbidden.
+ * Returns `undefined` when no Policy is bound and `true` when it adds no limits.
+ */
+export declare function resolveReadNode(policy: NormalizedRepositoryPolicy | undefined, collection: CollectionDefinition): NormalizedReadNode | true | undefined;
+/** The scalar field allowlist of the bound read node, or `undefined` when unbound. */
+export declare function policyReadFields(policy: NormalizedRepositoryPolicy | undefined): readonly string[] | undefined;
+/** The relation allowlist of the bound read node, or `undefined` when unbound. */
+export declare function policyReadRelations(policy: NormalizedRepositoryPolicy | undefined): Readonly<Record<string, NormalizedReadNode | PolicyRef>> | undefined;
+/**
+ * Resolve the node behind an `update` or `delete`, rejecting the call outright
+ * when the operation is forbidden.
+ */
+export declare function resolveMutationNode(policy: NormalizedRepositoryPolicy | undefined, operation: PolicyMutationOperation, collection: CollectionDefinition): NormalizedWriteNode | NormalizedDeleteNode | true | undefined;
+/**
+ * Resolve the node behind a `create` or `update` write shape, rejecting the
+ * call outright when the operation is forbidden.
+ */
+export declare function resolveWriteShapeNode(policy: NormalizedRepositoryPolicy | undefined, operation: 'create' | 'update', collection: CollectionDefinition): NormalizedCreateNode | NormalizedWriteNode | true | undefined;
+/**
+ * Apply `create.defaults` to caller values. Caller-provided fields win; the
+ * fields the server assigned that the caller may not write itself are reported
+ * so the write-shape check can let them through.
+ */
+export declare function applyCreateDefaults(policy: NormalizedRepositoryPolicy | undefined, input: unknown): {
+    readonly values: unknown;
+    readonly protectedFields: readonly string[];
+};
+/** Intersect the caller filter with a Policy scope without flattening either side. */
+export declare function combinePolicyFilter(caller: FilterAst | undefined, policy: FilterAst | undefined, collection: string): FilterAst | undefined;
+/**
+ * Project a normalized write node onto the legacy `WritePolicy` shape so the
+ * existing mutation checks can run unchanged.
+ *
+ * This bridge is deliberately temporary. `RelationWriteNode.scope` has nowhere
+ * to live in the legacy structure, so it comes apart when relation write
+ * targets land; see decision 0.9 in the policy roadmap.
+ */
+export declare function toWritePolicy(policy: NormalizedWriteNode): WritePolicy;
+export declare function toRelationWritePolicy(policy: NormalizedRelationWriteNode): RelationWritePolicy;
+/**
+ * What a bound Policy allows on one collection, at one point in a read.
+ *
+ * Every read validator takes this as a required argument. A call site with no
+ * Policy passes {@link UNRESTRICTED_READ} rather than omitting the argument, so
+ * a new read path cannot silently skip the checks — leaving it out is a
+ * compile error instead of a leak.
+ */
+export type PolicyReadContext = {
+    readonly kind: 'unrestricted';
+} | {
+    readonly kind: 'restricted';
+    /** The declared allowlist. Decides what a query with no select returns. */
+    readonly fields: readonly string[];
+    /**
+     * What the caller may name, which is the allowlist plus the foreign keys
+     * an authorized relation already gives away. Refusing `ownerId` while
+     * allowing `owner { id }` hides nothing — the same value comes back by
+     * the other route — so the two are kept in step.
+     *
+     * The implication runs one way only. A readable `ownerId` says nothing
+     * about whether `owner` may be expanded, because the target carries
+     * other fields.
+     */
+    readonly readableFields: readonly string[];
+    readonly relations: Readonly<Record<string, NormalizedReadNode | PolicyRef>>;
+    readonly scope: true | FilterAst;
+};
+export declare const UNRESTRICTED_READ: PolicyReadContext;
+/** Build the root read context, rejecting the call when reading is forbidden. */
+export declare function rootReadContext(policy: NormalizedRepositoryPolicy | undefined, collection: CollectionDefinition): PolicyReadContext;
+/**
+ * Build a restricted context, widening the nameable fields by the foreign keys
+ * the authorized relations already expose.
+ */
+export declare function restrictedReadContext(collection: CollectionDefinition, node: NormalizedReadNode): PolicyReadContext;
+/**
+ * Descend into a relation, rejecting the expansion when the Policy does not
+ * authorize it. Returns the context that governs the relation target, which is
+ * the target collection's allowlist — never the parent's.
+ */
+export declare function relationReadContext(parent: PolicyReadContext, collection: CollectionDefinition, relation: string, path: readonly (string | number)[], target: CollectionDefinition): PolicyReadContext;
+/** The scalar allowlist, or `undefined` when this context adds no limits. */
+export declare function readableFields(policy: PolicyReadContext): readonly string[] | undefined;
+/**
+ * Reject a caller reference to a field outside the read allowlist. Used by
+ * every surface that names a field without returning it — filter, sort,
+ * distinct, cursor, group by, aggregate — because each of them leaks the
+ * value just as surely as selecting it would.
+ */
+export declare function assertReadableField(policy: PolicyReadContext, collection: CollectionDefinition, field: string, path: readonly (string | number)[]): void;
+/**
+ * Collect the root-level fields a scope reads.
+ *
+ * A write that touches none of them cannot move a record out of that scope,
+ * which is what lets the ordinary update path stay free of extra statements.
+ * Relation nodes contribute nothing: a scope may not traverse relations, so
+ * one appearing here is a normalization bug rather than a field to watch.
+ */
+export declare function scopeFieldNames(scope: FilterAst): readonly string[];
+/**
+ * Refuse a `create` node whose scope references a field the operation can
+ * never give a value to.
+ *
+ * `scope: <status ne 'archived'>` with `fields: ['title']` and no default for
+ * `status` describes a create that can never succeed: the column takes
+ * whatever the database supplies, the record is judged against a condition
+ * nobody could influence, and every call inserts, fails the check and rolls
+ * back — reporting an error about `values`, which the caller cannot fix.
+ *
+ * The three inputs are all static, so this is worth catching before the first
+ * insert rather than once per call. A field that has a column default is
+ * accepted: whether that default satisfies the condition is a comparison only
+ * the database can make, and the write-back check makes it.
+ *
+ * This runs when the Collection first resolves rather than at `withPolicy`,
+ * because binding is synchronous and the Collection is not.
+ */
+export declare function assertCreateScopeSatisfiable(collection: CollectionDefinition, node: NormalizedCreateNode): void;
+/**
+ * Hand a Policy out without a live reference to anything mutable.
+ *
+ * Every other value in a normalized Policy is frozen or a primitive, but
+ * `Object.freeze` does not reach a Date's internal time: `setTime` still works
+ * on one. Since `explainPolicy` returns the very object `applyCreateDefaults`
+ * reads from, a caller could change a server-assigned default after binding.
+ * Copying on the way out is what actually closes that.
+ */
+export declare function detachPolicy(policy: NormalizedRepositoryPolicy): NormalizedRepositoryPolicy;

@@ -1,0 +1,10 @@
+import { type DatabaseManager } from '@nocobase/db';
+import { type MailTemplate } from '../../shared/mail.js';
+export declare class MailTemplatesStore {
+    private readonly database;
+    constructor(database: DatabaseManager);
+    listTemplates(ownerId: string): Promise<readonly MailTemplate[]>;
+    saveTemplate(template: MailTemplate): Promise<MailTemplate>;
+    deleteTemplate(ownerId: string, templateId: string): Promise<boolean>;
+}
+//# sourceMappingURL=templates.d.ts.map

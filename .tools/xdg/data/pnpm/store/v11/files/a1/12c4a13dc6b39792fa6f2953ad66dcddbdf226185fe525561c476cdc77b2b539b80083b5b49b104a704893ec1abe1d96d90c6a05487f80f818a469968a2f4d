@@ -1,0 +1,17 @@
+import optionMessages from '../../locales/en-US.js';
+import type { LocaleResource } from '@nocobase/i18n';
+declare const messages: {
+    permissionSets: {
+        builtIn: {
+            root: string;
+            member: string;
+        };
+    };
+};
+declare const enUS: typeof messages & typeof optionMessages;
+/**
+ * English is the source of truth for this plugin's locale shape.
+ */
+export type AuthorizationResource = LocaleResource<typeof enUS>;
+export default enUS;
+//# sourceMappingURL=en-US.d.ts.map

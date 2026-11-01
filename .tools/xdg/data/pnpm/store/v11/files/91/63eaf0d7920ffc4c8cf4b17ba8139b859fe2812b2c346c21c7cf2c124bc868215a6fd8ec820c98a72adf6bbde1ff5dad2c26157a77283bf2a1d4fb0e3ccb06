@@ -1,0 +1,4 @@
+import { createServiceToken, } from '@nocobase/service-provider';
+export const notificationServiceToken = createServiceToken('@nocobase/app-plugin-notification/service');
+export const notificationExtensionRegistryToken = createServiceToken('@nocobase/app-plugin-notification/extension-registry');
+//# sourceMappingURL=tokens.js.map

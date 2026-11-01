@@ -1,0 +1,1 @@
+{"version":3,"file":"mail-quoted-content.d.ts","sourceRoot":"","sources":["../../../client/lib/mail-quoted-content.ts"],"names":[],"mappings":"AAAA,uFAAuF;AACvF,wBAAgB,qBAAqB,CAAC,QAAQ,EAAE,QAAQ,EAAE,KAAK,EAAE,MAAM,GAAG,IAAI,CA0C7E;AAED,0FAA0F;AAC1F,wBAAgB,mBAAmB,CAAC,IAAI,EAAE,MAAM,GAAG;IACjD,IAAI,EAAE,MAAM,CAAC;IACb,KAAK,CAAC,EAAE,MAAM,CAAC;CAChB,CAwBA"}

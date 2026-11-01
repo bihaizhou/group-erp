@@ -1,0 +1,33 @@
+import type { ReactElement } from 'react';
+import type { MailProviderView } from '../mail-client.js';
+export interface MailAccountConnectorLabels {
+    readonly accountType: string;
+    readonly chooseAccountType: string;
+    readonly connect: string;
+    readonly connecting: string;
+    readonly connectedAccounts: (count: number) => string;
+    readonly capability: (capability: string) => string;
+    readonly configurationRequired: string;
+    readonly emailAddress?: string;
+    readonly username?: string;
+    readonly usernameDescription?: string;
+    readonly password?: string;
+    readonly displayName?: string;
+}
+export interface MailAccountCredentials {
+    readonly address: string;
+    readonly username: string;
+    readonly password: string;
+    readonly displayName?: string;
+}
+export interface MailAccountConnectorProps {
+    readonly providers: readonly MailProviderView[];
+    readonly credentialDefaults?: Pick<MailAccountCredentials, 'username' | 'password'>;
+    readonly connectedAccountCount: (provider: MailProviderView) => number;
+    readonly connectingProviderName?: string;
+    readonly labels: MailAccountConnectorLabels;
+    readonly onConnect: (provider: MailProviderView) => void;
+    readonly onConnectCredentials?: (provider: MailProviderView, credentials: MailAccountCredentials) => void;
+}
+export declare function MailAccountConnector({ providers, credentialDefaults, connectedAccountCount, connectingProviderName, labels, onConnect, onConnectCredentials, }: MailAccountConnectorProps): ReactElement;
+//# sourceMappingURL=mail-account-connector.d.ts.map

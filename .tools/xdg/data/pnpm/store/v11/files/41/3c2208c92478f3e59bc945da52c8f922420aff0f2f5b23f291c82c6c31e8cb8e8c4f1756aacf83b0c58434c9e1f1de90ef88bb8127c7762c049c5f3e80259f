@@ -1,0 +1,36 @@
+import type { MailAccountView, MailComposeInput, MailIdentity, MailMessage, MailOutboundAttachmentView, MailProviderCapabilities, MailProviderView, MailSignature } from '../mail-client.js';
+import { type ComposerState } from '../contracts/composer.js';
+export type { ComposerState } from '../contracts/composer.js';
+export declare const EMPTY_COMPOSER: ComposerState;
+export interface ComposerRecoverySnapshot {
+    readonly version: 1;
+    readonly accountId: string;
+    readonly identityId: string;
+    readonly signatureId?: string;
+    readonly composer: ComposerState;
+    readonly composeAttachments: readonly MailOutboundAttachmentView[];
+    readonly retainedAttachments: MailMessage['attachments'];
+    readonly savedFingerprint?: string;
+    readonly draftKey?: string;
+    readonly draftRevision?: number;
+}
+export declare function parseAddressList(value: string): readonly {
+    address: string;
+}[];
+export declare function replaceComposerSignature(composer: ComposerState, signatures: readonly MailSignature[], signatureId: string): ComposerState;
+export declare function buildComposerInput(accountId: string, identityId: string, _signatureId: string, composer: ComposerState, attachments: readonly MailOutboundAttachmentView[], retainedAttachments: MailMessage['attachments']): MailComposeInput;
+export declare function buildDraftComposerInput(accountId: string, identityId: string, signatureId: string, composer: ComposerState, attachments: readonly MailOutboundAttachmentView[], retainedAttachments: MailMessage['attachments']): MailComposeInput;
+export declare function mergeProviderDraftBody(current: string, submitted: string, providerValue: string | undefined): string;
+export declare function composerFingerprint(composer: ComposerState, identityId: string, signatureId: string, attachments: readonly MailOutboundAttachmentView[], retainedAttachments: MailMessage['attachments']): string;
+export declare function readComposerRecovery(accountId: string): ComposerRecoverySnapshot | undefined;
+export declare function writeComposerRecovery(snapshot: ComposerRecoverySnapshot): void;
+export declare function clearComposerRecovery(accountId: string): void;
+export declare function findProviderCapabilities(account: MailAccountView | undefined, providers: readonly MailProviderView[]): MailProviderCapabilities | undefined;
+export declare function formatIdentity(identity: MailIdentity): string;
+export declare function localDateTimeMinimum(): string;
+export declare function formatBytes(size: number): string;
+export declare function formatAddressList(addresses: readonly {
+    address: string;
+    name?: string;
+}[]): string;
+//# sourceMappingURL=mail-composer-state.d.ts.map

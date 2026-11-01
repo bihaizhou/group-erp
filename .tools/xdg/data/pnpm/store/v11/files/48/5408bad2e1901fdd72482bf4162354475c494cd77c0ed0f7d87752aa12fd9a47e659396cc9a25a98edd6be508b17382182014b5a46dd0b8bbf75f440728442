@@ -1,0 +1,4 @@
+import type { FieldDefinition } from '../collection/types.js';
+import { type RepositoryErrorCode } from './errors.js';
+/** Validate native-width CHAR values without padding, trimming, or coercion. */
+export declare function normalizeCharValue(field: FieldDefinition, value: unknown, code?: RepositoryErrorCode, path?: readonly (string | number)[]): string | null;

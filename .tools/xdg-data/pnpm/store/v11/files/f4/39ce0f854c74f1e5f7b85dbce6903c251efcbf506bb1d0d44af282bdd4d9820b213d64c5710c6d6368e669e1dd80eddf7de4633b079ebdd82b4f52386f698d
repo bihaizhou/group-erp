@@ -1,0 +1,8 @@
+import type { FieldDefinition } from '../collection/types.js';
+import { type RepositoryErrorCode } from './errors.js';
+export type TemporalType = 'date' | 'time' | 'datetime' | 'datetimeTz';
+export declare function isTemporalType(type: string): type is TemporalType;
+/** Validate before parsing; Date.parse alone silently normalizes invalid dates. */
+export declare function normalizeTemporalValue(field: FieldDefinition, input: unknown, code?: RepositoryErrorCode, path?: readonly (string | number)[]): string | null;
+/** Normalize driver-native temporal results to the portable string contract. */
+export declare function normalizeTemporalResultValue(field: FieldDefinition, raw: unknown): string | null;

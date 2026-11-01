@@ -1,0 +1,6 @@
+import { useService } from '@nocobase/app-client';
+import { authorizationClientToken } from './tokens.js';
+export function useAuthorizationClient() {
+    return useService(authorizationClientToken);
+}
+//# sourceMappingURL=use-authorization-client.js.map

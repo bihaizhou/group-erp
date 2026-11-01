@@ -1,0 +1,15 @@
+import { type Command } from '@oclif/core';
+import type { Interfaces } from '@oclif/core';
+import { AppCommand } from '../../context.ts';
+import { type SecretsRotateResult } from '../../lib/secrets-command.ts';
+export default class SecretsRotate extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static flags: {
+        'dry-run': Interfaces.BooleanFlag<boolean>;
+        'batch-size': Interfaces.OptionFlag<number>;
+    };
+    run(): Promise<SecretsRotateResult>;
+}
+//# sourceMappingURL=rotate.d.ts.map

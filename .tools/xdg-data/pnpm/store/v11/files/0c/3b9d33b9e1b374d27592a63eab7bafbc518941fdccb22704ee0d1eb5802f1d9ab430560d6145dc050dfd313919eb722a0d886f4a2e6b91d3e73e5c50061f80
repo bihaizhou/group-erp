@@ -1,0 +1,77 @@
+import type { DatabaseManager } from '@nocobase/db';
+import type { InAppItem, InAppMessage } from './types.js';
+export interface InAppPageCursor {
+    readonly createdAt: string;
+    readonly id: string;
+}
+export interface InAppStore {
+    deliver(input: {
+        readonly deliveryId: string;
+        readonly notificationId: string;
+        readonly userId: string;
+        readonly message: InAppMessage;
+        readonly createdAt: string;
+    }): Promise<InAppItem>;
+    list(input: {
+        readonly userId: string;
+        readonly unreadOnly?: boolean;
+        readonly limit?: number;
+        readonly before?: InAppPageCursor;
+    }): Promise<readonly InAppItem[]>;
+    countUnread(userId: string): Promise<number>;
+    update(input: {
+        readonly id: string;
+        readonly userId: string;
+        readonly action: 'read' | 'unread' | 'delete';
+    }): Promise<InAppItem | undefined>;
+    markAllRead(userId: string): Promise<number>;
+}
+export declare class MemoryInAppStore implements InAppStore {
+    private readonly items;
+    deliver(input: {
+        readonly deliveryId: string;
+        readonly notificationId: string;
+        readonly userId: string;
+        readonly message: InAppMessage;
+        readonly createdAt: string;
+    }): Promise<InAppItem>;
+    list(input: {
+        readonly userId: string;
+        readonly unreadOnly?: boolean;
+        readonly limit?: number;
+        readonly before?: InAppPageCursor;
+    }): Promise<readonly InAppItem[]>;
+    countUnread(userId: string): Promise<number>;
+    update(input: {
+        readonly id: string;
+        readonly userId: string;
+        readonly action: 'read' | 'unread' | 'delete';
+    }): Promise<InAppItem | undefined>;
+    markAllRead(userId: string): Promise<number>;
+}
+export declare class DatabaseInAppStore implements InAppStore {
+    private readonly database;
+    constructor(database: DatabaseManager);
+    deliver(input: {
+        readonly deliveryId: string;
+        readonly notificationId: string;
+        readonly userId: string;
+        readonly message: InAppMessage;
+        readonly createdAt: string;
+    }): Promise<InAppItem>;
+    list(input: {
+        readonly userId: string;
+        readonly unreadOnly?: boolean;
+        readonly limit?: number;
+        readonly before?: InAppPageCursor;
+    }): Promise<readonly InAppItem[]>;
+    countUnread(userId: string): Promise<number>;
+    update(input: {
+        readonly id: string;
+        readonly userId: string;
+        readonly action: 'read' | 'unread' | 'delete';
+    }): Promise<InAppItem | undefined>;
+    markAllRead(userId: string): Promise<number>;
+}
+export declare function createInAppStore(database?: DatabaseManager): InAppStore;
+//# sourceMappingURL=store.d.ts.map

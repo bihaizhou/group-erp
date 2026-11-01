@@ -1,0 +1,23 @@
+import type { CollectionDefinition } from '../types.js';
+export interface CollectionRelationValidationIssue {
+    readonly code: 'COLLECTION_RELATION_INVALID';
+    readonly collection: string;
+    readonly path: readonly (string | number)[];
+    readonly message: string;
+}
+export declare class CollectionRelationValidationError extends Error {
+    readonly issues: readonly CollectionRelationValidationIssue[];
+    readonly code: "COLLECTION_RELATION_VALIDATION_FAILED";
+    constructor(issues: readonly CollectionRelationValidationIssue[]);
+}
+export interface CollectionRelationProvider {
+    get(name: string): Promise<CollectionDefinition | undefined>;
+    scan(): AsyncIterable<CollectionDefinition>;
+}
+export declare class CollectionRelationValidator {
+    private readonly provider;
+    constructor(provider: CollectionRelationProvider);
+    validateCollection(collection: CollectionDefinition): Promise<void>;
+    validateGraph(name?: string): Promise<void>;
+    private validateOne;
+}

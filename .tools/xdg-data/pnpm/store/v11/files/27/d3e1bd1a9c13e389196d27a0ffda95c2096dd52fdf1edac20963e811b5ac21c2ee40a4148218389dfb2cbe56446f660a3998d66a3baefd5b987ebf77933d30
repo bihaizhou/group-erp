@@ -1,0 +1,14 @@
+import type { LocaleResource } from '@nocobase/i18n';
+declare const enUS: {
+    authorization: {
+        title: string;
+        read: string;
+    };
+    nav: {
+        automation: string;
+    };
+};
+/** English is the source of truth for this plugin's locale shape. */
+export type SchedulerResource = LocaleResource<typeof enUS>;
+export default enUS;
+//# sourceMappingURL=en-US.d.ts.map

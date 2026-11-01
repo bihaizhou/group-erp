@@ -1,0 +1,12 @@
+import type { RelationFieldDefinition, RelationType } from './types.js';
+export type RelationKeyOption = 'sourceKey' | 'targetKey' | 'foreignKey' | 'otherKey' | 'through';
+export declare class RelationConfigurationError extends Error {
+    readonly relation: string;
+    readonly option: RelationKeyOption;
+    readonly code: "COLLECTION_RELATION_INVALID";
+    readonly path: readonly string[];
+    constructor(relation: string, option: RelationKeyOption);
+}
+export declare function requiredRelationOptions(type: RelationType): readonly RelationKeyOption[];
+export declare function requireRelationOption(relation: Pick<RelationFieldDefinition, 'name' | 'type' | RelationKeyOption>, option: RelationKeyOption): string;
+export declare function validateRelationOptions(relation: RelationFieldDefinition): void;

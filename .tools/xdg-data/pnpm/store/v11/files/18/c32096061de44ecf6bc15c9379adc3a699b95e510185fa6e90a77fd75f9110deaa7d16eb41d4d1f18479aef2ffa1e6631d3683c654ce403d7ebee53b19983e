@@ -1,0 +1,7 @@
+import type { ConfigMap, ConfigParser, ConfigProvider, ConfigProviderMetadata } from './types.js';
+export interface LoadedConfigProvider {
+    readonly value: ConfigMap;
+    readonly metadata?: ConfigProviderMetadata;
+}
+export declare function loadConfigProvider(provider: ConfigProvider, parser: ConfigParser | undefined, signal: AbortSignal): Promise<LoadedConfigProvider>;
+//# sourceMappingURL=load-provider.d.ts.map

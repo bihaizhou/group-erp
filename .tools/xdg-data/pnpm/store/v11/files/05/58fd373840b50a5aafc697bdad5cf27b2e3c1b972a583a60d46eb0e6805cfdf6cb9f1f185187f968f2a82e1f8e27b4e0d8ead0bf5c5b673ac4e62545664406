@@ -1,0 +1,82 @@
+import type { Context, Hono, MiddlewareHandler } from 'hono';
+import { type AppConfigDefinition, type AppConfigFactory, type ConfigValidator } from '../config/define-app-config.js';
+/** A duration: a number of milliseconds, or a string such as `500ms`, `30s`, `1m` or `1h`. */
+export type ApiDuration = number | string;
+/** A size: a number of bytes, or a string such as `512kb`, `10mb` or `1gb` (powers of 1024). */
+export type ApiSize = number | string;
+export interface ApiRateLimitConfig {
+    /** How many requests one client may make per `window`. */
+    readonly max: number;
+    readonly window: ApiDuration;
+}
+/**
+ * The `api` section: limits the application applies to every `/api` request, ahead of any route. Each one is off while
+ * it is unset, and nothing is installed for it.
+ */
+export interface ApiConfig {
+    /** The largest request body any `/api` route accepts. Routes still set their own, usually smaller, limit. */
+    readonly bodyLimit?: ApiSize | null;
+    /** How long a handler may take to produce its response. A streaming response that has started is not cut off. */
+    readonly timeout?: ApiDuration | null;
+    /** Requests per client per window, counted in this process. */
+    readonly rateLimit?: ApiRateLimitConfig | null;
+}
+/** The `api` section with every value resolved to a number. */
+export interface ResolvedApiLimits {
+    readonly bodyLimitBytes?: number;
+    readonly timeoutMs?: number;
+    readonly rateLimit?: {
+        readonly max: number;
+        readonly windowMs: number;
+    };
+}
+/** Milliseconds for a duration such as `30s`; a bare number, or a string of digits, is milliseconds. */
+export declare function parseApiDuration(value: unknown, name: string): number;
+/** Bytes for a size such as `10mb`; a bare number, or a string of digits, is bytes. */
+export declare function parseApiSize(value: unknown, name: string): number;
+/** Resolves the `api` section, throwing on the first malformed value. An unset or `null` value stays off. */
+export declare function resolveApiLimits(config: ApiConfig | undefined): ResolvedApiLimits;
+/** The rules the `api` section is held to, run at start, on reload and by `config check`. */
+export declare const validateApiConfig: ConfigValidator<ApiConfig>;
+/**
+ * Declares the `api` section with the framework's validation and environment variables, in place of
+ * `defineAppConfig`. Every limit defaults to off. A `validate` given here runs after the framework's own.
+ */
+export declare function defineApiConfig(definition?: Partial<AppConfigDefinition<ApiConfig>>): AppConfigFactory<ApiConfig>;
+export interface InstallApiLimitsOptions {
+    /** The clock the rate limiter reads, for tests. */
+    readonly now?: () => number;
+}
+/**
+ * Installs the configured limits on the `/api` router, in the order a request meets them: the rate limit, before any
+ * work is done for a client already over it; then the deadline, which also covers reading the body; then the body
+ * ceiling. Nothing is installed for a limit that is not configured. Call it after the request id middleware, so every
+ * refusal carries the request's id, and before any route.
+ */
+export declare function installApiLimits(api: Hono, config: ApiConfig | undefined, options?: InstallApiLimitsOptions): void;
+/** Refuses a body over `maxBytes` with `413 BODY_TOO_LARGE`, whether it declares its length or streams it. */
+export declare function apiBodyLimitMiddleware(maxBytes: number): MiddlewareHandler;
+/**
+ * Answers `503 REQUEST_TIMEOUT` when the handler has not returned its response within `timeoutMs`.
+ *
+ * The deadline covers the time until the response object exists, not the time spent sending it, so a streaming
+ * response that has started runs to its end. The handler itself cannot be cancelled and keeps running after the
+ * deadline; what it eventually returns or throws is discarded.
+ */
+export declare function apiTimeoutMiddleware(timeoutMs: number): MiddlewareHandler;
+/**
+ * Counts requests per client in fixed windows and answers `429 RATE_LIMITED`, with `Retry-After` in seconds, once a
+ * client exceeds `max` in its current window.
+ *
+ * The client is the address of the connection, read from the Node.js server bindings. The signed-in user is not known
+ * at this point: authentication runs inside the routes that need it. A request whose address is unknown, such as one an
+ * in-process host forwards, is not counted. Counters live in this process, so each instance of a multi-instance
+ * deployment counts on its own.
+ */
+export declare function apiRateLimitMiddleware(limit: {
+    readonly max: number;
+    readonly windowMs: number;
+}, options?: InstallApiLimitsOptions): MiddlewareHandler;
+/** The remote address of the connection, as `@hono/node-server` exposes it, or `undefined` outside a Node server. */
+export declare function getClientAddress(context: Context): string | undefined;
+//# sourceMappingURL=api-limits.d.ts.map

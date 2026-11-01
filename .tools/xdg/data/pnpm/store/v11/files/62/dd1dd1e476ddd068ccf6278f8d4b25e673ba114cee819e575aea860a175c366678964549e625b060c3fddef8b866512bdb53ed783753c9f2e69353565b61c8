@@ -1,0 +1,18 @@
+import { type I18nRuntime, type Namespace } from '../core/index.js';
+/**
+ * Refine's translation contract, declared structurally so this package does not depend on `@refinedev/core`.
+ */
+export interface RefineI18nProvider {
+    translate: (key: string, options?: unknown, defaultMessage?: string) => string;
+    changeLocale: (locale: string, options?: unknown) => unknown;
+    getLocale: () => string;
+}
+export interface CreateRefineI18nProviderOptions {
+    /** Namespace for keys Refine itself translates. Defaults to the application's. */
+    readonly namespace?: Namespace;
+}
+/**
+ * Adapts the runtime to Refine's `i18nProvider`.
+ */
+export declare function createRefineI18nProvider(runtime: I18nRuntime, options?: CreateRefineI18nProviderOptions): RefineI18nProvider;
+//# sourceMappingURL=refine.d.ts.map

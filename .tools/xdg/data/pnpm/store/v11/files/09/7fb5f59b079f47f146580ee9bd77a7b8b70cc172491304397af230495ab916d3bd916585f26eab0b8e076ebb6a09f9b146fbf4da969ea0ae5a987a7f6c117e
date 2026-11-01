@@ -1,0 +1,20 @@
+export class CollectionResolutionError extends Error {
+    issues;
+    code = 'COLLECTION_RESOLUTION_FAILED';
+    constructor(issues) {
+        super(formatCollectionResolutionIssues(issues));
+        this.issues = issues;
+        this.name = 'CollectionResolutionError';
+    }
+}
+function formatCollectionResolutionIssues(issues) {
+    if (issues.length === 0) {
+        return 'Collection resolution failed.';
+    }
+    return `Collection resolution failed: ${issues
+        .map((issue) => `${formatIssuePath(issue.path)}: ${issue.message}`)
+        .join('; ')}`;
+}
+function formatIssuePath(path) {
+    return path.length === 0 ? '$' : `$.${path.join('.')}`;
+}

@@ -1,0 +1,535 @@
+import { DemandAttachments } from '#components/demand-attachments/index';
+import {
+  DemandGovernance,
+  DemandGovernanceLine,
+} from '#components/demand-governance/index';
+import { useState } from 'react';
+import { ApiClientError, useApiClient, useToaster } from '@nocobase/app-client';
+import {
+  Link,
+  Outlet,
+  useLocation,
+  useParams,
+  useResolvedPath,
+} from 'react-router';
+import { useAuthentication } from '@nocobase/app-plugin-authentication/client';
+import { useTranslation } from '@nocobase/i18n/client';
+import { PageContainer } from '#components/page-container';
+import { PageHeader } from '#components/page-header';
+import { BackButton } from '#components/back-button';
+import { RouteChildPage } from '#components/route-child-page';
+import { Button } from '#components/ui/button';
+import { LongText } from '#components/long-text';
+import { ReviewAudit } from '#components/review-audit';
+import {
+  ui,
+  useRequest,
+  useCapabilities,
+  useIssueQuery,
+  useIssueRefresh,
+  useIssueError,
+  useIssueReturnFocus,
+  useConfirm,
+} from '../hooks.js';
+import {
+  Loading,
+  ErrorNotice,
+  IssueStatus,
+  Identification,
+  RefreshButton,
+  Pagination,
+} from '../controls.js';
+import {
+  transitions,
+  type Page,
+  type Audit,
+  type IssueRequest,
+  type StoredLine,
+  type Submission,
+  type Action,
+} from '../model.js';
+export interface DetailContext {
+  recordId: string;
+  readonly: boolean;
+}
+export default function RequestDetail() {
+  const { t } = useTranslation(),
+    { requestId, relatedId } = useParams(),
+    ownPath = useResolvedPath('.').pathname,
+    related = ownPath.includes('/related/'),
+    location = useLocation(),
+    message = useIssueError(),
+    refresh = useIssueRefresh(),
+    api = useApiClient(),
+    toast = useToaster(),
+    { session } = useAuthentication(),
+    confirm = useConfirm(),
+    [receiving, setReceiving] = useState(false),
+    [receiveError, setReceiveError] = useState<unknown>();
+  const source = useRequest(requestId),
+    linked =
+      !related ||
+      !!source.data?.data.display.relatedRequests.some(
+        (r) => r.id === relatedId,
+      ),
+    id = related ? relatedId : requestId;
+  useIssueReturnFocus(ownPath, `issue-detail-title-${id}`);
+  const data = useRequest(linked ? id : undefined),
+    caps = useCapabilities(!related ? id : undefined),
+    row = data.data?.data;
+  const terminal =
+    data.error instanceof ApiClientError &&
+    [401, 403, 404].includes(data.error.status);
+  const error = data.error ?? source.error ?? caps.error;
+  const actionKey = (action: string) =>
+    action === 'update'
+      ? 'edit'
+      : action === 'cancel'
+        ? 'cancelRequest'
+        : action;
+  const operation = (action: Action) => {
+    const cap = caps.data?.data.actions[action];
+    if (!cap?.visible) return null;
+    const current =
+      !!row &&
+      caps.data?.data.recordRevision === row.revision &&
+      caps.data?.data.lifecycleVersion === row.lifecycleVersion;
+    const enabled = !caps.error && cap.enabled && current;
+    const href =
+      action === 'update'
+        ? 'edit'
+        : action === 'copy'
+          ? 'copy'
+          : `actions/${action}`;
+    return (
+      <div key={action} className='flex min-w-0 flex-col gap-1'>
+        <Button
+          disabled={!enabled}
+          variant={
+            enabled && (action === 'submit' || action === 'approve')
+              ? 'default'
+              : 'outline'
+          }
+          nativeButton={enabled ? false : undefined}
+          render={
+            enabled ? (
+              <Link to={{ pathname: href, search: location.search }} />
+            ) : undefined
+          }
+        >
+          {t(ui(actionKey(action)))}
+        </Button>
+        {!enabled && (
+          <span className='text-xs text-muted-foreground'>
+            {!current && caps.isFetching
+              ? t(ui('loading'))
+              : cap.reason && current
+                ? message(
+                    new ApiClientError('Unavailable', {
+                      status: 400,
+                      reason: cap.reason,
+                      method: 'GET',
+                      url: '/requisitions/requests',
+                    }),
+                  )
+                : t(ui('conflict'))}
+          </span>
+        )}
+      </div>
+    );
+  };
+  const outstanding =
+      !!row &&
+      row.lines.some(
+        (line) =>
+          Number(line.issuedQuantity ?? 0) > Number(line.receivedQuantity ?? 0),
+      ),
+    canReceive =
+      !!row &&
+      row.status === 'approved' &&
+      row.recipientAccountId === session?.user.id &&
+      outstanding,
+    receive = async () => {
+      if (!row) return;
+      if (
+        !(await confirm.ask(
+          t(ui('receiveTitle')),
+          t(ui('receiveHint')),
+          t(ui('receive')),
+        ))
+      )
+        return;
+      setReceiving(true);
+      setReceiveError(undefined);
+      try {
+        await api.request({
+          path: `requisitions/requests/${row.id}/receive`,
+          method: 'POST',
+          json: { version: row.revision, note: t(ui('receiveNote')) },
+        });
+        toast.show({ type: 'success', title: t(ui('receiveDone')) });
+        await refresh();
+      } catch (error) {
+        setReceiveError(error);
+      } finally {
+        setReceiving(false);
+      }
+    };
+  const title = row ? `${t(ui('title'))} ${row.code}` : t(ui('title'));
+  return (
+    <RouteChildPage>
+      <PageContainer>
+        <BackButton />
+        <PageHeader
+          title={
+            <span
+              id={`issue-detail-title-${id}`}
+              tabIndex={-1}
+              className='focus-visible:ring-2 focus-visible:ring-ring [overflow-wrap:anywhere]'
+            >
+              {title}
+            </span>
+          }
+          actions={
+            row && !terminal ? (
+              <RefreshButton
+                busy={data.isFetching || caps.isFetching}
+                onClick={() => void refresh()}
+              />
+            ) : undefined
+          }
+        />
+        {error && (
+          <ErrorNotice
+            error={error}
+            retry={() => {
+              void data.refetch();
+              void source.refetch();
+            }}
+          />
+        )}
+        {related && !linked && source.data ? (
+          <p>{t(ui('relatedUnavailable'))}</p>
+        ) : !row && !error ? (
+          <Loading kind='detail' />
+        ) : row && !terminal ? (
+          <div className='flex flex-col gap-6'>
+            {!related && (
+              <div className='grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+                {(['update', ...transitions, 'copy'] as Action[]).map(
+                  operation,
+                )}
+              </div>
+            )}
+            <div className='flex flex-wrap items-center gap-3'>
+              <IssueStatus state={row.status} />
+              <Identification value={row.identificationStatus} />
+              <span className='text-sm text-muted-foreground'>
+                {t(ui('fulfillment'))}:{' '}
+                {t(
+                  ui(
+                    row.fulfillmentStatus === 'open'
+                      ? 'fulfillmentOpen'
+                      : row.fulfillmentStatus === 'partial'
+                        ? 'fulfillmentPartial'
+                        : row.fulfillmentStatus === 'issued'
+                          ? 'fulfillmentIssued'
+                          : 'fulfillmentReceived',
+                  ),
+                )}
+              </span>
+              {canReceive && (
+                <Button disabled={receiving} onClick={() => void receive()}>
+                  {receiving ? t(ui('loading')) : t(ui('receive'))}
+                </Button>
+              )}
+            </div>
+            {receiveError ? (
+              <ErrorNotice error={receiveError} retry={() => void receive()} />
+            ) : null}
+            {related && (
+              <p className='text-sm text-muted-foreground'>
+                {t(ui('relatedReadOnly'))}
+              </p>
+            )}
+            <section className='flex flex-col gap-4'>
+              <h2 className='text-base font-medium'>{t(ui('detail'))}</h2>
+              <RequestInformation row={row} />
+            </section>
+            <section className='flex flex-col gap-4'>
+              <h2 className='text-base font-medium'>{t(ui('lines'))}</h2>
+              <DemandGovernance
+                domain='requisitions'
+                request={row}
+                readonly={related}
+              >
+                <DemandLines lines={row.lines} />
+              </DemandGovernance>
+            </section>
+            {confirm.dialog}
+            <DemandAttachments
+              domain='requisitions'
+              requestId={row.id}
+              value={row.attachments ?? []}
+              lines={row.lines.map((line) => ({
+                id: line.id,
+                label: t(ui('lineTitle'), { number: line.lineNo }),
+              }))}
+            />
+            <section className='flex flex-col gap-4'>
+              <h2 className='text-base font-medium'>{t(ui('submission'))}</h2>
+              {row.versions.length === 0 ? (
+                <p className='text-sm text-muted-foreground'>
+                  {t(ui('noSubmission'))}
+                </p>
+              ) : (
+                <div className='flex flex-col gap-4'>
+                  {row.versions.map((version) => (
+                    <div
+                      key={version.id}
+                      className='flex flex-col gap-4 rounded-lg border p-4'
+                    >
+                      <Link
+                        className='text-primary underline underline-offset-4'
+                        to={{
+                          pathname: `versions/${version.id}`,
+                          search: location.search,
+                        }}
+                      >
+                        {t(ui('viewVersion'))} {version.contentVersion}
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+            <ReviewAudit
+              tasks={row.reviewTasks}
+              accounts={row.display.accounts}
+              versionNumber={(versionId) =>
+                row.versions.find((version) => version.id === versionId)
+                  ?.contentVersion
+              }
+              ruleRevision={(versionId) => {
+                const sources = row.versions.find(
+                  (version) => version.id === versionId,
+                )?.payload?.parameterSnapshot?.sources;
+                return sources
+                  ? Object.values(sources)[0]?.revision
+                  : undefined;
+              }}
+            />
+            <History requestId={row.id} recent={row.recentHistory} />
+          </div>
+        ) : null}
+      </PageContainer>
+      <Outlet
+        context={
+          { recordId: id ?? '', readonly: related } satisfies DetailContext
+        }
+      />
+    </RouteChildPage>
+  );
+}
+export function RequestInformation({
+  row,
+  snapshot,
+}: {
+  row: IssueRequest;
+  snapshot?: Submission;
+}) {
+  const { t, i18n } = useTranslation(),
+    head = snapshot?.payload.head ?? row,
+    refs = snapshot
+      ? {
+          company: snapshot.payload.company,
+          requester: snapshot.payload.requester,
+          recipient: snapshot.payload.recipient,
+          unit: snapshot.payload.unit,
+          purpose: undefined,
+        }
+      : row.display;
+  return (
+    <dl className='flex flex-col gap-4'>
+      {[
+        ['company', refs.company?.name],
+        ['requester', refs.requester?.name],
+        ['recipient', refs.recipient?.name],
+        ['unit', refs.unit?.name],
+        [
+          'neededOn',
+          head.neededOn
+            ? new Date(`${head.neededOn}T12:00:00`).toLocaleDateString(
+                i18n.language,
+              )
+            : '',
+        ],
+        [
+          'purpose',
+          snapshot
+            ? (head.purposeSnapshot as { name?: string } | undefined)?.name
+            : row.display.purpose?.name,
+        ],
+        ['usage', head.usage],
+        ['notes', head.notes],
+      ].map(([key, value]) => (
+        <div
+          key={key}
+          className='grid min-w-0 gap-2 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-4'
+        >
+          <dt className='text-sm text-muted-foreground'>{t(ui(key!))}</dt>
+          <dd className='text-sm break-words'>
+            {value ? (
+              <LongText>{String(value)}</LongText>
+            ) : snapshot &&
+              (['company', 'requester', 'recipient', 'unit'].includes(key!) ||
+                (key === 'purpose' && head.purposeId)) ? (
+              t(ui('nameNotRecorded'))
+            ) : (
+              '—'
+            )}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+export function DemandLines({ lines }: { lines: StoredLine[] }) {
+  const { t } = useTranslation();
+  return (
+    <div className='flex flex-col gap-4'>
+      {lines.map((line, i) => (
+        <div
+          key={line.id}
+          className='flex flex-col gap-4 rounded-lg border p-4'
+        >
+          <div className='flex flex-wrap gap-2'>
+            <h3 className='font-medium'>
+              {t(ui('lineTitle'), { number: i + 1 })}
+            </h3>
+            {line.status === 'cancelled' ? (
+              <span className='text-sm text-muted-foreground'>
+                {t(ui('lineCancelled'))}
+              </span>
+            ) : (
+              <Identification value={line.identificationStatus} />
+            )}
+          </div>
+          <dl className='flex flex-col gap-4 text-sm'>
+            {[
+              ['materialCode', line.materialSnapshot?.code],
+              ['standardName', line.materialSnapshot?.standardName],
+              [
+                'specification',
+                line.materialSnapshot?.name ?? line.originalSpecification,
+              ],
+              ['originalName', line.originalName],
+              ['quantity', line.requestedQuantity],
+              [
+                'requestedUnit',
+                line.materialSnapshot?.unitName ?? line.requestedUnitText,
+              ],
+              [
+                'packaging',
+                line.numeratorSnapshot
+                  ? `${line.numeratorSnapshot}/${line.denominatorSnapshot}`
+                  : '',
+              ],
+              [
+                'baseQuantity',
+                line.baseQuantity
+                  ? `${line.baseQuantity} ${line.materialSnapshot?.baseUnitName ?? ''}`
+                  : '',
+              ],
+              ['issuedQuantity', line.issuedQuantity],
+              ['receivedQuantity', line.receivedQuantity],
+              ['returnedQuantity', line.returnedQuantity],
+              ['lineUsage', line.usage],
+              ['lineNotes', line.notes],
+            ].map(([key, value]) => (
+              <div
+                key={key}
+                className='grid min-w-0 gap-2 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-4'
+              >
+                <dt className='text-muted-foreground'>{t(ui(key!))}</dt>
+                <dd>{value ? <LongText>{value}</LongText> : '—'}</dd>
+              </div>
+            ))}
+          </dl>
+          <DemandGovernanceLine line={line} />
+        </div>
+      ))}
+    </div>
+  );
+}
+function History({
+  requestId,
+  recent,
+}: {
+  requestId: string;
+  recent?: Audit[];
+}) {
+  const { t, i18n } = useTranslation(),
+    [page, setPage] = useState(1),
+    result = useIssueQuery<Page<Audit>>(`requests/${requestId}/history`, {
+      page,
+      pageSize: 20,
+    });
+  const fresh =
+    page === 1 &&
+    recent?.[0] &&
+    !result.data?.data.some((a) => a.id === recent[0].id)
+      ? recent
+      : [];
+  const rows = [...(fresh ?? []), ...(result.data?.data ?? [])].slice(0, 20);
+  return (
+    <section className='flex flex-col gap-4'>
+      <h2 className='text-base font-medium'>{t(ui('history'))}</h2>
+      {result.error ? (
+        <ErrorNotice error={result.error} retry={() => void result.refetch()} />
+      ) : result.isPending ? (
+        <Loading kind='detail' />
+      ) : !rows.length ? (
+        <p className='text-sm text-muted-foreground'>{t(ui('noHistory'))}</p>
+      ) : (
+        <>
+          <div className='flex flex-col gap-4'>
+            {rows.map((item) => (
+              <div
+                key={item.id}
+                className='flex flex-col gap-2 rounded-lg border p-4 text-sm'
+              >
+                <p className='font-medium'>
+                  {t(
+                    ui(
+                      item.operation === 'create'
+                        ? 'createTitle'
+                        : item.operation === 'copy'
+                          ? 'copiedAudit'
+                          : item.operation === 'update'
+                            ? 'edit'
+                            : item.operation === 'cancel'
+                              ? 'cancelRequest'
+                              : item.operation,
+                    ),
+                  )}{' '}
+                  · {item.actor?.name ?? t(ui('unavailable'))} ·{' '}
+                  {new Date(item.createdAt).toLocaleString(i18n.language)}
+                </p>
+                <LongText>
+                  {item.reason === 'create' ? '—' : item.reason}
+                </LongText>
+              </div>
+            ))}
+          </div>
+          <Pagination
+            page={page}
+            total={(result.data?.meta.total ?? 0) + (fresh?.length ?? 0)}
+            onPage={setPage}
+            busy={result.isFetching}
+          />
+        </>
+      )}
+    </section>
+  );
+}

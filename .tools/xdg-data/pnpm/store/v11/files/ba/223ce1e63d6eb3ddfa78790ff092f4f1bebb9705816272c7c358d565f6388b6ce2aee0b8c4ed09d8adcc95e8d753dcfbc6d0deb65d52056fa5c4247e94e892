@@ -1,0 +1,99 @@
+import type { MiddlewareHandler } from 'hono';
+import { type CompositeResourceApi, type CompositeResourceConditions, type InvalidGrant } from './composite.js';
+import { AccessConstraintRegistry } from './constraints.js';
+import type { AuthorizationGrantsChangedListener } from './grants.js';
+import { type AuthorizationMiddleware } from './middleware.js';
+import { type AuthorizationPlugin, type AuthorizationPluginApis } from './plugin.js';
+import { RecordAccessRegistry } from './record-access.js';
+import { ResourceTypeRegistry } from './resource-types.js';
+import { AuthorizationRouteRegistry } from './routes.js';
+import { AuthorizationSubjectRegistry } from './subjects.js';
+import { type AuthorizationDecision, type AuthorizationIdentity, type AuthorizationRequest, type ResourceRef } from './types.js';
+/** A request made through an `AuthorizationContext`, which supplies the identity. */
+export type AuthorizationCheckRequest<TParams = undefined> = Omit<AuthorizationRequest<TParams>, 'principal' | 'subjects'>;
+export interface AuthorizationPermission {
+    resource: ResourceRef;
+    actions: readonly string[];
+}
+/** What the client may show. Never an executable data policy. */
+export interface AuthorizationSnapshot {
+    /** True when every action is permitted; `permissions` is then empty. */
+    readonly unrestricted: boolean;
+    readonly permissions: readonly AuthorizationPermission[];
+}
+/** Checks for one identity, sharing grant and rule reads between them. */
+export interface AuthorizationContext {
+    readonly identity: AuthorizationIdentity;
+    authorize(request: Omit<AuthorizationCheckRequest, 'resource'> & {
+        resource: {
+            type: 'composite';
+            id: string;
+        };
+    }): Promise<AuthorizationDecision<CompositeResourceConditions>>;
+    authorize<TParams = undefined>(request: AuthorizationCheckRequest<TParams>): Promise<AuthorizationDecision>;
+    /** True only for `permit`; a conditional decision counts as false. */
+    can<TParams = undefined>(request: AuthorizationCheckRequest<TParams>): Promise<boolean>;
+    /** Throws `AuthorizationDeniedError` unless the decision is `permit`. */
+    require<TParams = undefined>(request: AuthorizationCheckRequest<TParams>): Promise<void>;
+    snapshot(): Promise<AuthorizationSnapshot>;
+}
+export interface AuthorizationEnv {
+    Variables: {
+        authz: AuthorizationContext;
+    };
+}
+export interface CreateAuthorizationOptions<TPlugins extends readonly AuthorizationPlugin[], TConnection = unknown> {
+    /** Passed through to every plugin's setup; the library never inspects it. */
+    connection?: TConnection;
+    plugins: TPlugins;
+    /**
+     * Called once per distinct stored composite grant that no longer expands
+     * against the current definitions. The grant is skipped, so it permits
+     * nothing while the identity's other grants keep working.
+     */
+    onInvalidGrant?: (grant: InvalidGrant) => void;
+}
+interface AuthorizationOptions {
+    connection?: unknown;
+    plugins: readonly AuthorizationPlugin[];
+    onInvalidGrant?: (grant: InvalidGrant) => void;
+}
+export declare class Authorization {
+    readonly resourceTypes: ResourceTypeRegistry;
+    /** Built in: composites and the reserved `composite` resource type. */
+    readonly compositeResources: CompositeResourceApi;
+    readonly recordAccess: RecordAccessRegistry;
+    readonly constraints: AccessConstraintRegistry;
+    readonly subjects: AuthorizationSubjectRegistry;
+    readonly routes: AuthorizationRouteRegistry;
+    private readonly plugins;
+    private readonly provider;
+    private readonly compositeResourceRegistry;
+    private readonly middlewares;
+    constructor(options: AuthorizationOptions);
+    /** Adds a step that resolves the request's principal and subjects. */
+    use(middleware: AuthorizationMiddleware): void;
+    /** Runs every identity step, then sets `authz` to the request's context. */
+    middleware(): MiddlewareHandler<AuthorizationEnv>;
+    /** Subscribes to the Grant Provider's change announcements. */
+    onGrantsChanged(listener: AuthorizationGrantsChangedListener): () => void;
+    for(identity: AuthorizationIdentity): AuthorizationContext;
+    /**
+     * The snapshot of a scoped identity: what it could do without the scope, kept to what the scope covers. A scope
+     * that lists its actions is checked action by action, so a holder of everything sees exactly the scope.
+     */
+    private scopedSnapshot;
+    private authorizeWithGrants;
+    /** Checks each grant target a composite action composes, with its grants only. */
+    private composeComposite;
+    /**
+     * Lists exactly the (type, id, action) triples `can()` permits among the
+     * identity's expanded grants, so the client never shows what the server
+     * refuses.
+     */
+    private snapshot;
+    private installApis;
+}
+export declare function createAuthorization<const TPlugins extends readonly AuthorizationPlugin[], TConnection = unknown>(options: CreateAuthorizationOptions<TPlugins, TConnection>): Authorization & AuthorizationPluginApis<TPlugins>;
+export {};
+//# sourceMappingURL=authorization.d.ts.map

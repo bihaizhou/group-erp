@@ -1,0 +1,7 @@
+import { ToolCommand } from "../../lib/tool-command.js";
+export default class DistRetarget extends ToolCommand {
+    static summary = 'Reinstall the native modules in dist/ for another deployment platform.';
+    static description = 'Takes the same --target and --node-version options as `nocobase build`, for a dist/ that is already built.';
+    tool = 'retarget';
+}
+//# sourceMappingURL=retarget.js.map

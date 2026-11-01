@@ -1,0 +1,10 @@
+import { type AppServerPlugin } from '@nocobase/app-server/plugins';
+/**
+ * No Server locales. Failures answer with a stable `code` and a fixed English
+ * message, and the Client renders the wording for that code in the viewer's
+ * language. Declaring Server locale resources that nothing consults would read
+ * as translated API errors without producing any.
+ */
+declare const databaseExplorerPlugin: AppServerPlugin;
+export default databaseExplorerPlugin;
+//# sourceMappingURL=plugin.d.ts.map

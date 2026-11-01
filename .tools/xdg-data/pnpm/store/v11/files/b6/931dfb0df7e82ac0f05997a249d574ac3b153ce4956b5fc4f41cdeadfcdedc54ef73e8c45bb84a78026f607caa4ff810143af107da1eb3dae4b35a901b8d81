@@ -1,0 +1,15 @@
+import { type MailAccountView, type MailAuthorizationStartResult, type MailCompleteAuthorizationInput, type MailConnectAccountInput, type MailOperationContext, type MailStartAuthorizationInput } from '../../shared/mail.js';
+import { type MailService } from '../contracts/service.js';
+import { type MailServiceDependencies } from './dependencies.js';
+export declare class MailAuthorizationService {
+    private readonly dependencies;
+    private readonly sync;
+    private readonly defaultAutomaticSyncIntervalMinutes;
+    constructor(dependencies: MailServiceDependencies<'consumeAuthorizationTransaction' | 'createAuthorizationTransaction' | 'findAccountByProviderIdentity' | 'listIdentities' | 'listSignatures' | 'saveAuthorizedAccount', 'registry' | 'resolveProviderConfig' | 'credentials' | 'providerContext'>, sync: Pick<MailService, 'startSync'>, defaultAutomaticSyncIntervalMinutes: number);
+    connectAccount(context: MailOperationContext, input: MailConnectAccountInput): Promise<MailAccountView>;
+    startAuthorization(context: MailOperationContext, input: MailStartAuthorizationInput): Promise<MailAuthorizationStartResult>;
+    completeAuthorization(input: MailCompleteAuthorizationInput): Promise<MailAccountView>;
+    private authorizationDependencies;
+    private persistAuthorizedAccount;
+}
+//# sourceMappingURL=authorization.d.ts.map

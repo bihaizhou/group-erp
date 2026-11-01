@@ -1,0 +1,2 @@
+export declare function joinDriveUrl(baseUrl: string, key: string): string;
+//# sourceMappingURL=url.d.ts.map

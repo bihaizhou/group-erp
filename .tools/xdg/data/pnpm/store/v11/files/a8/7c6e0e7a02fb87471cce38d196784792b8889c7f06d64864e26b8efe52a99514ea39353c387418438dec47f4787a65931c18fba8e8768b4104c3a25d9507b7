@@ -1,0 +1,30 @@
+import { createResendTransport, validateResendProviderConfig, } from '@nocobase/mailer';
+import { notificationProviderText } from '../../i18n.js';
+export function defineResendProviderConfig(input) {
+    return { provider: 'resend', ...input };
+}
+export function createResendProviderDefinition() {
+    return {
+        type: 'resend',
+        messageType: 'email',
+        label: notificationProviderText('test.providers.resend', 'Resend'),
+        validateConfig: validateResendProviderConfig,
+        capabilities: {
+            idempotency: { supported: true, retentionMs: 24 * 60 * 60 * 1000 },
+        },
+        async createProvider(_context, config) {
+            const transport = createResendTransport(config);
+            return {
+                type: 'resend',
+                capabilities: {
+                    idempotency: { supported: true, retentionMs: 24 * 60 * 60 * 1000 },
+                },
+                async send({ message, deliveryId, signal, }) {
+                    return transport.send({ ...message.content, to: message.to }, { idempotencyKey: deliveryId, signal });
+                },
+                close: () => transport.close(),
+            };
+        },
+    };
+}
+//# sourceMappingURL=resend.js.map

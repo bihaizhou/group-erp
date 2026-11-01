@@ -1,0 +1,7 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { PageContainer } from './page-container.js';
+import { PageHeader } from './page-header.js';
+export function MailDevPageShell({ actions, navigation, children, description, title, }) {
+    return (_jsxs(PageContainer, { className: '@container/main', children: [_jsx(PageHeader, { title: title, description: description, actions: actions }), navigation, children] }));
+}
+//# sourceMappingURL=mail-dev-page-shell.js.map

@@ -1,0 +1,10 @@
+import { ServiceProvider, type ServiceContainer } from '@nocobase/service-provider';
+export interface RealtimeProviderApplication {
+    readonly container: ServiceContainer;
+}
+export declare class RealtimeProvider<TApplication extends RealtimeProviderApplication = RealtimeProviderApplication> extends ServiceProvider<TApplication> {
+    readonly name: string;
+    register(): void;
+    shutdown(): Promise<void>;
+}
+//# sourceMappingURL=provider.d.ts.map

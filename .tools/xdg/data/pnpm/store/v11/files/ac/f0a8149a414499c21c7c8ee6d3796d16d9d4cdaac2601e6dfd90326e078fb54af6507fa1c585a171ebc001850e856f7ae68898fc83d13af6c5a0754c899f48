@@ -1,0 +1,67 @@
+// The one document every NocoBase command-line tool prints under `--json`.
+//
+// `pnpm nocobase …` commands print it through `AppCommand`, and the tools that run before an application exists —
+// `pnpm create @nocobase/app`, `pnpm plugin:create` and app-installer — build it with the same functions, so a caller
+// learns one way to read all of them: check `ok`, then read `result` or `error`. The envelope carries a brand so that
+// `AppCommand.logJson` can refuse anything else; a second document on stdout is exactly what a machine reader cannot
+// recover from.
+//
+// The Node.js version guard an entry point runs before loading anything else lives in `./node-guard`, as plain
+// JavaScript with no imports, so that it runs on the Node.js it is there to refuse.
+export const COMMAND_JSON_SCHEMA_VERSION = 1;
+// Looked up by a registered symbol rather than held in this module, so a document built by another copy of this
+// package still passes `isCommandEnvelope`.
+const ENVELOPE = Symbol.for('@nocobase/cli-envelope.envelope');
+function brand(envelope) {
+    Object.defineProperty(envelope, ENVELOPE, { value: true });
+    return envelope;
+}
+/** Whether `value` was built by `commandSuccessJson` or `commandFailureJson`, from any copy of this package. */
+export function isCommandEnvelope(value) {
+    return (typeof value === 'object' &&
+        value !== null &&
+        value[ENVELOPE] === true);
+}
+export function commandSuccessJson(command, status, result, warnings) {
+    return brand({
+        schemaVersion: COMMAND_JSON_SCHEMA_VERSION,
+        ok: true,
+        command,
+        status,
+        result: result ?? null,
+        warnings: [...warnings],
+    });
+}
+/** A failure document. `error.details` is left out when it is `undefined`, so a reader can test for its presence. */
+export function commandFailureJson(command, error, warnings) {
+    return brand({
+        schemaVersion: COMMAND_JSON_SCHEMA_VERSION,
+        ok: false,
+        command,
+        status: 'failure',
+        error: {
+            code: error.code,
+            message: error.message,
+            suggestions: [...error.suggestions],
+            ...(error.details === undefined ? {} : { details: error.details }),
+        },
+        warnings: [...warnings],
+    });
+}
+/** Quotes an argument for a POSIX shell when it would otherwise split or be interpreted, so the line can be pasted. */
+export function quoteForShell(argument) {
+    if (/^[\w@%+=:,./-]+$/u.test(argument))
+        return argument;
+    return `'${argument.replaceAll("'", `'\\''`)}'`;
+}
+/** A suggestion's command as one line a person can paste into a shell, each argument quoted where it needs to be. */
+export function formatCommandLine(line) {
+    return [line.command, ...line.args].map(quoteForShell).join(' ');
+}
+/** A suggestion as one line for a person: its message, followed by its command where it has one. */
+export function renderSuggestion(suggestion) {
+    if (suggestion.run === undefined)
+        return suggestion.message;
+    return `${suggestion.message} ${formatCommandLine(suggestion.run)}`;
+}
+//# sourceMappingURL=index.js.map

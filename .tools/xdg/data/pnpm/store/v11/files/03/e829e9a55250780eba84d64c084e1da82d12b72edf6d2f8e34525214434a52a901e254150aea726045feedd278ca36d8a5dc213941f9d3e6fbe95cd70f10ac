@@ -1,0 +1,89 @@
+import { ConfigView } from './config-view.js';
+import { loadConfigProvider } from './load-provider.js';
+import { mergeConfigMaps } from './merge.js';
+import { deleteConfigValue, getConfigValue, setConfigValue, splitConfigPath, } from './path.js';
+import { assertConfigMap, assertConfigValue, cloneConfigValue, createConfigRecord, isConfigMap, } from './value.js';
+export class Config extends ConfigView {
+    mutableRoot;
+    strictMerge;
+    constructor(options = {}, initial = {}) {
+        const delimiter = options.delimiter ?? '.';
+        super(initial, delimiter);
+        this.mutableRoot = cloneConfigValue(initial);
+        this.strictMerge = options.strictMerge ?? false;
+    }
+    get(path) {
+        const value = getConfigValue(this.mutableRoot, splitConfigPath(path, this.delimiter));
+        return value === undefined ? undefined : cloneConfigValue(value);
+    }
+    has(path) {
+        return this.get(path) !== undefined;
+    }
+    keys() {
+        return new ConfigView(this.mutableRoot, this.delimiter).keys();
+    }
+    mapKeys(path) {
+        const value = this.get(path);
+        return isConfigMap(value) ? Object.keys(value).sort() : [];
+    }
+    raw() {
+        return cloneConfigValue(this.mutableRoot);
+    }
+    all() {
+        return new ConfigView(this.mutableRoot, this.delimiter).all();
+    }
+    async load(provider, parser, options = {}) {
+        const controller = new AbortController();
+        const loaded = await loadConfigProvider(provider, parser, controller.signal);
+        let source = loaded.value;
+        if (options.mountAt) {
+            const mounted = createConfigRecord();
+            setConfigValue(mounted, splitConfigPath(options.mountAt, this.delimiter), source);
+            source = mounted;
+        }
+        if (options.merge) {
+            const result = await options.merge({
+                source: cloneConfigValue(source),
+                destination: this.raw(),
+            });
+            this.mutableRoot = cloneConfigValue(assertConfigMap(result));
+            return;
+        }
+        this.mutableRoot = mergeConfigMaps(this.mutableRoot, source, {
+            delimiter: this.delimiter,
+            strict: this.strictMerge,
+        });
+    }
+    merge(config) {
+        this.mutableRoot = mergeConfigMaps(this.mutableRoot, config.raw(), {
+            delimiter: this.delimiter,
+            strict: this.strictMerge,
+        });
+    }
+    mergeAt(config, path) {
+        const mounted = createConfigRecord();
+        setConfigValue(mounted, splitConfigPath(path, this.delimiter), config.raw());
+        this.mutableRoot = mergeConfigMaps(this.mutableRoot, mounted, {
+            delimiter: this.delimiter,
+            strict: this.strictMerge,
+        });
+    }
+    set(path, value) {
+        assertConfigValue(value, path);
+        setConfigValue(this.mutableRoot, splitConfigPath(path, this.delimiter), cloneConfigValue(value));
+    }
+    delete(path) {
+        deleteConfigValue(this.mutableRoot, splitConfigPath(path, this.delimiter));
+    }
+    cut(path) {
+        const value = this.get(path);
+        return new Config({ delimiter: this.delimiter, strictMerge: this.strictMerge }, isConfigMap(value) ? value : {});
+    }
+    copy() {
+        return new Config({ delimiter: this.delimiter, strictMerge: this.strictMerge }, this.raw());
+    }
+    serialize(parser) {
+        return parser.serialize(this.raw());
+    }
+}
+//# sourceMappingURL=config.js.map

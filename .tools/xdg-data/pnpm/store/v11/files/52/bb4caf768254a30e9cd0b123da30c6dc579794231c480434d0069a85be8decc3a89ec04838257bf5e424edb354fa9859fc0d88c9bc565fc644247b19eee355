@@ -1,0 +1,5 @@
+import type { MailSyncCursor } from '../../../shared/mail.js';
+import type { GmailCursorValue } from './types.js';
+export declare function gmailCursor(historyId: string, pageToken?: string, capturedAt?: string): MailSyncCursor;
+export declare function parseGmailCursor(cursor: MailSyncCursor | undefined): GmailCursorValue | undefined;
+//# sourceMappingURL=sync.d.ts.map

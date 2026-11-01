@@ -1,0 +1,50 @@
+import { CollectionMetadataStoreOptionsError, CollectionMetadataStoreReadOnlyError, } from './document-store-errors.js';
+import { cloneStoredCollectionMetadata, contentRevision, paginateCollectionMetadata, validateCollectionMetadataStoreName, } from './document-store-helpers.js';
+import { validateCollectionMetadataDocument } from './validation.js';
+export class ModuleCollectionMetadataStore {
+    options;
+    capabilities = Object.freeze({
+        writable: false,
+        optimisticConcurrency: false,
+    });
+    documents = new Map();
+    initialized = false;
+    constructor(options) {
+        this.options = options;
+    }
+    async initialize() {
+        if (this.initialized)
+            return;
+        const next = new Map();
+        for (const input of this.options.documents) {
+            const document = validateCollectionMetadataDocument(input);
+            if (next.has(document.name)) {
+                throw new CollectionMetadataStoreOptionsError(`Module Collection Metadata contains duplicate document "${document.name}".`);
+            }
+            next.set(document.name, {
+                document,
+                revision: contentRevision(document),
+            });
+        }
+        this.documents.clear();
+        for (const [name, stored] of next)
+            this.documents.set(name, stored);
+        this.initialized = true;
+    }
+    async get(name) {
+        await this.initialize();
+        validateCollectionMetadataStoreName(name);
+        const stored = this.documents.get(name);
+        return stored ? cloneStoredCollectionMetadata(stored) : undefined;
+    }
+    async list(options = {}) {
+        await this.initialize();
+        return paginateCollectionMetadata([...this.documents.values()], options);
+    }
+    async put(_document, _options) {
+        throw new CollectionMetadataStoreReadOnlyError('put', this.options.source);
+    }
+    async delete(_name, _options) {
+        throw new CollectionMetadataStoreReadOnlyError('delete', this.options.source);
+    }
+}

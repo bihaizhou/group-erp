@@ -1,0 +1,56 @@
+import { type AppConfigFactory, type EnvironmentMapping } from '@nocobase/app-server/config';
+export interface MailProviderConfigEntry {
+    readonly type: string;
+    readonly enabled?: boolean;
+    readonly [key: string]: unknown;
+    readonly quota?: {
+        readonly projectId?: string;
+        readonly unitsPerUserPerMinute?: number;
+        readonly unitsPerProjectPerMinute?: number;
+    };
+}
+export declare const DEFAULT_MAIL_SYNC_BATCH_SIZE = 100;
+export declare const MAX_MAIL_SYNC_BATCH_SIZE = 200;
+export declare const DEFAULT_GMAIL_QUOTA_UNITS_PER_USER_PER_MINUTE = 6000;
+export declare const DEFAULT_GMAIL_QUOTA_UNITS_PER_PROJECT_PER_MINUTE = 1200000;
+export declare const DEFAULT_MAIL_OAUTH_CALLBACK_PATH = "/mail/oauth/callback";
+export declare const DEFAULT_MAIL_OAUTH_RETURN_PATH = "/";
+export declare const DEFAULT_MAIL_AUTOMATIC_SYNC_INTERVAL_MS = 300000;
+export declare const DEFAULT_MAIL_AUTOMATIC_SYNC_INTERVAL_MINUTES = 5;
+export declare const MIN_MAIL_AUTOMATIC_SYNC_INTERVAL_MINUTES = 1;
+export interface MailConfig {
+    readonly oauthCallbackUrl?: string;
+    readonly oauthReturnUrl?: string;
+    readonly automaticSyncIntervalMs: number;
+    readonly syncBatchSize: number;
+    readonly pushWebhookUrl?: string;
+    readonly pushWebhookSecret?: string;
+    /**
+     * The `jobs` configuration synchronization and scheduled send tasks run on. Omitted, they follow `jobs.default`, like
+     * every other consumer of the jobs service.
+     */
+    readonly jobs?: string;
+    readonly providers: Readonly<Record<string, MailProviderConfigEntry>>;
+}
+export declare const DEFAULT_MAIL_CONFIG: MailConfig;
+/** Fully prefixed mappings for legacy application-level providers; current apps compose mailConfig. */
+export declare const mailEnvironmentMappings: Readonly<Record<string, EnvironmentMapping>>;
+/** Application-owned default configuration factory for the Mail module. */
+export declare const mailConfig: AppConfigFactory<MailConfig>;
+/**
+ * Resolves the Mail namespace at the plugin boundary.
+ *
+ * An application may register Mail before adding an application config factory.
+ * In that case Mail remains usable with no configured providers and its built-in
+ * defaults. Once the namespace exists, malformed values are rejected with a
+ * path-specific error instead of becoming an unrelated startup exception.
+ */
+export declare function resolveMailConfig(value: unknown): MailConfig;
+export declare function resolveMailOAuthOrigin(configuredOrigin: string | undefined, requestOrigin: string): string;
+export declare function resolveMailOAuthCallbackUrl(configuredUrl: string | undefined, origin: string, publicBasePath: string): string;
+export declare function resolveMailOAuthCallbackPath(configuredUrl: string | undefined, publicBasePath: string): string;
+export declare function resolveMailOAuthReturnUrl(configuredUrl: string | undefined, origin: string, publicBasePath: string, result: 'success' | 'failure'): string;
+export declare function resolveMailSyncBatchSize(value?: number): number;
+export declare function resolveMailAutomaticSyncIntervalMinutes(value?: number): number;
+export declare function resolveMailAutomaticSyncIntervalFromMs(value?: number): number;
+//# sourceMappingURL=config.d.ts.map

@@ -1,0 +1,14 @@
+import type { BloomFilter, BloomFilterOptions } from './types.js';
+export declare class MemoryBloomFilter implements BloomFilter {
+    readonly namespace: string;
+    private readonly filters;
+    constructor(namespace: string);
+    reserve(key: string, options: BloomFilterOptions): Promise<void>;
+    add(key: string, value: string): Promise<void>;
+    addMany(key: string, values: string[]): Promise<void>;
+    has(key: string, value: string): Promise<boolean>;
+    delete(key: string): Promise<void>;
+    clear(): void;
+    private getFilter;
+}
+//# sourceMappingURL=memory-bloom-filter.d.ts.map

@@ -1,0 +1,48 @@
+import type { ApiDocsAccess, ApiDocumentFragment } from '@nocobase/app-server/router';
+import type { Auth } from './auth.js';
+/** The tag every Better Auth operation carries in the application's API document. */
+export declare const AUTHENTICATION_API_TAG = "Authentication";
+/** The prefix an `operationId` or component name takes when it collides with one already in the document. */
+export declare const AUTHENTICATION_API_NAMESPACE = "auth";
+/**
+ * Better Auth endpoints left out of the API document, as paths relative to Better Auth's base path. Each is a step of
+ * a browser flow a script cannot meaningfully call on its own: the OAuth redirects and the provider callback, the
+ * links sent by email that redirect the browser on, and the HTML error page those flows land on.
+ */
+export declare const BROWSER_ONLY_AUTH_PATHS: readonly string[];
+/**
+ * Better Auth endpoints a caller reaches without being signed in, as paths relative to Better Auth's base path. Their
+ * operations declare `security: []`, so the document does not claim they need the credential every other operation
+ * does. A path the configured Better Auth plugins do not serve is simply absent from the document.
+ */
+export declare const PUBLIC_AUTH_PATHS: readonly string[];
+/** The security scheme a signed-in session's cookie satisfies, in `components.securitySchemes`. */
+export declare const SESSION_SECURITY_SCHEME = "cookieAuth";
+/**
+ * The security scheme a session token sent as `Authorization: Bearer` satisfies, in `components.securitySchemes`.
+ * Documented only while the application enables Better Auth's `bearer()` plugin, which is what accepts it.
+ */
+export declare const BEARER_SECURITY_SCHEME = "bearerAuth";
+/**
+ * Lets a request with a signed-in session read the API documentation. The session is resolved exactly as the
+ * plugin's routes resolve it, but without extending its expiry, and the cookies Better Auth would set are discarded, so
+ * reading the documentation changes no state. A credential Better Auth refuses is simply not allowed here.
+ */
+export declare function createSessionApiDocsAccess(resolveAuth: () => Auth): ApiDocsAccess;
+/**
+ * The session cookie as the document's security scheme, `cookieAuth`, and a top-level requirement naming it. The
+ * cookie's name is the one Better Auth sets under this configuration, prefix and `__Secure-` included. A browser on
+ * the application's origin sends it with every request, Swagger UI's included, so there is nothing to enter under
+ * "Authorize" for it. When the application enables Better Auth's `bearer()` plugin, the same session's token sent as
+ * `Authorization: Bearer`, which a CLI signed in through the device authorization holds, is `bearerAuth`, an
+ * alternative to the cookie.
+ */
+export declare function createSessionSecurityFragment(auth: Pick<Auth, 'sessionCookieName' | 'plugin'>): Promise<ApiDocumentFragment>;
+/**
+ * Better Auth's endpoints as an API document fragment, built from Better Auth's own OpenAPI generator: every endpoint
+ * the configured Better Auth plugins serve, at its full `/api/auth/...` path below the application's base path, tagged
+ * `Authentication`. The endpoints in `BROWSER_ONLY_AUTH_PATHS` are left out, and those in `PUBLIC_AUTH_PATHS` declare
+ * `security: []`.
+ */
+export declare function createAuthenticationApiFragment(auth: Auth, publicBasePath: string): Promise<ApiDocumentFragment>;
+//# sourceMappingURL=api-docs.d.ts.map

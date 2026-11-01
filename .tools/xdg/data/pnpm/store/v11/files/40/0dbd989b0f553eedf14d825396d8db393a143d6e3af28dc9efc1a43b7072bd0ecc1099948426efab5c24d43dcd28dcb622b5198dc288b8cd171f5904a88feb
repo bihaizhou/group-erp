@@ -1,0 +1,237 @@
+import { RepositoryError } from './errors.js';
+export class DefaultFilterBuilder {
+    and(items) {
+        return { kind: 'group', logic: 'and', items };
+    }
+    or(items) {
+        return { kind: 'group', logic: 'or', items };
+    }
+    variable(path) {
+        return { kind: 'variable', path };
+    }
+    string(path) {
+        return new StringOperators(normalizePath(path), 'string');
+    }
+    text(path) {
+        return new StringOperators(normalizePath(path), 'text');
+    }
+    number(path) {
+        return new NumberOperators(normalizePath(path), 'number');
+    }
+    date(path) {
+        return new DateOperators(normalizePath(path), 'date');
+    }
+    time(path) {
+        return new TimeOperators(normalizePath(path), 'time');
+    }
+    boolean(path) {
+        return new BooleanOperators(normalizePath(path), 'boolean');
+    }
+    json(path) {
+        return new JsonOperators(normalizePath(path));
+    }
+    relation(path) {
+        return new RelationOperators(normalizePath(path));
+    }
+}
+class JsonOperators {
+    constructor(fieldPath, jsonPath) {
+        this.fieldPath = fieldPath;
+        this.jsonPath = jsonPath;
+    }
+    path(path) {
+        return new JsonOperators(this.fieldPath, [
+            ...(this.jsonPath ?? []),
+            ...path,
+        ]);
+    }
+    eq(value) {
+        return this.node('$jsonEq', value);
+    }
+    ne(value) {
+        return this.node('$jsonNe', value);
+    }
+    has(value) {
+        return this.node('$jsonHas', value);
+    }
+    hasSome(value) {
+        return this.node('$jsonHasSome', value);
+    }
+    hasEvery(value) {
+        return this.node('$jsonHasEvery', value);
+    }
+    isEmpty() {
+        return this.node('$jsonEmpty');
+    }
+    isNotEmpty() {
+        return this.node('$jsonNotEmpty');
+    }
+    isDbNull() {
+        return this.node('$jsonDbNull');
+    }
+    isJsonNull() {
+        return this.node('$jsonNull');
+    }
+    isAnyNull() {
+        return this.node('$jsonAnyNull');
+    }
+    node(operator, value) {
+        const node = condition(this.fieldPath, 'json', operator, value);
+        if (this.jsonPath !== undefined)
+            Object.assign(node, { jsonPath: this.jsonPath });
+        return node;
+    }
+}
+class BaseOperators {
+    constructor(path, group) {
+        this.path = path;
+        this.group = group;
+    }
+    empty() {
+        return condition(this.path, this.group, '$empty');
+    }
+    notEmpty() {
+        return condition(this.path, this.group, '$notEmpty');
+    }
+}
+class StringOperators extends BaseOperators {
+    includes(value, options) {
+        return this.build('$includes', value, options);
+    }
+    notIncludes(value, options) {
+        return this.build('$notIncludes', value, options);
+    }
+    eq(value, options) {
+        return this.build('$eq', value, options);
+    }
+    ne(value, options) {
+        return this.build('$ne', value, options);
+    }
+    startsWith(value, options) {
+        return this.build('$startsWith', value, options);
+    }
+    endsWith(value, options) {
+        return this.build('$endsWith', value, options);
+    }
+    build(operator, value, options) {
+        const node = condition(this.path, this.group, operator, value);
+        if (options?.mode !== undefined)
+            Object.assign(node, { mode: options.mode });
+        return node;
+    }
+}
+class NumberOperators extends BaseOperators {
+    eq(value) {
+        return condition(this.path, this.group, '$eq', value);
+    }
+    ne(value) {
+        return condition(this.path, this.group, '$ne', value);
+    }
+    gt(value) {
+        return condition(this.path, this.group, '$gt', value);
+    }
+    gte(value) {
+        return condition(this.path, this.group, '$gte', value);
+    }
+    lt(value) {
+        return condition(this.path, this.group, '$lt', value);
+    }
+    lte(value) {
+        return condition(this.path, this.group, '$lte', value);
+    }
+}
+class DateOperators extends BaseOperators {
+    on(value) {
+        return dateCondition(this.path, this.group, '$dateOn', value);
+    }
+    notOn(value) {
+        return dateCondition(this.path, this.group, '$dateNotOn', value);
+    }
+    before(value) {
+        return dateCondition(this.path, this.group, '$dateBefore', value);
+    }
+    after(value) {
+        return dateCondition(this.path, this.group, '$dateAfter', value);
+    }
+    notBefore(value) {
+        return dateCondition(this.path, this.group, '$dateNotBefore', value);
+    }
+    notAfter(value) {
+        return dateCondition(this.path, this.group, '$dateNotAfter', value);
+    }
+    between(value) {
+        return condition(this.path, this.group, '$dateBetween', value.map(normalizeDateOperand));
+    }
+}
+class TimeOperators extends BaseOperators {
+    eq(value) {
+        return condition(this.path, this.group, '$eq', value);
+    }
+    ne(value) {
+        return condition(this.path, this.group, '$ne', value);
+    }
+}
+class BooleanOperators extends BaseOperators {
+    isTrue() {
+        return condition(this.path, this.group, '$isTruly');
+    }
+    isFalse() {
+        return condition(this.path, this.group, '$isFalsy');
+    }
+}
+class RelationOperators {
+    constructor(path) {
+        this.path = path;
+    }
+    some(callback) {
+        return relationCondition(this.path, 'some', callback);
+    }
+    none(callback) {
+        return relationCondition(this.path, 'none', callback);
+    }
+    exists() {
+        return { kind: 'relation', path: this.path, quantifier: 'exists' };
+    }
+    notExists() {
+        return { kind: 'relation', path: this.path, quantifier: 'notExists' };
+    }
+    empty() {
+        return { kind: 'relation', path: this.path, quantifier: 'empty' };
+    }
+    notEmpty() {
+        return { kind: 'relation', path: this.path, quantifier: 'notEmpty' };
+    }
+}
+function condition(path, group, operator, value) {
+    const node = value === undefined
+        ? { kind: 'condition', path, operator }
+        : { kind: 'condition', path, operator, value };
+    Object.defineProperty(node, FILTER_FIELD_GROUP, { value: group });
+    return node;
+}
+function dateCondition(path, group, operator, value) {
+    return condition(path, group, operator, normalizeDateOperand(value));
+}
+function normalizeDateOperand(value) {
+    if (value instanceof Date && !Number.isFinite(value.getTime()))
+        throw new RepositoryError('INVALID_FILTER', 'Date operands must be valid Date instances.');
+    return value instanceof Date ? value.toISOString() : value;
+}
+function relationCondition(path, quantifier, callback) {
+    const node = callback(new DefaultFilterBuilder());
+    if (typeof node !== 'object' || node === null || Array.isArray(node)) {
+        throw new RepositoryError('INVALID_FILTER', 'Relation Filter callbacks must return a Filter node.', { path: [...path, 'filter'] });
+    }
+    const filter = node.kind === 'group'
+        ? node
+        : { kind: 'group', logic: 'and', items: [node] };
+    return { kind: 'relation', path, quantifier, filter };
+}
+function normalizePath(path) {
+    return typeof path === 'string' ? path.split('.') : [...path];
+}
+const FILTER_FIELD_GROUP = Symbol('repositoryFilterFieldGroup');
+export function getFilterFieldGroup(node) {
+    return node[FILTER_FIELD_GROUP];
+}
+//# sourceMappingURL=filter-builder.js.map

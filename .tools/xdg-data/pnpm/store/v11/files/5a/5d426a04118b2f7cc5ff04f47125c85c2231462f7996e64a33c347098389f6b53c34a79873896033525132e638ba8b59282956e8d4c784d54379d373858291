@@ -1,0 +1,5 @@
+export { resolveLocalesContribution } from './contribution.js';
+export { describeLocale, getLocaleDirection, getLocaleLabel, parseAcceptLanguage, resolveSupportedLocale, } from './locales.js';
+export { APP_NS, BASE_LOCALE, BASE_NAMESPACE, I18nRegistry, } from './registry.js';
+export { I18nRuntime, } from './runtime.js';
+//# sourceMappingURL=index.js.map

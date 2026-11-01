@@ -1,0 +1,116 @@
+import { type ApiClient } from '@nocobase/app-client';
+import type { MailAccountView, MailAuthorizationStartResult, MailConnectAccountInput, MailComposeInput, MailBulkComposeInput, MailFolder, MailLabel, MailLabelColor, MailIdentity, MailSignature, MailSaveSignatureInput, MailListMessagesInput, MailManagedAccountView, MailManagementMessageActionInput, MailManagementMessageActionResult, MailMessage, MailMessageSummary, MailUpdateMessageInput, MailMoveMessageInput, MailUpdateMessageLabelsInput, MailPage, MailOffsetPage, MailProviderView, MailStartSyncInput, MailSubmissionLogView, MailSubmissionView, MailSyncRunView, MailUpdateAccountInput, MailUpdateIdentityInput, MailUpdateLabelInput, MailOutboundAttachmentView, MailTemplate, MailSaveTemplateInput, MailResolveDraftConflictInput } from '../shared/mail.js';
+export type { MailAccountStatus, KnownMailAccountStatus, MailAccountView, MailAddress, MailAuthorizationStartResult, MailConnectAccountInput, MailComposeInput, MailBulkComposeInput, MailFolder, MailFolderType, KnownMailFolderType, MailLabel, MailLabelColor, MailIdentity, MailSignature, MailSaveSignatureInput, MailSaveLabelInput, MailInitialSyncPolicy, MailManagedAccountView, MailManagementMessageAction, MailManagementMessageActionInput, MailManagementMessageActionItemResult, MailManagementMessageActionResult, MailMessage, MailMessageSummary, MailPage, MailOffsetPage, MailProviderCapabilities, MailProviderErrorCategory, KnownMailProviderErrorCategory, MailProviderReasonCode, KnownMailProviderReasonCode, MailPublicError, MailProviderView, MailStartSyncInput, MailSubmissionStatus, KnownMailSubmissionStatus, MailSubmissionLogView, MailSubmissionView, MailSyncMode, MailSyncPhase, KnownMailSyncPhase, MailSyncRunStatus, KnownMailSyncRunStatus, MailSyncRunView, MailOutboundAttachmentView, MailTemplate, MailSaveTemplateInput, MailUpdateLabelInput, MailUpdateSignatureInput, MailUpdateTemplateInput, MailDraftConflict, MailDraftConflictAction, MailResolveDraftConflictInput, } from '../shared/mail.js';
+/** Page-number paging for administrative tables: `page` starts at 1 and `pageSize` is at most 100. */
+export interface MailPageRequest {
+    readonly page?: number;
+    readonly pageSize?: number;
+}
+export interface MailSubmissionsRequest extends MailPageRequest {
+    readonly bulkOnly?: boolean;
+    readonly groupByBatch?: boolean;
+}
+/** Cursor paging for feeds: send back `nextCursor` of the previous page as `pageToken`. */
+export interface MailCursorRequest {
+    readonly pageSize?: number;
+    readonly pageToken?: string;
+}
+export interface MailAuthorizationRequest {
+    readonly type: string;
+    readonly name: string;
+    readonly scopes?: readonly string[];
+    readonly initialSyncReceivedAfter: string;
+}
+export type MailConnectAccountRequest = Omit<MailConnectAccountInput, 'provider'> & {
+    readonly type: string;
+    readonly name: string;
+};
+export interface MailMessagesQuery extends MailCursorRequest, Pick<MailListMessagesInput, 'conversationId'> {
+    readonly accountId?: string;
+    readonly folderId?: string;
+    readonly labelId?: string;
+    /** Search text; independent of the exact participant filter. */
+    readonly q?: string;
+    /** Exact From/To/Cc mailbox or @domain; normalized by the server. */
+    readonly participant?: string;
+    readonly unread?: boolean;
+    readonly starred?: boolean;
+}
+export interface MailManagedMessagesQuery extends MailPageRequest {
+    readonly accountId?: string;
+    readonly folderId?: string;
+    readonly q?: string;
+    /** Exact From/To/Cc mailbox or @domain; normalized by the server. */
+    readonly participant?: string;
+    readonly unread?: boolean;
+    readonly starred?: boolean;
+}
+export declare class MailClient {
+    private readonly client;
+    constructor(client: ApiClient);
+    listProviders(): Promise<readonly MailProviderView[]>;
+    listAccounts(): Promise<readonly MailAccountView[]>;
+    updateAccount(input: MailUpdateAccountInput): Promise<MailAccountView>;
+    /**
+     * Start removing an account. The server answers 202 with the account in its `removing` state, or with no body when
+     * the removal already finished.
+     */
+    removeAccount(accountId: string): Promise<MailAccountView | undefined>;
+    listManagedAccounts(): Promise<readonly MailManagedAccountView[]>;
+    listManagementAccounts(): Promise<readonly MailManagedAccountView[]>;
+    listManagedFolders(accountId: string): Promise<readonly MailFolder[]>;
+    /** Every user's sync runs, for administrators, paged by page number. */
+    listManagedSyncRunsPage(request?: MailPageRequest): Promise<MailOffsetPage<MailSyncRunView>>;
+    /** Every user's submissions, for administrators, paged by page number. */
+    listManagedSubmissionsPage(request?: MailPageRequest): Promise<MailOffsetPage<MailSubmissionLogView>>;
+    getUnreadCount(): Promise<number>;
+    startAuthorization(input: MailAuthorizationRequest): Promise<MailAuthorizationStartResult>;
+    connectAccount(input: MailConnectAccountRequest): Promise<MailAccountView>;
+    listIdentities(accountId: string): Promise<readonly MailIdentity[]>;
+    updateIdentity(input: MailUpdateIdentityInput): Promise<MailIdentity>;
+    listSignatures(accountId: string): Promise<readonly MailSignature[]>;
+    saveSignature(input: MailSaveSignatureInput): Promise<MailSignature>;
+    deleteSignature(accountId: string, signatureId: string): Promise<void>;
+    listFolders(accountId: string): Promise<readonly MailFolder[]>;
+    listLabels(): Promise<readonly MailLabel[]>;
+    createLabel(name: string, color?: MailLabelColor): Promise<MailLabel>;
+    updateLabel(input: MailUpdateLabelInput): Promise<MailLabel>;
+    deleteLabel(labelId: string): Promise<void>;
+    startSync(input: MailStartSyncInput): Promise<MailSyncRunView>;
+    getSyncRun(syncRunId: string): Promise<MailSyncRunView>;
+    listSyncRunsPage(request?: MailPageRequest): Promise<MailOffsetPage<MailSyncRunView>>;
+    listSubmissionsPage(request?: MailSubmissionsRequest): Promise<MailOffsetPage<MailSubmissionLogView>>;
+    retrySyncRun(syncRunId: string): Promise<MailSyncRunView>;
+    cancelSyncRun(syncRunId: string): Promise<MailSyncRunView>;
+    retrySubmission(submissionId: string): Promise<MailSubmissionLogView>;
+    cancelSubmission(submissionId: string): Promise<MailSubmissionLogView>;
+    listMessages(input?: MailMessagesQuery): Promise<MailPage<MailMessageSummary>>;
+    listManagedMessages(input?: MailManagedMessagesQuery): Promise<MailOffsetPage<MailMessageSummary>>;
+    manageMessages(input: MailManagementMessageActionInput): Promise<MailManagementMessageActionResult>;
+    getManagedMessage(accountId: string, messageId: string): Promise<MailMessage>;
+    downloadManagedAttachment(accountId: string, messageId: string, attachmentId: string): Promise<ReadableStream<Uint8Array>>;
+    retryMessageContent(accountId: string, messageId: string): Promise<MailMessage>;
+    getMessage(accountId: string, messageId: string): Promise<MailMessage>;
+    downloadAttachment(accountId: string, messageId: string, attachmentId: string): Promise<ReadableStream<Uint8Array>>;
+    listConversationMessages(accountId: string, conversationId: string, input?: MailCursorRequest): Promise<MailPage<MailMessage>>;
+    sendMessage(input: MailComposeInput): Promise<MailSubmissionView>;
+    sendBulk(input: MailBulkComposeInput): Promise<readonly MailSubmissionView[]>;
+    uploadAttachment(file: File): Promise<MailOutboundAttachmentView>;
+    listTemplates(): Promise<readonly MailTemplate[]>;
+    saveTemplate(input: MailSaveTemplateInput): Promise<MailTemplate>;
+    deleteTemplate(templateId: string): Promise<void>;
+    saveDraft(input: MailComposeInput): Promise<MailMessage>;
+    resolveDraftConflict(input: MailResolveDraftConflictInput): Promise<MailMessage>;
+    updateMessage(input: MailUpdateMessageInput): Promise<MailMessage>;
+    updateMessageLabels(input: MailUpdateMessageLabelsInput): Promise<MailMessage>;
+    moveMessage(input: MailMoveMessageInput): Promise<MailMessage>;
+    deleteMessage(accountId: string, messageId: string, permanently?: boolean): Promise<void>;
+    private post;
+}
+/**
+ * Text to show a user for a failed Mail call: the translation the server attached to its error, or `fallback`. An
+ * error thrown in the browser carries its own, already translated, message. A server's `message` is developer text and
+ * is never shown.
+ */
+export declare function mailErrorMessage(cause: unknown, fallback: string): string;
+//# sourceMappingURL=mail-client.d.ts.map

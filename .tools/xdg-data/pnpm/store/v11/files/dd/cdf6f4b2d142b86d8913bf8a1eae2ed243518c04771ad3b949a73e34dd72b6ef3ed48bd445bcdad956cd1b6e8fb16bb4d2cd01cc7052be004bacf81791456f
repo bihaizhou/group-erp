@@ -1,0 +1,19 @@
+export function defineHttpMiddleware(options) {
+    return Object.freeze({
+        name: options.name,
+        register: options.register,
+    });
+}
+export function defineApiRoutes(createRouter) {
+    return Object.freeze({
+        scope: 'api',
+        createRouter,
+    });
+}
+export function defineRootRoutes(createRouter) {
+    return Object.freeze({
+        scope: 'root',
+        createRouter,
+    });
+}
+//# sourceMappingURL=routes.js.map

@@ -1,0 +1,18 @@
+import { type MailFolder, type MailListConversationMessagesInput, type MailListMessagesInput, type MailMessage, type MailMessageSummary, type MailOperationContext, type MailPage } from '../../shared/mail.js';
+import { type MailServiceDependencies } from './dependencies.js';
+export declare class MailMessagesService {
+    private readonly dependencies;
+    private readonly mutations;
+    constructor(dependencies: MailServiceDependencies<'countUnreadMessages' | 'deleteMessage' | 'getAccount' | 'getMessage' | 'listConversationMessages' | 'listFolders' | 'listLabels' | 'listMessages' | 'moveMessage' | 'saveMessageContent' | 'updateMessageLabels' | 'updateMessageState', 'messageChangeNotifier' | 'logger' | 'adapters'>);
+    listFolders(context: MailOperationContext, accountId: string): Promise<readonly MailFolder[]>;
+    updateMessageLabels(context: MailOperationContext, input: import('../../shared/mail.js').MailUpdateMessageLabelsInput): Promise<MailMessage>;
+    getUnreadCount(context: MailOperationContext): Promise<number>;
+    listMessages(context: MailOperationContext, input: MailListMessagesInput): Promise<MailPage<MailMessageSummary>>;
+    retryMessageContent(context: MailOperationContext, accountId: string, messageId: string): Promise<MailMessage>;
+    getMessage(context: MailOperationContext, accountId: string, messageId: string): Promise<MailMessage | undefined>;
+    listConversationMessages(context: MailOperationContext, accountId: string, conversationId: string, input?: MailListConversationMessagesInput): Promise<MailPage<MailMessage>>;
+    updateMessage(context: MailOperationContext, input: import('../../shared/mail.js').MailUpdateMessageInput): Promise<MailMessage>;
+    moveMessage(context: MailOperationContext, input: import('../../shared/mail.js').MailMoveMessageInput): Promise<MailMessage>;
+    deleteMessage(context: MailOperationContext, input: import('../../shared/mail.js').MailDeleteMessageInput): Promise<void>;
+}
+//# sourceMappingURL=messages.d.ts.map

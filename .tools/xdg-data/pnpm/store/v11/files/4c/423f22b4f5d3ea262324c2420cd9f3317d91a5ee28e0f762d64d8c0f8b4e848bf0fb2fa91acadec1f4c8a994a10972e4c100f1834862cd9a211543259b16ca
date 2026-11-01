@@ -1,0 +1,7 @@
+import type { RepositoryPath, RepositoryRecord, SortBuilder, SortExpression, SortFieldBuilder, SortNode, SortRelationBuilder } from './types.js';
+export declare class DefaultSortBuilder<TRecord extends object = RepositoryRecord> implements SortBuilder<TRecord> {
+    field(path: string | RepositoryPath): SortFieldBuilder;
+    relation(path: string | RepositoryPath): SortRelationBuilder;
+}
+export declare function sortExpressionToNode(expression: SortExpression): SortNode;
+//# sourceMappingURL=sort-builder.d.ts.map

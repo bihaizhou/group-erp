@@ -1,0 +1,13 @@
+import type { PermissionGrant } from '../../core/grants.js';
+import type { AuthorizationTitle } from '../../core/titles.js';
+import type { PermissionSet } from './model.js';
+/** Builds Permission Set data without writing to a store. */
+export declare class PermissionSetBuilder {
+    private readonly definition;
+    constructor(definition: PermissionSet);
+    title(title: AuthorizationTitle): PermissionSetBuilder;
+    grant(...grants: readonly PermissionGrant[]): PermissionSetBuilder;
+    build(): PermissionSet;
+}
+export declare function definePermissionSet(key: string): PermissionSetBuilder;
+//# sourceMappingURL=builder.d.ts.map

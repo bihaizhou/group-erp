@@ -1,0 +1,7 @@
+import { type AppApiRouteContribution } from './routes.js';
+export interface HealthCheckRoutesApplication {
+    readonly appName: string;
+    readonly publicBasePath: string;
+}
+export declare const healthCheckApiRoutes: AppApiRouteContribution<HealthCheckRoutesApplication>;
+//# sourceMappingURL=health.d.ts.map

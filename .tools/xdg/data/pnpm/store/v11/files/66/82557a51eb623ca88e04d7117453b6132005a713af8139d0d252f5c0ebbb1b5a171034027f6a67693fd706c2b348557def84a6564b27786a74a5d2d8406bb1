@@ -1,0 +1,74 @@
+{
+  "name": "@nocobase/app-plugin-i18n",
+  "displayName": "Internationalization",
+  "description": "Adds language switching to a NocoBase app, on top of @nocobase/i18n.",
+  "version": "1.0.0-beta.16",
+  "type": "module",
+  "prettier": "@nocobase/dev-config/prettier",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
+    },
+    "./client/plugin": {
+      "types": "./dist/client/plugin.d.ts",
+      "import": "./dist/client/plugin.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "skills"
+  ],
+  "peerDependencies": {
+    "hono": "^4.13.2",
+    "react": "^19.0.0",
+    "@nocobase/app-client": "^3.0.0-beta.1",
+    "@nocobase/app-server": "^2.0.0-beta.4",
+    "@nocobase/i18n": "^1.0.0-beta.7"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "eslint": "^10.0.0",
+    "jsdom": "^30.0.1",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10",
+    "@nocobase/dev-config": "0.1.0-beta.22",
+    "@nocobase/service-provider": "^0.0.2-beta.2"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix --max-warnings 0",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
+    "fix": "pnpm lint:fix && pnpm format"
+  }
+}

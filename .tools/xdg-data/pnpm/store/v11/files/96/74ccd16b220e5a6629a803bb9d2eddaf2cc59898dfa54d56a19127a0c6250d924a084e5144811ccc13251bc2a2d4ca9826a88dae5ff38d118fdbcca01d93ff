@@ -1,0 +1,12 @@
+import type { ConfigMap, ConfigValue } from './types.js';
+export declare function isConfigMap(value: unknown): value is ConfigMap;
+export declare function isConfigArray(value: ConfigValue): value is readonly ConfigValue[];
+export declare function createConfigRecord(): Record<string, ConfigValue>;
+export declare function assertConfigMap(value: unknown, path?: string): ConfigMap;
+export declare function assertConfigValue(value: unknown, path?: string): void;
+export declare function cloneConfigValue(value: ConfigMap): ConfigMap;
+export declare function cloneConfigValue(value: ConfigValue): ConfigValue;
+export declare function freezeConfigValue(value: ConfigMap): ConfigMap;
+export declare function freezeConfigValue(value: ConfigValue): ConfigValue;
+export declare function configValueType(value: ConfigValue | undefined): string;
+//# sourceMappingURL=value.d.ts.map

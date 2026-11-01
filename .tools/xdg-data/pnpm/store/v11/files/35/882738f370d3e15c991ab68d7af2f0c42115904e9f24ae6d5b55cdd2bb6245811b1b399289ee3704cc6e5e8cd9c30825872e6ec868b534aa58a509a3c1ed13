@@ -1,0 +1,78 @@
+import type { LocaleResource } from '@nocobase/i18n';
+declare const enUS: {
+    logs: {
+        deliveryOperations: string;
+        recipeDescription: string;
+        redacted: string;
+        providerAttempts: string;
+        eyebrow: string;
+        title: string;
+        description: string;
+        refreshing: string;
+        refresh: string;
+        sendTest: string;
+        deliveriesShown: string;
+        needAttention: string;
+        unavailable: string;
+        recent: string;
+        loading: string;
+        emptyTitle: string;
+        emptyDescription: string;
+        expand: string;
+        collapse: string;
+        noDeliveries: string;
+        noAttempts: string;
+        columns: {
+            source: string;
+            notificationId: string;
+            status: string;
+            deliveries: string;
+            created: string;
+            channel: string;
+            provider: string;
+            attempts: string;
+            updated: string;
+        };
+    };
+    test: {
+        title: string;
+        description: string;
+        close: string;
+        loadingProviders: string;
+        noProviders: string;
+        channelProvider: string;
+        selectProvider: string;
+        singleProviderLabel: string;
+        recipient: string;
+        userIdPlaceholder: string;
+        emailHelp: string;
+        userHelp: string;
+        messageTitle: string;
+        message: string;
+        cancel: string;
+        sending: string;
+        send: string;
+        defaultTitle: string;
+        defaultBody: string;
+        accepted: string;
+    };
+    status: {
+        pending: string;
+        processing: string;
+        completed: string;
+        partial: string;
+        failed: string;
+        unknown: string;
+        preparing: string;
+        submitting: string;
+        retrying: string;
+        accepted: string;
+    };
+    errors: {
+        requestFailed: string;
+        inAppRecipientNotFound: string;
+    };
+};
+export type NotificationResource = LocaleResource<typeof enUS>;
+export default enUS;
+//# sourceMappingURL=en-US.d.ts.map

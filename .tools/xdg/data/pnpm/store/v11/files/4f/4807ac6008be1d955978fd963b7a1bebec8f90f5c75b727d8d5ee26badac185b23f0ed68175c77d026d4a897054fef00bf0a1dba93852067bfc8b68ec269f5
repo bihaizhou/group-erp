@@ -1,0 +1,21 @@
+import { ServiceProvider } from '@nocobase/service-provider';
+import { resolveAppUrl } from '@nocobase/app-client';
+import { createAuthClient, } from './auth-client.js';
+import { authenticationClientToken } from './tokens.js';
+export class AuthenticationServiceProvider extends ServiceProvider {
+    name = '@nocobase/app-plugin-authentication/client';
+    boot() {
+        const apiBaseURL = this.app.config.get('api.baseURL') ?? resolveAppUrl('/api');
+        const authClient = createAuthClient({
+            baseURL: new URL(`${apiBaseURL.replace(/\/+$/u, '')}/auth`, window.location.origin).href,
+            ...this.app.config.get('auth'),
+        });
+        this.app.container.singleton(authenticationClientToken, () => authClient);
+        return Promise.resolve();
+    }
+}
+const serviceProviders = [
+    AuthenticationServiceProvider,
+];
+export default serviceProviders;
+//# sourceMappingURL=service-provider.js.map

@@ -1,0 +1,20 @@
+import type { Row } from '../query/types.js';
+import type { DatabaseConnection } from './connection.js';
+export interface UpsertPhysicalRowOptions {
+    /** Exact physical table name; connection naming and Collection metadata are not applied. */
+    readonly table: string;
+    /** Non-null columns backed by a primary key or unique constraint. */
+    readonly key: Readonly<Row>;
+    /** Raw database values for a new row, excluding key columns. */
+    readonly create: Readonly<Row>;
+    /** Raw database values to replace on an existing row, excluding key columns. */
+    readonly update: Readonly<Row>;
+}
+/**
+ * Upsert internal physical storage without registering a Collection. Values are
+ * already encoded for storage; use Repository for Collection-level conversion.
+ * The row lock lasts until the owning transaction completes. Deadlocks are
+ * retried up to five times only when this operation owns the transaction;
+ * callers supplying a transaction must retry their entire unit of work.
+ */
+export declare function upsertPhysicalRow(connection: DatabaseConnection, options: UpsertPhysicalRowOptions): Promise<void>;

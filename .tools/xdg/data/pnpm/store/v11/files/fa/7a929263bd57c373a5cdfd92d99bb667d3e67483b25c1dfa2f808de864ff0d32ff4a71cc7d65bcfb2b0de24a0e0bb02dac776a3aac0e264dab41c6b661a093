@@ -1,0 +1,10 @@
+import { type MailDraftConflict, type MailDraftRemoteVersion, type MailMessage } from '../../shared/mail.js';
+import { type NormalizedMailMessage } from '../contracts/provider.js';
+export declare function isLocalDraftMessage(message: Pick<MailMessage, 'providerMessageId'>): boolean;
+/** Provider draft message IDs may change while the local editable record stays stable. */
+export declare function remoteMessageId(message: Pick<MailMessage, 'providerMessageId' | 'providerDraftMessageId'>): string | undefined;
+export declare function sameDraftContent(local: MailMessage | undefined, remote: NormalizedMailMessage): boolean;
+export declare function draftFingerprint(message: Pick<MailDraftRemoteVersion, 'from' | 'to' | 'cc' | 'bcc' | 'subject' | 'text' | 'html'>): string;
+export declare function toDraftConflict(message: NormalizedMailMessage): MailDraftConflict;
+export declare function normalizedDraftFromMessage(message: MailMessage): NormalizedMailMessage;
+//# sourceMappingURL=draft-content.d.ts.map

@@ -1,0 +1,23 @@
+import { Application } from '../application/index.js';
+import { onceAsync } from './lifecycle.js';
+/** Starts an application and binds its shutdown to the host-owned scope. */
+export async function startApplicationInScope(scope, app) {
+    scope.registerDisposer('application', onceAsync(() => app.shutdown()));
+    await app.start();
+    return app;
+}
+/** Create the application without starting services or registering contributions. */
+export function createAppFromRuntime(runtime) {
+    const app = new Application({
+        config: runtime.config,
+        mode: runtime.mode,
+        nodeEnv: runtime.env.NODE_ENV,
+        strictStartup: runtime.env.NOCOBASE_STRICT_STARTUP === 'true',
+        paths: runtime.paths,
+        runtimeLogging: runtime.scope.logging,
+        consoleLogStream: runtime.scope.consoleLogStream,
+    });
+    runtime.app = app;
+    return app;
+}
+//# sourceMappingURL=application.js.map

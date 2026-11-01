@@ -1,0 +1,6 @@
+import type { MailMessage } from '../mail-client.js';
+/** Rewrites trusted Provider cid references to the authenticated attachment endpoint. */
+export declare function resolveMailInlineImages(message: Pick<MailMessage, 'accountId' | 'id' | 'attachments'>, html: string): string;
+/** Rewrites CID images without changing the document's formatting. */
+export declare function rewriteMailInlineImages(document: Document, message: Pick<MailMessage, 'accountId' | 'id' | 'attachments'>, scope?: 'personal' | 'management'): void;
+//# sourceMappingURL=mail-inline-images.d.ts.map

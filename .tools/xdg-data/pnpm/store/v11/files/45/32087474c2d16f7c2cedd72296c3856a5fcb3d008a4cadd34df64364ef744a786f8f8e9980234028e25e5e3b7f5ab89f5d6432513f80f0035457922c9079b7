@@ -1,0 +1,31 @@
+import { type Locale, type LocaleDefinition } from '@nocobase/i18n/client';
+import { type ApiClient } from '@nocobase/app-client';
+import type { ServerLocaleResult } from '../locale-result.js';
+export interface UseAppLocaleResult {
+    readonly locale: Locale;
+    readonly locales: readonly LocaleDefinition[];
+    readonly setLocale: (locale: Locale) => Promise<ServerLocaleResult>;
+    readonly switching: boolean;
+    readonly error: Error | undefined;
+}
+/**
+ * Tells the server which language to answer in.
+ *
+ * Uses the caller's application client so its API configuration and request hooks apply.
+ */
+export declare function notifyServerLocale(api: ApiClient, locale: Locale): Promise<ServerLocaleResult>;
+/**
+ * The current language and a way to change it.
+ *
+ * Loads and switches the interface before persisting the choice and notifying the server. A server fallback is a
+ * successful result the control can explain; transport failures reject without undoing the browser's language.
+ */
+export declare function useAppLocale(): UseAppLocaleResult;
+/**
+ * Tells the server which language this browser is using, once, at startup.
+ *
+ * Storage and the server's session drift apart routinely — a different browser, an expired session, a switch made in
+ * another tab — and this is what brings them back together.
+ */
+export declare function useSyncServerLocale(): void;
+//# sourceMappingURL=use-locale.d.ts.map

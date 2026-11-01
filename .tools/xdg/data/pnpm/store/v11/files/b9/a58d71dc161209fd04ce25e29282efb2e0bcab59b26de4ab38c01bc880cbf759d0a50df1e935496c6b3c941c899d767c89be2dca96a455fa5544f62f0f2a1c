@@ -1,0 +1,19 @@
+import type { AuthorizationPlugin, PermissionGrant } from '@nocobase/authorization/core';
+import type { UiAuthorizationApi } from './ui.js';
+/**
+ * Package-internal: the subsection the client fills with pages from its route
+ * tree. Only pages are client-provided, so no other type gets one.
+ */
+export declare const PAGE_SECTION = "pages.page";
+/** `authz.pages`. Pages are not registered: the client route tree lists them. */
+export interface PagesApi {
+    /** A page `access` grant. */
+    grant(id: string): PermissionGrant;
+}
+export interface PagesAuthorizationApi {
+    pages: PagesApi;
+}
+export type PagesPlugin = AuthorizationPlugin<PagesAuthorizationApi, unknown, UiAuthorizationApi>;
+/** Registers the `page` record type, its `pages.page` subsection and `authz.pages`. */
+export declare function pagesPlugin(): PagesPlugin;
+//# sourceMappingURL=pages-authorization.d.ts.map

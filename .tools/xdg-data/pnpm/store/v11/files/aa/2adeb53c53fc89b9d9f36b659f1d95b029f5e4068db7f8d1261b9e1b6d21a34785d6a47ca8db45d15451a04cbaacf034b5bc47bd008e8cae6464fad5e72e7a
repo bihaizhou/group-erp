@@ -1,0 +1,65 @@
+/**
+ * The invitation email and the port it goes through. The provider backs the port with the notification plugin; tests
+ * pass a recording double.
+ *
+ * The invitee has no account yet, so there is no language to choose: the email carries every language the server
+ * locales have, one block each.
+ */
+import enUS from '../locales/en-US.js';
+import zhCN from '../locales/zh-CN.js';
+/** Used when no channel is configured: delivery fails; authorized inviters can deliver the link themselves. */
+export const unconfiguredMailer = {
+    send: () => Promise.reject(new Error('No invitation email channel is configured.')),
+};
+const LANGUAGES = [
+    enUS.invitationEmail,
+    zhCN.invitationEmail,
+];
+function fill(template, values) {
+    return template.replace(/\{\{(\w+)\}\}/gu, (_, key) => values[key] ?? '');
+}
+function escapeHtml(value) {
+    return value
+        .replace(/&/gu, '&amp;')
+        .replace(/</gu, '&lt;')
+        .replace(/>/gu, '&gt;')
+        .replace(/"/gu, '&quot;')
+        .replace(/'/gu, '&#39;');
+}
+export function buildInvitationEmail(input) {
+    const date = input.expiresAt.toISOString();
+    const blocks = LANGUAGES.map((texts) => {
+        const values = {
+            inviter: input.inviterName,
+            app: input.appTitle,
+            items: input.summary.join(texts.separator),
+            date,
+        };
+        return {
+            lines: [
+                fill(texts.intro, values),
+                ...(input.summary.length ? [fill(texts.summary, values)] : []),
+                fill(texts.validity, values),
+            ],
+            action: texts.action,
+            fallback: texts.fallback,
+        };
+    });
+    const url = escapeHtml(input.url);
+    return {
+        to: input.to,
+        subject: fill(enUS.invitationEmail.subject, {
+            inviter: input.inviterName,
+            app: input.appTitle,
+        }),
+        text: blocks
+            .map((block) => [...block.lines, input.url].join('\n'))
+            .join('\n\n'),
+        html: blocks
+            .map((block) => block.lines.map((line) => `<p>${escapeHtml(line)}</p>`).join('\n') +
+            `\n<p><a href="${url}">${escapeHtml(block.action)}</a></p>` +
+            `\n<p>${escapeHtml(block.fallback)}<br>${url}</p>`)
+            .join('\n<hr>\n'),
+    };
+}
+//# sourceMappingURL=mail.js.map

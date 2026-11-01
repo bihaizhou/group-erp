@@ -1,0 +1,51 @@
+import type { Knex } from 'knex';
+import type { CollectionMetadataStore, CollectionMetadataPage, CollectionMetadataStoreCapabilities, DeleteCollectionMetadataOptions, ListCollectionMetadataOptions, PutCollectionMetadataOptions } from '../document-store.js';
+import type { CollectionMetadataDocument, StoredCollectionMetadata } from '../document.js';
+import { type CollectionMetadataNamingSnapshot } from './naming-snapshot.js';
+interface NamingSnapshotCache {
+    generation: number;
+    readonly snapshots: Map<string, CollectionMetadataNamingSnapshot>;
+}
+export declare const DEFAULT_COLLECTION_METADATA_TABLE = "__nocobase_collection_metadata";
+export interface DatabaseCollectionMetadataStoreOptions {
+    readonly resolveClient: () => Promise<Knex>;
+    readonly tableName?: string;
+    readonly schema?: string;
+}
+export declare class DatabaseCollectionMetadataStore implements CollectionMetadataStore {
+    private readonly options;
+    private readonly namingCache;
+    readonly capabilities: CollectionMetadataStoreCapabilities;
+    private initializationPromise?;
+    private initialized;
+    private cacheInitialized;
+    private transactionGeneration?;
+    private readonly versionTableName;
+    get tableName(): string;
+    isInternalPhysicalCollection(identity: {
+        readonly tableName: string;
+        readonly schema: string;
+    }): boolean;
+    constructor(options: DatabaseCollectionMetadataStoreOptions, namingCache?: NamingSnapshotCache);
+    withClient(resolveClient: () => Promise<Knex>): DatabaseCollectionMetadataStore;
+    /** Capture cache eligibility before BEGIN; savepoints inherit their parent's generation. */
+    prepareTransaction(): Promise<(client: Knex.Transaction) => DatabaseCollectionMetadataStore>;
+    initialize(): Promise<void>;
+    reinitialize(): Promise<void>;
+    get(name: string): Promise<StoredCollectionMetadata | undefined>;
+    list(options?: ListCollectionMetadataOptions): Promise<CollectionMetadataPage>;
+    put(input: CollectionMetadataDocument, options: PutCollectionMetadataOptions): Promise<StoredCollectionMetadata>;
+    delete(name: string, options: DeleteCollectionMetadataOptions): Promise<void>;
+    private write;
+    private changeVersion;
+    private invalidateNamingSnapshots;
+    private readNamingSnapshot;
+    private readVersion;
+    private createTables;
+    private createTable;
+    private table;
+    private schema;
+    private actualRevision;
+    private fromRow;
+}
+export {};

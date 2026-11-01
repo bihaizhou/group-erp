@@ -1,0 +1,27 @@
+import { type Authorization } from '@nocobase/app-plugin-authorization';
+import { ServiceProvider } from '@nocobase/service-provider';
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+import type { NotificationConfig } from '../types.js';
+export interface NotificationProviderApplicationConfig {
+    readonly app: {
+        readonly publicBasePath: string;
+    };
+    readonly notification?: NotificationConfig;
+}
+export type NotificationProviderApplication = AppPluginApplication<NotificationProviderApplicationConfig>;
+export declare class NotificationProvider<TApplication extends NotificationProviderApplication = NotificationProviderApplication> extends ServiceProvider<TApplication> {
+    readonly name: string;
+    register(): void;
+    boot(): Promise<void>;
+    start(): Promise<void>;
+    shutdown(): Promise<void>;
+    /**
+     * The `jobs` configuration `notification.jobs` names. The jobs service would
+     * fall back to `jobs.default` for a name it does not know, which would put
+     * Deliveries on another backend without a word, so an unknown name refuses
+     * to start instead.
+     */
+    private jobsConfiguration;
+}
+export declare function registerNotificationAuthorization(authorization: Pick<Authorization, 'resourceTypes'>): void;
+//# sourceMappingURL=notification.d.ts.map

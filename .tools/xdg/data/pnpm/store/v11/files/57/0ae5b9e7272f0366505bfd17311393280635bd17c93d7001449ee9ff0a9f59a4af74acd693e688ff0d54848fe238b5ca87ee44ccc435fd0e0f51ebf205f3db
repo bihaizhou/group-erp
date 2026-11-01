@@ -1,0 +1,35 @@
+import { isSecretPath, requiredOf, RUNTIME_ENVIRONMENT_VARIABLES, } from '@nocobase/app-server/config';
+import { readConfigExample } from "./config-variables.js";
+/**
+ * Lists every environment variable the application reads: those its configuration sections declare in `env`, and
+ * those the runtime reads itself. Values are left out because many are secrets; whether each is set is enough to tell
+ * what the environment changes.
+ */
+export async function runConfigEnv(options) {
+    const runtime = await options.loadRuntime();
+    try {
+        const environment = runtime.env;
+        const isSet = (name) => environment[name] !== undefined && environment[name] !== '';
+        const defaults = runtime.config.layers().defaults;
+        const example = await readConfigExample(runtime.paths.deploymentRootDir);
+        const declared = Object.entries(runtime.config.environmentVariableMappings())
+            .map(([name, mapping]) => ({
+            name,
+            path: mapping.path,
+            set: isSet(name),
+            secret: mapping.secret ?? isSecretPath(mapping.path),
+            required: requiredOf(mapping, defaults, example),
+        }))
+            .sort((a, b) => a.path.localeCompare(b.path));
+        const runtimeRead = RUNTIME_ENVIRONMENT_VARIABLES.map((variable) => ({
+            name: variable.name,
+            description: variable.description,
+            set: isSet(variable.name),
+        }));
+        return { variables: [...declared, ...runtimeRead] };
+    }
+    finally {
+        await runtime.scope.destroy();
+    }
+}
+//# sourceMappingURL=config-env.js.map

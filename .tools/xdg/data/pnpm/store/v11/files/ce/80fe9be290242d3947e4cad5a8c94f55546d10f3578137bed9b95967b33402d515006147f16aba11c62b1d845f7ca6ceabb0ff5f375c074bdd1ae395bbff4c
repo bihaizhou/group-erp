@@ -1,0 +1,16 @@
+import { type DatabaseManager } from '@nocobase/db';
+import { type MailAccount, type MailIdentity, type MailProviderIdentity, type MailSignature } from '../../shared/mail.js';
+export declare class MailAccountsStore {
+    private readonly database;
+    constructor(database: DatabaseManager);
+    getAccount(accountId: string): Promise<MailAccount | undefined>;
+    findAccountByProviderIdentity(provider: MailProviderIdentity, address: string, authorizationSubject?: string): Promise<MailAccount | undefined>;
+    listAccounts(userId: string): Promise<readonly MailAccount[]>;
+    listAllAccounts(): Promise<readonly MailAccount[]>;
+    updateAccountStatus(accountId: string, status: 'active' | 'suspended'): Promise<void>;
+    saveAccount(account: MailAccount): Promise<MailAccount>;
+    markAccountRemoving(accountId: string, userId: string): Promise<boolean>;
+    markAccountReauthorizationRequired(accountId: string): Promise<boolean>;
+    saveAuthorizedAccount(account: MailAccount, identities: readonly MailIdentity[], signatures?: readonly MailSignature[], replacingAccount?: boolean): Promise<void>;
+}
+//# sourceMappingURL=accounts.d.ts.map

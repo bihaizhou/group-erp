@@ -1,0 +1,26 @@
+import { reportLoggingFailure } from '@nocobase/logging';
+/** Normalize legacy Host policy fields once at the App/Host boundary. */
+export function normalizeRuntimeLogging(policy = {}) {
+    if (policy.enabled !== undefined ||
+        policy.retentionDays !== undefined ||
+        policy.maxSizeMB !== undefined) {
+        reportLoggingFailure('Legacy runtime logging fields are deprecated; move enabled, retentionDays and maxSizeMB to file.enabled, file.retentionDays and file.maxTotalSizeMB');
+    }
+    return {
+        ...policy,
+        file: {
+            ...policy.file,
+            ...(policy.enabled === undefined ? {} : { enabled: policy.enabled }),
+            ...(policy.retentionDays === undefined
+                ? {}
+                : { retentionDays: policy.retentionDays }),
+            ...(policy.maxSizeMB === undefined
+                ? {}
+                : { maxTotalSizeMB: policy.maxSizeMB }),
+        },
+        console: typeof policy.console === 'boolean'
+            ? { enabled: policy.console }
+            : policy.console,
+    };
+}
+//# sourceMappingURL=config.js.map

@@ -1,0 +1,18 @@
+import type { PackageManager } from './package-manager.ts';
+export interface PackageManagerInvocation {
+    readonly args: readonly string[];
+    readonly packageManager: PackageManager;
+}
+/** Plugins are deployment dependencies, including those that only contribute client code. */
+export declare function addDependencyCommand(packageManager: PackageManager, specifier: string): PackageManagerInvocation;
+/** How each package manager spells "drop this dependency". */
+export declare function removeDependencyCommand(packageManager: PackageManager, packageName: string): PackageManagerInvocation;
+/** The package manager an application already uses, so registration never introduces a second lockfile. */
+export declare function appPackageManager(appRoot: string): Promise<PackageManager>;
+/** Where an installed plugin package lives, or undefined when it is not installed. */
+export declare function installedPluginDirectory(appRoot: string, packageName: string): Promise<string | undefined>;
+/** The version an installed package reports, used to record a range when the manifest has none yet. */
+export declare function installedPluginVersion(appRoot: string, packageName: string): Promise<string | undefined>;
+/** The range an application records for a dependency, checking both dependency fields. */
+export declare function declaredDependencyRange(appRoot: string, packageName: string): Promise<string | undefined>;
+//# sourceMappingURL=plugin-install.d.ts.map

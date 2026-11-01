@@ -1,0 +1,46 @@
+export class DefaultAggregateBuilder {
+    count(field) {
+        return new DefaultAggregateExpression('count', field);
+    }
+    sum(field) {
+        return new DefaultAggregateExpression('sum', field);
+    }
+    avg(field) {
+        return new DefaultAggregateExpression('avg', field);
+    }
+    min(field) {
+        return new DefaultAggregateExpression('min', field);
+    }
+    max(field) {
+        return new DefaultAggregateExpression('max', field);
+    }
+}
+class DefaultAggregateExpression {
+    constructor(aggregate, field) {
+        this.aggregate = aggregate;
+        this.field = field;
+        this.kind = 'aggregateExpression';
+    }
+    toNode(alias) {
+        return this.aggregate === 'count'
+            ? { kind: 'count', alias, field: this.field }
+            : {
+                kind: this.aggregate,
+                alias,
+                field: requiredAggregateField(this.field),
+            };
+    }
+}
+function requiredAggregateField(field) {
+    if (field === undefined) {
+        throw new TypeError('Value aggregates require a Field.');
+    }
+    return field;
+}
+export function aggregateExpressionToNode(alias, expression) {
+    if (!(expression instanceof DefaultAggregateExpression)) {
+        throw new TypeError('Aggregate callbacks must return Aggregate Builder expressions.');
+    }
+    return expression.toNode(alias);
+}
+//# sourceMappingURL=aggregate-builder.js.map

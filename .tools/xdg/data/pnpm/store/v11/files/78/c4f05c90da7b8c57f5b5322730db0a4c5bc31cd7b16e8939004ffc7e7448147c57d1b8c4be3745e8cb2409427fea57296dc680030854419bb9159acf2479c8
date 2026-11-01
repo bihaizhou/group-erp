@@ -1,0 +1,44 @@
+import { ReadPermissionBuilder, WritePermissionBuilder } from './permission-builders.js';
+import type { AuthorizationTitle, BindableCompositeResourcePermission, CompositeResourceContribution, PermissionGrant, RecordAccessReference, RecordSelection } from '@nocobase/authorization/core';
+import type { DatabaseGrantDefinition } from './model.js';
+export type DatabaseOperation = 'read' | 'create' | 'update' | 'delete';
+type Fields<Row> = '*' | readonly (keyof Row & string)[];
+interface DataScopeChoices {
+    options?: readonly string[];
+    defaultValue?: string;
+}
+/** The permission-set grant of one collection. */
+export declare function databaseGrant(collection: string, definition: DatabaseGrantDefinition): PermissionGrant;
+/**
+ * A collection's fields and relations per operation. Binding it to a key makes
+ * it a data scope of a composite action.
+ */
+export declare class DatabasePermissionBuilder<Row = Record<string, unknown>, O extends string = string> implements BindableCompositeResourcePermission {
+    private readonly name;
+    readonly recordAccessSelection?: O | '' | RecordSelection;
+    private readonly operations;
+    private readonly label;
+    private readonly choices;
+    constructor(name: string, operations?: DatabaseGrantDefinition, label?: AuthorizationTitle | undefined, choices?: DataScopeChoices);
+    title(title: AuthorizationTitle): DatabasePermissionBuilder<Row, O>;
+    /** The record access a grant may choose for the bound data scope. */
+    options<const R extends readonly RecordAccessReference[]>(...options: R): DatabasePermissionBuilder<Row, R[number]['key']>;
+    /** The record access used when a grant chooses nothing. */
+    default(option: RecordAccessReference<O>): DatabasePermissionBuilder<Row, O>;
+    read(fields: Fields<Row> | ((read: ReadPermissionBuilder<Row>) => ReadPermissionBuilder<Row>)): DatabasePermissionBuilder<Row, O>;
+    create(fields: Fields<Row> | ((write: WritePermissionBuilder<Row, true>) => WritePermissionBuilder<Row, true>)): DatabasePermissionBuilder<Row, O>;
+    update(fields: Fields<Row> | ((write: WritePermissionBuilder<Row, false>) => WritePermissionBuilder<Row, false>)): DatabasePermissionBuilder<Row, O>;
+    delete(): DatabasePermissionBuilder<Row, O>;
+    private operation;
+    /** The collection grant a Permission Set stores. */
+    build(): PermissionGrant;
+    bind<const K extends string>(key: K, metadata?: {
+        title?: AuthorizationTitle;
+    }): CompositeResourceContribution<Record<K, O | '' | RecordSelection>>;
+}
+export declare class DatabasePermissionDefinitionBuilder {
+    collection<Row = Record<string, unknown>>(name: string): DatabasePermissionBuilder<Row>;
+}
+export declare function defineDatabasePermission<Row, O extends string>(configure: (permission: DatabasePermissionDefinitionBuilder) => DatabasePermissionBuilder<Row, O>): DatabasePermissionBuilder<Row, O>;
+export {};
+//# sourceMappingURL=builders.d.ts.map

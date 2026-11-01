@@ -1,0 +1,13 @@
+import { mailAccountRemoving } from '../services/errors.js';
+/** Call inside the writing transaction. Serialize writes with account removal. */
+export async function lockWritableAccount(query, accountId) {
+    const result = await query
+        .updateTable('mailAccounts')
+        .set({ id: accountId })
+        .where('id', '=', accountId)
+        .where('status', '!=', 'removing')
+        .execute();
+    if (result.updatedCount !== 1)
+        throw mailAccountRemoving();
+}
+//# sourceMappingURL=account-guard.js.map

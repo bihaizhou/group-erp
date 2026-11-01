@@ -1,0 +1,22 @@
+import type { MailComposeInput, MailBulkComposeInput } from '../mail-client.js';
+export type PendingDelivery = {
+    readonly accountId: string;
+    readonly mode: 'normal';
+    readonly input: MailComposeInput;
+} | {
+    readonly accountId: string;
+    readonly mode: 'bulk';
+    readonly input: MailBulkComposeInput;
+};
+export declare function writePendingDelivery(delivery: PendingDelivery): void;
+export declare function clearPendingDelivery(accountId: string, key: string): void;
+export declare function readPendingDeliveries(accountIds: readonly string[]): readonly PendingDelivery[];
+export declare function withoutSubmittedDrafts<T extends {
+    readonly id: string;
+    readonly accountId: string;
+    readonly draft: boolean;
+    readonly providerMessageId: string;
+}>(messages: readonly T[]): readonly T[];
+/** Outgoing snapshots own uploads independently of removed draft messages. */
+export declare function outgoingMailHtml(html: string, attachmentIds?: readonly string[], contentIds?: Readonly<Record<string, string>>): string;
+//# sourceMappingURL=mail-pending-delivery.d.ts.map

@@ -1,0 +1,38 @@
+import type { CreateSeederOptions, SeedHistoryEntry, SeedHistoryRecord, SeedRepairOptions, SeedRepairResult, SeedRunResult, SeedSampleRunResult } from './types.js';
+import type { TaskLockReleaseOptions, TaskLockReleaseResult, TaskLockState } from '../migration/types.js';
+/** Executes pending seed definitions for one database connection. */
+export interface Seeder {
+    /**
+     * Executes every seed that has no matching history record. A sample seed
+     * runs only when `sample.enabled` is set; otherwise it is recorded as
+     * skipped, and a later run leaves it alone.
+     */
+    run(): Promise<SeedRunResult>;
+    /**
+     * Executes every sample seed recorded as skipped and records it as
+     * executed. Seeds that never ran at all are left to `run()`.
+     */
+    runSamples(): Promise<SeedSampleRunResult>;
+    /**
+     * Records an entry no seed file describes, such as sample data a service
+     * built, or rewrites the one with the same name. Executes nothing.
+     */
+    record(entry: SeedHistoryEntry): Promise<void>;
+    /**
+     * Rewrites recorded checksums to match the current sources, clearing drift
+     * reported by a run. Executes no seed and changes no data.
+     */
+    repair(options?: SeedRepairOptions): Promise<SeedRepairResult>;
+    /**
+     * Seeds already executed on the connection, oldest first. Reads only: a
+     * connection without a history table yields an empty list rather than
+     * getting one created, and no lock is taken.
+     */
+    history(): Promise<SeedHistoryRecord[]>;
+    /** The seed lock as it stands, or undefined when no run holds it. */
+    lock(): Promise<TaskLockState | undefined>;
+    /** Releases the seed lock; an active one needs `force`. */
+    unlock(options?: TaskLockReleaseOptions): Promise<TaskLockReleaseResult>;
+}
+/** Creates a seed runner backed by the supplied database manager. */
+export declare function createSeeder(options: CreateSeederOptions): Seeder;

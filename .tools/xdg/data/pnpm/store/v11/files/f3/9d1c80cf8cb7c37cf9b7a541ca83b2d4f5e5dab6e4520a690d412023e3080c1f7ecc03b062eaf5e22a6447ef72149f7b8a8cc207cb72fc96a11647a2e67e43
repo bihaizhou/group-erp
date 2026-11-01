@@ -1,0 +1,34 @@
+/** Whether `identity` may reach `action` on `resource` as far as its credential's scope goes. */
+export function keyScopeAllows(identity, resource, action) {
+    return identity.keyScope?.allows(resource, action) ?? true;
+}
+/**
+ * Thrown by `require`. It answers `403` in the standard API error body, status `PERMISSION_DENIED`, reason
+ * `AUTHORIZATION_DENIED` and domain `authorization`, on its own: `getResponse` is the interface Hono's default error
+ * handler honours, and an application's `/api` error handler reads `status`, `reason` and `domain`, as request logging
+ * reads `status`.
+ */
+export class AuthorizationDeniedError extends Error {
+    decision;
+    status = 403;
+    /** The standard API error `reason` and `domain`, read by the application's `/api` error handler. */
+    reason = 'AUTHORIZATION_DENIED';
+    domain = 'authorization';
+    constructor(decision) {
+        super(decision.reasons.at(-1)?.message ?? 'Authorization denied');
+        this.name = 'AuthorizationDeniedError';
+        this.decision = decision;
+    }
+    getResponse() {
+        return Response.json({
+            error: {
+                code: this.status,
+                status: 'PERMISSION_DENIED',
+                reason: this.reason,
+                domain: this.domain,
+                message: this.message,
+            },
+        }, { status: this.status });
+    }
+}
+//# sourceMappingURL=types.js.map

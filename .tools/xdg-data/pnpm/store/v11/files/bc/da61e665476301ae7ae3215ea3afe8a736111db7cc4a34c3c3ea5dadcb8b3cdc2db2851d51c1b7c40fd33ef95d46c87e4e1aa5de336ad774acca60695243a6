@@ -1,0 +1,42 @@
+export { IN_APP_NOTIFICATION_REALTIME_TOPIC, } from '../shared/realtime.js';
+export function createRealtimeInAppStore(store, topic) {
+    return {
+        async deliver(input) {
+            const item = await store.deliver(input);
+            publishChange(topic, input.userId, 'created');
+            return item;
+        },
+        list(input) {
+            return store.list(input);
+        },
+        countUnread(userId) {
+            return store.countUnread(userId);
+        },
+        async update(input) {
+            const item = await store.update(input);
+            if (item) {
+                publishChange(topic, input.userId, input.action === 'delete' ? 'deleted' : input.action);
+            }
+            return item;
+        },
+        async markAllRead(userId) {
+            const updated = await store.markAllRead(userId);
+            if (updated > 0) {
+                publishChange(topic, userId, 'read-all');
+            }
+            return updated;
+        },
+    };
+}
+function publishChange(topic, userId, change) {
+    try {
+        topic.publishFor(userId, {
+            kind: 'inbox.changed',
+            change,
+        });
+    }
+    catch (error) {
+        console.error('Failed to publish in-app notification realtime event.', error);
+    }
+}
+//# sourceMappingURL=realtime.js.map

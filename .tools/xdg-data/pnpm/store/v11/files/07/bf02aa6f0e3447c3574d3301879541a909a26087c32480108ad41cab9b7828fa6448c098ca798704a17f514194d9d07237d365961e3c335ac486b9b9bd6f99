@@ -1,0 +1,57 @@
+export function findBinaries(directory: any, found?: any[]): any[];
+/** Packages declaring a set of platform-specific builds, mapped to the parent that lists the set. */
+export function platformPackageOwners(nodeModulesDir: any): Map<any, any>;
+/** Native modules present in a built tree. */
+export function findNativeModules(nodeModulesDir: any): ({
+    kind: string;
+    manifest: any;
+    binaries: any[];
+    cpu: any;
+    os: any;
+    installScript?: undefined;
+    packageDir: any;
+} | {
+    kind: string;
+    manifest: any;
+    binaries: any[];
+    installScript: any;
+    cpu?: undefined;
+    os?: undefined;
+    packageDir: any;
+} | {
+    kind: string;
+    manifest: any;
+    binaries: any[];
+    cpu?: undefined;
+    os?: undefined;
+    installScript?: undefined;
+    packageDir: any;
+})[];
+/**
+ * The deployment target a build is producing binaries for.
+ *
+ * `--target` covers platform, architecture, and C library together, because they are chosen together and a
+ * partial answer is not useful: `linux-x64` and `linux-x64-musl` are different binaries, and using one where the
+ * other belongs fails at load with an error naming a shared library rather than a cause.
+ *
+ * `--node-version` takes a major (`24`), which is what a person knows about their server. It is separate from
+ * `--target` because it varies independently — the same Linux host may run any of several Node versions.
+ *
+ * `--target current` opts out, producing binaries for the building machine. That is right for local work and
+ * wrong for deployment to a different machine. It is the default so local builds remain runnable.
+ */
+export function parseTarget(argv?: any[]): {
+    isCurrentMachine: boolean;
+    platform: string;
+    arch: string;
+    libc: string;
+    abi: any;
+    nodeMajor: number;
+    nodeVersion: string;
+    label: string;
+    napiSuffix: string;
+};
+export function readJson(file: any): any;
+export function sizeOf(file: any): number;
+export function formatMegabytes(bytes: any): string;
+//# sourceMappingURL=server-deps.d.mts.map

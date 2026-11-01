@@ -1,0 +1,4 @@
+export declare function assertNamespace(namespace: string): void;
+export declare function assertMaxSize(maxSize: number): void;
+export declare function assertTtl(ttl: number | undefined): void;
+//# sourceMappingURL=validation.d.ts.map

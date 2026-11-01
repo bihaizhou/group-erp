@@ -1,0 +1,55 @@
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+import { ServiceProvider } from '@nocobase/service-provider';
+import { type BetterAuthPlugin } from 'better-auth';
+import { type CreateAuthenticationOptions } from '../auth.js';
+export interface AuthenticationProviderConfig {
+    readonly app: {
+        readonly name: string;
+        readonly publicOrigin: string | undefined;
+        readonly publicBasePath: string;
+    };
+    readonly auth: Omit<CreateAuthenticationOptions, 'basePath' | 'baseURL' | 'connection'>;
+}
+export type AuthenticationProviderApplication<TConfig extends AuthenticationProviderConfig = AuthenticationProviderConfig> = AppPluginApplication<TConfig>;
+export declare class AuthenticationProvider<TConfig extends AuthenticationProviderConfig = AuthenticationProviderConfig, TApplication extends AuthenticationProviderApplication<TConfig> = AuthenticationProviderApplication<TConfig>> extends ServiceProvider<TApplication> {
+    readonly name: string;
+    register(): void;
+    /**
+     * Lets a signed-in session read the API documentation, and adds the session cookie's security scheme and Better
+     * Auth's endpoints to it. All are resolved lazily, on the first request for the document, so starting the application
+     * does not build Better Auth's schema.
+     */
+    boot(): Promise<void>;
+    shutdown(): Promise<void>;
+    private createAuthentication;
+}
+export interface CookiePrefixOptions {
+    /** The origin browsers reach this app on, when the app knows it. */
+    readonly publicOrigin?: string;
+    /** The port this app listens on, when it owns one. */
+    readonly listenPort?: number;
+}
+/**
+ * Names this app's cookies so they cannot collide with another app's.
+ *
+ * Cookies are scoped by host and path but never by port (RFC 6265), so two
+ * apps on one host share a cookie jar even on different ports. The name is
+ * the only thing left to separate them, and the app name alone does not:
+ * every standalone app defaults to `main`. Appending the port the app is
+ * reached on restores the distinction, and is stable for as long as the app
+ * stays where it is. An app that owns no port of its own passes none, and
+ * keeps the bare name.
+ */
+export declare function createCookiePrefix(appName: string, options?: CookiePrefixOptions): string;
+/**
+ * Places the device authorization's approval page below the application's public base path. Better Auth resolves a
+ * `verificationUri` that starts with `/` against its base URL's origin, which would drop the base path an application
+ * is served under; an app-local `/device` (also the default) becomes `/main/device` under `/main`. An absolute URL is
+ * left as it is.
+ */
+export declare function resolveDeviceVerificationUri(plugins: readonly BetterAuthPlugin[], publicBasePath: string): BetterAuthPlugin[];
+/** Resolves an app-local pathname to the path exposed by the app runtime. */
+export declare function resolvePublicPath(appLocalPath: string, publicBasePath: string): string;
+/** Restores the public mount path on an app-local request. */
+export declare function toPublicRequest(request: Request, publicBasePath: string): Request;
+//# sourceMappingURL=authentication.d.ts.map

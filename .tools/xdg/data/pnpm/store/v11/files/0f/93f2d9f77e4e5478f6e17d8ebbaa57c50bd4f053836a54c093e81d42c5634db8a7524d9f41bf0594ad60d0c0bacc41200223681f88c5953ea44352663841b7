@@ -1,0 +1,77 @@
+import type { Command, Interfaces } from '@oclif/core';
+import { AppCommand } from '../../context.ts';
+/** An inconsistency between the plugin's package and how the App records and wires it. */
+export interface PluginInspectIssue {
+    readonly code: string;
+    readonly message: string;
+    readonly severity: 'error' | 'warning';
+}
+/** A command that repairs an issue, as an executable and its arguments. */
+export interface PluginInspectSuggestion {
+    readonly command: string;
+    readonly args: readonly string[];
+}
+/** Whether a composition root registers the plugin, and at which position. */
+export interface PluginInspectComposition {
+    readonly registered: boolean;
+    readonly order?: number;
+}
+/** How the App's synchronized Skills compare with the ones the installed plugin ships. */
+export interface PluginInspectSkills {
+    readonly checked: boolean;
+    /** Why the Skills were not compared, when `checked` is false. */
+    readonly reason?: 'plugin-not-installed';
+    readonly source: readonly string[];
+    readonly synchronized: readonly string[];
+    readonly missing: readonly string[];
+    readonly stale: readonly string[];
+    readonly contentMatches: boolean;
+}
+export interface PluginInspectResult {
+    readonly app: {
+        readonly packageName: string;
+        readonly appRoot: string;
+    };
+    readonly plugin: {
+        readonly packageName: string;
+        readonly installed: boolean;
+        readonly pluginDirectory: string | undefined;
+        readonly exports: {
+            readonly client: boolean;
+            readonly serverPlugin: boolean;
+            readonly cli: boolean;
+        };
+    };
+    readonly dependency: {
+        readonly field: 'dependencies' | 'devDependencies' | undefined;
+        readonly range: string | undefined;
+    };
+    readonly registration: {
+        readonly enabled: boolean;
+    };
+    readonly composition: {
+        readonly client: PluginInspectComposition;
+        readonly server: PluginInspectComposition;
+        readonly cli: PluginInspectComposition;
+    };
+    readonly skills: PluginInspectSkills;
+    readonly consistent: boolean;
+    readonly issues: readonly PluginInspectIssue[];
+    /** Commands that repair the issues. An inconsistency is a finding, not a failure, so these live in the result. */
+    readonly suggestions: readonly PluginInspectSuggestion[];
+}
+export default class PluginInspect extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static args: {
+        name: Interfaces.Arg<string>;
+    };
+    static flags: {
+        dir: Interfaces.OptionFlag<string | undefined>;
+        app: Interfaces.OptionFlag<string | undefined>;
+        'workspace-root': Interfaces.OptionFlag<string | undefined>;
+    };
+    run(): Promise<PluginInspectResult>;
+}
+//# sourceMappingURL=inspect.d.ts.map

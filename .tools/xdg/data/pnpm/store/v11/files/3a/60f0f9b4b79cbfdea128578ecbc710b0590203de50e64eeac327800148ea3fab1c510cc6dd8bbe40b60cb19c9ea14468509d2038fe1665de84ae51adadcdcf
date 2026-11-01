@@ -1,0 +1,19 @@
+import { loggingToken } from '../logging/token.js';
+import { ServiceProvider, } from '@nocobase/service-provider';
+import { createRealtimeService } from './service.js';
+import { realtimeServiceToken } from './types.js';
+export class RealtimeProvider extends ServiceProvider {
+    name = 'realtime';
+    register() {
+        this.app.container.singleton(realtimeServiceToken, () => createRealtimeService({
+            logger: this.app.container.has(loggingToken)
+                ? this.app.container.resolve(loggingToken).getLogger('realtime')
+                : undefined,
+        }));
+    }
+    shutdown() {
+        this.app.container.resolveIfCreated(realtimeServiceToken)?.close();
+        return Promise.resolve();
+    }
+}
+//# sourceMappingURL=provider.js.map

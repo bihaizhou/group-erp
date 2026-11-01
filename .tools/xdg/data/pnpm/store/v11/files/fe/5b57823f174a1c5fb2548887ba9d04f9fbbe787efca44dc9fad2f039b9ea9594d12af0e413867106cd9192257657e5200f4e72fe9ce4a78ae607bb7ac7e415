@@ -1,0 +1,2 @@
+export declare function mailSyncDateMonthsAgo(months: number, now?: Date): string;
+//# sourceMappingURL=mail-sync-date.d.ts.map

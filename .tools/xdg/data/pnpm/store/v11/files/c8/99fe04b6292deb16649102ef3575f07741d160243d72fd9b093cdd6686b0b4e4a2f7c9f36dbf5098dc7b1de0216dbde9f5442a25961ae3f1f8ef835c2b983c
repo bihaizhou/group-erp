@@ -1,0 +1,11 @@
+import type { ReactElement, ReactNode } from 'react';
+interface MailManagementListItemProps {
+    readonly selected: boolean;
+    readonly onSelect: () => void;
+    readonly children: ReactNode;
+    readonly actions?: ReactNode;
+    readonly ariaLabel?: string;
+}
+export declare function MailManagementListItem({ selected, onSelect, children, actions, ariaLabel, }: MailManagementListItemProps): ReactElement;
+export {};
+//# sourceMappingURL=mail-management-list-item.d.ts.map

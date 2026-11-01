@@ -1,0 +1,8 @@
+import { createServiceToken, } from '@nocobase/service-provider';
+/**
+ * The application's queue service. Plugins resolve it here rather than
+ * creating a token of their own: a token with the same name is a different
+ * key.
+ */
+export const queueServiceToken = createServiceToken('@nocobase/queue/service');
+//# sourceMappingURL=token.js.map

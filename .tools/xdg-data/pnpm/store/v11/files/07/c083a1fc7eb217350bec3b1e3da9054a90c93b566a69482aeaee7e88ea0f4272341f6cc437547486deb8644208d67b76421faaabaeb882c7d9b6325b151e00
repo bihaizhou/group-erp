@@ -1,0 +1,222 @@
+import { sameRule, stableStringify } from './rules.js';
+import { ScheduleReceiptCode, } from './types.js';
+import { assertValidJobName, normalizeScheduleJob, } from './validation.js';
+/** Raised for a firing whose job has no handler on the executing instance. */
+export class ScheduleHandlerNotRegisteredError extends Error {
+    jobName;
+    constructor(jobName) {
+        super(`No handler is registered for schedule job "${jobName}" on this instance.`);
+        this.name = 'ScheduleHandlerNotRegisteredError';
+        this.jobName = jobName;
+    }
+}
+const upserted = (jobName, scheduledAt) => ({
+    jobName,
+    code: ScheduleReceiptCode.Upserted,
+    message: 'Job upserted',
+    ...(scheduledAt ? { scheduledAt } : {}),
+});
+export class BackendScheduleExecutor {
+    backend;
+    logger;
+    state = 'created';
+    handlers = new Map();
+    pending = new Map();
+    subscribers = new Set();
+    delivery = Promise.resolve();
+    setupPromise;
+    shutdownPromise;
+    opened = false;
+    constructor(backend, logger) {
+        this.backend = backend;
+        this.logger = logger;
+    }
+    async addJob(job, registerOnly = false) {
+        this.assertOpen();
+        const normalized = normalizeScheduleJob(job);
+        this.handlers.set(normalized.name, job);
+        if (registerOnly) {
+            this.pending.delete(normalized.name);
+            return {
+                jobName: normalized.name,
+                code: ScheduleReceiptCode.HandlerRegistered,
+                message: 'Handler registered',
+            };
+        }
+        if (this.state === 'created') {
+            // Nothing is written before setup(): the rule is written there, before
+            // any worker starts, so a due firing never meets a missing handler.
+            this.pending.set(normalized.name, {
+                job: normalized,
+                payload: job.payload,
+            });
+            return upserted(normalized.name);
+        }
+        if (this.state === 'setting-up')
+            await this.setupPromise;
+        this.assertOpen();
+        return this.upsert(normalized, job.payload);
+    }
+    async removeJob(name) {
+        assertValidJobName(name);
+        await this.whenReady('removeJob');
+        // The handler stays registered: another instance may add the job again,
+        // and this instance must still be able to run it when it does.
+        return (await this.backend.remove(name))
+            ? {
+                jobName: name,
+                code: ScheduleReceiptCode.Removed,
+                message: 'Job removed',
+            }
+            : {
+                jobName: name,
+                code: ScheduleReceiptCode.NotExisted,
+                message: 'Job not existed',
+            };
+    }
+    async countJob() {
+        await this.whenReady('countJob');
+        return this.backend.count();
+    }
+    async listJob(start, end) {
+        await this.whenReady('listJob');
+        return this.backend.list(start, end);
+    }
+    async getJob(name) {
+        assertValidJobName(name);
+        await this.whenReady('getJob');
+        const stored = await this.backend.read(name);
+        return stored
+            ? {
+                jobName: name,
+                options: stored.options,
+                payload: stored.payload,
+                ...(stored.nextRunAt ? { nextRunAt: stored.nextRunAt } : {}),
+            }
+            : undefined;
+    }
+    subscribe(subscriber) {
+        this.subscribers.add(subscriber);
+        return () => {
+            this.subscribers.delete(subscriber);
+        };
+    }
+    setup(options = {}) {
+        this.assertOpen();
+        this.setupPromise ??= this.runSetup(options.consume ?? true);
+        return this.setupPromise;
+    }
+    shutdown() {
+        this.shutdownPromise ??= this.runShutdown();
+        return this.shutdownPromise;
+    }
+    async runSetup(consume) {
+        this.state = 'setting-up';
+        try {
+            await this.backend.open();
+            this.opened = true;
+            for (const { job, payload } of this.pending.values()) {
+                await this.upsert(job, payload);
+            }
+            this.pending.clear();
+            if (consume)
+                await this.backend.consume(this.runner);
+            // shutdown() may have been called while this ran; it closes what was opened.
+            if (this.state === 'setting-up')
+                this.state = 'ready';
+        }
+        catch (error) {
+            // A failed setup releases what it acquired and may be retried.
+            if (this.state === 'setting-up') {
+                this.setupPromise = undefined;
+                this.state = 'created';
+            }
+            if (this.opened) {
+                this.opened = false;
+                await this.backend.close().catch((closeError) => {
+                    this.logger?.error({ error: closeError }, 'Failed to release schedule resources after a failed setup');
+                });
+            }
+            throw error;
+        }
+    }
+    async runShutdown() {
+        const setup = this.setupPromise;
+        this.state = 'closed';
+        if (setup)
+            await setup.catch(() => undefined);
+        if (this.opened) {
+            this.opened = false;
+            await this.backend.close();
+        }
+        this.pending.clear();
+        this.handlers.clear();
+        await this.delivery;
+        this.subscribers.clear();
+    }
+    async upsert(job, payload) {
+        const existing = await this.backend.read(job.name);
+        if (existing && this.unchanged(existing, job, payload)) {
+            // An upsert would drop the firing already planned (even one that is due
+            // and waiting), restart `limit` and fire `immediately` again.
+            return upserted(job.name, existing.nextRunAt);
+        }
+        const scheduledAt = await this.backend.write({
+            name: job.name,
+            options: job.options,
+            payload,
+            settings: this.backend.settings,
+            immediately: job.immediately && !existing,
+        });
+        return upserted(job.name, scheduledAt);
+    }
+    unchanged(existing, job, payload) {
+        return (sameRule(existing.options, job.options) &&
+            stableStringify(existing.payload) === stableStringify(payload) &&
+            stableStringify(existing.settings) ===
+                stableStringify(this.backend.settings));
+    }
+    async whenReady(operation) {
+        this.assertOpen();
+        if (this.state === 'setting-up')
+            await this.setupPromise;
+        if (this.state !== 'ready') {
+            throw new Error(`Call setup() before ${operation}(): the schedule backend is not open yet.`);
+        }
+    }
+    assertOpen() {
+        if (this.state === 'closed') {
+            throw new Error('The schedule executor has been shut down.');
+        }
+    }
+    runner = {
+        run: async (run) => {
+            const handler = this.handlers.get(run.jobName);
+            if (!handler)
+                throw new ScheduleHandlerNotRegisteredError(run.jobName);
+            const context = {
+                jobId: run.jobId,
+                scheduledAt: run.scheduledAt,
+                runAt: run.runAt,
+                ...(run.nextRunAt ? { nextRunAt: run.nextRunAt } : {}),
+                signal: run.signal,
+            };
+            await handler.execute(context);
+        },
+        hasHandler: (jobName) => this.handlers.has(jobName),
+        emit: (event) => {
+            const subscribers = [...this.subscribers];
+            this.delivery = this.delivery.then(async () => {
+                for (const subscriber of subscribers) {
+                    try {
+                        await subscriber(event);
+                    }
+                    catch (error) {
+                        this.logger?.error({ error, event: event.name, jobName: event.jobName }, 'A schedule event subscriber failed');
+                    }
+                }
+            });
+        },
+    };
+}
+//# sourceMappingURL=executor.js.map

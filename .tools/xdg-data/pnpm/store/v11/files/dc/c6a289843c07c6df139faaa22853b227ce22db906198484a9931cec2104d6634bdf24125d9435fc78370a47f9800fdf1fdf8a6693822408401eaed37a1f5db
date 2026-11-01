@@ -1,0 +1,14 @@
+import { type Command } from '@oclif/core';
+import type { Interfaces } from '@oclif/core';
+import { AppCommand } from '../../context.ts';
+import { type SecretsStatusResult } from '../../lib/secrets-command.ts';
+export default class SecretsStatus extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static flags: {
+        'batch-size': Interfaces.OptionFlag<number>;
+    };
+    run(): Promise<SecretsStatusResult>;
+}
+//# sourceMappingURL=status.d.ts.map

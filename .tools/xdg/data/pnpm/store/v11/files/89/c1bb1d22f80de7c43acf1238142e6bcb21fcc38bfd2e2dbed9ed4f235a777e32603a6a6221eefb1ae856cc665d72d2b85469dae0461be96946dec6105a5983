@@ -1,0 +1,37 @@
+import type { CommandJson } from '@nocobase/cli-envelope';
+import { type AppCommand } from './context.ts';
+import { type AppCommandContextOptions } from './default-context.ts';
+export interface BindAppCommandOptions extends AppCommandContextOptions {
+    /**
+     * The id the runner would register the command under, colon-separated: `app:orders:export` for an application's
+     * `cli/commands/orders/export.ts`, `cli-example:greet` for a plugin's `greet`. The `--json` document names the
+     * command by it. Without it, oclif names a command run on its own after its class, lower-cased.
+     */
+    readonly id?: string;
+}
+/**
+ * A subclass of `command` pinned to the application at `rootDir`, the way the runner would point it at the application
+ * it located. Run it with `await Bound.run(argv)`; with `--json`, the returned value is the command's result. Each call
+ * returns a fresh class, so two tests never share a context. `loadRuntime` and `createApp` replace the conventional
+ * `server/runtime` and `server/app` imports with stubs.
+ */
+export declare function bindAppCommand<T extends typeof AppCommand>(command: T, options: BindAppCommandOptions): T;
+/** What `runAppCommand()` observed. */
+export interface AppCommandRun<TResult = unknown> {
+    /** What `run()` returned; `undefined` when it threw. */
+    readonly result: TResult | undefined;
+    /** What escaped the command: without `--json`, a failure is rethrown for oclif to print. */
+    readonly error: unknown;
+    /** The exit code the process would end with; `undefined` means 0. */
+    readonly exitCode: number | undefined;
+    readonly stdout: string;
+    readonly stderr: string;
+    /** stdout parsed as the one `--json` document; throws when stdout is not exactly one JSON value. */
+    readonly json: () => CommandJson<TResult>;
+}
+/**
+ * Runs a bound command the way the runner does — `--json`, failure handling and the envelope all apply — and captures
+ * what it printed, restoring the console, the streams and `process.exitCode` afterwards.
+ */
+export declare function runAppCommand<TResult = unknown>(command: typeof AppCommand, argv: readonly string[]): Promise<AppCommandRun<TResult>>;
+//# sourceMappingURL=testing.d.ts.map

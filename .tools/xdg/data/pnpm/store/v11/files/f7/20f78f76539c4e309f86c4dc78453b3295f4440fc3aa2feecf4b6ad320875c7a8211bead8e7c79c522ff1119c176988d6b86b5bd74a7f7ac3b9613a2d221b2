@@ -1,0 +1,110 @@
+import type { AnyFieldDefinition, CollectionAlterBuilder, CollectionAlterDefinition, CollectionDefinition, CollectionDefinitionBuilder, DbOptions, FieldAlterInput, FieldDefinition, FieldDefinitionBuilder, FieldType, ForeignKeyConstraintDefinition, IndexDefinition, NamingOptions, PrimaryConstraintDefinition, QueryViewDefinition, ReferentialAction, RelationFieldBuilder, RelationFieldDefinition, UniqueConstraintDefinition, ViewCollectionDefinitionBuilder, ViewOptions, ViewQueryBuilder } from '../types.js';
+export declare class FluentCollectionDefinitionBuilder implements CollectionDefinitionBuilder {
+    protected definition: CollectionDefinition;
+    naming(options: NamingOptions): this;
+    dbSchema(schema: string): this;
+    title(title: string): this;
+    description(description: string): this;
+    optimisticLock(field: string): this;
+    field(field: AnyFieldDefinition): FieldDefinitionBuilder;
+    increments(name: string): FieldDefinitionBuilder;
+    integer(name: string, options?: Partial<FieldDefinition>): FieldDefinitionBuilder;
+    bigInt(name: string, options?: Partial<FieldDefinition>): FieldDefinitionBuilder;
+    string(name: string, options?: Partial<FieldDefinition>): FieldDefinitionBuilder;
+    char(name: string, options: Partial<FieldDefinition> & {
+        length: number;
+    }): FieldDefinitionBuilder;
+    enum(name: string, options: Partial<FieldDefinition> & {
+        values: readonly string[];
+    }): FieldDefinitionBuilder;
+    text(name: string, options?: Partial<FieldDefinition>): FieldDefinitionBuilder;
+    boolean(name: string, options?: Partial<FieldDefinition>): FieldDefinitionBuilder;
+    decimal(name: string, options?: Partial<FieldDefinition>): FieldDefinitionBuilder;
+    datetime(name: string, options?: Partial<FieldDefinition>): FieldDefinitionBuilder;
+    float(name: string, options?: Partial<FieldDefinition>): FieldDefinitionBuilder;
+    double(name: string, options?: Partial<FieldDefinition>): FieldDefinitionBuilder;
+    date(name: string, options?: Partial<FieldDefinition>): FieldDefinitionBuilder;
+    time(name: string, options?: Partial<FieldDefinition>): FieldDefinitionBuilder;
+    datetimeTz(name: string, options?: Partial<FieldDefinition>): FieldDefinitionBuilder;
+    json(name: string, options?: Partial<FieldDefinition>): FieldDefinitionBuilder;
+    blob(name: string, options?: Partial<FieldDefinition>): FieldDefinitionBuilder;
+    uuid(name: string, options?: Partial<FieldDefinition>): FieldDefinitionBuilder;
+    native(name: string, nativeType: string, options?: Partial<FieldDefinition>): FieldDefinitionBuilder;
+    belongsTo(name: string, target: string, options?: Partial<RelationFieldDefinition>): RelationFieldBuilder;
+    hasOne(name: string, target: string, options?: Partial<RelationFieldDefinition>): RelationFieldBuilder;
+    hasMany(name: string, target: string, options?: Partial<RelationFieldDefinition>): RelationFieldBuilder;
+    belongsToMany(name: string, target: string, options?: Partial<RelationFieldDefinition>): RelationFieldBuilder;
+    primary(fields: string | string[], options?: Omit<PrimaryConstraintDefinition, 'type' | 'fields'>): this;
+    unique(fields: string | string[], options?: Omit<UniqueConstraintDefinition, 'type' | 'fields'>): this;
+    foreignKey(fields: string | string[], options: Omit<ForeignKeyConstraintDefinition, 'type' | 'fields'>): this;
+    index(fields: string | string[], options?: Omit<IndexDefinition, 'fields'>): this;
+    toDefinition(): CollectionDefinition;
+    protected pushField(builder: FluentFieldDefinitionBuilder): void;
+    private relation;
+}
+export declare class FluentCollectionAlterBuilder extends FluentCollectionDefinitionBuilder implements CollectionAlterBuilder {
+    private readonly changes;
+    optimisticLock(field: string): this;
+    clearOptimisticLock(): this;
+    primary(fields: string | string[], options?: Omit<PrimaryConstraintDefinition, 'type' | 'fields'>): this;
+    unique(fields: string | string[], options?: Omit<UniqueConstraintDefinition, 'type' | 'fields'>): this;
+    foreignKey(fields: string | string[], options: Omit<ForeignKeyConstraintDefinition, 'type' | 'fields'>): this;
+    index(fields: string | string[], options?: Omit<IndexDefinition, 'fields'>): this;
+    alterField(name: string, changes: FieldAlterInput): this;
+    dropField(name: string): this;
+    dropFields(...names: string[]): this;
+    dropIndex(name: string): this;
+    dropConstraint(name: string): this;
+    toAlterDefinition(): CollectionAlterDefinition;
+}
+export declare class FluentViewCollectionDefinitionBuilder extends FluentCollectionDefinitionBuilder implements ViewCollectionDefinitionBuilder {
+    as(query: QueryViewDefinition | ((query: ViewQueryBuilder) => ViewQueryBuilder)): this;
+    asRaw(sql: string, bindings?: unknown[]): this;
+    refresh(options: NonNullable<ViewOptions['refresh']>): this;
+}
+export declare class FluentViewQueryBuilder implements ViewQueryBuilder {
+    private query;
+    from(collection: string): this;
+    select(...fields: string[]): this;
+    where(field: string, operator: string, value: unknown): this;
+    toQuery(): QueryViewDefinition;
+}
+export declare class FluentFieldDefinitionBuilder implements FieldDefinitionBuilder {
+    protected readonly collection: FluentCollectionDefinitionBuilder;
+    readonly definition: AnyFieldDefinition;
+    constructor(collection: FluentCollectionDefinitionBuilder, definition: AnyFieldDefinition);
+    primary(options?: Omit<PrimaryConstraintDefinition, 'type' | 'fields'>): this;
+    autoIncrement(): this;
+    notNull(): this;
+    nullable(): this;
+    defaultTo(value: unknown): this;
+    unique(options?: Omit<UniqueConstraintDefinition, 'type' | 'fields'>): this;
+    index(options?: Omit<IndexDefinition, 'fields'>): this;
+    title(title: string): this;
+    description(description: string): this;
+    dbComment(comment: string): this;
+    db(options: DbOptions): this;
+    unsigned(): this;
+    references(ref: {
+        collection: string;
+        field?: string;
+        fields?: string[];
+    }): this;
+    toDefinition(): AnyFieldDefinition;
+}
+export declare class FluentRelationFieldBuilder extends FluentFieldDefinitionBuilder implements RelationFieldBuilder {
+    definition: RelationFieldDefinition;
+    constructor(collection: FluentCollectionDefinitionBuilder, definition: RelationFieldDefinition);
+    references(): never;
+    toDefinition(): RelationFieldDefinition;
+    target(target: string): this;
+    sourceKey(key: string): this;
+    targetKey(key: string): this;
+    foreignKey(key: string): this;
+    foreignKeyType(type: FieldType): this;
+    otherKey(key: string): this;
+    through(collection: string): this;
+    constraints(value?: boolean): this;
+    onDelete(action: ReferentialAction): this;
+    onUpdate(action: ReferentialAction): this;
+}

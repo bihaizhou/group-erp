@@ -1,0 +1,4 @@
+import type { SchedulerResource } from './en-US.js';
+declare const zhCN: SchedulerResource;
+export default zhCN;
+//# sourceMappingURL=zh-CN.d.ts.map

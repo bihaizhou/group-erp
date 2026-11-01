@@ -1,0 +1,35 @@
+import type { CollectionDefinition, CollectionOperation, SchemaOperation, NamingOptions } from '../types.js';
+export interface CollectionCompilerOptions {
+    naming?: NamingOptions;
+}
+export interface CollectionCompilerContext {
+    collections?: Record<string, CollectionDefinition | undefined>;
+}
+export declare class CollectionCompiler {
+    private readonly naming;
+    private readonly namingOptions;
+    constructor(options?: CollectionCompilerOptions);
+    compile(operations: CollectionOperation[], context?: CollectionCompilerContext): SchemaOperation[];
+    effectiveTableName(name: string, definition?: CollectionDefinition): string;
+    effectiveColumnName(field: string, definition?: CollectionDefinition): string;
+    /** Preserve logical definitions with the names their schema operations use. */
+    resolveCollectionNames(name: string, definition: CollectionDefinition, context: CollectionCompilerContext): CollectionDefinition;
+    private compileOperation;
+    private compileTable;
+    private compileView;
+    private compileViewQuery;
+    private compileFilterExpression;
+    private compileFilterValue;
+    private compileAlterTable;
+    private normalizeCollectionDefinition;
+    private compileFieldColumns;
+    private compileImplicitRelationOperations;
+    private compileConstraint;
+    private relationForeignKeyConstraint;
+    private compileIndex;
+    private resolveColumn;
+    private columnName;
+    private relationUsesExistingField;
+    private namingFor;
+    private collectionWithFields;
+}

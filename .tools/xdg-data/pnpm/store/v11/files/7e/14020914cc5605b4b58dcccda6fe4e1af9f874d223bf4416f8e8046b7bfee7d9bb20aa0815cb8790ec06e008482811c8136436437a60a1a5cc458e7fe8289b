@@ -1,0 +1,25 @@
+import { z } from 'zod';
+import { type ApiKeyView, type CreateApiKeyRequest, type CreatedApiKey, type KeyScopeObject, type KeyScopeOptions, type KeyScopeInput } from '../../shared/scopes.js';
+/** A key's scope; which groups exist and what they offer is checked by `ApiKeyScopes.validate`. */
+export declare const KeyScopeInputSchema: z.ZodType<KeyScopeInput>;
+/** The body of `POST /apiKeys`. */
+export declare const CreateApiKeyInput: z.ZodType<CreateApiKeyRequest>;
+export declare const ApiKeyParams: z.ZodObject<{
+    keyId: z.ZodString;
+}>;
+export declare const ScopeGroupParams: z.ZodObject<{
+    group: z.ZodString;
+}>;
+/** The query of `GET /apiKeys/scopeObjects/:group`: a search, or the records to look up by id (`id` repeated). */
+export declare const ScopeObjectsQuery: z.ZodType<{
+    q?: string | undefined;
+    id?: string[] | undefined;
+}>;
+export declare const KeyScopeOptionsSchema: z.ZodType<KeyScopeOptions>;
+export declare const KeyScopeObjectSchema: z.ZodType<KeyScopeObject>;
+export declare const ApiKeyViewSchema: z.ZodType<ApiKeyView>;
+export declare const CreatedApiKeySchema: z.ZodType<CreatedApiKey>;
+export declare const ApiKeysListMeta: z.ZodType<{
+    total: number;
+}>;
+//# sourceMappingURL=schemas.d.ts.map

@@ -1,0 +1,11 @@
+import { type EnvironmentMapping } from '@nocobase/config/providers/env';
+/**
+ * The environment variables that set one connection of the `database` section, with paths relative to it:
+ * `<prefix>_DIALECT`, `_HOST`, `_PORT`, `_DATABASE`, `_USERNAME`, `_PASSWORD`, `_SSL` and, for SQLite, `_FILENAME`.
+ *
+ * The templates declare `DB_*` for `main` alone. An application that adds a connection declares its own with a
+ * prefix naming it, such as `connectionEnvironment('analytics', 'DB_ANALYTICS')`. None is required: the connection's
+ * code defaults or the configuration file supply whatever the environment leaves out.
+ */
+export declare function connectionEnvironment(connection: string, prefix?: string): Readonly<Record<string, EnvironmentMapping>>;
+//# sourceMappingURL=environment.d.ts.map

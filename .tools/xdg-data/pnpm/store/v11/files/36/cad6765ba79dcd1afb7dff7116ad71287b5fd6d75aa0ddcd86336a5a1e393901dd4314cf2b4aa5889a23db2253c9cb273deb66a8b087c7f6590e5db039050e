@@ -1,0 +1,58 @@
+import { type Job, type JobsOptions } from 'bullmq';
+import type { ResolvedRedisJobsConfig } from '../../config.js';
+import { type JobBackend, type JobRunner, type JobSubmission } from '../backend.js';
+import { type JobReceipt } from '../types.js';
+import type { JobsLogger } from '../../types.js';
+/** Immutable submission metadata stored by BullMQ, not execution-local state. */
+export interface RedisJobData {
+    readonly jobName: string;
+    readonly payload: unknown;
+    readonly enqueuedAt: number;
+}
+/** The public Queue surface this backend owns; narrow enough for typed doubles. */
+export interface RedisJobQueue {
+    add(name: string, data: RedisJobData, options: JobsOptions): Promise<{
+        readonly id?: string;
+    }>;
+    waitUntilReady(): Promise<unknown>;
+    close(): Promise<void>;
+    on(event: 'error', listener: (error: Error) => void): void;
+}
+/** Every method belongs to BullMQ's public Worker API. */
+export interface RedisJobWorker {
+    waitUntilReady(): Promise<unknown>;
+    cancelAllJobs(reason?: string): void;
+    close(): Promise<void>;
+    on(event: 'error', listener: (error: Error) => void): void;
+}
+export type RedisProcessingJob = Pick<Job<RedisJobData, void, string>, 'id' | 'data' | 'processedOn' | 'attemptsStarted' | 'moveToWait' | 'updateProgress'>;
+export type JobProcessor = (job: RedisProcessingJob, token: string | undefined, signal: AbortSignal | undefined) => Promise<void>;
+export interface RedisJobBackendFactories {
+    readonly queue: (config: ResolvedRedisJobsConfig) => RedisJobQueue;
+    readonly worker: (config: ResolvedRedisJobsConfig, processor: JobProcessor) => RedisJobWorker;
+}
+export declare const defaultRedisJobFactories: RedisJobBackendFactories;
+/**
+ * Uses only public BullMQ APIs. Graceful interruption returns unfinished work
+ * to waiting without spending a failure attempt; abrupt loss is recovered by
+ * BullMQ's lock expiry and stalled detection. Neither path rewrites payloads.
+ */
+export declare class RedisJobBackend implements JobBackend {
+    private readonly config;
+    private readonly logger;
+    private readonly factories;
+    private queue;
+    private worker;
+    private runner;
+    private stopping;
+    private closePromise;
+    constructor(config: ResolvedRedisJobsConfig, logger: JobsLogger | undefined, factories?: RedisJobBackendFactories);
+    open(): Promise<void>;
+    enqueue(submission: JobSubmission): Promise<JobReceipt>;
+    consume(runner: JobRunner): Promise<void>;
+    close(): Promise<void>;
+    private closeResources;
+    private process;
+    private report;
+}
+//# sourceMappingURL=backend.d.ts.map

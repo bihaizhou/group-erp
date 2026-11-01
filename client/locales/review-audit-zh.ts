@@ -1,0 +1,21 @@
+export const reviewAudit = {
+  title: '审批记录',
+  empty: '还没有审批记录',
+  round: '第 {{round}} 轮',
+  version: '单据版本',
+  ruleRevision: '审核规则版本 {{version}}',
+  createdAt: '发起时间',
+  decidedAt: '决定时间',
+  candidates: '候选审核人',
+  decidedBy: '决定人',
+  noCandidates: '暂无候选',
+  unavailable: '不可用',
+  states: {
+    pending: '待决定',
+    approved: '已批准',
+    returned: '已退回',
+    closed: '已关闭',
+    reassigned: '已重新匹配',
+    cancelled: '已结束',
+  },
+};

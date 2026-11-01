@@ -1,0 +1,12 @@
+import { type ReactElement } from 'react';
+export declare const MAIL_PAGE_SIZE = 20;
+export declare function MailPagination({ page, pageSize, total, hasNext, disabled, onPageChange, onPageSizeChange, }: {
+    readonly page: number;
+    readonly pageSize: number;
+    readonly total?: number;
+    readonly hasNext: boolean;
+    readonly disabled?: boolean;
+    readonly onPageChange: (page: number) => void;
+    readonly onPageSizeChange: (pageSize: number) => void;
+}): ReactElement;
+//# sourceMappingURL=mail-pagination.d.ts.map

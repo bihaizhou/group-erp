@@ -1,0 +1,17 @@
+import type { ScheduleRule } from '../validation.js';
+/**
+ * The first firing of a new rule, in epoch milliseconds, or `null` when the
+ * rule never fires. A cron rule fires at its first tick after
+ * `max(now, startDate)`, the way BullMQ computes it; an interval rule fires at
+ * `max(now, startDate)`; `immediately` fires now.
+ */
+export declare function firstFiring(rule: ScheduleRule, now: number, immediately: boolean): number | null;
+/**
+ * The firing after one planned for `scheduledAt`, once `fired` firings have
+ * started. A cron rule moves to its first tick after both the planned time and
+ * now, so firings missed while nothing ran collapse into the one that ran. An
+ * interval rule keeps its phase: planned time plus the interval, skipping the
+ * intervals that already passed.
+ */
+export declare function nextFiring(rule: ScheduleRule, scheduledAt: number, fired: number, now: number): number | null;
+//# sourceMappingURL=timing.d.ts.map

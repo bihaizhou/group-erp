@@ -1,0 +1,33 @@
+import type { Knex } from 'knex';
+import type { DatabaseCapabilities, SchemaAdapter } from '../../adapter.js';
+import type { DatabaseDriverRuntime } from '../../../database/runtime.js';
+import type { SchemaOperation } from '../../../collection/types.js';
+export declare class KnexSchemaAdapter implements SchemaAdapter {
+    private readonly knex;
+    readonly dialect?: string;
+    readonly capabilities?: DatabaseCapabilities;
+    readonly runtime?: DatabaseDriverRuntime;
+    constructor(knex: Knex, options?: {
+        dialect?: string;
+        capabilities?: DatabaseCapabilities;
+        runtime?: DatabaseDriverRuntime;
+    });
+    execute(operations: SchemaOperation[]): Promise<void>;
+    compile(operations: SchemaOperation[]): Promise<string[]>;
+    assertExecutable(operations: SchemaOperation[]): void;
+    private executeOperation;
+    private normalizeOracleAlter;
+    private toKnexBuilder;
+    private withSchema;
+    private hasTable;
+    private createTable;
+    private buildTable;
+    private buildTableAlterOperation;
+    private buildColumn;
+    private buildIndex;
+    private buildConstraint;
+    private createView;
+    private buildViewQuery;
+    private buildRawView;
+    private buildPredicate;
+}

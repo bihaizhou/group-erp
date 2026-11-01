@@ -1,0 +1,13 @@
+import type { AuthorizationRouteHandler } from '@nocobase/authorization/core';
+import { type DefaultAccessApi } from '@nocobase/authorization/default-access';
+import { type AuthorizationExtensionHost } from '@nocobase/app-plugin-authorization/server/extension';
+/** The settings item suffix, and the rule name stored grants refer to. */
+export declare const DEFAULT_ACCESS_RULE = "default-access";
+export declare const DEFAULT_ACCESS_SETTINGS: string;
+/** The route prefix under `/api/authorization`. */
+export declare const DEFAULT_ACCESS_PATH = "/defaultAccess";
+type DefaultAccessAdministrationApi = Omit<DefaultAccessApi, 'withTransaction'>;
+/** Every `/defaultAccess` route, gated by `settings:authorization.default-access`. */
+export declare function createDefaultAccessHandler(authz: AuthorizationExtensionHost, api: DefaultAccessAdministrationApi): AuthorizationRouteHandler;
+export {};
+//# sourceMappingURL=handler.d.ts.map

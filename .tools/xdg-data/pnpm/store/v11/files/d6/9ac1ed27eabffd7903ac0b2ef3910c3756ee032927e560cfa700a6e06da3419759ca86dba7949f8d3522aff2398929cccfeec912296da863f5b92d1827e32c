@@ -1,0 +1,302 @@
+import { normalizeAddress } from './serialization.js';
+import { completePushSubscription, fromAccountRow, fromPushSubscriptionRow, } from './mappers.js';
+export class MailPushStore {
+    database;
+    accounts;
+    constructor(database, accounts) {
+        this.database = database;
+        this.accounts = accounts;
+    }
+    async getPushSubscription(accountId) {
+        const row = await this.database
+            .query()
+            .selectFrom('mailPushSubscriptions')
+            .selectAll()
+            .where('accountId', '=', accountId)
+            .executeTakeFirst();
+        return row && completePushSubscription(row)
+            ? fromPushSubscriptionRow(row)
+            : undefined;
+    }
+    async findPushSubscription(provider, providerSubscriptionId) {
+        const row = await this.database
+            .query()
+            .selectFrom('mailPushSubscriptions')
+            .selectAll()
+            .where('providerType', '=', provider.type)
+            .where('providerName', '=', provider.name)
+            .where('providerSubscriptionId', '=', providerSubscriptionId)
+            .executeTakeFirst();
+        return row && completePushSubscription(row)
+            ? fromPushSubscriptionRow(row)
+            : undefined;
+    }
+    async findActiveAccountsForPush(provider, providerSubscriptionIds, accountAddresses) {
+        const normalizedAddresses = accountAddresses.map(normalizeAddress);
+        const accountIds = providerSubscriptionIds.length
+            ? await this.database
+                .query()
+                .selectFrom('mailPushSubscriptions')
+                .where('providerType', '=', provider.type)
+                .where('providerName', '=', provider.name)
+                .where('providerSubscriptionId', 'in', providerSubscriptionIds)
+                .pluck('accountId')
+            : [];
+        if (accountIds.length === 0 && normalizedAddresses.length === 0)
+            return [];
+        const rows = await this.database
+            .query()
+            .selectFrom('mailAccounts')
+            .selectAll()
+            .where('providerType', '=', provider.type)
+            .where('providerName', '=', provider.name)
+            .where('status', '=', 'active')
+            .where((builder) => builder.or([
+            ...(accountIds.length ? [builder.eb('id', 'in', accountIds)] : []),
+            ...(normalizedAddresses.length
+                ? [builder.eb('address', 'in', normalizedAddresses)]
+                : []),
+        ]))
+            .execute();
+        return rows.map(fromAccountRow);
+    }
+    async savePushSubscription(subscription, leaseToken) {
+        const query = this.database.query();
+        let update = query
+            .updateTable('mailPushSubscriptions')
+            .set({
+            providerType: subscription.provider.type,
+            providerName: subscription.provider.name,
+            providerSubscriptionId: subscription.providerSubscriptionId,
+            configurationFingerprint: subscription.configurationFingerprint,
+            renewAfter: subscription.renewAfter,
+            expiresAt: subscription.expiresAt,
+            leaseToken: null,
+            leaseExpiresAt: null,
+            updatedAt: subscription.updatedAt,
+        })
+            .where('accountId', '=', subscription.accountId);
+        if (leaseToken)
+            update = update.where('leaseToken', '=', leaseToken);
+        update = update.where((builder) => builder.exists(builder
+            .selectFrom('mailAccounts')
+            .select('id')
+            .whereRef('mailAccounts.id', '=', 'mailPushSubscriptions.accountId')
+            .where('mailAccounts.status', '=', 'active')));
+        const result = await update.execute();
+        if (result.updatedCount === 1)
+            return true;
+        if (leaseToken)
+            return false;
+        try {
+            await query
+                .insertInto('mailPushSubscriptions')
+                .values({
+                accountId: subscription.accountId,
+                providerType: subscription.provider.type,
+                providerName: subscription.provider.name,
+                providerSubscriptionId: subscription.providerSubscriptionId,
+                configurationFingerprint: subscription.configurationFingerprint,
+                renewAfter: subscription.renewAfter,
+                expiresAt: subscription.expiresAt,
+                updatedAt: subscription.updatedAt,
+            })
+                .execute();
+            return true;
+        }
+        catch {
+            return false;
+        }
+    }
+    async claimPushSubscriptionMaintenance(account, leaseToken, now, leaseExpiresAt) {
+        try {
+            await this.database
+                .query()
+                .insertInto('mailPushSubscriptions')
+                .values({
+                accountId: account.id,
+                providerType: account.provider.type,
+                providerName: account.provider.name,
+                leaseToken,
+                leaseExpiresAt,
+                updatedAt: now,
+            })
+                .execute();
+            const activeAccount = await this.accounts.getAccount(account.id);
+            if (activeAccount?.status === 'active')
+                return { leaseToken };
+            await this.database
+                .query()
+                .deleteFrom('mailPushSubscriptions')
+                .where('accountId', '=', account.id)
+                .where('leaseToken', '=', leaseToken)
+                .execute();
+            return undefined;
+        }
+        catch {
+            const result = await this.database
+                .query()
+                .updateTable('mailPushSubscriptions')
+                .set({ leaseToken, leaseExpiresAt, updatedAt: now })
+                .where('accountId', '=', account.id)
+                .where((builder) => builder.or([
+                builder.eb('leaseToken', 'is', null),
+                builder.eb('leaseExpiresAt', '<=', now),
+            ]))
+                .execute();
+            if (result.updatedCount !== 1)
+                return undefined;
+            const row = await this.database
+                .query()
+                .selectFrom('mailPushSubscriptions')
+                .selectAll()
+                .where('accountId', '=', account.id)
+                .where('leaseToken', '=', leaseToken)
+                .executeTakeFirst();
+            const activeAccount = await this.accounts.getAccount(account.id);
+            if (activeAccount?.status !== 'active') {
+                if (row && completePushSubscription(row)) {
+                    await this.releasePushSubscriptionMaintenance(account.id, leaseToken);
+                }
+                else {
+                    await this.database
+                        .query()
+                        .deleteFrom('mailPushSubscriptions')
+                        .where('accountId', '=', account.id)
+                        .where('leaseToken', '=', leaseToken)
+                        .execute();
+                }
+                return undefined;
+            }
+            return row
+                ? {
+                    leaseToken,
+                    subscription: completePushSubscription(row)
+                        ? fromPushSubscriptionRow(row)
+                        : undefined,
+                }
+                : undefined;
+        }
+    }
+    async releasePushSubscriptionMaintenance(accountId, leaseToken) {
+        await this.database
+            .query()
+            .updateTable('mailPushSubscriptions')
+            .set({ leaseToken: null, leaseExpiresAt: null })
+            .where('accountId', '=', accountId)
+            .where('leaseToken', '=', leaseToken)
+            .execute();
+    }
+    async renewPushSubscriptionMaintenance(accountId, leaseToken, leaseExpiresAt) {
+        const result = await this.database
+            .query()
+            .updateTable('mailPushSubscriptions')
+            .set({ leaseExpiresAt })
+            .where('accountId', '=', accountId)
+            .where('leaseToken', '=', leaseToken)
+            .execute();
+        return result.updatedCount === 1;
+    }
+    async markPushSubscriptionReplacementNeeded(accountId, leaseToken, updatedAt) {
+        const result = await this.database
+            .query()
+            .updateTable('mailPushSubscriptions')
+            .set({
+            providerSubscriptionId: null,
+            configurationFingerprint: null,
+            renewAfter: null,
+            expiresAt: null,
+            updatedAt,
+        })
+            .where('accountId', '=', accountId)
+            .where('leaseToken', '=', leaseToken)
+            .execute();
+        return result.updatedCount === 1;
+    }
+    async deletePushSubscription(accountId) {
+        const result = await this.database
+            .query()
+            .deleteFrom('mailPushSubscriptions')
+            .where('accountId', '=', accountId)
+            .execute();
+        return result.deletedCount === 1;
+    }
+    async markPushSyncPending(accountId, requestToken) {
+        const requestedAt = new Date().toISOString();
+        const updated = await this.database
+            .query()
+            .updateTable('mailPushPending')
+            .set({ requestToken, requestedAt })
+            .where('accountId', '=', accountId)
+            .execute();
+        if (updated.updatedCount === 1)
+            return;
+        try {
+            await this.database
+                .query()
+                .insertInto('mailPushPending')
+                .values({ accountId, requestToken, requestedAt })
+                .execute();
+        }
+        catch (error) {
+            const raced = await this.database
+                .query()
+                .updateTable('mailPushPending')
+                .set({ requestToken, requestedAt })
+                .where('accountId', '=', accountId)
+                .execute();
+            if (raced.updatedCount !== 1)
+                throw error;
+        }
+    }
+    async markPushSyncPendingBatch(accountIds, requestToken) {
+        const unique = [...new Set(accountIds)];
+        if (unique.length === 0)
+            return;
+        const requestedAt = new Date().toISOString();
+        let lastError;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+            try {
+                await this.database.transaction(async (connection) => {
+                    const existingIds = await connection.query
+                        .selectFrom('mailPushPending')
+                        .where('accountId', 'in', unique)
+                        .pluck('accountId');
+                    if (existingIds.length > 0) {
+                        await connection.query
+                            .updateTable('mailPushPending')
+                            .set({ requestToken, requestedAt })
+                            .where('accountId', 'in', existingIds)
+                            .execute();
+                    }
+                    const existing = new Set(existingIds);
+                    const missing = unique.filter((accountId) => !existing.has(accountId));
+                    if (missing.length === 0)
+                        return;
+                    await connection.query
+                        .insertInto('mailPushPending')
+                        .values(missing.map((accountId) => ({
+                        accountId,
+                        requestToken,
+                        requestedAt,
+                    })))
+                        .execute();
+                });
+                return;
+            }
+            catch (error) {
+                lastError = error;
+            }
+        }
+        throw lastError;
+    }
+    async clearPushSyncPending(accountId, requestToken) {
+        await this.database
+            .query()
+            .deleteFrom('mailPushPending')
+            .where('accountId', '=', accountId)
+            .where('requestToken', '=', requestToken)
+            .execute();
+    }
+}
+//# sourceMappingURL=push.js.map

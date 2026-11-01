@@ -1,0 +1,16 @@
+import type { RangeRequest } from './types.js';
+/**
+ * Returns true if the range has at least one bound defined.
+ * Guards against empty range objects being treated as ranged reads.
+ */
+export declare function isRangeRequest(range?: RangeRequest): range is RangeRequest;
+/**
+ * Validates the syntax of a range request. Checks for negative values,
+ * non-integers, and start > end. Should be called before any I/O.
+ */
+export declare function validateRangeRequest(key: string, range: RangeRequest): void;
+/**
+ * Validates that the range falls within the known content length.
+ * Should be called after a preflight stat or metadata fetch.
+ */
+export declare function validateRangeSatisfiable(key: string, range: RangeRequest, contentLength: number): void;

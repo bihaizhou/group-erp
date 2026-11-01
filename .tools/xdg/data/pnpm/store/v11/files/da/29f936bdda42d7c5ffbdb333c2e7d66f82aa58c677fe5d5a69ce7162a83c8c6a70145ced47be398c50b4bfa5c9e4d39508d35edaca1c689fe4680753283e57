@@ -1,0 +1,92 @@
+/**
+ * How many finished jobs BullMQ keeps: `true` removes them at once, a number
+ * keeps that many, and `{ count, age }` bounds by count and by age in seconds.
+ */
+export type JobsRetentionPolicy = boolean | number | {
+    readonly count?: number;
+    readonly age?: number;
+};
+/**
+ * Redis connection options handed to BullMQ as they are. They are plain
+ * options, never a client instance: BullMQ owns every connection it opens.
+ */
+export interface JobsRedisConnectionOptions {
+    readonly host?: string;
+    readonly port?: number;
+    readonly db?: number;
+    readonly username?: string;
+    readonly password?: string;
+    readonly url?: string;
+    readonly tls?: boolean | Readonly<Record<string, unknown>>;
+    readonly [option: string]: unknown;
+}
+interface JobsAdapterConfigBase {
+    /** Isolates applications sharing a backend. Defaults to the application name. */
+    readonly namespace?: string;
+    /** Jobs one instance executes at the same time. Defaults to `1`. */
+    readonly concurrency?: number;
+    /** Tries per firing, the first included. Defaults to `1`. */
+    readonly attempts?: number;
+}
+export interface RedisJobsAdapterConfig extends JobsAdapterConfigBase {
+    readonly adapter: 'redis';
+    readonly connection: JobsRedisConnectionOptions;
+    readonly removeOnComplete?: JobsRetentionPolicy;
+    readonly removeOnFail?: JobsRetentionPolicy;
+}
+export interface MemoryJobsAdapterConfig extends JobsAdapterConfigBase {
+    readonly adapter: 'memory';
+    readonly persistence?: {
+        /** Directory holding the state files. Defaults to the application storage. */
+        readonly path?: string;
+    };
+}
+export type JobsAdapterConfig = RedisJobsAdapterConfig | MemoryJobsAdapterConfig;
+/**
+ * The `jobs` configuration section: `default` names the configuration used
+ * when a consumer names none or an unknown one, and every other key defines
+ * one configuration.
+ */
+export interface JobsConfig {
+    readonly default?: string;
+    readonly [name: string]: JobsAdapterConfig | string | undefined;
+}
+interface ResolvedJobsConfigBase {
+    /** The configuration key, or {@link BUILT_IN_MEMORY_KEY}. */
+    readonly key: string;
+    /** Whether no configuration applied and the built-in memory one was used. */
+    readonly builtIn: boolean;
+    readonly scope: string;
+    readonly namespace: string;
+    readonly concurrency: number;
+    readonly attempts: number;
+}
+export interface ResolvedRedisJobsConfig extends ResolvedJobsConfigBase {
+    readonly adapter: 'redis';
+    readonly connection: JobsRedisConnectionOptions;
+    readonly removeOnComplete: JobsRetentionPolicy;
+    readonly removeOnFail: JobsRetentionPolicy;
+}
+export interface ResolvedMemoryJobsConfig extends ResolvedJobsConfigBase {
+    readonly adapter: 'memory';
+    readonly persistencePath: string;
+}
+export type ResolvedJobsConfig = ResolvedRedisJobsConfig | ResolvedMemoryJobsConfig;
+/** The key under which executors on the built-in memory configuration are tracked. */
+export declare const BUILT_IN_MEMORY_KEY: string;
+export interface JobsConfigSelection {
+    readonly key: string;
+    readonly config: JobsAdapterConfig | undefined;
+}
+/**
+ * Picks the configuration for `name`: the named key, then `default`, then
+ * nothing — which the caller turns into the built-in memory configuration.
+ */
+export declare function selectJobsConfig(config: JobsConfig | undefined, name: string | undefined): JobsConfigSelection;
+export interface JobsConfigDefaults {
+    readonly appName: string;
+    readonly storagePath: string;
+}
+export declare function resolveJobsConfig(selection: JobsConfigSelection, scope: string, defaults: JobsConfigDefaults): ResolvedJobsConfig;
+export {};
+//# sourceMappingURL=config.d.ts.map

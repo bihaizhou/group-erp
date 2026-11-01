@@ -1,0 +1,14 @@
+import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+import type { ComponentProps, ReactElement } from 'react';
+export declare function Dialog(props: DialogPrimitive.Root.Props): ReactElement;
+export declare function DialogPortal(props: DialogPrimitive.Portal.Props): ReactElement;
+export declare function DialogBackdrop(props: DialogPrimitive.Backdrop.Props): ReactElement;
+export declare function DialogPopup({ className, ...props }: DialogPrimitive.Popup.Props): ReactElement;
+export declare function DialogContent({ className, children, closeLabel, ...props }: DialogPrimitive.Popup.Props & {
+    readonly closeLabel?: string;
+}): ReactElement;
+export declare function DialogHeader({ className, ...props }: ComponentProps<'div'>): ReactElement;
+export declare function DialogFooter({ className, ...props }: ComponentProps<'div'>): ReactElement;
+export declare function DialogTitle(props: DialogPrimitive.Title.Props): ReactElement;
+export declare function DialogDescription(props: DialogPrimitive.Description.Props): ReactElement;
+//# sourceMappingURL=dialog.d.ts.map

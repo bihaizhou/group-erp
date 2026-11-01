@@ -1,0 +1,7 @@
+export { default } from './plugin.js';
+export { DEFAULT_MAIL_CONFIG, mailEnvironmentMappings, mailConfig, resolveMailConfig, } from './config.js';
+export { mailCredentialVaultToken, mailProviderRegistryToken, mailServiceToken, } from './tokens.js';
+export { createMailProviderRegistry } from './registry.js';
+export { defineMailProviderDefinition } from './contracts/provider.js';
+export { MAIL_PROVIDER_CAPABILITIES, MAIL_PROVIDER_ERROR_CATEGORIES, } from '../shared/mail.js';
+//# sourceMappingURL=index.js.map

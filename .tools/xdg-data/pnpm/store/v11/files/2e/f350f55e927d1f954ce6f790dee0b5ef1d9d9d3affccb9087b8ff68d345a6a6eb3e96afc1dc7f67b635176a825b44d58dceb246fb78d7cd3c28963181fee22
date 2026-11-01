@@ -1,0 +1,8 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { LoaderCircle, Plus, Save } from 'lucide-react';
+import { Button } from './ui/button.js';
+export function MailManagementFormActions({ editing, busy, disabled, submitLabel, savingLabel, cancelLabel, onSubmit, onCancel, }) {
+    const SubmitIcon = busy ? LoaderCircle : editing ? Save : Plus;
+    return (_jsxs("div", { className: 'flex flex-wrap items-center justify-end gap-2', children: [_jsx(Button, { disabled: busy, onClick: onCancel, type: 'button', variant: 'outline', children: cancelLabel }), _jsxs(Button, { disabled: busy || disabled, onClick: onSubmit, type: 'button', children: [_jsx(SubmitIcon, { "aria-hidden": 'true', className: busy ? 'size-4 animate-spin' : 'size-4' }), busy ? savingLabel : submitLabel] })] }));
+}
+//# sourceMappingURL=mail-management-form-actions.js.map

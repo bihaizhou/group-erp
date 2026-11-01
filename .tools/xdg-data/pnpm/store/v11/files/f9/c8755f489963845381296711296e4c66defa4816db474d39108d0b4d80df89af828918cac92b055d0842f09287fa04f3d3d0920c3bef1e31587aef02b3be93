@@ -1,0 +1,15 @@
+import type { LocaleResource } from '@nocobase/i18n';
+declare const enUS: {
+    invitationEmail: {
+        subject: string;
+        intro: string;
+        summary: string;
+        separator: string;
+        action: string;
+        validity: string;
+        fallback: string;
+    };
+};
+export type UsersResource = LocaleResource<typeof enUS>;
+export default enUS;
+//# sourceMappingURL=en-US.d.ts.map

@@ -1,0 +1,19 @@
+import type { NamingOptions } from '../types.js';
+import type { CollectionNamingIdentity, CollectionResolutionContext } from '../resolver/types.js';
+import type { CollectionMetadataStore, CollectionMetadataSummary } from '../../metadata/document-store.js';
+import type { PhysicalCollectionIdentifier } from '../../schema/inspector/types.js';
+export interface IndexedCollectionIdentity extends CollectionNamingIdentity {
+    readonly tableName: string;
+    readonly metadata?: CollectionMetadataSummary;
+}
+export declare class CollectionNamingIndex implements CollectionResolutionContext {
+    private readonly naming;
+    private readonly byName;
+    private readonly byTableName;
+    private constructor();
+    static create(store: CollectionMetadataStore, naming?: NamingOptions, overrides?: readonly CollectionMetadataSummary[]): Promise<CollectionNamingIndex>;
+    resolveLogicalCollection(name: string): IndexedCollectionIdentity;
+    resolvePhysicalCollection(identity: PhysicalCollectionIdentifier): CollectionNamingIdentity | undefined;
+    physicalTableNamePrefixes(requested?: readonly string[]): readonly string[];
+    metadata(name: string): CollectionMetadataSummary | undefined;
+}

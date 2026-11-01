@@ -1,0 +1,6 @@
+import type { LocalesContribution, LocalesModule } from './types.js';
+/**
+ * Resolves a `locales` contribution to its module, importing it first when it was given as a function.
+ */
+export declare function resolveLocalesContribution(contribution: LocalesContribution): Promise<LocalesModule>;
+//# sourceMappingURL=contribution.d.ts.map

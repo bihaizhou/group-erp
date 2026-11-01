@@ -1,0 +1,31 @@
+import type { ApiClient } from '@nocobase/app-client';
+import type { CollectionDetail, CollectionEntry, CollectionListResult, ConnectionListResult, ListCollectionsQuery, PhysicalCollectionDetail } from '../server/types.js';
+export type { CollectionDetail, CollectionEntry, CollectionListResult, ConnectionListResult, ConnectionSummary, PhysicalCollectionDetail, } from '../server/types.js';
+/** Typed reads against the plugin's endpoints. Every call is a GET; there is nothing to write. */
+export declare class DatabaseExplorerClient {
+    private readonly api;
+    constructor(api: ApiClient);
+    /** Every configured connection, with the default one named. */
+    connections(): Promise<ConnectionListResult>;
+    collections(connection: string, query?: ListCollectionsQuery): Promise<CollectionListResult>;
+    /**
+     * Reads every collection on a connection, following the cursor to the end.
+     *
+     * The page filters by name in the browser, which is only honest if it is
+     * filtering the whole set: stopping at the first page would hide collections
+     * a connection genuinely has and let a search come back empty for one of
+     * them. `maxPages` bounds the walk so a connection that keeps issuing
+     * tokens cannot hold the request open forever; the default reads up to
+     * 10,000 collections.
+     */
+    allCollections(connection: string, maxPages?: number): Promise<{
+        readonly items: readonly CollectionEntry[];
+        readonly truncated: boolean;
+    }>;
+    collection(connection: string, collection: string): Promise<CollectionDetail>;
+    physicalCollection(connection: string, collection: string): Promise<PhysicalCollectionDetail>;
+    private connectionPath;
+    private collectionPath;
+    private get;
+}
+//# sourceMappingURL=database-explorer-client.d.ts.map

@@ -1,0 +1,2 @@
+export type { CachingConfig } from '@nocobase/caching';
+//# sourceMappingURL=config.d.ts.map

@@ -1,0 +1,12 @@
+interface MailTablePage<T> {
+    readonly rows: readonly T[];
+    readonly page: number;
+    readonly pageSize: number;
+    readonly total: number;
+    readonly hasNext: boolean;
+    readonly onPageChange: (page: number) => void;
+    readonly onPageSizeChange: (pageSize: number) => void;
+}
+export declare function useMailTablePage<T>(rows: readonly T[]): MailTablePage<T>;
+export {};
+//# sourceMappingURL=use-mail-table-page.d.ts.map

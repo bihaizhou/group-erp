@@ -1,0 +1,25 @@
+/** Builds Permission Set data without writing to a store. */
+export class PermissionSetBuilder {
+    definition;
+    constructor(definition) {
+        this.definition = structuredClone(definition);
+    }
+    title(title) {
+        return new PermissionSetBuilder({ ...this.definition, title });
+    }
+    grant(...grants) {
+        return new PermissionSetBuilder({
+            ...this.definition,
+            grants: [...this.definition.grants, ...grants],
+        });
+    }
+    build() {
+        return structuredClone(this.definition);
+    }
+}
+export function definePermissionSet(key) {
+    if (!key)
+        throw new TypeError('A Permission Set needs a key');
+    return new PermissionSetBuilder({ key, grants: [] });
+}
+//# sourceMappingURL=builder.js.map

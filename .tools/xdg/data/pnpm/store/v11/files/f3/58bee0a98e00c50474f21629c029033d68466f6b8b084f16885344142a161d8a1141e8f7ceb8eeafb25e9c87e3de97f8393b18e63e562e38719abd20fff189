@@ -1,0 +1,25 @@
+import { type IncomingMessage } from 'node:http';
+import { Duplex } from 'node:stream';
+export interface NodeServerProxyOptions {
+    readonly match: (pathname: string) => boolean;
+    /** Resolve the current upstream origin without starting it. Null means unavailable. */
+    readonly target: () => URL | null | Promise<URL | null>;
+}
+/** A standalone listener's proxy; application routes never pass through this layer. */
+export declare class NodeServerProxy {
+    private readonly options;
+    private readonly requests;
+    private readonly webSockets;
+    private closed;
+    private upgradesClosed;
+    constructor(options: NodeServerProxyOptions);
+    matches(pathname: string): boolean;
+    fetch(request: Request): Promise<Response>;
+    upgrade(req: IncomingMessage, socket: Duplex, head: Buffer): Promise<void>;
+    /** Stop upgraded connections before draining HTTP; Node does not close them for us. */
+    closeWebSockets(): void;
+    close(): void;
+    private request;
+    private resolveTarget;
+}
+//# sourceMappingURL=proxy.d.ts.map

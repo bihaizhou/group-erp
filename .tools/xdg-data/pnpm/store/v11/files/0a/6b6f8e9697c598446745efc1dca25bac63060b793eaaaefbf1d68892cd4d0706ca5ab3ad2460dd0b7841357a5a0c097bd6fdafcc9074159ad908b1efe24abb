@@ -1,0 +1,28 @@
+function logCompletionFailure() {
+    // Integration errors may contain message content; never log the error object.
+    console.error('Mail completion callback failed. Handle integration errors in onComplete or onCompletionError.');
+}
+export function reportComposerCompletionError(handler, error) {
+    if (!handler) {
+        logCompletionFailure();
+        return;
+    }
+    try {
+        void Promise.resolve(handler(error)).catch(logCompletionFailure);
+    }
+    catch {
+        logCompletionFailure();
+    }
+}
+/** Notify once without awaiting application work or letting it enter the send error boundary. */
+export function notifyComposerCompletion(callback, handler, ...args) {
+    try {
+        void Promise.resolve(callback(...args)).catch((error) => {
+            reportComposerCompletionError(handler, error);
+        });
+    }
+    catch (error) {
+        reportComposerCompletionError(handler, error);
+    }
+}
+//# sourceMappingURL=mail-composer-completion.js.map

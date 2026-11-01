@@ -1,0 +1,448 @@
+import { CollectionBuilder } from '../../../collection/builder/builder.js';
+import { CollectionRegistry } from '../../../collection/registry/registry.js';
+import { RegistryMetadataDocumentValidator } from '../../../collection/registry/metadata-validator.js';
+import { CollectionMetadataService } from '../../../metadata/service.js';
+import { DatabaseCollectionMetadataStore } from '../../../metadata/internal/database-document-store.js';
+import { TransactionCollectionMetadataStore } from '../../../metadata/internal/transaction-document-store.js';
+import { DefaultNamingStrategy } from '../../../naming/default-strategy.js';
+import { KnexQueryAdapter } from '../../../query/internal/knex/adapter.js';
+import { KnexRepositoryExecutionAdapter } from '../../../repository/internal/knex-execution-adapter.js';
+import { DefaultRepository } from '../../../repository/repository.js';
+import { bindPolicies } from './policy-bound-connection.js';
+import { RepositoryListenerConnection } from './listener-connection.js';
+import { RepositoryError } from '../../../repository/errors.js';
+import { RepositoryMutationRegistry } from '../../../repository/internal/events/registry.js';
+import { explainStrategy } from '../../../repository/internal/events/strategy.js';
+import { registerUnobservedRepositories } from '../../../repository/internal/events/unobserved.js';
+import { KnexSchemaAdapter } from '../../../schema/internal/knex/adapter.js';
+import { resolveDatabaseCapabilities } from '../../capabilities.js';
+import { isNocoBaseInternalTable } from '../internal-tables.js';
+import { attachDatabaseDriverRuntime, createDefaultDatabaseDriverRuntime, } from '../../runtime.js';
+import { SchemaManagementSchemaAdapter } from '../../schema-management.js';
+import { runAfterCommitNow, TransactionCallbacks, } from '../transaction-callbacks.js';
+import { createKnexClient } from './client.js';
+import { resolveKnexConnectionConfig, } from './config.js';
+/** How deep `inTransaction` listener writes may nest unless the connection says otherwise. */
+const defaultRepositoryEventMaxDepth = 8;
+export class KnexDatabaseConnection {
+    name;
+    sourceConfig;
+    transactionInvalidations;
+    dialectDriver;
+    transactionCallbacks;
+    mutationRegistry;
+    rootConnection;
+    driver;
+    dialect;
+    schemaManagement;
+    capabilities;
+    runtime;
+    schema;
+    schemaInspector;
+    builder;
+    collections;
+    collectionMetadata;
+    query;
+    knexInstance;
+    config;
+    metadataStore;
+    constructor(name, sourceConfig, metadataStore, knexInstance, transactionInvalidations = undefined, dialectDriver = undefined, transactionCallbacks = undefined, 
+    /** Owned by the root connection and shared with all its transactions. */
+    mutationRegistry = new RepositoryMutationRegistry(), 
+    /** The connection this transaction connection was opened from; none on the root. */
+    rootConnection = undefined) {
+        this.name = name;
+        this.sourceConfig = sourceConfig;
+        this.transactionInvalidations = transactionInvalidations;
+        this.dialectDriver = dialectDriver;
+        this.transactionCallbacks = transactionCallbacks;
+        this.mutationRegistry = mutationRegistry;
+        this.rootConnection = rootConnection;
+        const maxDepth = sourceConfig.repositoryEventMaxDepth;
+        if (maxDepth !== undefined &&
+            (!Number.isInteger(maxDepth) || maxDepth < 0)) {
+            throw new TypeError(`Connection "${name}" repositoryEventMaxDepth must be a non-negative integer.`);
+        }
+        this.knexInstance = knexInstance;
+        registerUnobservedRepositories(this, (collection) => this.createRepository(collection, undefined, { observed: false }));
+        this.config = resolveKnexConnectionConfig(sourceConfig, dialectDriver);
+        this.metadataStore =
+            metadataStore ??
+                new DatabaseCollectionMetadataStore({
+                    resolveClient: () => this.resolveClient(),
+                });
+        this.driver = this.config.driver;
+        this.dialect = this.config.dialect;
+        this.schemaManagement = this.config.schemaManagement;
+        this.capabilities = resolveDatabaseCapabilities({
+            ...dialectDriver?.capabilities,
+            ...this.config.capabilities,
+        });
+        const runtimeContext = {
+            dialect: this.dialect,
+            sourceConfig: this.sourceConfig,
+            config: this.config,
+            capabilities: this.capabilities,
+            getClient: () => this.getClient(),
+            resolveClient: () => this.resolveClient(),
+        };
+        this.runtime = dialectDriver?.createRuntime
+            ? dialectDriver.createRuntime(runtimeContext)
+            : createDefaultDatabaseDriverRuntime(runtimeContext);
+        if (this.runtime.dialect !== this.dialect) {
+            throw new Error(`Database driver runtime for dialect "${this.dialect}" resolved to "${this.runtime.dialect}".`);
+        }
+        if (this.knexInstance) {
+            attachDatabaseDriverRuntime(this.knexInstance, this.runtime);
+        }
+        if (!dialectDriver?.createSchemaInspector) {
+            throw new Error(`Database driver for dialect "${this.dialect}" must create a schema inspector.`);
+        }
+        this.schemaInspector = dialectDriver.createSchemaInspector({
+            connectionName: this.name,
+            config: this.config,
+            resolveClient: () => this.resolveClient(),
+        });
+        this.schema = new SchemaManagementSchemaAdapter(new LazySchemaAdapter(() => this.resolveClient(), (client) => new KnexSchemaAdapter(client, {
+            dialect: this.dialect,
+            capabilities: this.capabilities,
+            runtime: this.runtime,
+        }), this.dialect, this.capabilities), {
+            connectionName: this.name,
+            mode: this.schemaManagement,
+        });
+        this.query = new KnexQueryAdapter(() => this.getClient(), new DefaultNamingStrategy({
+            underscored: this.config.naming?.underscored,
+            tablePrefix: this.config.naming?.tablePrefix,
+        }), (name) => collections.getForQuery(name), this.runtime);
+        const collections = new CollectionRegistry({
+            inspector: this.schemaInspector,
+            metadataStore: this.metadataStore,
+            naming: this.config.naming,
+            isInternalPhysicalCollection: (identity) => isNocoBaseInternalTable(identity.tableName) ||
+                (this.config.internalTables?.includes(identity.tableName) ?? false) ||
+                (this.metadataStore instanceof DatabaseCollectionMetadataStore &&
+                    this.metadataStore.isInternalPhysicalCollection(identity)),
+        });
+        this.collections = collections;
+        const invalidator = transactionInvalidations
+            ? new TransactionCollectionInvalidator(collections, transactionInvalidations)
+            : collections;
+        this.collectionMetadata = new CollectionMetadataService({
+            store: this.metadataStore,
+            validator: new RegistryMetadataDocumentValidator({
+                inspector: this.schemaInspector,
+                metadataStore: this.metadataStore,
+                collections,
+                naming: this.config.naming,
+                deferRelationValidation: Boolean(transactionInvalidations),
+            }),
+            invalidator,
+            onInvalidationError: (error) => this.reportCollectionMetadataInvalidationError(error),
+        });
+        this.builder = new CollectionBuilder({
+            schemaAdapter: this.schema,
+            collections,
+            collectionMetadata: this.collectionMetadata,
+            schemaInvalidator: invalidator,
+            naming: this.config.naming,
+        });
+    }
+    async connect() {
+        this.getClient();
+        await this.collections.initialize();
+        return this;
+    }
+    async client() {
+        return this.resolveClient();
+    }
+    repository(collection) {
+        return this.createRepository(collection, undefined);
+    }
+    /**
+     * Build a Repository with a pre-normalized Policy already attached. Used by
+     * {@link PolicyBoundConnection} so binding does not have to re-normalize on
+     * every call.
+     */
+    createRepository(collection, policy, events = {}) {
+        return new DefaultRepository({
+            collection,
+            collections: this.collections,
+            policy,
+            adapter: new KnexRepositoryExecutionAdapter(() => this.getClient(), (name) => this.collections.get(name), this.runtime, events.observed === false
+                ? undefined
+                : this.repositoryEvents(events.parent)),
+        });
+    }
+    onRepositoryMutation(options, listeners) {
+        return this.mutationRegistry.subscribe(options, listeners);
+    }
+    async explainRepositoryEvents(options) {
+        const collection = await this.collections.get(options.collection);
+        if (!collection) {
+            throw new RepositoryError('COLLECTION_NOT_FOUND', `Collection "${options.collection}" was not found.`, { collection: options.collection });
+        }
+        return explainStrategy(collection, options.operation, this.mutationRegistry.matching(new Set([collection.name])), this.runtime);
+    }
+    /**
+     * What the execution adapter of a Repository on this connection needs to
+     * deliver events. Its implicit transactions go through `transaction()`, so
+     * listeners get a transaction connection and delivery rides on layer 1.
+     */
+    repositoryEvents(parent) {
+        return {
+            registry: this.mutationRegistry,
+            connectionName: this.name,
+            callbacks: this.transactionCallbacks,
+            parent,
+            maxDepth: this.sourceConfig.repositoryEventMaxDepth ??
+                defaultRepositoryEventMaxDepth,
+            transaction: (execute) => this.transaction((connection) => {
+                const transaction = connection;
+                return execute(transaction.repositoryEvents(parent), transaction.getClient());
+            }),
+            listenerConnection: (operation) => new RepositoryListenerConnection(this, operation),
+            afterCommitConnection: (operation) => new RepositoryListenerConnection(this.rootConnection ?? this, operation),
+            reportError: (error, context) => this.reportRepositoryEventError(error, context),
+        };
+    }
+    withPolicies(policies, principal) {
+        return bindPolicies(this, policies, principal);
+    }
+    async disconnect() {
+        this.collections.invalidate();
+        const client = this.knexInstance;
+        if (!client) {
+            return;
+        }
+        this.knexInstance = undefined;
+        await client.destroy();
+    }
+    async reconnect() {
+        await this.disconnect();
+        await this.connect();
+        return this;
+    }
+    async resetManagedSchema() {
+        if (this.schemaManagement === 'external') {
+            throw new Error(`Connection "${this.name}" uses external schema management and cannot be reset.`);
+        }
+        if (!this.dialectDriver?.resetManagedSchema) {
+            throw new Error(`Database driver for dialect "${this.dialect}" does not support managed schema reset.`);
+        }
+        await this.dialectDriver.resetManagedSchema({
+            connectionName: this.name,
+            config: this.sourceConfig,
+            resolveClient: () => this.resolveClient(),
+        });
+        if (this.metadataStore instanceof DatabaseCollectionMetadataStore) {
+            await this.metadataStore.reinitialize();
+        }
+        else {
+            await this.metadataStore.initialize();
+        }
+        this.collections.invalidate();
+    }
+    afterCommit(callback) {
+        if (this.transactionCallbacks) {
+            this.transactionCallbacks.afterCommit(callback);
+            return;
+        }
+        runAfterCommitNow(callback, (error, phase) => this.reportTransactionCallbackError(error, phase));
+    }
+    afterRollback(callback) {
+        this.transactionCallbacks?.afterRollback(callback);
+    }
+    async transaction(fn) {
+        const client = await this.resolveClient();
+        // Prepare bookkeeping and capture cache eligibility before BEGIN. A
+        // savepoint inherits the enclosing transaction's invalidation generation.
+        const bindMetadataTransaction = this.metadataStore instanceof DatabaseCollectionMetadataStore
+            ? await this.metadataStore.prepareTransaction()
+            : undefined;
+        let stagedMetadata;
+        const invalidations = new TransactionInvalidationCollector();
+        // A transaction opened on a transaction connection is a savepoint; its
+        // callbacks are scoped to it and handed to the enclosing transaction.
+        const callbacks = new TransactionCallbacks(this.transactionCallbacks);
+        const report = (error, phase) => this.reportTransactionCallbackError(error, phase);
+        let result;
+        try {
+            result = await client.transaction(async (trx) => {
+                const metadataStore = bindMetadataTransaction
+                    ? bindMetadataTransaction(trx)
+                    : (stagedMetadata = new TransactionCollectionMetadataStore(this.metadataStore));
+                const connection = new KnexDatabaseConnection(this.name, this.sourceConfig, metadataStore, trx, invalidations, this.dialectDriver, callbacks, this.mutationRegistry, this.rootConnection ?? this);
+                const transactionResult = await fn(connection);
+                await invalidations.validateRelations(connection.collections);
+                await stagedMetadata?.commit();
+                return transactionResult;
+            });
+        }
+        catch (error) {
+            await stagedMetadata?.rollbackCommitted();
+            invalidations.clear();
+            await callbacks.rollback(error, report);
+            throw error;
+        }
+        // A savepoint's metadata changes are only durable once the enclosing
+        // transaction commits, so the enclosing transaction has to publish them to
+        // the root Registry as well, not just this transaction's own.
+        this.transactionInvalidations?.absorb(invalidations);
+        invalidations.apply(this.collections);
+        if (callbacks.parent) {
+            callbacks.release();
+        }
+        else {
+            // After the invalidations, so a callback reads the committed schema.
+            await callbacks.commit(report);
+        }
+        return result;
+    }
+    getClient() {
+        if (!this.knexInstance) {
+            this.knexInstance = createKnexClient(this.config);
+            attachDatabaseDriverRuntime(this.knexInstance, this.runtime);
+        }
+        return this.knexInstance;
+    }
+    async resolveClient() {
+        return this.getClient();
+    }
+    reportTransactionCallbackError(error, phase) {
+        const handler = this.sourceConfig.onTransactionCallbackError;
+        if (handler) {
+            try {
+                handler(error, phase);
+                return;
+            }
+            catch (handlerError) {
+                // A failing handler must not undo the guarantee it reports on: the
+                // transaction outcome stays as it is and the next callbacks still run.
+                emitCodedWarning('TRANSACTION_CALLBACK_FAILED', 'phase: handler', handlerError);
+            }
+        }
+        emitCodedWarning('TRANSACTION_CALLBACK_FAILED', `phase: ${phase}`, error);
+    }
+    reportRepositoryEventError(error, context) {
+        if (this.sourceConfig.onRepositoryEventError) {
+            try {
+                this.sourceConfig.onRepositoryEventError(error, context);
+                return;
+            }
+            catch (reporterError) {
+                // A failing reporter must not turn a committed write into an error;
+                // both failures still surface as one warning.
+                error = new AggregateError([error, reporterError], 'onRepositoryEventError threw while reporting a listener failure.');
+            }
+        }
+        emitCodedWarning('REPOSITORY_EVENT_LISTENER_FAILED', `subscription: ${context.subscriptionId ?? '(unnamed)'}; operations: ${context.operationIds.join(', ')}`, error);
+    }
+    reportCollectionMetadataInvalidationError(error) {
+        if (this.sourceConfig.onCollectionMetadataInvalidationError) {
+            this.sourceConfig.onCollectionMetadataInvalidationError(error);
+            return;
+        }
+        emitCodedWarning('COLLECTION_METADATA_INVALIDATION_FAILED', undefined, error);
+    }
+}
+/**
+ * `process.emitWarning` applies `code` and `detail` only to a warning it
+ * builds from a string; an Error handed to it is emitted as it is, without
+ * them. So the warning is built here, with the failure as its `cause`, and a
+ * `warning` listener can read the code it was promised.
+ */
+function emitCodedWarning(code, detail, cause) {
+    const warning = Object.assign(new Error(cause instanceof Error ? cause.message : String(cause), {
+        cause,
+    }), { name: 'Warning', code, ...(detail === undefined ? {} : { detail }) });
+    process.emitWarning(warning);
+}
+class TransactionInvalidationCollector {
+    all = false;
+    namingIndex = false;
+    collections = new Set();
+    async validateRelations(collections) {
+        for (const collection of this.collections) {
+            await collections.validateRelations(collection);
+        }
+    }
+    /** Takes over what a released savepoint recorded. */
+    absorb(savepoint) {
+        if (savepoint.all)
+            this.all = true;
+        for (const collection of savepoint.collections) {
+            this.collections.add(collection);
+        }
+        this.namingIndex ||= savepoint.namingIndex;
+    }
+    record(change) {
+        if (!change) {
+            this.all = true;
+            return;
+        }
+        for (const collection of change.collections) {
+            this.collections.add(collection);
+        }
+        this.namingIndex ||= change.namingIndex;
+    }
+    apply(target) {
+        if (this.all) {
+            target.invalidateAll();
+        }
+        else if (this.collections.size > 0 || this.namingIndex) {
+            target.invalidate({
+                collections: [...this.collections],
+                namingIndex: this.namingIndex,
+            });
+        }
+        this.clear();
+    }
+    clear() {
+        this.all = false;
+        this.namingIndex = false;
+        this.collections.clear();
+    }
+}
+class TransactionCollectionInvalidator {
+    local;
+    transaction;
+    constructor(local, transaction) {
+        this.local = local;
+        this.transaction = transaction;
+    }
+    invalidate(change) {
+        this.local.invalidate(change);
+        this.transaction.record(change);
+    }
+    invalidateAll() {
+        this.local.invalidateAll();
+        this.transaction.record();
+    }
+}
+class LazySchemaAdapter {
+    resolveClient;
+    createAdapter;
+    dialect;
+    capabilities;
+    adapter;
+    constructor(resolveClient, createAdapter, dialect, capabilities) {
+        this.resolveClient = resolveClient;
+        this.createAdapter = createAdapter;
+        this.dialect = dialect;
+        this.capabilities = capabilities;
+    }
+    async execute(operations) {
+        return (await this.resolveAdapter()).execute(operations);
+    }
+    async compile(operations) {
+        const adapter = await this.resolveAdapter();
+        return adapter.compile ? adapter.compile(operations) : [];
+    }
+    async resolveAdapter() {
+        if (!this.adapter) {
+            this.adapter = this.createAdapter(await this.resolveClient());
+        }
+        return this.adapter;
+    }
+}

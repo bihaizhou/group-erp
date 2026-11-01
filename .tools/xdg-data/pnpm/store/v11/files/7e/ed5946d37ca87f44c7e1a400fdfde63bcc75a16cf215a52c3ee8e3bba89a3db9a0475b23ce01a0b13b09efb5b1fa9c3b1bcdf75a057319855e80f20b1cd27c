@@ -1,0 +1,4 @@
+import { type SampleDataService } from './token.js';
+/** Creates the service behind `sampleDataToken`. */
+export declare function createSampleDataService(): SampleDataService;
+//# sourceMappingURL=registry.d.ts.map

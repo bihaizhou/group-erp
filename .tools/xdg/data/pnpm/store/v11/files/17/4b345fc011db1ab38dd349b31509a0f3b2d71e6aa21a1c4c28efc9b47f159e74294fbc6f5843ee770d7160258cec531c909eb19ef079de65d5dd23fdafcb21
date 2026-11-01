@@ -1,0 +1,69 @@
+/**
+ * The signed-in person's preferences in the browser: `/api/users/me/preferences` with a local cache.
+ *
+ * The server is the source of truth, so a choice follows the person to every browser. The cache in `localStorage`
+ * exists only so the first frame paints with the last known values instead of the defaults; once the server answers,
+ * its values replace the cache. A value a page kept in `localStorage` before preferences existed can be handed to
+ * `useUserPreference` as `legacy`: if the server holds nothing for the key, it is written there once.
+ */
+import { type ApiClient } from '@nocobase/app-client';
+export type UserPreferenceValues = Readonly<Record<string, unknown>>;
+/** The HTTP API of the signed-in person's preferences; responses are unwrapped from `{ data }`. */
+export declare class UserPreferencesClient {
+    private readonly api;
+    constructor(api: ApiClient);
+    list(): Promise<UserPreferenceValues>;
+    set(key: string, value: unknown): Promise<void>;
+    setMany(values: UserPreferenceValues): Promise<void>;
+    remove(key: string): Promise<void>;
+}
+/**
+ * One person's preferences: the cached values at once, the server's once loaded. Writes apply locally at once and
+ * are sent to the server; a failed write is reported to `onError` and the server's value is read back.
+ */
+export declare class UserPreferenceStore {
+    private readonly client;
+    readonly userId: string;
+    private readonly onError;
+    private values;
+    private serverKeys;
+    private loading;
+    private loadedFlag;
+    private readonly listeners;
+    private version;
+    constructor(client: UserPreferencesClient, userId: string, onError?: (error: unknown) => void);
+    get loaded(): boolean;
+    /** A number that changes with every change, for `useSyncExternalStore`. */
+    snapshot: () => number;
+    subscribe: (listener: () => void) => (() => void);
+    get(key: string): unknown;
+    /** Whether the server holds a value for the key; false until loaded. */
+    stored(key: string): boolean;
+    /** Reads the server's values once; later calls wait for the same read. */
+    load(): Promise<void>;
+    set(key: string, value: unknown): Promise<void>;
+    private replace;
+    private changed;
+}
+/** The store of whoever is signed in; null while nobody is. One store per person and page, shared by every hook. */
+export declare function useUserPreferenceStore(): UserPreferenceStore | null;
+export interface UseUserPreferenceOptions<T> {
+    /** What the preference is while nothing is stored, or nobody is signed in. */
+    readonly defaultValue: T;
+    /** Turns a stored value into `T`; undefined when it is not one (the default then applies). */
+    readonly parse?: (value: unknown) => T | undefined;
+    /**
+     * A value kept before preferences existed, such as one in `localStorage`. Read once the server has answered; when
+     * the server holds nothing for the key and this returns a value, it is written to the server.
+     */
+    readonly legacy?: () => T | undefined;
+}
+export interface UserPreferenceState {
+    /** Whether the server's values have arrived; before that the value is the cache's or the default. */
+    readonly loaded: boolean;
+    /** Whether the server holds a value for the key. */
+    readonly stored: boolean;
+}
+/** One preference of the signed-in person: its value, a setter, and whether the server has answered. */
+export declare function useUserPreference<T>(key: string, options: UseUserPreferenceOptions<T>): readonly [T, (next: T) => void, UserPreferenceState];
+//# sourceMappingURL=preferences.d.ts.map

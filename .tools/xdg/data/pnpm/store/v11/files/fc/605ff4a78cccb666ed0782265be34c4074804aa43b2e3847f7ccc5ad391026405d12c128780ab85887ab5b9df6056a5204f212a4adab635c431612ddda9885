@@ -1,0 +1,13 @@
+import type { MailProviderDefinition } from '../../contracts/provider.js';
+export declare const IMAP_SMTP_CAPABILITIES: MailProviderDefinition['capabilities'];
+export declare const CONNECTION_TIMEOUT_MS: number;
+export declare const SOCKET_TIMEOUT_MS: number;
+export declare const MAX_IMAP_BODY_BYTES: number;
+export declare const MAX_IMAP_DETAIL_BODY_BYTES: number;
+/** Raw MIME bytes compared to reuse an RFC Message-ID identity. */
+export declare const MAX_IMAP_RAW_COMPARE_BYTES: number;
+export declare const MAX_IMAP_RAW_COMPARE_BUDGET: number;
+export declare const MAX_IMAP_PROVIDER_ID_LENGTH: number;
+export declare const MAX_IMAP_VERIFY_STATE_BYTES: number;
+export declare const MAX_IMAP_VERIFY_ATTEMPTS: number;
+//# sourceMappingURL=constants.d.ts.map

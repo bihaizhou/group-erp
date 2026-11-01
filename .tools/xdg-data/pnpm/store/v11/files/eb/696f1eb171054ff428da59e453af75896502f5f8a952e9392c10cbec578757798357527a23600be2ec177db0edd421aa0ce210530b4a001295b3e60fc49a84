@@ -1,0 +1,104 @@
+/**
+ * Owns cancellation and resource disposal for a host-provided application
+ * scope. Concrete scopes add identity, paths, environment, and configuration.
+ */
+export class AppScopeLifecycle {
+    signal;
+    abortController = new AbortController();
+    beforeDestroyHandlers = [];
+    disposers = [];
+    abortReason;
+    destroyOnce;
+    destroying = false;
+    constructor(options = {}) {
+        this.signal = this.abortController.signal;
+        this.abortReason =
+            options.abortReason ?? new Error('application scope destroyed');
+        this.destroyOnce = onceAsync(() => this.destroyResources());
+    }
+    registerDisposer(name, dispose) {
+        this.assertActive(`register disposer "${name}"`);
+        this.disposers.push({ name, dispose: onceAsync(dispose) });
+    }
+    onBeforeDestroy(handler) {
+        this.assertActive('register a before-destroy handler');
+        this.beforeDestroyHandlers.push(handler);
+        return () => {
+            const index = this.beforeDestroyHandlers.indexOf(handler);
+            if (index >= 0)
+                this.beforeDestroyHandlers.splice(index, 1);
+        };
+    }
+    destroy() {
+        this.destroying = true;
+        return this.destroyOnce();
+    }
+    assertActive(action) {
+        if (this.destroying) {
+            throw new Error(`Cannot ${action} after application scope destruction.`);
+        }
+    }
+    async destroyResources() {
+        this.abortController.abort(this.abortReason);
+        const errors = [];
+        for (const handler of [...this.beforeDestroyHandlers]) {
+            try {
+                await handler();
+            }
+            catch (error) {
+                errors.push(error);
+            }
+        }
+        this.beforeDestroyHandlers.length = 0;
+        await disposeRegisteredResources(this.disposers, errors);
+        throwCollectedErrors(errors, 'Failed to destroy application scope.');
+    }
+}
+export function createAppDisposerRegistry() {
+    const disposers = [];
+    let disposing = false;
+    const disposeAll = onceAsync(async () => {
+        const errors = [];
+        await disposeRegisteredResources(disposers, errors);
+        throwCollectedErrors(errors, 'Failed to dispose application resources.');
+    });
+    return {
+        registerDisposer(name, dispose) {
+            if (disposing) {
+                throw new Error(`Cannot register disposer "${name}" after application resource disposal.`);
+            }
+            disposers.push({ name, dispose: onceAsync(dispose) });
+        },
+        disposeAll() {
+            disposing = true;
+            return disposeAll();
+        },
+    };
+}
+export function onceAsync(operation) {
+    let promise;
+    return () => {
+        promise ??= Promise.resolve().then(operation);
+        return promise;
+    };
+}
+async function disposeRegisteredResources(disposers, errors) {
+    for (const entry of [...disposers].reverse()) {
+        try {
+            await entry.dispose();
+        }
+        catch (error) {
+            errors.push(new Error(`Failed to dispose application resource "${entry.name}".`, {
+                cause: error,
+            }));
+        }
+    }
+    disposers.length = 0;
+}
+function throwCollectedErrors(errors, message) {
+    if (errors.length === 1)
+        throw errors[0];
+    if (errors.length > 1)
+        throw new AggregateError(errors, message);
+}
+//# sourceMappingURL=lifecycle.js.map

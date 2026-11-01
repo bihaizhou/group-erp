@@ -1,0 +1,9 @@
+import type { MailProviderSendInput } from '../../contracts/provider.js';
+import type { GraphFileAttachment, GraphMessage } from './types.js';
+export declare function graphAttachment(attachment: MailProviderSendInput['message']['attachments'][number], bytes: Buffer): GraphFileAttachment;
+export declare function graphAttachments(input: MailProviderSendInput): Promise<readonly GraphFileAttachment[]>;
+export declare function relatedBody(input: MailProviderSendInput, draft: GraphMessage): {
+    readonly contentType: 'HTML' | 'Text';
+    readonly content: string;
+};
+//# sourceMappingURL=content.d.ts.map

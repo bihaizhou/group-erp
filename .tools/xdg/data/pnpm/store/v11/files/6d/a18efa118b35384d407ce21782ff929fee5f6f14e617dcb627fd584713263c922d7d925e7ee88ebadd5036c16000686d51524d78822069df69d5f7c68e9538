@@ -1,0 +1,7 @@
+import { type Storage } from 'unstorage';
+import type { AppSessionStoreConfig, NocoBaseSessionStore, SessionData, StoredSession } from './types.js';
+type SessionStorageValue<Data extends SessionData> = StoredSession<Data>;
+export declare function createSessionStore<Data extends SessionData = SessionData>(config: AppSessionStoreConfig): NocoBaseSessionStore<Data>;
+export declare function createUnstorageSessionStore<Data extends SessionData = SessionData>(storage: Storage<SessionStorageValue<Data>>, base?: string): NocoBaseSessionStore<Data>;
+export {};
+//# sourceMappingURL=stores.d.ts.map

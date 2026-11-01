@@ -1,0 +1,112 @@
+import type { MigrationConnection } from '../types.js';
+export declare const DEFAULT_MIGRATION_LOCK_TABLE = "__nocobase_migration_lock";
+/**
+ * How long acquiring waits for a concurrent run to release the lock before it
+ * fails. A restarted process releases its lock in well under a second, while a
+ * real run can legitimately hold it for much longer, which is what the wait is
+ * for: contention between two starts is normally transient, and failing on the
+ * first conflict turns it into an error an operator has to interpret.
+ */
+export declare const DEFAULT_TASK_LOCK_ACQUIRE_TIMEOUT_MS = 30000;
+/** How often a holder proves it is still alive. */
+export declare const TASK_LOCK_HEARTBEAT_INTERVAL_MS = 5000;
+/**
+ * How long a lock survives without a heartbeat before another run may take it
+ * over. A hard kill — SIGKILL, a container stopped, a machine lost — runs no
+ * cleanup, so the row would otherwise block every later run until someone
+ * deleted it by hand. Several missed beats are tolerated so a slow database
+ * does not hand the lock to a second run while the first is still working.
+ */
+export declare const TASK_LOCK_EXPIRY_MS = 30000;
+/**
+ * What a migration connection's in-process lock claims are kept by: the Database Connection it was made from, set by
+ * `createMigrationConnection`. A connection without one — a test's stand-in — is kept by itself.
+ */
+export declare const TASK_LOCK_SCOPE: unique symbol;
+/** A lock as it stands in the database, as reported to an operator. */
+export interface TaskLockState {
+    readonly tableName: string;
+    readonly lockedBy: string;
+    readonly lockedAt: Date | undefined;
+    readonly heartbeatAt: Date | undefined;
+    /** No heartbeat within {@link TASK_LOCK_EXPIRY_MS}: the holder is gone. */
+    readonly expired: boolean;
+}
+/** Why a lock was taken over, for a caller that reports it. */
+export interface StaleTaskLockTakeover {
+    readonly tableName: string;
+    readonly lockedBy: string;
+    readonly heartbeatAt: Date | undefined;
+    readonly staleForMs: number;
+}
+/** Who holds a lock that could not be taken, and how long acquiring waited for it. */
+export interface TaskLockBusyDetails extends TaskLockState {
+    /** Whose lock it is, as messages name it: `Migration` or `Seed`. */
+    readonly label: string;
+    /** The connection the lock guards. */
+    readonly connection: string;
+    /** How long acquiring waited for the holder to release it before giving up. */
+    readonly waitedMs: number;
+    /**
+     * Held by another task in this same process rather than by another run.
+     * Releasing the row cannot help then: the holder is still running here.
+     */
+    readonly inProcess: boolean;
+}
+/**
+ * A task lock is held by another run, so the task did not start.
+ *
+ * Contention is ordinary: two starts race, or a deploy overlaps a manual run.
+ * The holder is named so a caller can decide whether to wait or, once someone
+ * has confirmed the holder is gone, release the lock: an expired one (see
+ * {@link TaskLockState.expired}) needs no force to release, a live one does.
+ */
+export declare class TaskLockBusyError extends Error implements TaskLockBusyDetails {
+    readonly code: "TASK_LOCK_BUSY";
+    readonly label: string;
+    readonly connection: string;
+    readonly tableName: string;
+    readonly lockedBy: string;
+    readonly lockedAt: Date | undefined;
+    readonly heartbeatAt: Date | undefined;
+    readonly expired: boolean;
+    readonly waitedMs: number;
+    readonly inProcess: boolean;
+    constructor(details: TaskLockBusyDetails, options?: ErrorOptions);
+}
+/**
+ * Whether `error` is a {@link TaskLockBusyError}, including one created by
+ * another copy of this package. The brand is a registered symbol rather than
+ * `instanceof`, which a duplicated installation would defeat.
+ */
+export declare function isTaskLockBusyError(error: unknown): error is TaskLockBusyError;
+export interface TaskLockReleaseResult {
+    readonly released: boolean;
+    readonly lock: TaskLockState | undefined;
+    /** `not-held` when there was nothing to release, `active` when it is alive. */
+    readonly reason: 'not-held' | 'active' | undefined;
+}
+export interface TaskLockOptions {
+    readonly tableName?: string;
+    /** Defaults to {@link DEFAULT_TASK_LOCK_ACQUIRE_TIMEOUT_MS}. */
+    readonly acquireTimeoutMs?: number;
+    /** Called when an expired lock is taken over, before the task runs. */
+    readonly onStaleLock?: (takeover: StaleTaskLockTakeover) => void;
+}
+/** A task lock with its messages resolved: `Migration`, `Seed`, and so on. */
+export interface TaskLockDescriptor extends TaskLockOptions {
+    readonly label: string;
+    readonly tableName: string;
+}
+export declare function withMigrationLock<T>(connection: MigrationConnection, options: TaskLockOptions, fn: () => Promise<T>): Promise<T>;
+export declare function withTaskLock<T>(connection: MigrationConnection, options: TaskLockDescriptor, fn: () => Promise<T>): Promise<T>;
+export declare function ensureTaskLockTable(connection: MigrationConnection, tableName: string): Promise<void>;
+/** Reads the lock without creating its table, for inspection and release. */
+export declare function readTaskLockState(connection: MigrationConnection, tableName: string, now?: number): Promise<TaskLockState | undefined>;
+/**
+ * Deletes the lock row. An active lock is left alone unless `force` is set:
+ * releasing one a live run is holding lets a second run start beside it.
+ */
+export declare function releaseTaskLock(connection: MigrationConnection, tableName: string, options?: {
+    readonly force?: boolean;
+}): Promise<TaskLockReleaseResult>;

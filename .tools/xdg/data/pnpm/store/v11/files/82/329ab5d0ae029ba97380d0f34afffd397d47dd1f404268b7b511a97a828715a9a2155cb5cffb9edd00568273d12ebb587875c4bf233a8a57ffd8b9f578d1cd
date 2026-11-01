@@ -1,0 +1,20 @@
+import { type PluginSourceEditor } from './client-plugins.ts';
+export interface CliPluginsFile {
+    readonly exists: boolean;
+    readonly filePath: string;
+    readonly sourceText: string;
+}
+export interface ManualCliPluginEdit {
+    readonly entry: string;
+    readonly filePath: string;
+    readonly importStatement: string;
+    readonly localName: string;
+}
+export declare function cliPluginsPath(appRoot: string): string;
+export declare function cliPluginEntrySpecifier(packageName: string): string;
+export declare function readCliPlugins(appRoot: string): Promise<CliPluginsFile>;
+export declare function writeCliPlugins(appRoot: string, sourceText: string): Promise<string>;
+export declare function describeCliPluginEdit(appRoot: string, packageName: string): ManualCliPluginEdit;
+export declare function createCliPluginsEditor(appRoot: string): Promise<PluginSourceEditor>;
+export declare function formatCliPlugins(appRoot: string, sourceText: string, filePath: string): Promise<string>;
+//# sourceMappingURL=cli-plugins.d.ts.map

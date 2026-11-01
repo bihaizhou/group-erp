@@ -1,0 +1,20 @@
+import { mailLogError, writeMailLog } from './logging.js';
+export { MAIL_REALTIME_TOPIC, } from '../shared/realtime.js';
+export function createMailMessageChangeNotifier(topic) {
+    return {
+        notify(userId) {
+            topic.publishFor(userId, { kind: 'mail.changed' });
+        },
+    };
+}
+export function notifyMailMessageChange(notifier, userId, logger) {
+    if (!notifier)
+        return;
+    try {
+        notifier.notify(userId);
+    }
+    catch (error) {
+        writeMailLog(logger, 'error', { event: 'mail.realtime.failed', userId, err: mailLogError(error) }, 'Failed to publish Mail realtime event.');
+    }
+}
+//# sourceMappingURL=realtime.js.map

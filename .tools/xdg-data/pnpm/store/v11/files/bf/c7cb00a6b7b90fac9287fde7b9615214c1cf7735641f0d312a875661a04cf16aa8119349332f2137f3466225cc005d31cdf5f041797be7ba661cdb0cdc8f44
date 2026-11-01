@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "files": {
+    "202610010001_create_user_invitations.js": {
+      "sourceChecksum": "b73399dc53c9996768aeb61b063ceabe04b5a0768320711d99e1890f9939a645",
+      "artifactChecksum": "73c3c6ccbea31694c84413af8108c3e870b7a1d54aafb83b932f4f45692667c9"
+    },
+    "202610020201_create_user_preferences.js": {
+      "sourceChecksum": "1aae54d0a74b4d74f921e66d14dc56d7bb1c001778ac128ce010e19f0a04fa68",
+      "artifactChecksum": "639aa190776f10804e2c631bb55a2a37ac5ac66b42aac4df1051d226aa3d1a5b"
+    }
+  }
+}

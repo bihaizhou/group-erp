@@ -1,0 +1,28 @@
+import type { SchemaManagementMode } from '../../database/config.js';
+import type { CollectionMetadataDocument } from '../../metadata/document.js';
+import type { PhysicalCollectionSchema } from '../../schema/inspector/types.js';
+import type { CollectionResolutionResult } from '../resolver/types.js';
+import { type CollectionArtifactFileKind } from './format.js';
+/**
+ * Everything one Collection's artifact is built from. `resolution` and
+ * `physical` come from `connection.collections.getResolution()` and
+ * `getPhysical()`; `metadata` is the stored document from
+ * `connection.collectionMetadata.get()`, absent when the store holds none.
+ */
+export interface CollectionArtifactInput {
+    readonly name: string;
+    readonly resolution: CollectionResolutionResult;
+    readonly physical: PhysicalCollectionSchema;
+    readonly metadata?: CollectionMetadataDocument;
+}
+/** Serialized file contents, keyed by file kind; see `COLLECTION_ARTIFACT_FILE_NAMES` for the names. */
+export type CollectionArtifactFiles = Readonly<Record<CollectionArtifactFileKind, string>>;
+export declare function serializeCollectionArtifact(input: CollectionArtifactInput): CollectionArtifactFiles;
+export interface CollectionArtifactManifestInput {
+    readonly connection: string;
+    readonly dialect: string;
+    readonly schemaManagement: SchemaManagementMode;
+    readonly migrationHead: string | null;
+    readonly collections: readonly string[];
+}
+export declare function serializeCollectionArtifactManifest(input: CollectionArtifactManifestInput): string;

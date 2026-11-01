@@ -1,0 +1,4 @@
+import type { ComponentProps, ReactElement } from 'react';
+export type TextareaProps = ComponentProps<'textarea'>;
+export declare function Textarea({ className, ...props }: TextareaProps): ReactElement;
+//# sourceMappingURL=textarea.d.ts.map

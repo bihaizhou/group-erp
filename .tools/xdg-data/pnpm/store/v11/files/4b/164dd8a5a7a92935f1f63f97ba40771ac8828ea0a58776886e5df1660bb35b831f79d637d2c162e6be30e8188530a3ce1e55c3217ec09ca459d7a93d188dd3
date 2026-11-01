@@ -1,0 +1,2 @@
+export declare function cloneRequestWithUrl(request: Request, url: URL, headers?: Headers): Request;
+//# sourceMappingURL=requests.d.ts.map

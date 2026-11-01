@@ -1,0 +1,147 @@
+import { setConfigValue, splitConfigPath } from '../path.js';
+import { createConfigRecord } from '../value.js';
+export function environmentProvider(environment, options = {}) {
+    return {
+        name: options.name ?? 'environment',
+        read: async () => ({
+            kind: 'map',
+            value: readEnvironment(environment, options),
+        }),
+    };
+}
+export function envString(path, metadata = {}) {
+    return { ...metadata, path, type: 'string' };
+}
+export function envInteger(path, metadata = {}) {
+    return {
+        ...metadata,
+        path,
+        type: 'integer',
+        parse(value) {
+            if (!/^-?\d+$/.test(value.trim())) {
+                throw new Error(`Expected an integer, received "${value}".`);
+            }
+            return Number(value);
+        },
+    };
+}
+export function envBoolean(path, metadata = {}) {
+    return {
+        ...metadata,
+        path,
+        type: 'boolean',
+        parse(value) {
+            if (/^(true|1|yes|on)$/i.test(value.trim()))
+                return true;
+            if (/^(false|0|no|off)$/i.test(value.trim()))
+                return false;
+            throw new Error(`Expected a boolean, received "${value}".`);
+        },
+    };
+}
+export function envStrings(path, separator = ',', metadata = {}) {
+    return {
+        ...metadata,
+        path,
+        type: 'strings',
+        parse: (value) => value
+            .split(separator)
+            .map((item) => item.trim())
+            .filter(Boolean),
+    };
+}
+const SECRET_WORDS = new Set([
+    'password',
+    'passwd',
+    'pwd',
+    'pass',
+    'passphrase',
+    'pin',
+    'secret',
+    'token',
+    'key',
+    'dsn',
+    'credential',
+    'salt',
+    'authorization',
+    'cookie',
+    // Keys written as one lowercase word.
+    'apikey',
+    'privatekey',
+    'secretkey',
+    'accesskey',
+    'accesstoken',
+    'refreshtoken',
+    'authtoken',
+    'clientsecret',
+]);
+/** `<word> key` names that are not secrets. */
+const PUBLIC_KEY_WORDS = new Set([
+    'public',
+    'primary',
+    'foreign',
+    'sort',
+    'partition',
+]);
+/**
+ * Whether a configuration path names a secret, judged by the last word of its last segment: `password`, `secret`,
+ * `token`, `key` and the like (`auth.secret`, `users.initialAdmin.password`, `ai.apiKeys`), except names that are not
+ * secret (`publicKey`, `primaryKey`). It errs on the side of a secret.
+ */
+export function isSecretPath(path) {
+    const key = path.split('.').at(-1) ?? '';
+    const words = key
+        .replace(/([a-z0-9])([A-Z])/gu, '$1 $2')
+        .toLowerCase()
+        .split(/[^a-z0-9]+/u)
+        .filter(Boolean);
+    const last = words.at(-1);
+    if (!last)
+        return false;
+    const word = SECRET_WORDS.has(last)
+        ? last
+        : last.length > 3 &&
+            last.endsWith('s') &&
+            SECRET_WORDS.has(last.slice(0, -1))
+            ? last.slice(0, -1)
+            : undefined;
+    if (!word)
+        return false;
+    return !(word === 'key' &&
+        words.length > 1 &&
+        PUBLIC_KEY_WORDS.has(words.at(-2)));
+}
+function readEnvironment(environment, options) {
+    const output = createConfigRecord();
+    const pathDelimiter = options.pathDelimiter ?? '.';
+    if (options.mappings) {
+        for (const [key, mapping] of Object.entries(options.mappings)) {
+            const value = environment[key];
+            if (value === undefined)
+                continue;
+            setConfigValue(output, splitConfigPath(mapping.path, pathDelimiter), mapping.parse ? mapping.parse(value) : value);
+        }
+        return output;
+    }
+    const prefix = options.prefix ?? '';
+    const keyDelimiter = options.keyDelimiter ?? '__';
+    for (const [key, value] of Object.entries(environment)) {
+        if (value === undefined || !key.startsWith(prefix))
+            continue;
+        const transformed = options.transform?.(key, value);
+        if (transformed) {
+            setConfigValue(output, splitConfigPath(transformed[0], pathDelimiter), transformed[1]);
+            continue;
+        }
+        const path = key
+            .slice(prefix.length)
+            .toLowerCase()
+            .split(keyDelimiter)
+            .join(pathDelimiter);
+        if (!path)
+            continue;
+        setConfigValue(output, splitConfigPath(path, pathDelimiter), value);
+    }
+    return output;
+}
+//# sourceMappingURL=env.js.map

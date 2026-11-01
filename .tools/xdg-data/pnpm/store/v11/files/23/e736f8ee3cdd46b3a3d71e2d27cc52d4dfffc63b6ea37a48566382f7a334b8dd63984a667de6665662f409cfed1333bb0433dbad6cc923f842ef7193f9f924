@@ -1,0 +1,9 @@
+export function waitForHttpReady({ intervalMs, isReady, label, requestTimeoutMs, timeoutMs, url, }: {
+    intervalMs?: number | undefined;
+    isReady?: ((response: any) => any) | undefined;
+    label: any;
+    requestTimeoutMs?: number | undefined;
+    timeoutMs?: number | undefined;
+    url: any;
+}): Promise<void>;
+//# sourceMappingURL=readiness.d.mts.map

@@ -1,0 +1,10 @@
+import type { DatabaseConnection } from '@nocobase/db';
+import type { AuthorizationPlugin } from '@nocobase/authorization/core';
+import { type DefaultAccessAuthorizationApi, type DefaultAccessStore } from '@nocobase/authorization/default-access';
+import { type DatabaseAuthorizationApi, type SettingsAuthorizationApi, type UiAuthorizationApi } from '@nocobase/app-plugin-authorization/server';
+export interface DefaultAccessOptions {
+    store?: DefaultAccessStore<DatabaseConnection>;
+}
+/** The configuration factory: default access with its settings item and routes. */
+export declare function defaultAccess(options?: DefaultAccessOptions): AuthorizationPlugin<DefaultAccessAuthorizationApi<DatabaseConnection>, DatabaseConnection, SettingsAuthorizationApi & DatabaseAuthorizationApi & UiAuthorizationApi>;
+//# sourceMappingURL=authorization.d.ts.map

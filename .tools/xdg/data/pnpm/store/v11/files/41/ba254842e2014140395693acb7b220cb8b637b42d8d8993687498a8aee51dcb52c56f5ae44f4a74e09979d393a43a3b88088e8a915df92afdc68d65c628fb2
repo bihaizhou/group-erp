@@ -1,0 +1,7 @@
+/**
+ * Better Auth's API Key client plugin, which an application adds to `plugins`
+ * in `client/config/auth.ts` so `authClient.apiKey.*` reaches the endpoints
+ * the server plugin mounts.
+ */
+export { apiKeyClient } from '@better-auth/api-key/client';
+//# sourceMappingURL=api-keys-client.js.map

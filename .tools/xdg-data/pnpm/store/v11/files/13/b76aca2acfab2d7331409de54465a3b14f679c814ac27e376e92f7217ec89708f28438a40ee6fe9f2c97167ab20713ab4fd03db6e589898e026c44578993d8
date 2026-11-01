@@ -1,0 +1,13 @@
+import type { TestDatabaseEnvironment, TestDatabaseProvisioner } from '@nocobase/db/testing';
+/**
+ * Where isolated test databases are created: `NOCOBASE_TEST_DB_SQLITE_DIRECTORY`,
+ * or a directory under the system's temporary directory.
+ */
+export declare function sqliteTestDirectory(env: TestDatabaseEnvironment): string;
+/**
+ * Each test database is a file of its own rather than `:memory:`, so that a
+ * second Database Manager — an application restarted on the database the
+ * first one seeded, or another process — opens the same database, as it does
+ * on every server dialect.
+ */
+export declare const testDatabaseProvisioner: TestDatabaseProvisioner;

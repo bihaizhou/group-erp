@@ -1,0 +1,466 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+import { PageContainer } from '../components/page-container.js';
+import { FileText, Link2, Mail, PenLine, RefreshCw, Tag } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from '@nocobase/i18n/client';
+import { MailAccountConnector, PageHeader, MailLabelManager, MailStatusBadge, MailSyncPolicyFields, MailSignatureManager, MailTemplateManager, } from '../components/index.js';
+import { Button } from '../components/ui/button.js';
+import { Card } from '../components/ui/card.js';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, } from '../components/ui/dialog.js';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, } from '../components/ui/sheet.js';
+import { mailErrorMessage, } from '../mail-client.js';
+import { MailPagination } from '../components/mail-pagination.js';
+import { useMailTablePage } from '../hooks/use-mail-table-page.js';
+import { mailSyncDateMonthsAgo } from '../../shared/mail-sync-date.js';
+import { useMailClient } from '../runtime.js';
+import { MAIL_PLUGIN_NS } from '../namespace.js';
+export default function MailAccountsPage({ providerKeys, credentialDefaults, } = {}) {
+    const mail = useMailClient();
+    const { t } = useTranslation(MAIL_PLUGIN_NS);
+    const [providers, setProviders] = useState([]);
+    const [accounts, setAccounts] = useState([]);
+    const accountPage = useMailTablePage(accounts);
+    const [loading, setLoading] = useState(true);
+    const [connectingProviderName, setConnectingProviderName] = useState();
+    const [syncing, setSyncing] = useState();
+    const [updatingAccountId, setUpdatingAccountId] = useState();
+    const [syncRuns, setSyncRuns] = useState({});
+    const [policy, setPolicy] = useState(() => ({
+        receivedAfter: mailSyncDateMonthsAgo(1),
+    }));
+    const [showConnector, setShowConnector] = useState(false);
+    const [showTemplates, setShowTemplates] = useState(false);
+    const [showLabels, setShowLabels] = useState(false);
+    const [showSignatures, setShowSignatures] = useState(false);
+    const [accountToRemove, setAccountToRemove] = useState();
+    const [accountToDeactivate, setAccountToDeactivate] = useState();
+    const [removingAccountId, setRemovingAccountId] = useState();
+    const [error, setError] = useState();
+    const [authorizationNotice, setAuthorizationNotice] = useState(readAuthorizationNotice);
+    const refresh = useCallback(() => {
+        setLoading(true);
+        setError(undefined);
+        void Promise.all([mail.listProviders(), mail.listAccounts()])
+            .then(([nextProviders, nextAccounts]) => {
+            setProviders(nextProviders.filter((provider) => matchesProvider(provider, providerKeys)));
+            setAccounts(nextAccounts.filter((account) => matchesProvider(account.provider, providerKeys)));
+        })
+            .catch((cause) => {
+            setError(mailErrorMessage(cause, t('errors.requestFailed', {
+                defaultValue: 'Mail request failed.',
+            })));
+        })
+            .finally(() => setLoading(false));
+    }, [mail, providerKeys, t]);
+    useEffect(() => {
+        void Promise.resolve().then(refresh);
+    }, [refresh]);
+    useEffect(() => {
+        const activeRuns = Object.values(syncRuns).filter((run) => run.status === 'pending' || run.status === 'running');
+        if (activeRuns.length === 0)
+            return undefined;
+        const timer = window.setInterval(() => {
+            for (const run of activeRuns) {
+                void mail.getSyncRun(run.id).then((nextRun) => {
+                    setSyncRuns((current) => ({
+                        ...current,
+                        [nextRun.accountId]: nextRun,
+                    }));
+                    if (nextRun.status !== 'pending' && nextRun.status !== 'running') {
+                        setSyncing((current) => current === nextRun.accountId ? undefined : current);
+                    }
+                }, (cause) => {
+                    setError(mailErrorMessage(cause, t('errors.requestFailed', {
+                        defaultValue: 'Mail request failed.',
+                    })));
+                    setSyncRuns((current) => {
+                        const next = { ...current };
+                        delete next[run.accountId];
+                        return next;
+                    });
+                    setSyncing((current) => current === run.accountId ? undefined : current);
+                });
+            }
+        }, 1500);
+        return () => window.clearInterval(timer);
+    }, [mail, syncRuns, t]);
+    const hasRemovingAccounts = accounts.some((account) => account.status === 'removing');
+    useEffect(() => {
+        if (!hasRemovingAccounts)
+            return;
+        let disposed = false;
+        let pending = false;
+        const timer = window.setInterval(() => {
+            if (pending)
+                return;
+            pending = true;
+            void mail
+                .listAccounts()
+                .then((next) => {
+                if (!disposed) {
+                    setAccounts(next.filter((account) => matchesProvider(account.provider, providerKeys)));
+                }
+            })
+                .catch(() => {
+                // Keep the last known state; the next poll can recover a transient failure.
+            })
+                .finally(() => {
+                pending = false;
+            });
+        }, 2000);
+        return () => {
+            disposed = true;
+            window.clearInterval(timer);
+        };
+    }, [mail, hasRemovingAccounts, providerKeys]);
+    const providerLabels = useMemo(() => new Map(providers.map((provider) => [providerKey(provider), provider.label])), [providers]);
+    const connect = (provider) => {
+        setAuthorizationNotice(undefined);
+        setConnectingProviderName(provider.name);
+        setError(undefined);
+        void mail
+            .startAuthorization({
+            type: provider.type,
+            name: provider.name,
+            initialSyncReceivedAfter: toSyncDate(policy.receivedAfter),
+        })
+            .then((authorization) => {
+            window.location.assign(authorization.authorizationUrl);
+        })
+            .catch((cause) => {
+            setError(mailErrorMessage(cause, t('errors.authorizationFailed', {
+                defaultValue: 'Could not start mail authorization.',
+            })));
+            setConnectingProviderName(undefined);
+        });
+    };
+    const connectWithCredentials = (provider, credentials) => {
+        setAuthorizationNotice(undefined);
+        setConnectingProviderName(provider.name);
+        setError(undefined);
+        void mail
+            .connectAccount({
+            type: provider.type,
+            name: provider.name,
+            initialSyncReceivedAfter: toSyncDate(policy.receivedAfter),
+            ...credentials,
+        })
+            .then(() => {
+            setAuthorizationNotice('success');
+            setConnectingProviderName(undefined);
+            setShowConnector(false);
+            refresh();
+        })
+            .catch((cause) => {
+            setError(mailErrorMessage(cause, t('errors.authorizationFailed', {
+                defaultValue: 'Could not connect the mail account.',
+            })));
+            setConnectingProviderName(undefined);
+        });
+    };
+    const startSync = (account) => {
+        setSyncing(account.id);
+        setError(undefined);
+        void mail
+            .startSync({
+            accountId: account.id,
+            receivedAfter: account.initialSyncReceivedAfter ?? toSyncDate(policy.receivedAfter),
+        })
+            .then((run) => setSyncRuns((current) => ({ ...current, [account.id]: run })))
+            .catch((cause) => {
+            setError(mailErrorMessage(cause, t('errors.syncFailed', {
+                defaultValue: 'Could not start mailbox synchronization.',
+            })));
+            setSyncing(undefined);
+        });
+    };
+    const updateAccount = (account, change) => {
+        setError(undefined);
+        setUpdatingAccountId(account.id);
+        void mail
+            .updateAccount({ accountId: account.id, ...change })
+            .then(() => {
+            setAccountToDeactivate(undefined);
+            refresh();
+        }, (cause) => {
+            setError(mailErrorMessage(cause, t('errors.requestFailed', {
+                defaultValue: 'Mail request failed.',
+            })));
+        })
+            .finally(() => setUpdatingAccountId(undefined));
+    };
+    const requestRemoveAccount = (account) => {
+        setError(undefined);
+        setAccountToRemove(account);
+    };
+    const confirmRemoveAccount = () => {
+        const account = accountToRemove;
+        if (!account)
+            return;
+        setRemovingAccountId(account.id);
+        setError(undefined);
+        void mail.removeAccount(account.id).then(() => {
+            setRemovingAccountId(undefined);
+            setAccountToRemove(undefined);
+            setAccounts((current) => current.map((item) => item.id === account.id ? { ...item, status: 'removing' } : item));
+            setSyncRuns((current) => {
+                const next = { ...current };
+                delete next[account.id];
+                return next;
+            });
+            setSyncing((current) => (current === account.id ? undefined : current));
+            refresh();
+        }, (cause) => {
+            setRemovingAccountId(undefined);
+            setError(mailErrorMessage(cause, t('errors.requestFailed', { defaultValue: 'Mail request failed.' })));
+        });
+    };
+    return (_jsxs(PageContainer, { className: '@container/accounts', children: [_jsx(PageHeader, { actions: _jsxs(_Fragment, { children: [_jsxs(Button, { onClick: () => {
+                                setShowConnector(true);
+                                setShowTemplates(false);
+                                setShowLabels(false);
+                                setShowSignatures(false);
+                            }, type: 'button', variant: 'default', children: [_jsx(Link2, { "aria-hidden": 'true', className: 'size-4' }), t('dev.associateAccount', {
+                                    defaultValue: 'Connect account',
+                                })] }), _jsxs(Button, { onClick: () => {
+                                setShowTemplates((current) => !current);
+                                setShowConnector(false);
+                                setShowLabels(false);
+                                setShowSignatures(false);
+                            }, type: 'button', variant: showTemplates ? 'default' : 'outline', children: [_jsx(FileText, { "aria-hidden": 'true', className: 'size-4' }), t('dev.templateManagement', {
+                                    defaultValue: showTemplates ? 'Close templates' : 'Templates',
+                                })] }), _jsxs(Button, { onClick: () => {
+                                setShowSignatures((current) => !current);
+                                setShowConnector(false);
+                                setShowTemplates(false);
+                                setShowLabels(false);
+                                setError(undefined);
+                            }, type: 'button', variant: showSignatures ? 'default' : 'outline', children: [_jsx(PenLine, { "aria-hidden": 'true', className: 'size-4' }), t('dev.signatureManagement', { defaultValue: 'Signatures' })] }), _jsxs(Button, { onClick: () => {
+                                setShowLabels((current) => !current);
+                                setShowConnector(false);
+                                setShowTemplates(false);
+                                setShowSignatures(false);
+                            }, type: 'button', variant: showLabels ? 'default' : 'outline', children: [_jsx(Tag, { "aria-hidden": 'true', className: 'size-4' }), t('dev.labelManagement', { defaultValue: 'Labels' })] }), _jsxs(Button, { disabled: loading, onClick: refresh, variant: 'outline', children: [_jsx(RefreshCw, { "aria-hidden": 'true', className: `size-4 ${loading ? 'animate-spin' : ''}` }), t('actions.refresh', { defaultValue: 'Refresh' })] })] }), description: t('dev.accountsDescription', {
+                    defaultValue: 'Connect and manage your mail accounts and choose when to start synchronizing messages.',
+                }), title: t('nav.devAccounts', { defaultValue: 'Mail accounts' }) }), authorizationNotice ? (_jsx("div", { role: authorizationNotice === 'success' ? 'status' : 'alert', className: `rounded-xl border p-4 text-sm ${authorizationNotice === 'success' ? 'border-primary/30 bg-primary/10 text-primary' : 'border-destructive/30 bg-destructive/5 text-destructive'}`, children: authorizationNotice === 'success'
+                    ? t('settings.authorizationSuccess', {
+                        defaultValue: 'Account connected successfully. Newly connected mailboxes sync automatically in the background. Initial synchronization may take some time. View progress in Sync logs; there is no need to start another sync.',
+                    })
+                    : t('settings.authorizationFailure', {
+                        defaultValue: 'The mail account could not be connected. Try again.',
+                    }) })) : null, error ? (_jsx("div", { className: 'rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive', children: error })) : null, _jsxs(Card, { className: 'overflow-hidden rounded-2xl bg-background shadow-sm', children: [_jsxs("div", { className: 'flex flex-wrap items-start justify-between gap-4 border-b bg-muted/20 px-6 py-5', children: [_jsxs("div", { children: [_jsx("h2", { className: 'font-semibold', children: t('dev.connectedAccountsTitle', {
+                                            defaultValue: 'Connected accounts',
+                                        }) }), _jsx("p", { className: 'mt-1 max-w-2xl text-sm leading-6 text-muted-foreground', children: t('dev.connectedAccountsDescription', {
+                                            defaultValue: 'Manage mail accounts and their saved initial synchronization dates.',
+                                        }) })] }), _jsx("span", { className: 'inline-flex h-7 min-w-7 items-center justify-center rounded-full border bg-background px-2 text-xs font-semibold', children: accounts.length })] }), loading ? (_jsx("div", { className: 'p-6', children: _jsx(LoadingState, { label: t('settings.loading', {
+                                defaultValue: 'Loading mail configuration…',
+                            }) }) })) : accounts.length === 0 ? (_jsx("div", { className: 'p-6', children: _jsx(EmptyState, { description: t('dev.connectedAccountsEmptyDescription', {
+                                defaultValue: 'Select Connect account to connect your first mailbox.',
+                            }), title: t('settings.accounts.emptyTitle', {
+                                defaultValue: 'No accounts connected',
+                            }) }) })) : (_jsx("div", { className: 'overflow-x-auto', children: _jsxs("table", { className: 'min-w-[640px] w-full text-left text-sm', children: [_jsx("thead", { className: 'bg-muted/20 text-xs text-muted-foreground', children: _jsxs("tr", { children: [_jsx("th", { className: 'px-4 py-3 font-medium', children: t('dev.accountColumn', { defaultValue: 'Account' }) }), _jsx("th", { className: 'px-4 py-3 font-medium', children: t('dev.providerColumn', { defaultValue: 'Provider' }) }), _jsx("th", { className: 'px-4 py-3 font-medium', children: t('dev.statusColumn', { defaultValue: 'Status' }) }), _jsx("th", { className: 'px-4 py-3 font-medium', children: t('dev.initialSyncColumn', {
+                                                    defaultValue: 'Initial sync start date',
+                                                }) }), _jsx("th", { className: 'px-4 py-3 text-right font-medium', children: t('dev.actionsColumn', { defaultValue: 'Actions' }) })] }) }), _jsx("tbody", { className: 'divide-y', children: accountPage.rows.map((account) => {
+                                        const run = syncRuns[account.id];
+                                        return (_jsxs(Fragment, { children: [_jsx(ConnectedAccountRow, { account: account, onSync: startSync, onRemove: requestRemoveAccount, onToggleStatus: (account) => {
+                                                        if (account.status === 'suspended') {
+                                                            updateAccount(account, { status: 'active' });
+                                                        }
+                                                        else {
+                                                            setError(undefined);
+                                                            setAccountToDeactivate(account);
+                                                        }
+                                                    }, providerLabel: providerLabels.get(providerKey(account.provider)) ??
+                                                        account.provider.name, statusLabel: account.removalFailed
+                                                        ? t('settings.accounts.removalFailed', {
+                                                            defaultValue: 'Removal failed; retrying automatically',
+                                                        })
+                                                        : t(`status.account.${account.status}`, {
+                                                            defaultValue: account.status,
+                                                        }), syncLabel: t('settings.accounts.sync', {
+                                                        defaultValue: 'Sync',
+                                                    }), removeLabel: removingAccountId === account.id ||
+                                                        account.status === 'removing'
+                                                        ? t('settings.accounts.removing', {
+                                                            defaultValue: 'Removing…',
+                                                        })
+                                                        : t('settings.accounts.remove', {
+                                                            defaultValue: 'Remove account',
+                                                        }), toggleStatusLabel: account.status === 'suspended'
+                                                        ? t('settings.accounts.activate', {
+                                                            defaultValue: 'Activate',
+                                                        })
+                                                        : t('settings.accounts.deactivate', {
+                                                            defaultValue: 'Deactivate',
+                                                        }), removing: removingAccountId === account.id ||
+                                                        account.status === 'removing', updating: updatingAccountId === account.id, syncing: syncing === account.id ||
+                                                        (run !== undefined &&
+                                                            (run.status === 'pending' ||
+                                                                run.status === 'running')) }), run ? (_jsx("tr", { children: _jsx("td", { className: 'px-6 py-3', colSpan: 5, children: _jsx(SyncProgress, { run: run }) }) })) : null] }, account.id));
+                                    }) })] }) })), _jsx(MailPagination, { ...accountPage, disabled: loading || Boolean(removingAccountId) || Boolean(updatingAccountId) })] }), _jsx(Sheet, { open: showConnector, onOpenChange: setShowConnector, children: _jsxs(SheetContent, { className: 'overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-2xl', closeLabel: t('dev.closePanel', { defaultValue: 'Close' }), side: 'right', children: [_jsxs(SheetHeader, { className: 'shrink-0 border-b bg-muted/20 pr-14', children: [_jsx(SheetTitle, { children: t('settings.providers.title', {
+                                        defaultValue: 'Add mail account',
+                                    }) }), _jsx(SheetDescription, { children: t('settings.providers.description', {
+                                        defaultValue: 'Choose an account type, then authorize it or enter its mailbox credentials. Newly connected mailboxes start syncing automatically. Initial sync may take some time, depending on the number of messages and network conditions. Check progress in Sync logs; there is no need to start another sync.',
+                                    }) })] }), _jsxs("div", { className: 'space-y-6 px-4 pb-6', children: [error ? (_jsx("div", { role: 'alert', className: 'rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive', children: error })) : null, _jsxs("section", { className: 'space-y-4 pt-2', children: [_jsxs("div", { children: [_jsx("h2", { className: 'font-semibold', children: t('settings.initialSync.title', {
+                                                        defaultValue: 'Initial sync date',
+                                                    }) }), _jsx("p", { className: 'mt-1 text-sm leading-6 text-muted-foreground', children: t('settings.initialSync.description', {
+                                                        defaultValue: 'Choose the initial sync start date for new accounts. Each account’s saved date is shown in the account list.',
+                                                    }) })] }), _jsx(MailSyncPolicyFields, { labels: {
+                                                receivedAfter: t('settings.initialSync.receivedAfter', {
+                                                    defaultValue: 'Import messages received after',
+                                                }),
+                                            }, onChange: setPolicy, value: policy })] }), _jsx("section", { className: 'space-y-4 border-t pt-6', children: loading ? (_jsx(LoadingState, { label: t('settings.loading', {
+                                            defaultValue: 'Loading mail configuration…',
+                                        }) })) : providers.length === 0 ? (_jsx(EmptyState, { description: t('settings.providers.emptyDescription', {
+                                            defaultValue: 'Ask an administrator to configure a Gmail, Microsoft, or IMAP/SMTP provider.',
+                                        }), title: t('settings.providers.emptyTitle', {
+                                            defaultValue: 'No mail providers configured',
+                                        }) })) : (_jsx(MailAccountConnector, { credentialDefaults: credentialDefaults, connectedAccountCount: (provider) => accounts.filter((account) => account.provider.type === provider.type &&
+                                            account.provider.name === provider.name).length, connectingProviderName: connectingProviderName, labels: {
+                                            accountType: t('settings.providers.accountType', {
+                                                defaultValue: 'Mail account type',
+                                            }),
+                                            chooseAccountType: t('settings.providers.chooseAccountType', { defaultValue: 'Select an account type' }),
+                                            connect: t('settings.providers.connect', {
+                                                defaultValue: 'Connect account',
+                                            }),
+                                            connecting: t('settings.providers.connecting', {
+                                                defaultValue: 'Connecting…',
+                                            }),
+                                            connectedAccounts: (count) => t('settings.providers.connected', {
+                                                count,
+                                                defaultValue: '{{count}} connected',
+                                            }),
+                                            capability: (capability) => t(`capabilities.${capability}`, {
+                                                defaultValue: capability,
+                                            }),
+                                            configurationRequired: t('settings.providers.configurationRequired', {
+                                                defaultValue: 'Ask an administrator to configure this mail provider first',
+                                            }),
+                                            emailAddress: t('settings.providers.emailAddress', {
+                                                defaultValue: 'Email address',
+                                            }),
+                                            username: t('settings.providers.username', {
+                                                defaultValue: 'Username (optional)',
+                                            }),
+                                            usernameDescription: t('settings.providers.usernameDescription', {
+                                                defaultValue: 'Usually your email address. Leave blank to use the email address you entered.',
+                                            }),
+                                            password: t('settings.providers.password', {
+                                                defaultValue: 'Password',
+                                            }),
+                                            displayName: t('settings.providers.displayName', {
+                                                defaultValue: 'Sender name (optional)',
+                                            }),
+                                        }, onConnect: connect, onConnectCredentials: connectWithCredentials, providers: providers })) })] })] }) }), _jsx(Sheet, { open: showLabels, onOpenChange: setShowLabels, children: _jsxs(SheetContent, { className: 'overflow-hidden data-[side=right]:w-full data-[side=right]:sm:max-w-4xl', closeLabel: t('dev.closePanel', { defaultValue: 'Close' }), side: 'right', children: [_jsxs(SheetHeader, { className: 'shrink-0 border-b bg-muted/20 pr-14', children: [_jsx(SheetTitle, { children: t('dev.labelManagementTitle', {
+                                        defaultValue: 'Label management',
+                                    }) }), _jsx(SheetDescription, { children: t('dev.labelManagementDescription', {
+                                        defaultValue: 'Create and review labels stored in NocoBase.',
+                                    }) })] }), _jsx("div", { className: 'min-h-0 min-w-0 flex-1 overflow-y-auto p-4 pb-6 lg:overflow-hidden', children: _jsx(MailLabelManager, {}) })] }) }), _jsx(Sheet, { open: showTemplates, onOpenChange: setShowTemplates, children: _jsxs(SheetContent, { className: 'overflow-hidden data-[side=right]:w-full data-[side=right]:sm:max-w-4xl', closeLabel: t('dev.closePanel', { defaultValue: 'Close' }), side: 'right', children: [_jsxs(SheetHeader, { className: 'shrink-0 border-b bg-muted/20 pr-14', children: [_jsx(SheetTitle, { children: t('dev.templateManagementTitle', {
+                                        defaultValue: 'Template management',
+                                    }) }), _jsx(SheetDescription, { children: t('dev.templateManagementDescription', {
+                                        defaultValue: 'Create reusable subjects and message bodies without leaving the account workspace.',
+                                    }) })] }), _jsx("div", { className: 'min-h-0 min-w-0 flex-1 overflow-y-auto p-4 pb-6 lg:overflow-hidden', children: _jsx(MailTemplateManager, {}) })] }) }), _jsx(Sheet, { open: showSignatures, onOpenChange: (open) => {
+                    setShowSignatures(open);
+                    if (!open)
+                        setError(undefined);
+                }, children: _jsxs(SheetContent, { className: 'overflow-hidden data-[side=right]:w-full data-[side=right]:sm:max-w-4xl', closeLabel: t('dev.closePanel', { defaultValue: 'Close' }), side: 'right', children: [_jsxs(SheetHeader, { className: 'shrink-0 border-b bg-muted/20 pr-14', children: [_jsx(SheetTitle, { children: t('dev.signatureManagementTitle', {
+                                        defaultValue: 'Signature management',
+                                    }) }), _jsx(SheetDescription, { children: t('dev.signatureManagementDescription', {
+                                        defaultValue: 'Manage signatures for each connected account.',
+                                    }) })] }), _jsxs("div", { className: 'flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-4 pb-6 lg:overflow-hidden', children: [error ? (_jsx("div", { className: 'mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive', children: error })) : null, accounts.length === 0 ? (_jsx(EmptyState, { description: t('dev.connectedAccountsEmptyDescription', {
+                                        defaultValue: 'Select Connect account to connect your first mailbox.',
+                                    }), title: t('settings.accounts.emptyTitle', {
+                                        defaultValue: 'No accounts connected',
+                                    }) })) : (_jsx(MailSignatureManager, { accounts: accounts, onError: setError }))] })] }) }), _jsx(Dialog, { open: accountToDeactivate !== undefined, onOpenChange: (open) => {
+                    if (!open && updatingAccountId === undefined) {
+                        setAccountToDeactivate(undefined);
+                        setError(undefined);
+                    }
+                }, children: _jsxs(DialogContent, { closeLabel: t('dev.closePanel', { defaultValue: 'Close' }), children: [_jsxs(DialogHeader, { children: [_jsx(DialogTitle, { children: t('settings.accounts.deactivateTitle', {
+                                        defaultValue: 'Deactivate mail account?',
+                                    }) }), _jsx(DialogDescription, { children: t('settings.accounts.deactivateDescription', {
+                                        defaultValue: 'This account will stop synchronizing and sending mail and will be hidden from the Mail center. Synchronized mail will remain available in Mail management. You can activate the account again later.',
+                                    }) })] }), _jsx("p", { className: 'mt-5 text-sm font-medium', children: accountToDeactivate?.address }), error ? (_jsx("p", { role: 'alert', className: 'mt-4 text-sm text-destructive', children: error })) : null, _jsxs(DialogFooter, { children: [_jsx(Button, { disabled: updatingAccountId !== undefined, onClick: () => {
+                                        setAccountToDeactivate(undefined);
+                                        setError(undefined);
+                                    }, type: 'button', variant: 'outline', children: t('settings.accounts.deactivateCancel', {
+                                        defaultValue: 'Cancel',
+                                    }) }), _jsx(Button, { disabled: updatingAccountId !== undefined, onClick: () => {
+                                        if (accountToDeactivate && updatingAccountId === undefined) {
+                                            updateAccount(accountToDeactivate, { status: 'suspended' });
+                                        }
+                                    }, type: 'button', children: updatingAccountId !== undefined
+                                        ? t('settings.accounts.deactivating', {
+                                            defaultValue: 'Deactivating…',
+                                        })
+                                        : t('settings.accounts.deactivateConfirm', {
+                                            defaultValue: 'Deactivate account',
+                                        }) })] })] }) }), _jsx(Dialog, { open: accountToRemove !== undefined, onOpenChange: (open) => {
+                    if (!open) {
+                        setAccountToRemove(undefined);
+                        setError(undefined);
+                    }
+                }, children: _jsxs(DialogContent, { closeLabel: t('dev.closePanel', { defaultValue: 'Close' }), children: [_jsxs(DialogHeader, { children: [_jsx(DialogTitle, { children: t('settings.accounts.removeTitle', {
+                                        defaultValue: 'Remove mail account?',
+                                    }) }), _jsx(DialogDescription, { children: t('settings.accounts.removeDescription', {
+                                        defaultValue: 'This will delete synchronized mail, folders, signatures, sync records, and authorization data stored in this app. It will not delete mail from your provider.',
+                                    }) })] }), accountToRemove ? (_jsxs("div", { className: 'mt-5 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm', children: [_jsx("p", { className: 'font-medium', children: accountToRemove.address }), _jsx("p", { className: 'mt-1 text-muted-foreground', children: t('settings.accounts.removeLocalDataNotice', {
+                                        defaultValue: 'Only this application’s local account data will be removed.',
+                                    }) })] })) : null, error ? (_jsx("p", { className: 'mt-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive', children: error })) : null, _jsxs(DialogFooter, { children: [_jsx(Button, { disabled: removingAccountId !== undefined, onClick: () => setAccountToRemove(undefined), type: 'button', variant: 'outline', children: t('settings.accounts.removeCancel', {
+                                        defaultValue: 'Cancel',
+                                    }) }), _jsx(Button, { disabled: removingAccountId !== undefined, onClick: confirmRemoveAccount, type: 'button', variant: 'destructive', children: removingAccountId !== undefined
+                                        ? t('settings.accounts.removing', {
+                                            defaultValue: 'Removing…',
+                                        })
+                                        : t('settings.accounts.removeConfirm', {
+                                            defaultValue: 'Remove account',
+                                        }) })] })] }) })] }));
+}
+function ConnectedAccountRow({ account, onSync, onRemove, onToggleStatus, providerLabel, statusLabel, syncLabel, syncing, removeLabel, removing, updating, toggleStatusLabel, }) {
+    return (_jsxs("tr", { className: 'transition-colors hover:bg-muted/20', children: [_jsx("td", { className: 'px-4 py-4', children: _jsxs("div", { className: 'flex min-w-0 items-center gap-3', children: [_jsx("span", { className: 'grid size-10 shrink-0 place-items-center rounded-xl border bg-muted/30 text-muted-foreground', children: _jsx(Mail, { "aria-hidden": 'true', className: 'size-5' }) }), _jsxs("div", { className: 'min-w-0', children: [_jsx("p", { className: 'truncate font-semibold', children: account.address }), account.displayName ? (_jsx("p", { className: 'truncate text-xs text-muted-foreground', children: account.displayName })) : null] })] }) }), _jsx("td", { className: 'px-4 py-4', children: _jsxs("div", { className: 'min-w-0', children: [_jsx("p", { className: 'font-medium', children: providerLabel }), _jsx("p", { className: 'mt-1 font-mono text-xs text-muted-foreground', children: account.provider.type })] }) }), _jsx("td", { className: 'px-4 py-4', children: _jsx(MailStatusBadge, { label: statusLabel, tone: accountStatusTone(account.status) }) }), _jsx("td", { className: 'px-4 py-4', children: account.initialSyncReceivedAfter ? (_jsx("time", { dateTime: account.initialSyncReceivedAfter, children: account.initialSyncReceivedAfter.slice(0, 10) })) : (_jsx("span", { className: 'text-muted-foreground', children: "\u2014" })) }), _jsx("td", { className: 'px-4 py-4', children: _jsxs("div", { className: 'flex flex-wrap justify-end gap-2', children: [_jsx(Button, { disabled: syncing || account.status !== 'active', onClick: () => onSync(account), type: 'button', variant: 'outline', children: syncLabel }), _jsx(Button, { disabled: syncing || removing || updating, onClick: () => onToggleStatus(account), type: 'button', variant: 'outline', children: toggleStatusLabel }), _jsx(Button, { disabled: syncing || removing || updating, onClick: () => onRemove(account), type: 'button', variant: 'destructive', children: removeLabel })] }) })] }));
+}
+function SyncProgress({ run, }) {
+    const { t } = useTranslation();
+    return (_jsxs("div", { className: 'flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-4 py-3 text-sm', children: [_jsx(MailStatusBadge, { label: t(`status.sync.${run.status}`, { defaultValue: run.status }), tone: syncStatusTone(run.status) }), _jsx("span", { children: t('settings.accounts.syncProgress', {
+                    defaultValue: '{{messages}} messages in {{pages}} batches',
+                    messages: run.processedMessages,
+                    pages: run.processedPages,
+                }) }), _jsxs("span", { className: 'text-muted-foreground', children: ["\u00B7 ", t(`status.syncPhase.${run.phase}`, { defaultValue: run.phase })] })] }));
+}
+function accountStatusTone(status) {
+    if (status === 'active')
+        return 'success';
+    if (status === 'connecting')
+        return 'info';
+    if (status === 'reauthorizationRequired')
+        return 'warning';
+    return 'danger';
+}
+function syncStatusTone(status) {
+    if (status === 'completed')
+        return 'success';
+    if (status === 'failed' || status === 'cancelled')
+        return 'danger';
+    return 'info';
+}
+function LoadingState({ label }) {
+    return (_jsx("div", { className: 'rounded-xl border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground', children: label }));
+}
+function EmptyState({ title, description, }) {
+    return (_jsxs("div", { className: 'rounded-xl border border-dashed bg-muted/20 p-8 text-center', children: [_jsx("p", { className: 'font-medium', children: title }), _jsx("p", { className: 'mt-1 text-sm text-muted-foreground', children: description })] }));
+}
+function providerKey(provider) {
+    return `${provider.type}:${provider.name}`;
+}
+function matchesProvider(provider, providerKeys) {
+    return (providerKeys === undefined || providerKeys.includes(providerKey(provider)));
+}
+function readAuthorizationNotice() {
+    const value = new URL(window.location.href).searchParams.get('mailAuthorization');
+    return value === 'success' || value === 'failure' ? value : undefined;
+}
+function toSyncDate(value) {
+    return new Date(`${value ?? mailSyncDateMonthsAgo(1)}T00:00:00Z`).toISOString();
+}
+//# sourceMappingURL=mail-accounts-page.js.map

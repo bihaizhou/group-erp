@@ -1,0 +1,19 @@
+import type { MailMessage } from '../mail-client.js';
+import type { MailForwardQuote } from '../contracts/composer.js';
+export type { MailForwardQuote } from '../contracts/composer.js';
+export interface MailComposerBody {
+    readonly html: string;
+    readonly text: string;
+    readonly forwardQuote?: MailForwardQuote;
+}
+export declare function createReplyQuote(message: MailMessage): MailForwardQuote;
+export declare function createForwardQuote(message: MailMessage): MailForwardQuote;
+export declare function composeMailBody(body: MailComposerBody): {
+    html: string;
+    text: string;
+};
+/** Restores the editable comment without feeding quoted CSS through the editor. */
+export declare function readDraftComposerBody(message: MailMessage): MailComposerBody;
+/** Remove a discarded inline upload without stripping the original message's CSS. */
+export declare function removeQuotedImage(quote: MailForwardQuote | undefined, contentId: string | undefined): MailForwardQuote | undefined;
+//# sourceMappingURL=mail-forward-content.d.ts.map

@@ -1,0 +1,10 @@
+import { MAIL_LABEL_COLORS } from '../../shared/mail.js';
+import type { MailLabelColor } from '../../shared/mail.js';
+export { MAIL_LABEL_COLORS };
+interface MailLabelColorStyles {
+    readonly dot: string;
+    readonly tag: string;
+}
+export declare function getMailLabelColorStyles(color?: MailLabelColor): MailLabelColorStyles;
+export declare function mailLabelColorSwatch(color: MailLabelColor): string;
+//# sourceMappingURL=mail-label.d.ts.map

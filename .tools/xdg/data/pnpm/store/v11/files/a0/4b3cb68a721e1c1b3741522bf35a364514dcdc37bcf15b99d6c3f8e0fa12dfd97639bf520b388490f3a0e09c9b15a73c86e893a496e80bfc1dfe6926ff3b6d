@@ -1,0 +1,78 @@
+var __rewriteRelativeImportExtension = (this && this.__rewriteRelativeImportExtension) || function (path, preserveJsx) {
+    if (typeof path === "string" && /^\.\.?\//.test(path)) {
+        return path.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function (m, tsx, d, ext, cm) {
+            return tsx ? preserveJsx ? ".jsx" : ".js" : d && (!ext || !cm) ? m : (d + ext + "." + cm.toLowerCase() + "js");
+        });
+    }
+    return path;
+};
+import { stat } from 'node:fs/promises';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { trackOpenRuntime } from "./runtime/command-store.js";
+/** Load by convention only when a command actually needs the application. */
+export function createDefaultCommandContext(options) {
+    const rootDir = path.resolve(options.rootDir);
+    return {
+        rootDir,
+        loadRuntime: options.loadRuntime ??
+            (async () => {
+                const url = await resolveServerModule(rootDir, 'runtime');
+                const module = (await import(__rewriteRelativeImportExtension(url)));
+                if (!module.default || typeof module.default !== 'object') {
+                    throw new Error(`Application runtime module "${url}" must have a default runtime export.`);
+                }
+                // Imported here, not at module top level: every AppCommand reaches this file, and a command that only needs
+                // `rootDir` should not load the server runtime to get it.
+                const { resolveStandaloneAppRuntime } = await import('@nocobase/app-server/node');
+                const runtime = await resolveStandaloneAppRuntime(module.default, {
+                    rootDir,
+                    ...(options.configPath === undefined
+                        ? {}
+                        : { configPath: options.configPath }),
+                    // The command's result owns stdout; what the application logs while it runs goes to stderr.
+                    consoleLogStream: 'stderr',
+                });
+                const release = trackOpenRuntime({
+                    // The scope is destroyed even when shutdown fails: it holds what keeps the process from exiting.
+                    close: async () => {
+                        try {
+                            await runtime.app?.shutdown();
+                        }
+                        finally {
+                            await runtime.scope.destroy();
+                        }
+                    },
+                });
+                runtime.scope.onBeforeDestroy(async () => {
+                    release();
+                });
+                return runtime;
+            }),
+        createApp: options.createApp ??
+            (async (runtime) => {
+                const url = await resolveServerModule(rootDir, 'app');
+                const module = (await import(__rewriteRelativeImportExtension(url)));
+                if (typeof module.createApp !== 'function') {
+                    throw new Error(`Application module "${url}" must export createApp(runtime).`);
+                }
+                return module.createApp(runtime);
+            }),
+    };
+}
+async function resolveServerModule(rootDir, name) {
+    // Source checkouts prefer TypeScript; deployment roots contain JavaScript only.
+    for (const extension of ['ts', 'js']) {
+        const filename = path.join(rootDir, 'server', `${name}.${extension}`);
+        try {
+            if ((await stat(filename)).isFile())
+                return pathToFileURL(filename).href;
+        }
+        catch (error) {
+            if (error.code !== 'ENOENT')
+                throw error;
+        }
+    }
+    throw new Error(`Application module not found: ${path.join(rootDir, 'server', name)}.{ts,js}`);
+}
+//# sourceMappingURL=default-context.js.map

@@ -1,0 +1,10 @@
+import type { MailProviderDefinition, MailProviderRegistry } from './contracts/provider.js';
+/** Collects Provider definitions without creating accounts or external clients. */
+export declare class DefaultMailProviderRegistry implements MailProviderRegistry {
+    private readonly providerDefinitions;
+    register(definition: MailProviderDefinition): this;
+    definition(type: string): MailProviderDefinition | undefined;
+    definitions(): readonly MailProviderDefinition[];
+}
+export declare function createMailProviderRegistry(): MailProviderRegistry;
+//# sourceMappingURL=registry.d.ts.map

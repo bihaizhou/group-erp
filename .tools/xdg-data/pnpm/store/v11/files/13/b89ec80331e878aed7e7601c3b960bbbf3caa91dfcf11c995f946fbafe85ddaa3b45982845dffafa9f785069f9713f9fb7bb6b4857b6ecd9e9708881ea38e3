@@ -1,0 +1,142 @@
+import { lockWritableAccount } from './account-guard.js';
+import { persistAccount, replaceAccountIdentities, saveSignature, } from './account-writes.js';
+import { fromAccountRow } from './mappers.js';
+import { normalizeAddress } from './serialization.js';
+export class MailAccountsStore {
+    database;
+    constructor(database) {
+        this.database = database;
+    }
+    async getAccount(accountId) {
+        const row = await this.database
+            .query()
+            .selectFrom('mailAccounts')
+            .selectAll()
+            .where('id', '=', accountId)
+            .executeTakeFirst();
+        return row ? fromAccountRow(row) : undefined;
+    }
+    async findAccountByProviderIdentity(provider, address, authorizationSubject) {
+        if (authorizationSubject) {
+            const bySubject = await this.database
+                .query()
+                .selectFrom('mailAccounts')
+                .selectAll()
+                .where('providerType', '=', provider.type)
+                .where('providerName', '=', provider.name)
+                .where('authorizationSubject', '=', authorizationSubject)
+                .executeTakeFirst();
+            if (bySubject)
+                return fromAccountRow(bySubject);
+        }
+        const row = await this.database
+            .query()
+            .selectFrom('mailAccounts')
+            .selectAll()
+            .where('providerType', '=', provider.type)
+            .where('providerName', '=', provider.name)
+            .where('address', '=', normalizeAddress(address))
+            .executeTakeFirst();
+        return row ? fromAccountRow(row) : undefined;
+    }
+    async listAccounts(userId) {
+        const rows = await this.database
+            .query()
+            .selectFrom('mailAccounts')
+            .selectAll()
+            .where('userId', '=', userId)
+            .orderBy('address', 'asc')
+            .execute();
+        for (const row of rows) {
+            if (row.status !== 'removing')
+                continue;
+            const removal = await this.database
+                .query()
+                .selectFrom('mailAccountRemovals')
+                .select('failed')
+                .where('accountId', '=', row.id)
+                .executeTakeFirst();
+            row.removalFailed = removal?.failed;
+        }
+        return rows.map(fromAccountRow);
+    }
+    async listAllAccounts() {
+        const rows = await this.database
+            .query()
+            .selectFrom('mailAccounts')
+            .selectAll()
+            .orderBy('userId', 'asc')
+            .orderBy('address', 'asc')
+            .execute();
+        return rows.map(fromAccountRow);
+    }
+    async updateAccountStatus(accountId, status) {
+        await this.database.transaction(async ({ query }) => {
+            await lockWritableAccount(query, accountId);
+            await query
+                .updateTable('mailAccounts')
+                .set({ status, updatedAt: new Date().toISOString() })
+                .where('id', '=', accountId)
+                .execute();
+        });
+    }
+    async saveAccount(account) {
+        await this.database.transaction(async ({ query }) => {
+            await persistAccount(query, account);
+        });
+        return account;
+    }
+    async markAccountRemoving(accountId, userId) {
+        return this.database.transaction(async ({ query }) => {
+            const updated = await query
+                .updateTable('mailAccounts')
+                .set({ status: 'removing', updatedAt: new Date().toISOString() })
+                .where('id', '=', accountId)
+                .where('userId', '=', userId)
+                .execute();
+            if (updated.updatedCount !== 1)
+                return false;
+            const existing = await query
+                .selectFrom('mailAccountRemovals')
+                .select('accountId')
+                .where('accountId', '=', accountId)
+                .executeTakeFirst();
+            if (!existing) {
+                await query
+                    .insertInto('mailAccountRemovals')
+                    .values({
+                    accountId,
+                    failed: false,
+                    availableAt: new Date().toISOString(),
+                })
+                    .execute();
+            }
+            return true;
+        });
+    }
+    async markAccountReauthorizationRequired(accountId) {
+        const result = await this.database
+            .query()
+            .updateTable('mailAccounts')
+            .set({
+            status: 'reauthorizationRequired',
+            updatedAt: new Date().toISOString(),
+        })
+            .where('id', '=', accountId)
+            .where('status', '=', 'active')
+            .execute();
+        return result.updatedCount === 1;
+    }
+    async saveAuthorizedAccount(account, identities, signatures = [], replacingAccount = false) {
+        await this.database.transaction(async (connection) => {
+            if (replacingAccount)
+                await lockWritableAccount(connection.query, account.id);
+            await persistAccount(connection.query, account);
+            await replaceAccountIdentities(connection.query, account.id, identities);
+            for (const signature of signatures) {
+                await saveSignature(connection.query, signature);
+            }
+        });
+    }
+}
+//# sourceMappingURL=accounts.js.map

@@ -1,0 +1,4 @@
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { Caching } from '@nocobase/caching';
+export declare const cachingToken: ServiceToken<Caching>;
+//# sourceMappingURL=token.d.ts.map

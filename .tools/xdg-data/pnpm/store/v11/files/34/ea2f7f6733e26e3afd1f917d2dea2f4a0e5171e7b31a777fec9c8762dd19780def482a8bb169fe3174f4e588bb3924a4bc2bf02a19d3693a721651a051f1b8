@@ -1,0 +1,64 @@
+import type { ReactElement } from 'react';
+export interface MailRichTextValue {
+    readonly html: string;
+    readonly text: string;
+}
+export interface MailRichTextEditorLabels {
+    readonly toolbar: string;
+    readonly bold: string;
+    readonly italic: string;
+    readonly underline: string;
+    readonly bulletList: string;
+    readonly numberedList: string;
+    readonly undo: string;
+    readonly redo: string;
+    readonly clearFormatting: string;
+    readonly fontSize?: string;
+    readonly heading?: string;
+    readonly link?: string;
+    readonly image?: string;
+    readonly uploadImage?: string;
+    readonly resizeImage?: string;
+    readonly deleteImage?: string;
+    readonly normal?: string;
+    readonly heading1?: string;
+    readonly heading2?: string;
+    readonly heading3?: string;
+    readonly heading4?: string;
+    readonly heading5?: string;
+    readonly heading6?: string;
+    readonly fontSizeSmall?: string;
+    readonly fontSizeNormal?: string;
+    readonly fontSizeLarge?: string;
+}
+export interface MailRichTextEditorInsertOption {
+    readonly id: string;
+    readonly label: string;
+}
+export interface MailRichTextEditorInsertMenu {
+    readonly label: string;
+    readonly options: readonly MailRichTextEditorInsertOption[];
+    readonly emptyLabel?: string;
+    readonly onSelect: (id: string) => void;
+    readonly selectedId?: string;
+}
+export interface MailRichTextEditorInsertActions {
+    readonly signature?: MailRichTextEditorInsertMenu;
+    readonly template?: MailRichTextEditorInsertMenu;
+}
+export interface MailRichTextEditorProps {
+    readonly imageSources?: Readonly<Record<string, string>>;
+    readonly onUploadImage?: (file: File) => Promise<{
+        cid: string;
+        src: string;
+    }>;
+    readonly ariaLabel: string;
+    readonly disabled?: boolean;
+    readonly insertActions?: MailRichTextEditorInsertActions;
+    readonly labels: MailRichTextEditorLabels;
+    readonly onChange: (value: MailRichTextValue) => void;
+    readonly placeholder?: string;
+    readonly value: string;
+}
+export declare function MailRichTextEditor({ ariaLabel, imageSources, onUploadImage, disabled, insertActions, labels, onChange, placeholder, value, }: MailRichTextEditorProps): ReactElement;
+//# sourceMappingURL=mail-rich-text-editor.d.ts.map

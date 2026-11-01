@@ -1,0 +1,63 @@
+export interface FieldWritePolicy {
+    readonly fields?: false | readonly string[];
+}
+export interface WritePolicy extends FieldWritePolicy {
+    readonly relations?: false | Readonly<Record<string, RelationWritePolicy>>;
+}
+export interface ThroughWritePolicy {
+    readonly through?: false | FieldWritePolicy;
+}
+export interface RelationCreateWritePolicy extends WritePolicy, ThroughWritePolicy {
+}
+export interface UpsertWritePolicy {
+    readonly create: WritePolicy;
+    readonly update: WritePolicy;
+}
+export interface RelationWritePolicy {
+    readonly create?: RelationCreateWritePolicy;
+    readonly update?: WritePolicy;
+    readonly upsert?: UpsertWritePolicy;
+    readonly connect?: ThroughWritePolicy;
+    readonly set?: ThroughWritePolicy;
+    readonly disconnect?: Readonly<Record<string, never>>;
+    readonly delete?: Readonly<Record<string, never>>;
+}
+export type RelationWriteOperation = keyof RelationWritePolicy;
+export interface FieldWritePolicyBuilder {
+    fields(...fields: string[]): this;
+}
+export interface WritePolicyBuilder extends FieldWritePolicyBuilder {
+    relation(name: string, configure: (relation: RelationWritePolicyBuilder) => RelationWritePolicyBuilder): this;
+}
+export interface RelationCreateWritePolicyBuilder extends WritePolicyBuilder {
+    through(configure: (through: FieldWritePolicyBuilder) => FieldWritePolicyBuilder): this;
+}
+export interface ThroughWritePolicyBuilder {
+    through(configure: (through: FieldWritePolicyBuilder) => FieldWritePolicyBuilder): this;
+}
+export interface UpsertWritePolicyBuilder {
+    create(configure: (write: WritePolicyBuilder) => WritePolicyBuilder): this;
+    update(configure: (write: WritePolicyBuilder) => WritePolicyBuilder): this;
+}
+export interface RelationWritePolicyBuilder {
+    create(configure: (write: RelationCreateWritePolicyBuilder) => RelationCreateWritePolicyBuilder): this;
+    update(configure: (write: WritePolicyBuilder) => WritePolicyBuilder): this;
+    upsert(configure: (branches: UpsertWritePolicyBuilder) => UpsertWritePolicyBuilder): this;
+    connect(configure?: (edge: ThroughWritePolicyBuilder) => ThroughWritePolicyBuilder): this;
+    set(configure?: (edge: ThroughWritePolicyBuilder) => ThroughWritePolicyBuilder): this;
+    disconnect(): this;
+    delete(): this;
+}
+export type WritePolicyInput = WritePolicy | ((write: WritePolicyBuilder) => WritePolicyBuilder);
+export type FieldWritePolicyInput = FieldWritePolicy | ((write: FieldWritePolicyBuilder) => FieldWritePolicyBuilder);
+export type UpsertWritePolicyInput = UpsertWritePolicy | ((branches: UpsertWritePolicyBuilder) => UpsertWritePolicyBuilder);
+export type PolicyPath = readonly (string | number)[];
+export declare const relationWriteOperations: readonly RelationWriteOperation[];
+export declare function invalidWritePolicy(message: string, path: PolicyPath): never;
+/** Build a detached, frozen policy. No fields or relations are allowed by default. */
+export declare function buildWritePolicy(input?: WritePolicyInput): WritePolicy;
+/** Build independent create/update rules for a root upsert. Both branches are required. */
+export declare function buildUpsertWritePolicy(input: UpsertWritePolicyInput): UpsertWritePolicy;
+export declare function normalizeWritePolicy(input: WritePolicyInput, mode: 'create' | 'update'): WritePolicy;
+export declare function normalizeFieldWritePolicy(input: FieldWritePolicyInput): FieldWritePolicy;
+export declare function assertWriteEnabled<T>(policy: T): asserts policy is Exclude<T, false>;

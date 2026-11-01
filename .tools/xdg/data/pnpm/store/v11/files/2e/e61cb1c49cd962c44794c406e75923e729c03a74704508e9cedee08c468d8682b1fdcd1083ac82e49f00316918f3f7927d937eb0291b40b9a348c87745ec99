@@ -1,0 +1,27 @@
+import { type AuthorizationPlugin, type AuthorizationTitle, type PermissionGrant } from '@nocobase/authorization/core';
+/** One administration surface and the actions it exposes. */
+export interface SettingsItemDefinition {
+    readonly id: string;
+    readonly title: AuthorizationTitle;
+    readonly actions: readonly {
+        readonly name: string;
+        readonly title?: AuthorizationTitle;
+    }[];
+}
+/** `authz.settings`. */
+export interface SettingsApi {
+    /** Re-adding an identical item is a no-op; a different one throws. */
+    add(item: SettingsItemDefinition): void;
+    /** A grant of registered actions on a registered item. */
+    grant(id: string, actions: readonly string[]): PermissionGrant;
+}
+export interface SettingsAuthorizationApi {
+    settings: SettingsApi;
+}
+export type SettingsPlugin = AuthorizationPlugin<SettingsAuthorizationApi>;
+/**
+ * Registers the `settings` catalog type and `authz.settings`. Where an item is
+ * listed is `authz.ui.place`'s concern.
+ */
+export declare function settingsPlugin(): SettingsPlugin;
+//# sourceMappingURL=settings.d.ts.map

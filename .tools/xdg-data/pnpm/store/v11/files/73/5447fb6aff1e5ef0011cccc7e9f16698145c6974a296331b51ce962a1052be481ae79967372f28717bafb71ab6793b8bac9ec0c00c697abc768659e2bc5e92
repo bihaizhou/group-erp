@@ -1,0 +1,18 @@
+import type { Knex } from 'knex';
+import { BaseSchemaInspector } from '@nocobase/db';
+import type { DecodedPhysicalCollectionCursor, NormalizedPhysicalCollectionListOptions, PhysicalCollectionIdentifier, PhysicalCollectionSchema, PhysicalCollectionSummary, PhysicalSchemaInfo, PhysicalTypeNormalizationStrategy } from '@nocobase/db';
+export declare const sqliteTypes: PhysicalTypeNormalizationStrategy;
+export interface SqliteSchemaInspectorOptions {
+    readonly connectionName: string;
+    resolveClient(): Promise<Knex>;
+}
+export declare class SqliteSchemaInspector extends BaseSchemaInspector {
+    private readonly options;
+    constructor(options: SqliteSchemaInspectorOptions);
+    protected inspectSchemas(): Promise<PhysicalSchemaInfo[]>;
+    protected inspectCollection(identifier: PhysicalCollectionIdentifier): Promise<PhysicalCollectionSchema | undefined>;
+    protected inspectCollectionSummaries(options: NormalizedPhysicalCollectionListOptions, after: DecodedPhysicalCollectionCursor['after'] | undefined, fetchLimit: number): Promise<PhysicalCollectionSummary[]>;
+    private assertMainSchema;
+    private readIndexes;
+    private readForeignKeys;
+}

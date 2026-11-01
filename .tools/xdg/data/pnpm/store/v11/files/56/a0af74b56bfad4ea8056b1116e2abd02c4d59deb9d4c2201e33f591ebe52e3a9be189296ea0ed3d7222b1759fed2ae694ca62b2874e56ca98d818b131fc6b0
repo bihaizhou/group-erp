@@ -1,0 +1,42 @@
+export class SchemaManagementNotAllowedError extends Error {
+    connection;
+    operation;
+    code = 'SCHEMA_MANAGEMENT_NOT_ALLOWED';
+    constructor(connection, operation) {
+        super(`Connection "${connection}" uses external schema management and cannot execute schema operation "${operation}".`);
+        this.connection = connection;
+        this.operation = operation;
+        this.name = 'SchemaManagementNotAllowedError';
+    }
+}
+export class SchemaManagementSchemaAdapter {
+    adapter;
+    options;
+    dialect;
+    capabilities;
+    constructor(adapter, options) {
+        this.adapter = adapter;
+        this.options = options;
+        this.dialect = adapter.dialect;
+        this.capabilities = adapter.capabilities;
+    }
+    assertExecutable(operations) {
+        const operation = operations[0];
+        if (operation && this.options.mode === 'external') {
+            throw new SchemaManagementNotAllowedError(this.options.connectionName, operation.type);
+        }
+        this.adapter.assertExecutable?.(operations);
+    }
+    async execute(operations) {
+        this.assertExecutable(operations);
+        await this.adapter.execute(operations);
+    }
+    async compile(operations) {
+        return this.adapter.compile ? this.adapter.compile(operations) : [];
+    }
+}
+export function assertManagedSchema(options, operation) {
+    if (options.mode === 'external') {
+        throw new SchemaManagementNotAllowedError(options.connectionName, operation);
+    }
+}

@@ -1,0 +1,48 @@
+import { randomUUID } from 'node:crypto';
+export async function upsertSyncState(query, accountId, cursor) {
+    const existing = await query
+        .selectFrom('mailSyncStates')
+        .select('accountId')
+        .where('accountId', '=', accountId)
+        .executeTakeFirst();
+    const row = {
+        accountId,
+        cursor: JSON.stringify(cursor),
+        lastSyncedAt: new Date().toISOString(),
+    };
+    if (existing) {
+        await query
+            .updateTable('mailSyncStates')
+            .set(row)
+            .where('accountId', '=', accountId)
+            .execute();
+    }
+    else {
+        await query
+            .insertInto('mailSyncStates')
+            .values(row)
+            .execute();
+    }
+}
+export async function insertOutbox(query, run, sequence, now, retryId) {
+    await query
+        .insertInto('mailOutbox')
+        .values({
+        id: randomUUID(),
+        type: 'syncMailbox',
+        aggregateId: run.id,
+        deduplicationKey: `sync:${run.id}:${sequence}:${run.phase}${retryId ? `:retry:${retryId}` : ''}`,
+        payload: JSON.stringify({
+            version: 1,
+            syncRunId: run.id,
+            expectedRevision: run.revision,
+            expectedPhase: run.phase,
+        }),
+        status: 'pending',
+        attempts: 0,
+        availableAt: now,
+        createdAt: now,
+    })
+        .execute();
+}
+//# sourceMappingURL=sync-writes.js.map

@@ -1,0 +1,28 @@
+import type { DatabaseConnection } from '@nocobase/db';
+import type { DatabaseConnectionSource } from './connection.js';
+import type { PermissionSet, PermissionSetAssignment, PermissionSetSubject } from '@nocobase/authorization/permission-sets';
+import type { PermissionSetStore } from '@nocobase/authorization/permission-sets';
+export declare class DatabasePermissionSetStore implements PermissionSetStore<DatabaseConnection> {
+    private readonly connection;
+    private lockTableName?;
+    constructor(connection: DatabaseConnectionSource, lockTableName?: string | undefined);
+    transaction<T>(run: (connection: DatabaseConnection) => Promise<T>): Promise<T>;
+    withTransaction(connection: DatabaseConnection): PermissionSetStore<DatabaseConnection>;
+    list(): Promise<readonly PermissionSet[]>;
+    findAssignments(subjects: readonly PermissionSetSubject[]): Promise<readonly PermissionSetAssignment[]>;
+    get(key: string): Promise<PermissionSet | undefined>;
+    create(input: PermissionSet): Promise<PermissionSet>;
+    update(key: string, input: PermissionSet): Promise<PermissionSet>;
+    delete(key: string): Promise<void>;
+    assign(input: PermissionSetAssignment): Promise<PermissionSetAssignment>;
+    revoke(id: string): Promise<void>;
+    /**
+     * Serializes changes to one Permission Set on its own row, so a check that
+     * counts the assignments left cannot run against a snapshot another
+     * transaction is about to invalidate.
+     */
+    lock(key: string): Promise<void>;
+    private resolveLockTable;
+    listAssignments(permissionSet?: string): Promise<readonly PermissionSetAssignment[]>;
+}
+//# sourceMappingURL=permission-sets.d.ts.map

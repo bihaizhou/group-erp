@@ -1,0 +1,14 @@
+import { createCaching } from '@nocobase/caching';
+import { ServiceProvider } from '@nocobase/service-provider';
+import { cachingToken } from './token.js';
+export class CachingProvider extends ServiceProvider {
+    name = '@nocobase/app-server/caching';
+    register() {
+        const config = this.app.config.get('caching');
+        this.app.container.singleton(cachingToken, () => createCaching(config));
+    }
+    async shutdown() {
+        await this.app.container.resolveIfCreated(cachingToken)?.dispose();
+    }
+}
+//# sourceMappingURL=provider.js.map

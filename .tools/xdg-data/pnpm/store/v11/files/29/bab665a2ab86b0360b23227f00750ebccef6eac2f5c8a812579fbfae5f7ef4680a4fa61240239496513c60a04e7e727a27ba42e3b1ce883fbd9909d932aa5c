@@ -1,0 +1,8 @@
+import { defineClientPlugin, } from '@nocobase/app-client/plugins';
+import locales from './locales/index.js';
+const notificationInApp = defineClientPlugin({
+    packageName: '@nocobase/app-plugin-notification-in-app',
+    locales,
+});
+export default notificationInApp;
+//# sourceMappingURL=plugin.js.map

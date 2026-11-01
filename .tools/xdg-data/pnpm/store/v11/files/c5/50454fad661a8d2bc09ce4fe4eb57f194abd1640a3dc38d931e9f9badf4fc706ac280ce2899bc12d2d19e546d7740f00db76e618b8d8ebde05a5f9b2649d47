@@ -1,0 +1,176 @@
+import { findApplicationNotConfigured } from '../config/not-configured.js';
+import { findAppConfigInvalid } from '../config/validation.js';
+import { formatNotConfigured } from './not-configured-message.js';
+import { loggingToken } from '../logging/token.js';
+import { NodeServerProxy } from './proxy.js';
+import { resolveAppRuntime, } from '../runtime/definition.js';
+import { createPublicBasePathAdapter } from '../runtime/mount.js';
+import { createStandaloneScope, } from './scope.js';
+import { resolveNodeShutdownTimeouts, disposeAfterStartupFailure, startNodeAppServer, watchStartupShutdownSignals, } from './server.js';
+export async function createStandaloneServer(options) {
+    const { appRuntime, createServer, proxy: configureProxy, ...serverOptions } = options;
+    const scope = createStandaloneRuntimeScope(resolveStandaloneServerScopeOptions({
+        ...serverOptions,
+        deploymentRootDir: serverOptions.deploymentRootDir ?? appRuntime.deploymentRootDir,
+    }));
+    try {
+        const application = await createServer(scope);
+        const mounted = createPublicBasePathAdapter(application, application.publicBasePath);
+        const proxy = configureProxy
+            ? new NodeServerProxy(configureProxy({ application }))
+            : undefined;
+        if (proxy)
+            scope.registerDisposer('standalone-proxy', () => proxy.close());
+        const serverConfigValue = application.config.get('server') ?? { host: '127.0.0.1', port: 13000, startLog: true };
+        const listenOptions = {
+            hostname: serverConfigValue.host,
+            port: serverConfigValue.port,
+            startLog: serverConfigValue.startLog,
+        };
+        const server = {
+            application,
+            shutdownOptions: resolveNodeShutdownTimeouts(scope.env),
+            close: () => scope.destroy(),
+            fetch: (request, env, executionContext) => proxy?.matches(new URL(request.url).pathname)
+                ? proxy.fetch(request)
+                : mounted.fetch(request, env, executionContext),
+            proxy,
+            listenOptions,
+            signal: scope.signal,
+        };
+        if (mounted.websocket) {
+            server.websocket = mounted.websocket;
+        }
+        return server;
+    }
+    catch (error) {
+        return disposeAfterStartupFailure(() => scope.destroy(), error);
+    }
+}
+export function startServer(options) {
+    const strictStartup = createStandaloneRuntimeScope({
+        ...options,
+        deploymentRootDir: options.deploymentRootDir ?? options.appRuntime.deploymentRootDir,
+    }).env.NOCOBASE_STRICT_STARTUP === 'true';
+    const startPromise = startStandaloneServer(options);
+    startPromise.catch((error) => {
+        // An unconfigured or misconfigured application gets its instruction without a stack trace; anything else is
+        // printed whole.
+        const notConfigured = findApplicationNotConfigured(error);
+        const invalid = notConfigured ? undefined : findAppConfigInvalid(error);
+        console.error(notConfigured
+            ? formatNotConfigured(notConfigured)
+            : invalid
+                ? invalid.message
+                : error);
+        process.exitCode = 1;
+        // Startup has already disposed the scope. Do not retain leaked handles.
+        if (strictStartup)
+            process.exit(1);
+    });
+}
+export function defineStandaloneServer(definition) {
+    return {
+        create: (options = {}) => createStandaloneServer({
+            ...options,
+            ...definition,
+            rootDir: options.rootDir ?? definition.rootDir,
+        }),
+        start: (options = {}) => {
+            startServer({
+                ...options,
+                ...definition,
+                rootDir: options.rootDir ?? definition.rootDir,
+            });
+        },
+    };
+}
+export function createStandaloneRuntimeScope(options) {
+    return createStandaloneScope(options);
+}
+export async function resolveStandaloneAppRuntime(definition, options) {
+    const scope = createStandaloneRuntimeScope({
+        ...options,
+        deploymentRootDir: options.deploymentRootDir ?? definition.deploymentRootDir,
+    });
+    try {
+        const runtime = await resolveAppRuntime(definition, scope);
+        return Object.assign(runtime, { scope });
+    }
+    catch (error) {
+        return disposeAfterStartupFailure(() => scope.destroy(), error);
+    }
+}
+async function startStandaloneServer(options) {
+    // Startup runs migrations and seeds under a task lock before the HTTP server
+    // registers its own handlers, so the signals are watched from here until it
+    // does. A restart that arrives mid-startup then shuts down cleanly instead
+    // of leaving the lock held by a process that no longer exists.
+    const startupSignals = watchStartupShutdownSignals();
+    let app;
+    try {
+        app = await createStandaloneServer(options);
+    }
+    catch (error) {
+        startupSignals.dispose();
+        throw error;
+    }
+    const logger = app.application.container.has(loggingToken)
+        ? app.application.container.resolve(loggingToken).getLogger('server')
+        : undefined;
+    const startupSignal = startupSignals.received();
+    if (startupSignal) {
+        startupSignals.dispose();
+        const message = `Startup completed after ${startupSignal}; shutting down without listening.`;
+        if (logger)
+            logger.info(message);
+        else
+            console.log(message);
+        await app.close();
+        return;
+    }
+    try {
+        await startNodeAppServer(app, {
+            ...(logger
+                ? {
+                    logger: {
+                        error: (message, err) => logger.error({ err }, message),
+                    },
+                }
+                : {}),
+            ...app.shutdownOptions,
+            hostname: app.listenOptions.hostname,
+            port: app.listenOptions.port,
+            onListen: (info) => {
+                if (!app.listenOptions.startLog) {
+                    return;
+                }
+                const message = `App server listening on http://${info.address}:${info.port}`;
+                if (logger)
+                    logger.info(message);
+                else
+                    console.log(message);
+            },
+        });
+    }
+    catch (error) {
+        await disposeAfterStartupFailure(() => app.close(), error);
+    }
+    finally {
+        startupSignals.dispose();
+    }
+}
+function resolveStandaloneServerScopeOptions(options) {
+    const { viteDevUrl, ...scopeOptions } = options;
+    if (viteDevUrl === undefined) {
+        return scopeOptions;
+    }
+    return {
+        ...scopeOptions,
+        env: {
+            ...scopeOptions.env,
+            APP_VITE_DEV_URL: viteDevUrl === false ? 'false' : viteDevUrl,
+        },
+    };
+}
+//# sourceMappingURL=runtime.js.map

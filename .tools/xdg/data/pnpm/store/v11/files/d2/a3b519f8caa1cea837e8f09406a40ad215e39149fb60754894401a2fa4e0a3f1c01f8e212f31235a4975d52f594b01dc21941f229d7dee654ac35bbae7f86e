@@ -1,0 +1,6 @@
+import { type JsonResultForm } from '../../json.js';
+import type { CollectionDefinition } from '../../collection/types.js';
+import type { RepositoryRecord } from '../types.js';
+export type RowDecoder = (row: RepositoryRecord) => RepositoryRecord;
+/** Prepare once per result shape; reuse synchronously for ordinary and streamed rows. */
+export declare function prepareScalarRowDecoder(collection: CollectionDefinition, selectedFields?: readonly string[], trimCharResults?: boolean, jsonResults?: JsonResultForm): RowDecoder;

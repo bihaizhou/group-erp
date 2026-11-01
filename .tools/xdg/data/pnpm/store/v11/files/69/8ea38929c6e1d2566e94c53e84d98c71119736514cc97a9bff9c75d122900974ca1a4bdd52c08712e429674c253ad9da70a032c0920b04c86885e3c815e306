@@ -1,0 +1,90 @@
+import { type JobScheduler, type ScheduleEvent, type ScheduleExecutor, type ScheduleJob, type ScheduleReceipt, type ScheduleSetupOptions, type Subscriber } from './types.js';
+import type { JobsLogger, Unsubscribe } from '../types.js';
+import { type ScheduleRule } from './validation.js';
+/** Raised for a firing whose job has no handler on the executing instance. */
+export declare class ScheduleHandlerNotRegisteredError extends Error {
+    readonly jobName: string;
+    constructor(jobName: string);
+}
+/** Execution settings stored with a rule, such as `attempts`. */
+export type ScheduleExecutionSettings = Readonly<Record<string, unknown>>;
+/** A rule as a backend holds it. */
+export interface StoredScheduleRule {
+    readonly options: ScheduleRule;
+    readonly payload: unknown;
+    readonly settings: ScheduleExecutionSettings;
+    readonly nextRunAt?: Date;
+}
+export interface ScheduleRuleWrite {
+    readonly name: string;
+    readonly options: ScheduleRule;
+    readonly payload: unknown;
+    readonly settings: ScheduleExecutionSettings;
+    /** Only ever set when the backend holds no rule of this name. */
+    readonly immediately: boolean;
+}
+/** One firing about to run a handler. */
+export interface ScheduleRun {
+    readonly jobId: string;
+    readonly jobName: string;
+    readonly scheduledAt: Date;
+    readonly runAt: Date;
+    readonly nextRunAt?: Date;
+    readonly signal: AbortSignal;
+}
+/** What a backend calls back into while consuming. */
+export interface ScheduleRunner {
+    /** Runs the registered handler; rejects with {@link ScheduleHandlerNotRegisteredError} when there is none. */
+    run(run: ScheduleRun): Promise<void>;
+    hasHandler(jobName: string): boolean;
+    /** Delivers an event to this executor's subscribers, in emission order. */
+    emit(event: ScheduleEvent): void;
+}
+/**
+ * The storage and execution half of an executor. The shared executor keeps
+ * handlers, subscribers, validation and the comparison that skips unchanged
+ * writes; a backend only reads, writes and fires rules.
+ */
+export interface ScheduleBackend {
+    /** Settings this executor writes with every rule and compares on the next write. */
+    readonly settings: ScheduleExecutionSettings;
+    open(): Promise<void>;
+    read(name: string): Promise<StoredScheduleRule | undefined>;
+    /** Writes a rule, replacing any other of the name, and returns its next planned firing. */
+    write(rule: ScheduleRuleWrite): Promise<Date | undefined>;
+    remove(name: string): Promise<boolean>;
+    count(): Promise<number>;
+    list(start: number, end: number): Promise<JobScheduler[]>;
+    consume(runner: ScheduleRunner): Promise<void>;
+    /** Stops consuming, aborts and awaits running handlers, and releases resources. */
+    close(): Promise<void>;
+}
+export declare class BackendScheduleExecutor implements ScheduleExecutor {
+    private readonly backend;
+    private readonly logger;
+    private state;
+    private readonly handlers;
+    private readonly pending;
+    private readonly subscribers;
+    private delivery;
+    private setupPromise;
+    private shutdownPromise;
+    private opened;
+    constructor(backend: ScheduleBackend, logger: JobsLogger | undefined);
+    addJob<TPayload = unknown>(job: ScheduleJob<TPayload>, registerOnly?: boolean): Promise<ScheduleReceipt>;
+    removeJob(name: string): Promise<ScheduleReceipt>;
+    countJob(): Promise<number>;
+    listJob(start: number, end: number): Promise<JobScheduler[]>;
+    getJob(name: string): Promise<JobScheduler | undefined>;
+    subscribe(subscriber: Subscriber): Unsubscribe;
+    setup(options?: ScheduleSetupOptions): Promise<void>;
+    shutdown(): Promise<void>;
+    private runSetup;
+    private runShutdown;
+    private upsert;
+    private unchanged;
+    private whenReady;
+    private assertOpen;
+    private readonly runner;
+}
+//# sourceMappingURL=executor.d.ts.map

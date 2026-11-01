@@ -1,0 +1,28 @@
+import type { Interfaces } from '@oclif/core';
+export interface AppPathFlagOptions {
+    readonly description: string;
+    /** A path relative to the application root, used when the flag is not given. */
+    readonly default?: string;
+    readonly required?: boolean;
+}
+/** A path flag whose value is always absolute: typed values from the current directory, the default from the App root. */
+export declare function appPath(options: AppPathFlagOptions & {
+    readonly default: string;
+}): Interfaces.OptionFlag<string>;
+export declare function appPath(options: AppPathFlagOptions & {
+    readonly required: true;
+}): Interfaces.OptionFlag<string>;
+export declare function appPath(options: AppPathFlagOptions): Interfaces.OptionFlag<string | undefined>;
+/** A flag as a command class declares it. */
+export type DeclaredFlag = Interfaces.Flag<unknown>;
+/**
+ * The flags a command class declares, its base flags first, merged the way oclif merges them. `--json` is not among
+ * them: oclif adds it when `enableJsonFlag` is set.
+ */
+export declare function declaredFlags(command: {
+    readonly flags?: Interfaces.FlagInput;
+    readonly baseFlags?: Interfaces.FlagInput;
+}): Readonly<Record<string, DeclaredFlag>>;
+/** Whether a flag definition came from `appPath()`, including one from another copy of this package. */
+export declare function isAppPathFlag(flag: unknown): boolean;
+//# sourceMappingURL=flags.d.ts.map

@@ -1,0 +1,196 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+import { isVisibleMailAttachment } from '../../shared/inline-images.js';
+import { MailScheduledStatus } from './mail-scheduled-status.js';
+import { Archive, Check, CheckSquare2, ChevronDown, ChevronRight, Download, Forward, Mail, MailOpen, MoreHorizontal, Paperclip, PenLine, Reply, Star, StickyNote, Tag, Trash2, } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { useTranslation } from '@nocobase/i18n/client';
+import { MailMessageContent } from './mail-message-content.js';
+import { MAIL_PLUGIN_NS } from '../namespace.js';
+import { mailAddressName, formatMailAddress, formatMailAddresses, } from '../lib/mail-address.js';
+import { Button } from './ui/button.js';
+import { Checkbox } from './ui/checkbox.js';
+import { MailLabelTag } from './mail-label-tag.js';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, } from './ui/dialog.js';
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, } from './ui/dropdown-menu.js';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, } from './ui/tooltip.js';
+import { Textarea } from './ui/textarea.js';
+export function MailConversationView({ labels, loading = false, messages, nextCursor, onLoadMore, subject, actions, actionLabels, availableLabels = [], }) {
+    const { t, i18n } = useTranslation(MAIL_PLUGIN_NS);
+    const noteTriggerRef = useRef(null);
+    const [noteEditor, setNoteEditor] = useState();
+    const noteMessage = messages.find((message) => message.id === noteEditor?.messageId);
+    const editNoteLabel = labels.editNote ?? t('workspace.editNote', { defaultValue: 'Edit note' });
+    const addLabelText = labels.addLabel ?? t('workspace.addLabel', { defaultValue: 'Add label' });
+    const openNoteEditor = (message, trigger) => {
+        noteTriggerRef.current = trigger;
+        setNoteEditor({ messageId: message.id, value: message.note ?? '' });
+    };
+    const conversationKey = JSON.stringify([
+        subject,
+        messages[0]?.accountId,
+        messages[0]?.conversationId,
+    ]);
+    const [collapseState, setCollapseState] = useState(() => ({
+        conversationKey,
+        messages: new Map(messages.map((message) => [message.id, message.read])),
+    }));
+    let messageCollapseStates = collapseState.messages;
+    if (collapseState.conversationKey !== conversationKey ||
+        messages.some((message) => !collapseState.messages.has(message.id))) {
+        // Capture read state once so automatic read updates do not close an open message.
+        messageCollapseStates = new Map(messages.map((message) => [
+            message.id,
+            collapseState.conversationKey === conversationKey
+                ? (collapseState.messages.get(message.id) ?? message.read)
+                : message.read,
+        ]));
+        setCollapseState({ conversationKey, messages: messageCollapseStates });
+    }
+    // Conversation pages are ordered oldest first; older pages are prepended.
+    const latestMessage = [...messages]
+        .reverse()
+        .find((message) => !message.draft);
+    const canCollapse = messages.length > 1;
+    const collapsedMessageIds = new Set(canCollapse
+        ? messages
+            .filter((message) => messageCollapseStates.get(message.id))
+            .map((message) => message.id)
+        : []);
+    if (messages.length === 0) {
+        return (_jsx("section", { className: 'grid h-full min-h-0 flex-1 place-items-center overflow-y-auto p-8 text-sm text-muted-foreground', children: loading ? null : labels.selectMessage }));
+    }
+    return (_jsxs("section", { "aria-busy": loading, className: '@container/conversation h-full min-h-0 flex-1 overflow-y-auto bg-card text-card-foreground', children: [_jsxs("header", { className: 'flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 pt-5 pb-4', children: [_jsx("h2", { className: 'min-w-0 text-xl leading-snug font-semibold wrap-anywhere', children: subject || labels.noSubject }), messages.length > 1 ? (_jsx("span", { className: 'shrink-0 text-xs text-muted-foreground', children: labels.conversation(messages.length) })) : null] }), _jsxs("div", { className: 'px-5 pb-5', children: [nextCursor ? (_jsx(Button, { className: 'mb-4 w-full', disabled: loading, onClick: onLoadMore, variant: 'outline', children: labels.loadMore })) : null, messages.map((message) => {
+                        const visibleAttachments = message.attachments.filter(isVisibleMailAttachment);
+                        const sender = mailAddressName(message.from);
+                        const messageLabels = availableLabels.filter((label) => message.labelIds.includes(label.id));
+                        const canEditLabels = availableLabels.length > 0 && Boolean(actions?.toggleLabel);
+                        return (_jsxs("article", { className: 'py-4 first:pt-0 last:pb-0 [&+article]:border-t', children: [_jsx(MailScheduledStatus, { message: message, variant: 'banner', action: message.scheduledSend &&
+                                        ['pending', 'failed'].includes(message.scheduledSend.status) &&
+                                        actions?.cancelScheduled ? (_jsx(Button, { className: 'shrink-0 text-primary', variant: 'ghost', onClick: () => actions.cancelScheduled?.(message), children: t('workspace.cancelScheduled', {
+                                            defaultValue: 'Cancel scheduled send',
+                                        }) })) : null }), _jsxs("header", { className: 'relative isolate flex items-center gap-3', children: [canCollapse ? (_jsx(Button, { "aria-expanded": !collapsedMessageIds.has(message.id), "aria-label": collapsedMessageIds.has(message.id)
+                                                ? (actionLabels?.expandMessage ??
+                                                    labels.expandMessage ??
+                                                    'Expand message')
+                                                : (actionLabels?.collapseMessage ??
+                                                    labels.collapseMessage ??
+                                                    'Collapse message'), className: 'absolute -inset-2 z-0 block h-auto w-auto cursor-pointer rounded-md border-0 bg-transparent p-0 transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring', onClick: () => setCollapseState((current) => {
+                                                const next = new Map(current.messages);
+                                                next.set(message.id, !next.get(message.id));
+                                                return { conversationKey, messages: next };
+                                            }), type: 'button', variant: 'ghost' })) : null, canCollapse ? (_jsx("span", { className: 'pointer-events-none relative text-muted-foreground', children: collapsedMessageIds.has(message.id) ? (_jsx(ChevronRight, { "aria-hidden": 'true', className: 'size-4' })) : (_jsx(ChevronDown, { "aria-hidden": 'true', className: 'size-4' })) })) : null, _jsx("span", { className: 'pointer-events-none relative grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-semibold text-primary', children: sender?.trim().charAt(0).toUpperCase() || '?' }), _jsxs("div", { className: 'pointer-events-none relative min-w-0 flex-1', children: [_jsx("p", { "aria-label": t('workspace.senderLabel', {
+                                                        defaultValue: 'From',
+                                                    }), title: message.from ? formatMailAddress(message.from) : undefined, className: 'truncate text-sm font-medium', children: sender || labels.unknownSender }), message.from?.address &&
+                                                    message.from.address.trim() !== sender ? (_jsx("p", { className: 'truncate text-xs text-muted-foreground', children: message.from.address })) : null] }), _jsxs("div", { className: 'pointer-events-none relative flex max-w-2/3 shrink-0 flex-col items-end gap-1 @2xl/conversation:flex-row @2xl/conversation:items-center @2xl/conversation:gap-3', children: [_jsx("time", { className: 'pointer-events-none relative max-w-full text-right text-xs text-muted-foreground', children: formatFullDate(message.receivedAt ?? message.sentAt, i18n.language) }), actions ? (_jsxs("div", { className: 'pointer-events-none relative flex max-w-full flex-wrap items-center justify-end gap-1 [&_button]:pointer-events-auto', children: [actionLabels ? (_jsxs(_Fragment, { children: [message.draft &&
+                                                                    actions.editDraft &&
+                                                                    (!message.scheduledSend ||
+                                                                        ['pending', 'failed'].includes(message.scheduledSend.status)) ? (_jsx(MessageActionButton, { "aria-label": message.scheduledSend
+                                                                        ? t('workspace.cancelScheduledEdit', {
+                                                                            defaultValue: 'Cancel schedule and edit',
+                                                                        })
+                                                                        : actionLabels.editDraft, title: message.scheduledSend
+                                                                        ? t('workspace.cancelScheduledEdit', {
+                                                                            defaultValue: 'Cancel schedule and edit',
+                                                                        })
+                                                                        : actionLabels.editDraft, className: 'size-9 p-0 [&_svg]:size-4', onClick: () => actions.editDraft?.(message), variant: 'ghost', children: _jsx(PenLine, { "aria-hidden": 'true' }) })) : null, !message.draft && actions.reply ? (_jsx(MessageActionButton, { "aria-label": actionLabels.reply, title: actionLabels.reply, className: 'size-9 p-0 [&_svg]:size-4', onClick: () => actions.reply?.(message), variant: 'ghost', children: _jsx(Reply, { "aria-hidden": 'true' }) })) : null, !message.draft && actions.forward ? (_jsx(MessageActionButton, { "aria-label": actionLabels.forward, title: actionLabels.forward, className: 'size-9 p-0 [&_svg]:size-4', onClick: () => actions.forward?.(message), variant: 'ghost', children: _jsx(Forward, { "aria-hidden": 'true' }) })) : null, _jsx(MessageActionButton, { "aria-label": message.starred
+                                                                        ? actionLabels.unstar
+                                                                        : actionLabels.star, title: message.starred
+                                                                        ? actionLabels.unstar
+                                                                        : actionLabels.star, className: 'size-9 p-0 [&_svg]:size-4', onClick: () => actions.toggleStarred(message), variant: 'ghost', children: _jsx(Star, { "aria-hidden": 'true', fill: message.starred ? 'currentColor' : 'none' }) })] })) : null, canEditLabels ? (_jsxs(DropdownMenu, { children: [_jsx(DropdownMenuTrigger, { render: _jsx(MessageActionButton, { "aria-label": addLabelText, title: addLabelText, className: 'size-9 p-0 [&_svg]:size-4', variant: 'ghost' }), children: _jsx(Tag, { "aria-hidden": 'true' }) }), _jsx(DropdownMenuContent, { align: 'end', "aria-label": labels.labels, className: 'max-h-64 w-64 max-w-(--available-width)', children: availableLabels.map((label) => (_jsx(DropdownMenuCheckboxItem, { label: label.name, checked: message.labelIds.includes(label.id), closeOnClick: false, onCheckedChange: (assigned) => actions?.toggleLabel?.(message, label.id, assigned), children: _jsx(MailLabelTag, { label: label, size: 'md' }) }, label.id))) })] })) : null, _jsx(MessageMoreActions, { actionLabels: actionLabels, actions: actions, availableLabels: availableLabels, labels: labels, message: message, noteOpen: noteMessage?.id === message.id, onEditNote: (trigger) => openNoteEditor(message, trigger) }, `${message.id}:${message.note ?? ''}`)] })) : null] })] }), !collapsedMessageIds.has(message.id) ? (_jsx("div", { className: 'mt-2 space-y-1 text-xs text-muted-foreground', children: [
+                                        ['to', 'To', message.to],
+                                        ['cc', 'Cc', message.cc],
+                                        ['bcc', 'Bcc', message.bcc],
+                                    ].map(([key, fallback, addresses]) => {
+                                        const value = formatMailAddresses(addresses);
+                                        const label = t(`workspace.${key}`, {
+                                            defaultValue: fallback,
+                                        });
+                                        return value ? (_jsxs("p", { "aria-label": label, className: 'wrap-anywhere', children: [label, ": ", value] }, key)) : null;
+                                    }) })) : null, collapsedMessageIds.has(message.id) ? (_jsx("p", { className: 'mt-3 truncate text-sm text-muted-foreground', children: message.preview ??
+                                        message.text ??
+                                        (message.html ? plainMessageBody(message) : '') })) : null, message.todo ||
+                                    (!collapsedMessageIds.has(message.id) &&
+                                        messageLabels.length > 0) ? (_jsxs("div", { className: 'mt-3 flex flex-wrap items-center gap-1.5', children: [message.todo ? (_jsxs("label", { className: 'inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary has-disabled:cursor-default', children: [_jsx(Checkbox, { checked: false, disabled: !actions?.toggleTodo, "aria-label": labels.completeTodo ??
+                                                        t('workspace.completeTodo', {
+                                                            defaultValue: 'Mark as completed',
+                                                        }), onCheckedChange: () => actions?.toggleTodo?.(message), className: 'size-3.5 accent-primary' }), labels.todo] })) : null, !collapsedMessageIds.has(message.id)
+                                            ? messageLabels.map((label) => (_jsx(MailLabelTag, { label: label, size: 'md' }, label.id)))
+                                            : null] })) : null, message.note ? (_jsxs("div", { className: 'mt-3 flex items-start gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm', children: [_jsx(StickyNote, { "aria-hidden": 'true', className: 'mt-0.5 size-4 shrink-0 text-muted-foreground' }), _jsx("p", { "aria-label": labels.note, className: collapsedMessageIds.has(message.id)
+                                                ? 'min-w-0 flex-1 truncate'
+                                                : 'min-w-0 flex-1 whitespace-pre-wrap wrap-anywhere', children: message.note }), actions?.saveNote ? (_jsx(MessageActionButton, { "aria-label": editNoteLabel, title: editNoteLabel, className: 'size-7 shrink-0 self-center p-0 text-muted-foreground [&_svg]:size-4', onClick: (event) => openNoteEditor(message, event.currentTarget), variant: 'ghost', children: _jsx(PenLine, { "aria-hidden": 'true' }) })) : null] })) : null, !collapsedMessageIds.has(message.id) ? (_jsx(MessageBody, { message: message, title: message.subject || labels.noSubject })) : null, !collapsedMessageIds.has(message.id) &&
+                                    visibleAttachments.length > 0 ? (_jsxs("div", { className: 'mt-4 border-t pt-3 text-xs text-muted-foreground', children: [_jsxs("div", { className: 'mb-2 flex items-center gap-2', children: [_jsx(Paperclip, { "aria-hidden": 'true', className: 'size-3.5' }), labels.attachmentCount(visibleAttachments.length)] }), _jsx("div", { className: 'flex flex-wrap gap-2', children: visibleAttachments.map((attachment) => actions?.downloadAttachment && actionLabels ? (_jsxs(Button, { "aria-label": `${actionLabels.download} ${attachment.fileName}`, className: 'h-auto max-w-full justify-start gap-2 px-3 py-2', onClick: () => actions.downloadAttachment?.(message, attachment), variant: 'outline', children: [_jsx(Download, { className: 'size-3.5 shrink-0' }), _jsx("span", { className: 'truncate', children: attachment.fileName })] }, attachment.id)) : (_jsxs("span", { className: 'inline-flex max-w-full items-center gap-2 rounded-md border px-3 py-2', children: [_jsx(Paperclip, { className: 'size-3.5 shrink-0' }), _jsx("span", { className: 'truncate', children: attachment.fileName })] }, attachment.id))) })] })) : null] }, message.id));
+                    })] }), latestMessage && actionLabels && (actions?.reply || actions?.forward) ? (_jsxs("footer", { className: 'flex flex-wrap items-center gap-2 px-5 py-4', children: [actions.reply ? (_jsxs(Button, { "aria-label": t('workspace.replyLatest', {
+                            defaultValue: 'Reply to latest message',
+                        }), disabled: loading, onClick: () => actions.reply?.(latestMessage), type: 'button', variant: 'outline', children: [_jsx(Reply, { "aria-hidden": 'true', className: 'size-4' }), actionLabels.reply] })) : null, actions.forward ? (_jsxs(Button, { "aria-label": t('workspace.forwardLatest', {
+                            defaultValue: 'Forward latest message',
+                        }), disabled: loading, onClick: () => actions.forward?.(latestMessage), type: 'button', variant: 'outline', children: [_jsx(Forward, { "aria-hidden": 'true', className: 'size-4' }), actionLabels.forward] })) : null] })) : null, _jsx(Dialog, { open: Boolean(noteMessage), onOpenChange: (open) => {
+                    if (!open)
+                        setNoteEditor(undefined);
+                }, children: _jsxs(DialogContent, { className: 'max-w-lg', finalFocus: noteTriggerRef, closeLabel: labels.close ?? 'Close', children: [_jsx(DialogHeader, { children: _jsx(DialogTitle, { children: labels.note }) }), _jsx(Textarea, { "aria-label": labels.note, autoFocus: true, className: 'mt-4 min-h-28', onChange: (event) => {
+                                const value = event.target.value;
+                                setNoteEditor((current) => current ? { ...current, value } : current);
+                            }, placeholder: labels.notePlaceholder, value: noteEditor?.value ?? '' }), _jsx(DialogFooter, { children: _jsx(Button, { disabled: noteEditor?.value === (noteMessage?.note ?? ''), onClick: () => {
+                                    if (noteMessage && noteEditor) {
+                                        actions?.saveNote?.(noteMessage, noteEditor.value);
+                                        setNoteEditor(undefined);
+                                    }
+                                }, type: 'button', children: labels.saveNote }) })] }) })] }));
+}
+function MessageActionButton({ title, ...props }) {
+    return (_jsx(TooltipProvider, { delay: 200, children: _jsxs(Tooltip, { children: [_jsx(TooltipTrigger, { render: _jsx(Button, { ...props }) }), _jsx(TooltipContent, { className: 'max-w-xs', side: 'bottom', sideOffset: 4, children: title })] }) }));
+}
+function MessageMoreActions({ actionLabels, actions, availableLabels, labels, message, noteOpen, onEditNote, }) {
+    const { t } = useTranslation(MAIL_PLUGIN_NS);
+    const moreButtonRef = useRef(null);
+    const [labelsOpen, setLabelsOpen] = useState(false);
+    const assignedLabelCount = availableLabels.filter((label) => message.labelIds.includes(label.id)).length;
+    return (_jsxs(_Fragment, { children: [_jsxs(DropdownMenu, { children: [_jsx(DropdownMenuTrigger, { ref: moreButtonRef, render: _jsx(MessageActionButton, { "aria-label": labels.more ?? 'More actions', title: labels.more ?? 'More actions', className: 'size-9 p-0 [&_svg]:size-4', variant: 'ghost' }), children: _jsx(MoreHorizontal, { "aria-hidden": 'true' }) }), _jsxs(DropdownMenuContent, { align: 'end', finalFocus: !(noteOpen || labelsOpen), className: '[&_svg]:size-4 [&_svg]:shrink-0', children: [actions.saveNote ? (_jsxs(DropdownMenuItem, { onClick: () => onEditNote(moreButtonRef.current), children: [_jsx(StickyNote, { "aria-hidden": 'true' }), _jsx("span", { className: 'flex-1', children: labels.note }), message.note ? (_jsx(Check, { "aria-hidden": 'true', className: 'text-primary' })) : null] })) : null, actions.toggleTodo ? (_jsxs(DropdownMenuItem, { role: 'menuitemcheckbox', "aria-checked": Boolean(message.todo), onClick: () => actions.toggleTodo?.(message), children: [_jsx(CheckSquare2, { "aria-hidden": 'true' }), _jsx("span", { className: 'flex-1', children: message.todo
+                                            ? (labels.cancelTodo ??
+                                                t('workspace.cancelTodo', {
+                                                    defaultValue: 'Remove to-do mark',
+                                                }))
+                                            : (labels.markTodo ??
+                                                t('workspace.markTodo', {
+                                                    defaultValue: 'Mark as to do',
+                                                })) }), message.todo ? (_jsx(Check, { "aria-hidden": 'true', className: 'text-primary' })) : null] })) : null, availableLabels.length > 0 && actions.toggleLabel ? (_jsxs(DropdownMenuItem, { onClick: () => setLabelsOpen(true), children: [_jsx(Tag, { "aria-hidden": 'true' }), _jsx("span", { className: 'flex-1', children: labels.labels }), assignedLabelCount > 0 ? (_jsx("span", { className: 'text-xs text-muted-foreground', children: assignedLabelCount })) : null] })) : null, actionLabels ? (_jsxs(_Fragment, { children: [actions.saveNote ||
+                                        actions.toggleTodo ||
+                                        (availableLabels.length > 0 && actions.toggleLabel) ? (_jsx("div", { role: 'separator', className: 'my-1 h-px bg-border' })) : null, _jsxs(DropdownMenuItem, { onClick: () => actions.toggleRead(message), children: [message.read ? (_jsx(Mail, { "aria-hidden": 'true' })) : (_jsx(MailOpen, { "aria-hidden": 'true' })), message.read ? actionLabels.markUnread : actionLabels.markRead] }), actions.archive ? (_jsxs(DropdownMenuItem, { onClick: () => actions.archive?.(message), children: [_jsx(Archive, { "aria-hidden": 'true' }), actionLabels.archive] })) : null, _jsxs(DropdownMenuItem, { disabled: actions.canDelete ? !actions.canDelete(message) : false, className: 'text-destructive focus:text-destructive', onClick: () => actions.delete(message), children: [_jsx(Trash2, { "aria-hidden": 'true' }), actionLabels.delete] })] })) : null] })] }), _jsx(Dialog, { open: labelsOpen, onOpenChange: setLabelsOpen, children: _jsxs(DialogContent, { finalFocus: moreButtonRef, closeLabel: labels.close ?? 'Close', children: [_jsx(DialogHeader, { children: _jsx(DialogTitle, { children: labels.labels }) }), _jsxs("fieldset", { className: 'mt-4 grid gap-2', children: [_jsx("legend", { className: 'sr-only', children: labels.labels }), availableLabels.map((label) => {
+                                    const assigned = message.labelIds.includes(label.id);
+                                    return (_jsxs("label", { className: 'flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-muted/50', children: [_jsx(Checkbox, { checked: assigned, onCheckedChange: (checked) => actions.toggleLabel?.(message, label.id, checked === true) }), _jsx(MailLabelTag, { label: label, size: 'md' })] }, label.id));
+                                })] })] }) })] }));
+}
+function MessageBody({ message, title, }) {
+    return _jsx(MailMessageContent, { message: message, title: title });
+}
+function plainMessageBody(message) {
+    if (message.text)
+        return message.text;
+    if (message.preview)
+        return message.preview;
+    if (!message.html)
+        return '';
+    if (typeof DOMParser === 'undefined') {
+        return message.html
+            .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+    const document = new DOMParser().parseFromString(message.html, 'text/html');
+    for (const element of document.querySelectorAll('script, style')) {
+        element.remove();
+    }
+    return document.body.textContent?.trim() ?? '';
+}
+function formatFullDate(value, locale) {
+    if (!value)
+        return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime()))
+        return '';
+    return new Intl.DateTimeFormat(locale, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    }).format(date);
+}
+//# sourceMappingURL=mail-conversation-view.js.map

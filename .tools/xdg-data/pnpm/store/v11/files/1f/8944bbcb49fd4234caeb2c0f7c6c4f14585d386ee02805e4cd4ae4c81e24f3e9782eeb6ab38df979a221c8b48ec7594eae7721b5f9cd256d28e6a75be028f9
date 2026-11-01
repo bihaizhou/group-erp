@@ -1,0 +1,146 @@
+import { type PasswordResetConfig, type PasswordResetServices } from './password-reset.js';
+import type { DatabaseConnection } from '@nocobase/db';
+import { type BetterAuthOptions, type BetterAuthPlugin, type FilteredAPI, type Session, type User } from 'better-auth';
+import { type OpenAPIModelSchema, type Path } from 'better-auth/plugins';
+import type { Context, MiddlewareHandler } from 'hono';
+export interface AuthOptions extends Omit<BetterAuthOptions, 'database'> {
+    connection: DatabaseConnection;
+    passwordReset?: PasswordResetConfig;
+    passwordResetServices?: PasswordResetServices;
+}
+export interface CreateAuthenticationOptions extends Omit<AuthOptions, 'connection'> {
+    connection?: DatabaseConnection;
+}
+/**
+ * A credential another plugin issues besides sessions and API keys, such as an agent's run token (`x-nocobase-run-token`).
+ * It acts for a user and is always scoped: a route that does not accept scoped credentials refuses it, and so does a
+ * route whose own security requirements do not list its `scheme`.
+ */
+export interface IssuedCredential {
+    /** What kind of credential, such as `run`. */
+    readonly type: string;
+    /** Its id, such as the run's. */
+    readonly id: string;
+    /** The user it acts for. */
+    readonly userId: string;
+    /** The security scheme that names it in the API document, such as `runToken`. */
+    readonly scheme: string;
+    readonly expiresAt?: Date;
+    /** What the issuing plugin keeps with it, read back through the session. */
+    readonly data?: unknown;
+}
+/**
+ * Recognizes an issued credential in a request's headers: the credential, or `undefined` when the request does not
+ * carry one. A credential that is present but not valid is refused by throwing an `ApiError`.
+ */
+export type CredentialResolver = (headers: Headers) => Promise<IssuedCredential | undefined>;
+export type AuthSession = {
+    user: User;
+    session: Session;
+    /** Set when the request authenticated with an issued credential rather than a session or an API key. */
+    credential?: IssuedCredential;
+} | null;
+export interface AuthEnv {
+    Variables: {
+        auth: AuthSession;
+    };
+}
+/** How `Auth.getSession()` resolves a request's credential. */
+export interface GetSessionOptions {
+    /**
+     * Leave the session's expiry as it is instead of extending it. A read that must not change state, such as
+     * deciding whether a request may read the API documentation, passes `true`.
+     */
+    readonly disableRefresh?: boolean;
+}
+/** One operation of Better Auth's OpenAPI description, as its generator writes it. */
+export type AuthOpenAPIOperation = NonNullable<Path['get']>;
+/** What `Auth.openAPISchema()` returns: Better Auth's paths, keyed by path then lower-case method, and its models. */
+export interface AuthOpenAPISchema {
+    /** The public path Better Auth serves its endpoints under, including the application's base path. */
+    readonly basePath: string;
+    readonly paths: Record<string, Record<string, AuthOpenAPIOperation>>;
+    readonly components: {
+        readonly schemas: Record<string, OpenAPIModelSchema>;
+    };
+}
+export interface AuthMiddlewareOptions {
+    skip?: (context: Context) => boolean;
+}
+export interface AuthRequestOptions {
+    /** The transport's real connection peer, never a client-supplied header. */
+    readonly clientAddress?: string;
+}
+export interface RequiredAuthMiddlewareOptions extends AuthMiddlewareOptions {
+    /**
+     * Accept scoped credentials: an API key limited to a scope, and every key of a service account. Such a session is
+     * refused with 403 `SCOPED_KEY_FORBIDDEN` unless the route opts in, because only a route that authorizes each
+     * operation through the authorization plugin (or narrows by the identity's `keyScope` itself) honours the scope.
+     */
+    scopedKeys?: boolean;
+}
+/** The kind of a user: `person` signs in, `service` (a service account, such as an organization's API key identity) only uses API keys. */
+export type UserKind = 'person' | 'service';
+export declare const USER_KINDS: readonly UserKind[];
+/** Whether a user record (a session's user, a row) is a service account. */
+export declare function isServiceAccount(user: unknown): boolean;
+/**
+ * Recognizes a scoped credential behind a session, such as an API key with a scope. Registered by the plugin that
+ * issues the credential (`Auth.addScopedCredentialCheck`).
+ */
+export type ScopedCredentialCheck = (session: NonNullable<AuthSession>, request: Request) => boolean | Promise<boolean>;
+export declare class Auth {
+    private readonly auth;
+    private readonly connection;
+    private readonly options;
+    private readonly resetPolicy;
+    private scopedCredentialChecks;
+    private credentialResolvers;
+    constructor(options: AuthOptions);
+    handler(request: Request, options?: AuthRequestOptions): Promise<Response>;
+    passwordResetAvailable(): boolean;
+    close(): Promise<void>;
+    getSession(headers: Headers, options?: GetSessionOptions): Promise<AuthSession>;
+    /** The session of an issued credential: its user, unless gone or disabled. */
+    private credentialSession;
+    /** Protect writes authenticated by a browser cookie, including routes that skip normal session lookup. */
+    private checkCookieWriteOrigin;
+    /** Returns only a registered plugin's API methods, including the normal hook pipeline. */
+    pluginApi<TPlugin extends BetterAuthPlugin>(pluginId: TPlugin['id']): FilteredAPI<NonNullable<TPlugin['endpoints']>>;
+    /** The Better Auth plugin registered under `pluginId`, as the application configured it, or `undefined`. */
+    plugin<TPlugin extends BetterAuthPlugin>(pluginId: TPlugin['id']): TPlugin | undefined;
+    /**
+     * Better Auth's OpenAPI description of every endpoint it serves, built by its own generator. Paths are relative to
+     * Better Auth's base path, and each operation's `operationId` is the name of its `auth.api` method.
+     */
+    openAPISchema(): Promise<AuthOpenAPISchema>;
+    /**
+     * The name of the cookie that carries a signed-in session, as Better Auth sets it under this configuration: the cookie
+     * prefix (`advanced.cookiePrefix`), `__Secure-` in front when cookies are secure, and any `advanced.cookies` rename.
+     */
+    sessionCookieName(): Promise<string>;
+    /** @internal Used by the Authentication-owned administration service. */
+    administrationContext(): typeof this.auth.$context;
+    /** Binds trusted server operations to a caller-owned connection or transaction. */
+    forConnection(connection: DatabaseConnection): Auth;
+    /**
+     * Registers how to recognize a scoped credential, such as an API key limited to a scope. `required()` refuses such
+     * a session unless the route opts in with `scopedKeys: true`. Returns what removes the check.
+     */
+    addScopedCredentialCheck(check: ScopedCredentialCheck): () => void;
+    /**
+     * Registers how to recognize a credential another plugin issues, such as an agent's run token. Its session acts for
+     * the credential's user and is scoped (`isScopedSession`); a route accepts it only when it opts in to scoped
+     * credentials and its own security requirements list the credential's scheme. Returns what removes the resolver.
+     */
+    addCredentialResolver(resolver: CredentialResolver): () => void;
+    /**
+     * Whether a session is bounded by a scoped credential: a scoped API key, any key of a service account, or an issued
+     * credential.
+     */
+    isScopedSession(session: NonNullable<AuthSession>, request: Request): Promise<boolean>;
+    optional(options?: AuthMiddlewareOptions): MiddlewareHandler<AuthEnv>;
+    required(options?: RequiredAuthMiddlewareOptions): MiddlewareHandler<AuthEnv>;
+}
+export declare function createAuthentication(options: CreateAuthenticationOptions): Auth;
+//# sourceMappingURL=auth.d.ts.map

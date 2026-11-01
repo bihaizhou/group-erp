@@ -1,0 +1,39 @@
+import { type SecretKeyEntry } from './keys.js';
+/** HKDF salt of every derived key. A new derivation scheme gets a new salt. */
+export declare const SECRETS_HKDF_SALT = "nocobase/secrets/v1";
+/** The envelope prefix, which also names the format version. */
+export declare const SECRETS_ENVELOPE_PREFIX = "nbs1";
+/** What a caller binds a secret to. `aad` is extra context, such as a record id, that must match on open. */
+export interface SecretsSealOptions {
+    readonly purpose: string;
+    readonly aad?: readonly string[];
+}
+/** What an envelope says about itself without opening it. */
+export interface SecretsEnvelopeInfo {
+    readonly version: number;
+}
+/** A key derived for one purpose and one key version, as libraries with their own encryption take it. */
+export interface DerivedSecret {
+    readonly version: number;
+    readonly value: string;
+}
+export interface Keyring {
+    /** The version new secrets are sealed with: the first configured key. */
+    readonly currentVersion: number;
+    /** Every configured version, current first. */
+    readonly versions: readonly number[];
+    seal(plaintext: string, options: SecretsSealOptions): string;
+    open(sealed: string, options: SecretsSealOptions): string;
+    /** Every version's key for `purpose`, current first, base64url. */
+    derive(purpose: string): DerivedSecret[];
+}
+/**
+ * A keyring over configured master keys, the first being current. Throws `SECRETS_NOT_CONFIGURED` for an empty or
+ * invalid list, naming what is wrong but never a key.
+ */
+export declare function createKeyring(keys: readonly SecretKeyEntry[]): Keyring;
+/** Reads an envelope's key version without opening it. Throws `SECRETS_MALFORMED` for anything else. */
+export declare function inspectSecret(sealed: string): SecretsEnvelopeInfo;
+/** Whether `value` has the envelope's shape. It says nothing about whether it opens. */
+export declare function isSealedSecret(value: unknown): value is string;
+//# sourceMappingURL=keyring.d.ts.map

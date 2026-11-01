@@ -1,0 +1,1 @@
+{"version":3,"file":"docs-routes.d.ts","sourceRoot":"","sources":["../../../src/router/openapi/docs-routes.ts"],"names":[],"mappings":"AAMA,OAAO,EAAE,IAAI,EAA0B,MAAM,MAAM,CAAC;AAUpD,OAAO,KAAK,EAAE,cAAc,EAAE,MAAM,cAAc,CAAC;AAEnD,4HAA4H;AAC5H,eAAO,MAAM,eAAe,EAAE,QAAQ,CAAC,MAAM,CAAC,MAAM,EAAE,MAAM,CAAC,CAK3D,CAAC;AAkGH;;;GAGG;AACH,wBAAgB,mBAAmB,CAAC,OAAO,EAAE,cAAc,GAAG,IAAI,CA8DjE"}

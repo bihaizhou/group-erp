@@ -1,0 +1,11 @@
+export interface RuntimeEnvironmentVariable {
+    readonly name: string;
+    readonly description: string;
+}
+/**
+ * Environment variables the runtime reads itself rather than through a section's `env`. With the sections'
+ * declarations they are everything an application can be configured with from its environment, which is what
+ * `pnpm nocobase config env` lists and what `.env.example` may name.
+ */
+export declare const RUNTIME_ENVIRONMENT_VARIABLES: readonly RuntimeEnvironmentVariable[];
+//# sourceMappingURL=runtime-environment.d.ts.map

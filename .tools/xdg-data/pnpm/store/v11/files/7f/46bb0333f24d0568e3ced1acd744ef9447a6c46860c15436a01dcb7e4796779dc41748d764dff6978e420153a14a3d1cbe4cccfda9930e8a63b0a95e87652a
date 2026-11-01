@@ -1,0 +1,4 @@
+import type { DriverContract } from 'flydrive/types';
+import type { OssDriveDiskConfig } from './types.js';
+export declare function createOssDriver(config: OssDriveDiskConfig): DriverContract;
+//# sourceMappingURL=oss.d.ts.map

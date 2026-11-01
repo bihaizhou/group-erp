@@ -1,0 +1,452 @@
+import { databaseManagerToken, normalizeRepositoryPolicy, } from '@nocobase/db';
+import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
+import { stream } from 'hono/streaming';
+import { ApiError, appErrorDomain, apiErrorHandler, toApiError, } from './api-error.js';
+import { defineApiRoutes } from './routes.js';
+import { getRepositoryRequestConstraints } from './repository-constraints.js';
+import { describeRepositoryEndpoint } from './openapi/repository-document.js';
+const allowedOptions = {
+    findMany: [
+        'filter',
+        'select',
+        'sort',
+        'distinct',
+        'limit',
+        'offset',
+        'cursor',
+        'direction',
+    ],
+    findOne: ['filter', 'select', 'sort'],
+    count: ['filter'],
+    aggregate: ['filter', 'aggregate'],
+    groupBy: ['by', 'filter', 'aggregate', 'having', 'sort'],
+    exists: ['filter'],
+    createOne: ['values', 'select'],
+    updateOne: ['filter', 'values', 'select', 'ifVersion'],
+    deleteOne: ['filter', 'select', 'ifVersion'],
+};
+const repositoryStreamMediaType = 'application/x-ndjson';
+/**
+ * An exposure name is the first path segment of its endpoints, `POST
+ * /api/{name}/{action}`, so it follows the HTTP API rule for path segments:
+ * camelCase, starting with a lowercase letter. That also keeps it free of `/`,
+ * `:` and anything else that would need encoding.
+ */
+const exposureNamePattern = /^[a-z][a-zA-Z0-9]*$/;
+/**
+ * First segments the application itself answers under `/api`. An exposure with
+ * one of these names would sit beside, or behind, a route that is not a
+ * Repository endpoint.
+ */
+const reservedExposureNames = new Set([
+    'auth',
+    'healthz',
+    'swagger',
+]);
+function assertExposureName(name) {
+    if (typeof name !== 'string' || !exposureNamePattern.test(name))
+        throw new Error(`Repository API exposure name ${JSON.stringify(name)} is invalid. Exposure names are camelCase path segments matching /^[a-z][a-zA-Z0-9]*$/, such as "salesOrders".`);
+    if (reservedExposureNames.has(name))
+        throw new Error(`Repository API exposure name "${name}" is reserved for /api/${name}. Choose another name.`);
+}
+/**
+ * Exposes only configured Repository endpoints using `POST /{name}/{action}`,
+ * mounted under `/api`. Every path is literal — a name and an action, no
+ * parameters — so the endpoints of one exposure cannot shadow each other. An
+ * exposure name shares the first segment with plugin namespaces, so it must not
+ * equal one: name an exposure after its Collection, such as `salesOrders`,
+ * rather than after a plugin.
+ *
+ * This basic adapter does not install authentication or authorization. Database
+ * services are resolved only when the application creates the router.
+ */
+export function defineRepositoryApiRoutes(options) {
+    assertConfig(options, ['repositories', 'principal'], 'Repository API configuration');
+    if (options.principal !== undefined &&
+        typeof options.principal !== 'function')
+        throw new Error('Repository API principal must be a function.');
+    if (!Array.isArray(options.repositories))
+        throw new Error('repositories must be an array.');
+    const names = new Set();
+    const repositories = options.repositories.map((entry) => {
+        assertConfig(entry, [
+            'name',
+            'collection',
+            'connection',
+            'policy',
+            'actions',
+            'computedFields',
+        ], 'Repository API exposure');
+        assertExposureName(entry.name);
+        if (names.has(entry.name))
+            throw new Error(`Repository API exposure name "${entry.name}" is declared more than once. Each exposure needs a unique name.`);
+        names.add(entry.name);
+        const collection = entry.collection ?? entry.name;
+        if (typeof collection !== 'string' || !collection)
+            throw new Error('Repository API collection must not be empty.');
+        if (entry.connection !== undefined &&
+            (typeof entry.connection !== 'string' || !entry.connection))
+            throw new Error('Repository API connection must not be empty.');
+        assertConfig(entry.actions, Object.keys(allowedOptions), 'Repository API actions');
+        const policyInput = entry.policy;
+        if (policyInput === undefined)
+            throw new Error(`Repository API exposure "${entry.name}" requires a policy. Declare one for every exposure; an exposure without a Policy restricts nothing.`);
+        if (typeof policyInput === 'function' && options.principal === undefined)
+            throw new Error(`Repository API exposure "${entry.name}" declares a policy function, which needs a principal resolver. Pass one as principal(context).`);
+        // A Policy that does not depend on the principal is normalized once, here,
+        // so a malformed one fails where it is written. A function cannot be:
+        // it is evaluated per request, and so is its validation.
+        const policy = typeof policyInput === 'function'
+            ? policyInput
+            : assertBindablePolicy(normalizeRepositoryPolicy(policyInput));
+        const actions = Object.entries(entry.actions).map(([key, config]) => {
+            const action = key;
+            assertConfig(config, action === 'findMany' ? ['maxLimit'] : [], `Repository API action ${action}`);
+            const maxLimit = action === 'findMany' && config.maxLimit !== undefined
+                ? config.maxLimit
+                : 100;
+            if (typeof maxLimit !== 'number' ||
+                !Number.isSafeInteger(maxLimit) ||
+                maxLimit <= 0)
+                throw new Error('Repository API maxLimit must be a positive safe integer.');
+            return { action, maxLimit };
+        });
+        return {
+            name: entry.name,
+            collection,
+            connection: entry.connection,
+            policy,
+            actions,
+            computedFields: assertComputedFields(entry.name, entry.computedFields),
+        };
+    });
+    return defineApiRoutes((app) => {
+        const declaring = repositories.filter((entry) => Object.keys(entry.computedFields).length > 0);
+        // Only an exposure that declares computed fields reads its Collection here, so the others create their router
+        // without touching the database, as they always have.
+        if (declaring.length === 0)
+            return createRouter(app);
+        return Promise.all(declaring.map((entry) => assertComputedFieldsFree(entry, app.container
+            .resolve(databaseManagerToken)
+            .collections(entry.connection)
+            .get(entry.collection)))).then(() => createRouter(app));
+    });
+    function createRouter(app) {
+        const router = new Hono();
+        router.onError(apiErrorHandler);
+        for (const entry of repositories) {
+            if (entry.actions.length === 0)
+                continue;
+            const repository = app.container
+                .resolve(databaseManagerToken)
+                .repository(entry.collection, entry.connection);
+            // A Policy that does not read the principal binds once, here. One that
+            // does cannot: it is built per request, and so is the Repository it
+            // binds to — `withPolicy` returns a new instance and leaves this one
+            // unbound for the next request.
+            const bound = typeof entry.policy === 'function'
+                ? undefined
+                : repository.withPolicy(entry.policy);
+            const buildPolicy = entry.policy;
+            for (const { action, maxLimit } of entry.actions) {
+                router.post(`/${entry.name}/${action}`, 
+                // Documented from the Collection when the API document is generated, not declared by hand.
+                describeRepositoryEndpoint({
+                    exposure: entry.name,
+                    collection: entry.collection,
+                    connection: entry.connection,
+                    action,
+                    maxLimit,
+                    policy: typeof entry.policy === 'function' ? undefined : entry.policy,
+                    computedFields: entry.computedFields,
+                    loadCollection: () => app.container
+                        .resolve(databaseManagerToken)
+                        .collections(entry.connection)
+                        .get(entry.collection),
+                }), bodyLimit({
+                    maxSize: 1024 * 1024,
+                    onError: (context) => apiErrorHandler(new ApiError({
+                        status: 'INVALID_ARGUMENT',
+                        reason: 'BODY_TOO_LARGE',
+                        domain: appErrorDomain,
+                        message: 'Repository request exceeds 1 MiB.',
+                        httpStatus: 413,
+                    }), context),
+                }), async (context) => {
+                    let scoped = bound ??
+                        repository.withPolicy(
+                        // Normalized before binding so the reference check runs on
+                        // this Policy too; `withPolicy` normalizes again, which is
+                        // idempotent.
+                        assertBindablePolicy(normalizeRepositoryPolicy(buildPolicy(await resolvePrincipal(context, options.principal)))));
+                    for (const constraint of getRepositoryRequestConstraints(context)) {
+                        if (constraint.repository !== entry.name ||
+                            constraint.action !== action ||
+                            constraint.collection !== entry.collection ||
+                            constraint.connection !== entry.connection) {
+                            fail(403, 'AUTHORIZATION_TARGET_MISMATCH', 'Repository authorization target mismatch.');
+                        }
+                        scoped = scoped.narrow(constraint.policy);
+                    }
+                    const input = await readInput(context, action, maxLimit);
+                    if (action === 'findMany' && acceptsRepositoryStream(context)) {
+                        return streamFindMany(context, scoped, input);
+                    }
+                    const data = await execute(scoped, action, input);
+                    if (action === 'aggregate' || action === 'groupBy') {
+                        return context.body(JSON.stringify({ data }, (_key, value) => typeof value === 'bigint' ? value.toString() : value), 200, { 'Content-Type': 'application/json; charset=UTF-8' });
+                    }
+                    return context.json({ data });
+                });
+            }
+        }
+        return router;
+    }
+}
+/** Validate an exposure's `computedFields` declaration, returning it frozen, or an empty record when absent. */
+function assertComputedFields(exposure, value) {
+    if (value === undefined)
+        return Object.freeze({});
+    if (!isObject(value) ||
+        (Object.getPrototypeOf(value) !== Object.prototype &&
+            Object.getPrototypeOf(value) !== null))
+        throw new Error(`Repository API exposure "${exposure}": computedFields must be a plain object mapping field names to schemas.`);
+    for (const [name, schema] of Object.entries(value)) {
+        if (!name)
+            throw new Error(`Repository API exposure "${exposure}": a computed field name must not be empty.`);
+        if (typeof schema !== 'object' || schema === null || Array.isArray(schema))
+            throw new Error(`Repository API exposure "${exposure}": computed field "${name}" must be described by a Standard Schema or an OpenAPI schema object.`);
+    }
+    return Object.freeze({ ...value });
+}
+/**
+ * Refuse a computed field that shares its name with a field of the Collection: the record schema could not tell which
+ * of the two a response carries, and whatever adds the computed one would overwrite the stored value.
+ */
+async function assertComputedFieldsFree(entry, loading) {
+    const collection = await loading;
+    const fields = new Set((collection?.fields ?? []).map((field) => field.name));
+    const clashes = Object.keys(entry.computedFields).filter((name) => fields.has(name));
+    if (clashes.length > 0)
+        throw new Error(`Repository API exposure "${entry.name}" declares computed field${clashes.length > 1 ? 's' : ''} ${clashes.map((name) => `"${name}"`).join(', ')}, which ${clashes.length > 1 ? 'are' : 'is'} also ${clashes.length > 1 ? 'fields' : 'a field'} of the Collection "${entry.collection}". A computed field is one the Collection does not have; rename it, or drop it from computedFields.`);
+}
+async function streamFindMany(context, repository, input) {
+    const iterator = repository.findMany(input)[Symbol.asyncIterator]();
+    let first;
+    try {
+        first = await iterator.next();
+    }
+    catch (error) {
+        await iterator.return?.();
+        throw error;
+    }
+    const firstFrame = first.done ? undefined : recordFrame(first.value);
+    let closePromise;
+    const closeIterator = () => {
+        closePromise ??= Promise.resolve(iterator.return?.()).then(() => undefined);
+        return closePromise;
+    };
+    context.header('Content-Type', `${repositoryStreamMediaType}; charset=utf-8`);
+    context.header('Cache-Control', 'no-store');
+    context.header('X-Content-Type-Options', 'nosniff');
+    context.header('Vary', 'Accept', { append: true });
+    return stream(context, async (output) => {
+        output.onAbort(closeIterator);
+        try {
+            if (firstFrame !== undefined)
+                await output.writeln(firstFrame);
+            while (!output.aborted) {
+                const result = await iterator.next();
+                if (result.done)
+                    break;
+                await output.writeln(recordFrame(result.value));
+            }
+            if (!output.aborted)
+                await output.writeln('{"type":"end"}');
+        }
+        finally {
+            await closeIterator();
+        }
+    }, async (error, output) => {
+        if (!output.aborted)
+            await output.writeln(errorFrame(error));
+    });
+}
+function acceptsRepositoryStream(context) {
+    return (context.req.header('accept') ?? '')
+        .split(',')
+        .some((value) => value.split(';', 1)[0]?.trim().toLowerCase() ===
+        repositoryStreamMediaType);
+}
+function recordFrame(record) {
+    return JSON.stringify({ type: 'record', data: record });
+}
+function errorFrame(error) {
+    return JSON.stringify({
+        type: 'error',
+        error: toApiError(error).toPayload(),
+    });
+}
+async function readInput(context, action, maxLimit) {
+    const contentType = context.req
+        .header('content-type')
+        ?.split(';')[0]
+        ?.trim()
+        .toLowerCase();
+    if (contentType !== 'application/json') {
+        fail(415, 'UNSUPPORTED_MEDIA_TYPE', 'Repository requests require application/json.');
+    }
+    let input;
+    try {
+        input = await context.req.json();
+    }
+    catch {
+        fail(400, 'INVALID_JSON', 'Request body must contain valid JSON.');
+    }
+    if (!isObject(input))
+        fail(400, 'INVALID_REPOSITORY_INPUT', 'Request body must be an object.');
+    if (Object.hasOwn(input, 'idempotencyKey')) {
+        fail(400, 'UNSUPPORTED_REPOSITORY_OPTION', 'idempotencyKey is not supported by this adapter.');
+    }
+    for (const key of Object.keys(input)) {
+        if (!allowedOptions[action].includes(key)) {
+            fail(400, 'UNSUPPORTED_REPOSITORY_OPTION', `Unsupported Repository option: ${key}.`);
+        }
+    }
+    for (const key of [
+        'filter',
+        'values',
+        'select',
+        'sort',
+        'cursor',
+        'aggregate',
+        'having',
+    ]) {
+        if (Object.hasOwn(input, key) && !isObject(input[key])) {
+            fail(400, 'INVALID_REPOSITORY_INPUT', `${key} must be an object.`);
+        }
+    }
+    if (['findOne', 'updateOne', 'deleteOne'].includes(action) &&
+        !isObject(input.filter)) {
+        fail(400, 'INVALID_REPOSITORY_INPUT', 'filter is required.');
+    }
+    if (['createOne', 'updateOne'].includes(action) && !isObject(input.values)) {
+        fail(400, 'INVALID_REPOSITORY_INPUT', 'values is required.');
+    }
+    if (action === 'aggregate' || action === 'groupBy') {
+        if (!isObject(input.aggregate))
+            fail(400, 'INVALID_REPOSITORY_INPUT', 'aggregate is required.');
+    }
+    if (action === 'groupBy' &&
+        (!Array.isArray(input.by) ||
+            input.by.length === 0 ||
+            input.by.some((field) => typeof field !== 'string' || !field))) {
+        fail(400, 'INVALID_REPOSITORY_INPUT', 'by must be a non-empty array of field names.');
+    }
+    if (action === 'findMany') {
+        const limit = input.limit === undefined ? maxLimit : input.limit;
+        if (typeof limit !== 'number' ||
+            !Number.isSafeInteger(limit) ||
+            limit < 0 ||
+            limit > maxLimit) {
+            fail(400, 'INVALID_PAGINATION', `limit must be an integer between 0 and ${maxLimit}.`);
+        }
+        input.limit = limit;
+    }
+    return input;
+}
+async function execute(repository, action, input) {
+    // HTTP validates the envelope; Repository validates ASTs, fields, and mutations.
+    const read = input;
+    const filter = input.filter;
+    const values = input.values;
+    const ifVersion = input.ifVersion;
+    switch (action) {
+        case 'findMany':
+            return await repository.findMany(input);
+        case 'findOne':
+            return (await repository.findOne({ ...read, filter })) ?? null;
+        case 'aggregate':
+            return repository.aggregate(input);
+        case 'groupBy':
+            return repository.groupBy(input);
+        case 'count':
+            return repository.count(input);
+        case 'exists':
+            return repository.exists(input);
+        case 'createOne':
+            return repository.createOne({
+                select: read.select,
+                values,
+            });
+        case 'updateOne':
+            return repository.updateOne({
+                select: read.select,
+                filter,
+                values: input.values,
+                ifVersion,
+            });
+        case 'deleteOne':
+            return repository.deleteOne({ select: read.select, filter, ifVersion });
+    }
+}
+function isObject(value) {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+function fail(status, reason, message) {
+    throw new ApiError({
+        status: status === 403 ? 'PERMISSION_DENIED' : 'INVALID_ARGUMENT',
+        reason,
+        domain: appErrorDomain,
+        message,
+        ...(status === 415 ? { httpStatus: 415 } : {}),
+    });
+}
+/**
+ * Resolve the principal a Policy function is built from.
+ *
+ * No principal means no Policy, and no Policy would mean an unrestricted
+ * Repository, so the request is refused here rather than bound to a Policy
+ * whose scope names a principal that is not there. 403 rather than 401: this
+ * router installs no authentication and has no challenge to issue.
+ */
+async function resolvePrincipal(context, resolve) {
+    const principal = await resolve?.(context);
+    if (principal === undefined || principal === null) {
+        fail(403, 'PRINCIPAL_REQUIRED', 'This endpoint requires a principal and none was resolved.');
+    }
+    return principal;
+}
+/**
+ * Refuse a Policy reference, which this router cannot expand.
+ *
+ * A `ref()` resolves against a `withPolicies` map, and these routes bind one
+ * Policy per exposure. An unexpanded reference is not inert — it reaches a
+ * request as RELATION_READ_FORBIDDEN on a relation the Policy appears to
+ * grant, so it is rejected before it can be bound. For a fixed Policy that is
+ * when the routes are defined; for one built from a principal it is the first
+ * request that reaches it, which is as early as that Policy exists.
+ */
+function assertBindablePolicy(policy) {
+    const walk = (node, path) => {
+        if ('kind' in node) {
+            throw new Error(`Repository API policy at ${path.join('.')} uses ref("${node.target}"), which these routes cannot expand. Write the relation's rules out, or bind the Policies with connection.withPolicies().`);
+        }
+        for (const [name, child] of Object.entries(node.relations))
+            walk(child, [...path, 'relations', name]);
+    };
+    if (policy.read !== true && policy.read !== false)
+        walk(policy.read, ['read']);
+    return policy;
+}
+function assertConfig(value, keys, label) {
+    if (!isObject(value) ||
+        (Object.getPrototypeOf(value) !== Object.prototype &&
+            Object.getPrototypeOf(value) !== null))
+        throw new Error(`${label} must be a plain configuration object.`);
+    for (const key of Object.keys(value))
+        if (!keys.includes(key))
+            throw new Error(`${label}: unsupported option ${key}.`);
+}
+//# sourceMappingURL=repository-routes.js.map

@@ -1,0 +1,7 @@
+export function createConfigContext(options) {
+    return {
+        environment: options.env,
+        paths: options.paths,
+    };
+}
+//# sourceMappingURL=context.js.map

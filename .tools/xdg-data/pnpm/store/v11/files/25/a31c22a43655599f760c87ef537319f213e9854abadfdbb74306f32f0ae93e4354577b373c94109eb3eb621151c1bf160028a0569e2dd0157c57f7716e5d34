@@ -1,0 +1,1 @@
+{"version":3,"file":"provider.d.ts","sourceRoot":"","sources":["../../src/logging/provider.ts"],"names":[],"mappings":"AAKA,OAAO,EAAE,eAAe,EAAE,MAAM,4BAA4B,CAAC;AAE7D,OAAO,KAAK,EAAE,oBAAoB,EAAE,MAAM,qBAAqB,CAAC;AAIhE,qBAAa,eAAgB,SAAQ,eAAe,CAAC,oBAAoB,CAAC;IACxE,SAAgB,IAAI,EAAE,MAAM,CAAkC;IAE9C,QAAQ,IAAI,IAAI;IAQhC,OAAO,CAAC,mBAAmB;IA6FL,QAAQ,IAAI,OAAO,CAAC,IAAI,CAAC;CAGhD"}

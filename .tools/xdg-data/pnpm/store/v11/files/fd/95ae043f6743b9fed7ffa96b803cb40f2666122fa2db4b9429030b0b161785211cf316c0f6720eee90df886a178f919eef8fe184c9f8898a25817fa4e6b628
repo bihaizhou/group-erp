@@ -1,0 +1,7 @@
+import type { RealtimeClient } from '@nocobase/app-client';
+export interface InboxFocusTarget {
+    addEventListener(type: 'focus', listener: EventListener): void;
+    removeEventListener(type: 'focus', listener: EventListener): void;
+}
+export declare function subscribeToInboxInvalidations(realtime: RealtimeClient, target: InboxFocusTarget, refresh: () => void): () => void;
+//# sourceMappingURL=subscription.d.ts.map

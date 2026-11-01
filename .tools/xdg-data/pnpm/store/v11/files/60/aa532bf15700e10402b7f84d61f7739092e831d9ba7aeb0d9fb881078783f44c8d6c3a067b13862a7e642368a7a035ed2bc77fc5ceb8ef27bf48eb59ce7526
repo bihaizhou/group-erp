@@ -1,0 +1,5 @@
+import { type QueryAdapter } from '@nocobase/db';
+import { type MailSyncCursor, type MailSyncRun } from '../../shared/mail.js';
+export declare function upsertSyncState(query: QueryAdapter, accountId: string, cursor: MailSyncCursor): Promise<void>;
+export declare function insertOutbox(query: QueryAdapter, run: Pick<MailSyncRun, 'id' | 'phase' | 'revision'>, sequence: number, now: string, retryId?: string): Promise<void>;
+//# sourceMappingURL=sync-writes.d.ts.map

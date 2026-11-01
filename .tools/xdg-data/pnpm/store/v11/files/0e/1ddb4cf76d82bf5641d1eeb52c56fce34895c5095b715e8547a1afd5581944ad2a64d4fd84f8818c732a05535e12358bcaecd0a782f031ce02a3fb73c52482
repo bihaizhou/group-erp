@@ -1,0 +1,2 @@
+import type { DatabaseCapabilities } from '../schema/adapter.js';
+export declare function resolveDatabaseCapabilities(overrides?: Partial<DatabaseCapabilities>): DatabaseCapabilities;

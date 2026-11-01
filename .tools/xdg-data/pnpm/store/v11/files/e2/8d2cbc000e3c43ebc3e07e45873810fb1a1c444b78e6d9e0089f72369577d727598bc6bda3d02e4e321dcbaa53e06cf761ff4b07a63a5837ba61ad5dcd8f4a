@@ -1,0 +1,11 @@
+export function rawBytesProvider(value, name = 'raw-bytes') {
+    const bytes = Uint8Array.from(value);
+    return {
+        name,
+        read: async () => ({
+            kind: 'bytes',
+            value: Uint8Array.from(bytes),
+        }),
+    };
+}
+//# sourceMappingURL=raw.js.map

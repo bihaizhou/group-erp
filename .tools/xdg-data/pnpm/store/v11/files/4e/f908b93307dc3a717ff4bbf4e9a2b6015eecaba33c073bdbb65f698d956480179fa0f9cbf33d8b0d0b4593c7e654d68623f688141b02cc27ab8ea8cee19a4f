@@ -1,0 +1,149 @@
+/** Session-scoped access to `/api/authorization`. */
+export class AuthorizationClient {
+    api;
+    cached;
+    currentRevision = 0;
+    invalidationListeners = new Set();
+    constructor(api) {
+        this.api = api;
+    }
+    /** Whether the session's snapshot permits the check. */
+    async can(requirement) {
+        const snapshot = await this.snapshot();
+        if (snapshot.unrestricted)
+            return true;
+        if (requirement === 'unrestricted')
+            return false;
+        const { resource, action } = requirement;
+        return snapshot.permissions.some((permission) => permission.resource.type === resource.type &&
+            (permission.resource.id === '*' ||
+                permission.resource.id === resource.id) &&
+            permission.actions.includes(action));
+    }
+    /** `GET authorization/permissions`, cached until `invalidate()`. */
+    snapshot() {
+        if (!this.cached) {
+            const request = this.api
+                .request({
+                path: 'authorization/permissions',
+            })
+                .then((response) => this.cached === request ? response.data : this.snapshot(), (error) => {
+                // A request from an earlier session must not evict its successor.
+                if (this.cached !== request)
+                    return this.snapshot();
+                this.cached = undefined;
+                throw error;
+            });
+            this.cached = request;
+        }
+        return this.cached;
+    }
+    /** Changes whenever the snapshot is invalidated. */
+    revision() {
+        return this.currentRevision;
+    }
+    invalidate() {
+        this.cached = undefined;
+        this.currentRevision += 1;
+        for (const listener of this.invalidationListeners)
+            listener();
+    }
+    onInvalidated(listener) {
+        this.invalidationListeners.add(listener);
+        return () => {
+            this.invalidationListeners.delete(listener);
+        };
+    }
+    listPermissionSets() {
+        return this.get('authorization/permissionSets');
+    }
+    getPermissionSet(key) {
+        return this.get(`authorization/permissionSets/${encodeURIComponent(key)}`);
+    }
+    createPermissionSet(input) {
+        return this.send('authorization/permissionSets', 'POST', input);
+    }
+    updatePermissionSet(key, input) {
+        return this.send(`authorization/permissionSets/${encodeURIComponent(key)}`, 'PATCH', input);
+    }
+    async deletePermissionSet(key) {
+        await this.api.request({
+            path: `authorization/permissionSets/${encodeURIComponent(key)}`,
+            method: 'DELETE',
+        });
+    }
+    /** The sets a subject holds. */
+    getEffective(subject) {
+        return this.api
+            .request({
+            path: 'authorization/permissionSets',
+            query: { subjectType: subject.type, subjectId: subject.id },
+        })
+            .then((response) => response.data);
+    }
+    listAssignments(permissionSet) {
+        return this.get(`authorization/permissionSets/${encodeURIComponent(permissionSet)}/assignments`);
+    }
+    assign(permissionSet, input) {
+        return this.send(`authorization/permissionSets/${encodeURIComponent(permissionSet)}/assignments`, 'POST', input);
+    }
+    async revoke(permissionSet, assignmentId) {
+        await this.api.request({
+            path: `authorization/permissionSets/${encodeURIComponent(permissionSet)}/assignments/${encodeURIComponent(assignmentId)}`,
+            method: 'DELETE',
+        });
+    }
+    /** `GET authorization/<path>/options`; `path` is the surface, such as `permissionSets`. */
+    loadOptions(path) {
+        return this.get(`authorization/${path}/options`);
+    }
+    /** Subjects of one type, from the surface's own directory route. */
+    listSubjects(path, type, query) {
+        const { search, ...page } = query;
+        return this.api
+            .request({
+            path: `authorization/${path}/subjects/${encodeURIComponent(type)}`,
+            query: { ...page, ...(search === undefined ? {} : { q: search }) },
+        })
+            .then((response) => ({
+            items: response.data,
+            total: response.meta.total,
+        }));
+    }
+    resolveSubjects(path, type, ids) {
+        return this.send(`authorization/${path}/subjects/${encodeURIComponent(type)}/resolve`, 'POST', { ids });
+    }
+    listRecords(path, collection) {
+        // The first page at the largest size the endpoint allows; `meta.total` says how many there are in all.
+        return this.get(`authorization/${path}/records/${encodeURIComponent(collection)}`, { pageSize: 100 });
+    }
+    /** What one subject may do on one resource, and why. */
+    inspect(input) {
+        return this.send('authorization/inspector/decide', 'POST', input);
+    }
+    inspectBatch(subject, checks) {
+        return this.send('authorization/inspector/batchDecide', 'POST', {
+            subject,
+            checks,
+        });
+    }
+    inspectConfigured(subject) {
+        return this.api
+            .request({
+            path: 'authorization/inspector/configuredAccess',
+            query: { subjectType: subject.type, subjectId: subject.id },
+        })
+            .then((response) => response.data);
+    }
+    get(path, query) {
+        return this.api
+            .request({ path, ...(query ? { query } : {}) })
+            .then((response) => response.data);
+    }
+    send(path, method, value) {
+        return this.api
+            .request({ path, method, json: value })
+            .then((response) => response.data);
+    }
+}
+//# sourceMappingURL=authorization-client.js.map

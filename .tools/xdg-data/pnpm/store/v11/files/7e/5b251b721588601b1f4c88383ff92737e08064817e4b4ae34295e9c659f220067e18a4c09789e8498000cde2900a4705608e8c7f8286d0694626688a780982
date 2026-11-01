@@ -1,0 +1,4 @@
+import type { UsersResource } from './en-US.js';
+declare const zhCN: UsersResource;
+export default zhCN;
+//# sourceMappingURL=zh-CN.d.ts.map

@@ -1,0 +1,7 @@
+import { ToolCommand } from "../../lib/tool-command.js";
+export default class DistCheck extends ToolCommand {
+    static summary = 'Check that every package the server, database and CLI code imports is installed in dist/.';
+    static description = 'Fails, naming the package, when an import would not resolve on a deployed server. `nocobase build` runs this as its last step.';
+    tool = 'verify';
+}
+//# sourceMappingURL=check.js.map

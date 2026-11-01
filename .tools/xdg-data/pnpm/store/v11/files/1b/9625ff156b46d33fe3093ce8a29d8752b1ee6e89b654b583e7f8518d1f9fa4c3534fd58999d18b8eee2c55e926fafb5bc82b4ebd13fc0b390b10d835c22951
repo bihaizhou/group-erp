@@ -1,0 +1,12 @@
+import type { MailProviderResult, MailSyncCursor } from '../../../shared/mail.js';
+import type { NormalizedMailMessage } from '../../contracts/provider.js';
+import type { ChangeCursor, FolderCursor, InitialCursor } from './types.js';
+export declare function graphCursor(value: ChangeCursor): MailSyncCursor;
+export declare function parseGraphCursor(cursor: MailSyncCursor | undefined): ChangeCursor | undefined;
+export declare function filterReceivedAfter(messages: readonly NormalizedMailMessage[], receivedAfter: string | undefined): readonly NormalizedMailMessage[];
+export declare function uniqueStrings(values: readonly string[]): readonly string[];
+export declare function encode(value: unknown): string;
+export declare function decodeFolderCursor(value: string): FolderCursor | undefined;
+export declare function decodeInitialCursor(value: string): InitialCursor | undefined;
+export declare function invalidSyncCursor<T>(): MailProviderResult<T>;
+//# sourceMappingURL=sync.d.ts.map

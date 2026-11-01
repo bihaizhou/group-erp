@@ -1,0 +1,32 @@
+import type { ApiDocument } from '../openapi/document.js';
+import { type CliCaller, type CliCommand, type CliExclusion, type CliIdentity, type CliManifest } from './types.js';
+export interface DeriveCliCommandsOptions {
+    /**
+     * The security schemes that name an identity: an operation whose requirements name one is offered to that identity.
+     * `cookieAuth` and `apiKeyAuth` name a person by default.
+     */
+    readonly identitySchemes?: Readonly<Record<string, CliIdentity>>;
+    /** Operations left out, as if their `x-cli` were `false`. */
+    readonly exclude?: readonly CliExclusion[];
+}
+/** `issueId` → `issue-id`, `AiEmployee` → `ai-employee`. */
+export declare function kebabCase(value: string): string;
+/**
+ * The command words derived from an operation's tag, path and method. A `POST` to a path that ends in a literal after
+ * a parameter is a custom method (`POST /issues/{id}/close` → `close`), unless the path is a collection, which
+ * `collections` names by having a `GET` on it (`POST /issues/{id}/comments` → `comments create`).
+ */
+export declare function deriveCommandWords(method: string, path: string, tag: string | undefined, collections?: ReadonlySet<string>): string[];
+/**
+ * Every command the API document describes, for every caller: each documented operation that is not hidden and whose
+ * `x-cli` is not `false`. A derived name that two operations share falls back to the tag and the `operationId`; a name
+ * an `x-cli.command` gives twice keeps its first operation.
+ */
+export declare function deriveAllCliCommands(document: ApiDocument, options?: DeriveCliCommandsOptions): CliCommand[];
+/** The commands a caller may run: offered to its identity, and holding the action each one names. */
+export declare function filterCliCommands(commands: readonly CliCommand[], caller: Pick<CliCaller, 'kind' | 'actions'>): CliCommand[];
+/** The manifest of `caller`'s commands, and of those it is not offered, with why. */
+export declare function cliManifestOf(commands: readonly CliCommand[], caller: CliCaller): CliManifest;
+/** The manifest of the commands the API document describes that `caller` may run. */
+export declare function deriveCliCommands(document: ApiDocument, caller: CliCaller, options?: DeriveCliCommandsOptions): CliManifest;
+//# sourceMappingURL=derive.d.ts.map

@@ -1,0 +1,232 @@
+import { isDeepStrictEqual } from 'node:util';
+import { CompositeResourceReference, } from '@nocobase/authorization/core';
+import { AUTHORIZATION_NAMESPACE } from '../shared.js';
+/** The subsection every authorization settings item is listed under. */
+export const AUTHORIZATION_SETTINGS_SECTION = 'authorization';
+const OTHER = 'other';
+const text = (key) => ({
+    key,
+    ns: AUTHORIZATION_NAMESPACE,
+});
+class SectionRegistry {
+    entries = new Map();
+    /** Subsections created by an `extend` add and not yet claimed by an owner. */
+    extended = new Set();
+    add(definition) {
+        const { extend = false, ...section } = definition;
+        if (!section.name)
+            throw new TypeError('A section needs a name');
+        if (section.order !== undefined && !Number.isFinite(section.order))
+            throw new TypeError(`Section ${section.name} needs a finite order`);
+        if (section.parent === undefined) {
+            if (extend)
+                throw new TypeError(`Section ${section.name} can extend only as a subsection`);
+            if (section.order === undefined)
+                throw new TypeError(`Section ${section.name} needs an order`);
+        }
+        else {
+            const parent = this.entries.get(section.parent);
+            if (!parent)
+                throw new Error(`Section ${section.name} names an unknown parent: ${section.parent}`);
+            if (parent.parent !== undefined)
+                throw new Error(`Section ${section.name} cannot nest under subsection ${section.parent}`);
+        }
+        const existing = this.entries.get(section.name);
+        if (existing) {
+            if (extend)
+                return;
+            if (this.extended.has(section.name)) {
+                if (existing.parent !== section.parent)
+                    throw new Error(`Section ${section.name} is already registered under ${existing.parent}`);
+                this.extended.delete(section.name);
+                this.entries.set(section.name, structuredClone(section));
+                return;
+            }
+            if (isDeepStrictEqual(existing, structuredClone(section)))
+                return;
+            throw new Error(`Section already registered: ${section.name}`);
+        }
+        this.entries.set(section.name, structuredClone(section));
+        if (extend)
+            this.extended.add(section.name);
+    }
+    has(name) {
+        return this.entries.has(name);
+    }
+    isSubsection(name) {
+        return this.entries.get(name)?.parent !== undefined;
+    }
+    get(name) {
+        const section = this.entries.get(name);
+        return section && structuredClone(section);
+    }
+    other(parent) {
+        const name = `${parent}.${OTHER}`;
+        this.add({
+            name,
+            title: text('sections.other'),
+            parent,
+            order: Number.MAX_SAFE_INTEGER,
+        });
+        return name;
+    }
+    tree() {
+        const all = [...this.entries.values()];
+        const byOrder = (left, right) => (left.order ?? Number.MAX_SAFE_INTEGER - 1) -
+            (right.order ?? Number.MAX_SAFE_INTEGER - 1);
+        return structuredClone(all
+            .filter((section) => section.parent === undefined)
+            .sort(byOrder)
+            .map((section) => ({
+            ...section,
+            order: section.order ?? 0,
+            subsections: all
+                .filter((child) => child.parent === section.name)
+                .sort(byOrder),
+        })));
+    }
+}
+class GroupRegistry {
+    entries = new Map();
+    add(group) {
+        if (!group.name)
+            throw new TypeError('A resource group needs a name');
+        if (group.order !== undefined && !Number.isFinite(group.order))
+            throw new TypeError(`Resource group ${group.name} needs a finite order`);
+        if (group.parent !== undefined && !this.entries.has(group.parent))
+            throw new Error(`Resource group ${group.name} names an unknown parent: ${group.parent}`);
+        const existing = this.entries.get(group.name);
+        if (existing) {
+            if (isDeepStrictEqual(existing, structuredClone({ ...group })))
+                return;
+            throw new Error(`Resource group already registered: ${group.name}`);
+        }
+        this.entries.set(group.name, structuredClone({ ...group }));
+    }
+    has(name) {
+        return this.entries.has(name);
+    }
+    get(name) {
+        const group = this.entries.get(name);
+        return group && structuredClone(group);
+    }
+    list() {
+        return structuredClone([...this.entries.values()]);
+    }
+}
+const refKey = (resource) => JSON.stringify([resource.type, resource.id]);
+class AuthorizationUi {
+    sections = new SectionRegistry();
+    groups = new GroupRegistry();
+    placements = new Map();
+    defaults = new Map();
+    place(target, placement) {
+        const resource = target instanceof CompositeResourceReference
+            ? { type: 'composite', id: target.name }
+            : { type: target.type, id: target.id };
+        if (!resource.type || !resource.id)
+            throw new TypeError('A placement needs a resource type and id');
+        if (!placement.section)
+            throw new TypeError(`Placement of ${resource.type}:${resource.id} needs a section`);
+        if (this.sections.has(placement.section) &&
+            !this.sections.isSubsection(placement.section))
+            throw new Error(`${resource.type}:${resource.id} can be placed only in a subsection, not ${placement.section}`);
+        if (placement.order !== undefined && !Number.isFinite(placement.order))
+            throw new TypeError(`Placement of ${resource.type}:${resource.id} needs a finite order`);
+        const value = {
+            section: placement.section,
+            ...(placement.group === undefined ? {} : { group: placement.group }),
+            ...(placement.order === undefined ? {} : { order: placement.order }),
+        };
+        const key = refKey(resource);
+        const existing = this.placements.get(key);
+        if (existing) {
+            if (isDeepStrictEqual(existing.placement, value))
+                return;
+            throw new Error(`${resource.type}:${resource.id} is already placed in ${existing.placement.section}`);
+        }
+        this.placements.set(key, { resource, placement: value });
+    }
+    defaultSection(type, section) {
+        if (!type)
+            throw new TypeError('A default section needs a resource type');
+        if (!this.sections.has(section) || this.sections.isSubsection(section))
+            throw new Error(`Resource type ${type} names an unknown top-level section: ${section}`);
+        const existing = this.defaults.get(type);
+        if (existing === section)
+            return;
+        if (existing !== undefined)
+            throw new Error(`Resource type ${type} already defaults to section ${existing}`);
+        this.defaults.set(type, section);
+    }
+    defaultSectionOf(type) {
+        return this.defaults.get(type);
+    }
+    placementOf(resource) {
+        const found = this.placements.get(refKey(resource))?.placement;
+        return found && structuredClone(found);
+    }
+    validate(host) {
+        const errors = [...(host.compositeResources?.validate() ?? [])];
+        const warnings = [];
+        for (const { resource, placement } of this.placements.values()) {
+            const label = `${resource.type}:${resource.id}`;
+            if (!this.sections.isSubsection(placement.section))
+                errors.push(`${label} is placed in unknown subsection ${placement.section}`);
+            if (placement.group !== undefined && !this.groups.has(placement.group))
+                errors.push(`${label} is placed in unknown group ${placement.group}`);
+            const type = host.resourceTypes.has(resource.type)
+                ? host.resourceTypes.get(resource.type)
+                : undefined;
+            if (!type?.items?.has(resource.id))
+                errors.push(`${label} is placed but not registered`);
+        }
+        for (const type of host.resourceTypes.list()) {
+            const section = this.defaults.get(type.type);
+            if (section === undefined || !type.items)
+                continue;
+            for (const item of type.items.list())
+                if (!this.placements.has(refKey({ type: type.type, id: item.id })))
+                    warnings.push(`${type.type}:${item.id} is not placed; it is listed under ${section}.${OTHER}`);
+        }
+        return { errors, warnings };
+    }
+}
+/**
+ * Registers `authz.ui` with the built-in sections `pages`, `business` and
+ * `administration`, the `authorization` subsection, and the default sections
+ * of `composite` and `settings`. `pagesPlugin` adds the `pages.page`
+ * subsection itself.
+ */
+export function uiPlugin() {
+    const ui = new AuthorizationUi();
+    for (const [name, order] of [
+        ['pages', 0],
+        ['business', 100],
+        ['administration', 200],
+    ])
+        ui.sections.add({ name, title: text(`sections.${name}`), order });
+    ui.sections.add({
+        name: AUTHORIZATION_SETTINGS_SECTION,
+        parent: 'administration',
+        title: text('options.settingsModules.authorization'),
+    });
+    ui.defaultSection('composite', 'business');
+    ui.defaultSection('settings', 'administration');
+    return { id: 'ui', authorizationApi: { ui } };
+}
+/**
+ * Reports a validation result: every warning is logged; errors throw in
+ * development and are logged in production.
+ */
+export function reportAuthorizationUi(report, options) {
+    for (const warning of report.warnings)
+        options.warn(`Authorization workspace: ${warning}`);
+    if (!report.errors.length)
+        return;
+    if (!options.production)
+        throw new Error(`Authorization workspace is misconfigured:\n- ${report.errors.join('\n- ')}`);
+    for (const error of report.errors)
+        options.warn(`Authorization workspace: ${error}`);
+}
+//# sourceMappingURL=ui.js.map

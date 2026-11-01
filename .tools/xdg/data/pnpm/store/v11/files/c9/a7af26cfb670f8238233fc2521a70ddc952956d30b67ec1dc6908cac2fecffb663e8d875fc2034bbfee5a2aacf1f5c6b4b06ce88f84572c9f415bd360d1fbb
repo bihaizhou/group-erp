@@ -1,0 +1,13 @@
+import * as React from 'react';
+import { Dialog as SheetPrimitive } from '@base-ui/react/dialog';
+declare function Sheet({ ...props }: SheetPrimitive.Root.Props): React.ReactElement;
+declare function SheetContent({ className, children, side, showCloseButton, closeLabel, ...props }: SheetPrimitive.Popup.Props & {
+    readonly side?: 'top' | 'right' | 'bottom' | 'left';
+    readonly showCloseButton?: boolean;
+    readonly closeLabel?: string;
+}): React.ReactElement;
+declare function SheetHeader({ className, ...props }: React.ComponentProps<'div'>): React.ReactElement;
+declare function SheetTitle({ className, ...props }: SheetPrimitive.Title.Props): React.ReactElement;
+declare function SheetDescription({ className, ...props }: SheetPrimitive.Description.Props): React.ReactElement;
+export { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle };
+//# sourceMappingURL=sheet.d.ts.map

@@ -1,0 +1,4 @@
+/** Standalone runners remain usable without application configuration. */
+export const emptyDatabaseTaskConfig = Object.freeze({
+    get: () => undefined,
+});

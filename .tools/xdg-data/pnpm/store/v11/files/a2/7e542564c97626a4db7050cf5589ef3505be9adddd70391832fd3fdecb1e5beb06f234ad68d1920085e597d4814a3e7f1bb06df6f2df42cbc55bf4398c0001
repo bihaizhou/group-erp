@@ -1,0 +1,36 @@
+import type { LocaleResource } from '@nocobase/i18n';
+/**
+ * Messages for the errors the authentication actions report (`actions/errors.ts`), keyed by the server's error code:
+ * Better Auth's own codes, its username plugin's, and the ones this plugin's server adds.
+ */
+declare const enUS: {
+    errors: {
+        generic: string;
+        network: string;
+        rateLimited: string;
+        INVALID_EMAIL_OR_PASSWORD: string;
+        INVALID_USERNAME_OR_PASSWORD: string;
+        INVALID_PASSWORD: string;
+        INVALID_EMAIL: string;
+        INVALID_USERNAME: string;
+        USERNAME_TOO_SHORT: string;
+        USERNAME_TOO_LONG: string;
+        USERNAME_IS_ALREADY_TAKEN: string;
+        USER_ALREADY_EXISTS: string;
+        USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: string;
+        PASSWORD_TOO_SHORT: string;
+        RESET_PASSWORD_DISABLED: string;
+        PASSWORD_TOO_LONG: string;
+        EMAIL_NOT_VERIFIED: string;
+        INVALID_TOKEN: string;
+        TOKEN_EXPIRED: string;
+        ACCOUNT_DISABLED: string;
+        SERVICE_ACCOUNT_NO_LOGIN: string;
+        invalidOriginWithAddress: string;
+        INVALID_ORIGIN: string;
+        INVALID_CSRF_ORIGIN: string;
+    };
+};
+export type AuthenticationResource = LocaleResource<typeof enUS>;
+export default enUS;
+//# sourceMappingURL=en-US.d.ts.map

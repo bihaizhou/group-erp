@@ -1,0 +1,27 @@
+export function parseJson(value, label) {
+    if (typeof value !== 'string')
+        return value;
+    try {
+        return JSON.parse(value);
+    }
+    catch (error) {
+        throw new Error(`Stored mail ${label} is invalid.`, { cause: error });
+    }
+}
+export function jsonOrNull(value) {
+    return value === undefined ? null : JSON.stringify(value);
+}
+export function chunks(values, size) {
+    const result = [];
+    for (let index = 0; index < values.length; index += size) {
+        result.push(values.slice(index, index + size));
+    }
+    return result;
+}
+export function toIsoString(value) {
+    return value instanceof Date ? value.toISOString() : String(value);
+}
+export function normalizeAddress(address) {
+    return address.trim().toLowerCase();
+}
+//# sourceMappingURL=serialization.js.map

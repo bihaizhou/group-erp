@@ -1,0 +1,10 @@
+import type { Caching } from '@nocobase/caching';
+import type { BetterAuthOptions } from 'better-auth';
+type SecondaryStorage = NonNullable<BetterAuthOptions['secondaryStorage']>;
+/** Adapts NocoBase caching to Better Auth secondary storage. */
+export declare function createAuthStorage(caching: Caching, options?: {
+    namespace?: string;
+    provider?: string;
+}): SecondaryStorage;
+export {};
+//# sourceMappingURL=auth-storage.d.ts.map

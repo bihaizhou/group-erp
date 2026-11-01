@@ -1,0 +1,78 @@
+import { DriveManager } from 'flydrive';
+import { FSDriver } from 'flydrive/drivers/fs';
+import { S3Driver } from 'flydrive/drivers/s3';
+import { createOssDriver } from './oss.js';
+import { joinDriveUrl } from './url.js';
+export function createDriveManager(config, options = {}) {
+    assertDefaultDisk(config);
+    return new DriveManager({
+        default: config.default,
+        fakes: options.fakes,
+        services: Object.fromEntries(Object.entries(config.disks).map(([name, disk]) => [
+            name,
+            () => createDriver(disk),
+        ])),
+    });
+}
+export function assertDefaultDisk(config) {
+    if (!Object.hasOwn(config.disks, config.default) ||
+        !config.disks[config.default]) {
+        throw new Error(`Default drive disk "${config.default}" is not configured.`);
+    }
+}
+function createDriver(disk) {
+    if (typeof disk === 'function') {
+        return disk();
+    }
+    if (disk.driver === 'fs') {
+        return createFsDriver(disk);
+    }
+    if (disk.driver === 'oss') {
+        return createOssDriver(disk);
+    }
+    return createS3Driver(disk);
+}
+function createFsDriver(disk) {
+    return new FSDriver(compactObject({
+        location: disk.location,
+        visibility: disk.visibility,
+        urlBuilder: disk.url
+            ? {
+                generateURL: async (key) => joinDriveUrl(disk.url, key),
+            }
+            : undefined,
+    }));
+}
+function createS3Driver(disk) {
+    const options = compactObject({
+        bucket: disk.bucket,
+        region: disk.region,
+        endpoint: disk.endpoint,
+        cdnUrl: disk.cdnUrl,
+        forcePathStyle: disk.forcePathStyle,
+        supportsACL: disk.supportsACL,
+        encryption: disk.encryption,
+        credentials: createS3Credentials(disk),
+        visibility: disk.visibility,
+    });
+    return new S3Driver(options);
+}
+function createS3Credentials(disk) {
+    const { accessKeyId, secretAccessKey } = disk.credentials;
+    if (!accessKeyId || !secretAccessKey) {
+        return undefined;
+    }
+    return {
+        accessKeyId,
+        secretAccessKey,
+    };
+}
+function compactObject(value) {
+    for (const key of Object.keys(value)) {
+        if (value[key] === undefined) {
+            delete value[key];
+        }
+    }
+    return value;
+}
+//# sourceMappingURL=flydrive.js.map

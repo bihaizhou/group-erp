@@ -1,0 +1,105 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "nocobase-file",
+  "homepage": "https://www.nocobase.com",
+  "items": [
+    {
+      "name": "component-ui",
+      "type": "registry:component",
+      "title": "NocoBase File Component UI",
+      "description": "Application-owned upload, list, thumbnail, and preview components for business file endpoints.",
+      "dependencies": [
+        "@nocobase/app-plugin-file@>=1.0.0-beta.0 <2.0.0",
+        "lucide-react@^0.487.0",
+        "react-markdown@^10.1.0",
+        "remark-gfm@^4.0.1",
+        "react@^19.0.0",
+        "react-dom@^19.0.0",
+        "@nocobase/i18n@^1.0.0-beta.4",
+        "@silurus/ooxml@0.85.1"
+      ],
+      "registryDependencies": [
+        "button",
+        "dialog",
+        "spinner"
+      ],
+      "docs": "Install editable file components, resolve clientFileRepositoryManagerToken from the App, and pass manager.repository(resourceName) to FileUploadField. Read components use FileRecord.contentUrl. The App owns routes, authorization and business relations. Upgrade installed source with a three-way merge.",
+      "meta": {
+        "ownership": "application",
+        "upgradePolicy": "three-way-merge",
+        "nocobase": {
+          "requiresPlugins": {
+            "@nocobase/app-plugin-file": ">=1.0.0-beta.0 <2.0.0"
+          }
+        }
+      },
+      "files": [
+        {
+          "path": "registry/component-ui/components/file-list.tsx",
+          "type": "registry:file",
+          "target": "client/extensions/nocobase-file-component-ui/components/file-list.tsx"
+        },
+        {
+          "path": "registry/component-ui/components/file-preview-dialog.tsx",
+          "type": "registry:file",
+          "target": "client/extensions/nocobase-file-component-ui/components/file-preview-dialog.tsx"
+        },
+        {
+          "path": "registry/component-ui/components/file-preview-field.tsx",
+          "type": "registry:file",
+          "target": "client/extensions/nocobase-file-component-ui/components/file-preview-field.tsx"
+        },
+        {
+          "path": "registry/component-ui/components/file-thumbnail.tsx",
+          "type": "registry:file",
+          "target": "client/extensions/nocobase-file-component-ui/components/file-thumbnail.tsx"
+        },
+        {
+          "path": "registry/component-ui/components/file-upload-field.tsx",
+          "type": "registry:file",
+          "target": "client/extensions/nocobase-file-component-ui/components/file-upload-field.tsx"
+        },
+        {
+          "path": "registry/component-ui/components/previewers/file-preview-content.tsx",
+          "type": "registry:file",
+          "target": "client/extensions/nocobase-file-component-ui/components/previewers/file-preview-content.tsx"
+        },
+        {
+          "path": "registry/component-ui/components/previewers/office-open-xml-preview.tsx",
+          "type": "registry:file",
+          "target": "client/extensions/nocobase-file-component-ui/components/previewers/office-open-xml-preview.tsx"
+        },
+        {
+          "path": "registry/component-ui/index.ts",
+          "type": "registry:file",
+          "target": "client/extensions/nocobase-file-component-ui/index.ts"
+        },
+        {
+          "path": "registry/component-ui/lib/file-preview.ts",
+          "type": "registry:file",
+          "target": "client/extensions/nocobase-file-component-ui/lib/file-preview.ts"
+        },
+        {
+          "path": "registry/component-ui/lib/file-url.ts",
+          "type": "registry:file",
+          "target": "client/extensions/nocobase-file-component-ui/lib/file-url.ts"
+        },
+        {
+          "path": "registry/component-ui/lib/message-key.ts",
+          "type": "registry:file",
+          "target": "client/extensions/nocobase-file-component-ui/lib/message-key.ts"
+        },
+        {
+          "path": "registry/component-ui/README.md",
+          "type": "registry:file",
+          "target": "client/extensions/nocobase-file-component-ui/README.md"
+        },
+        {
+          "path": "registry/component-ui/types.ts",
+          "type": "registry:file",
+          "target": "client/extensions/nocobase-file-component-ui/types.ts"
+        }
+      ]
+    }
+  ]
+}

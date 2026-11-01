@@ -1,0 +1,14 @@
+interface ManifestEntry {
+    sourceChecksum: string;
+    artifactChecksum: string;
+}
+export interface TaskChecksum {
+    readonly checksum: string;
+    /** Verified hash of the same JavaScript before manifest sealing, for upgrading legacy history. */
+    readonly legacyChecksum?: string;
+}
+export type TaskManifest = ReadonlyMap<string, ManifestEntry>;
+/** Reads a directory manifest once and validates every listed artifact before modules are imported. */
+export declare function readTaskManifest(directory: string): Promise<TaskManifest | undefined>;
+export declare function resolveTaskChecksum(filePath: string, content: string, manifest: TaskManifest | undefined): TaskChecksum;
+export {};

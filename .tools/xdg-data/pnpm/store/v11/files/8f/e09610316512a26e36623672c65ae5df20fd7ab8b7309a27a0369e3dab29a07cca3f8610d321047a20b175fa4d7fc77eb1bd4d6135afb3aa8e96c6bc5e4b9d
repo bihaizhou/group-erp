@@ -1,0 +1,5 @@
+import type { ResolvedMemoryJobsConfig } from '../../config.js';
+import type { JobExecutorServiceDependencies } from '../../service.js';
+import type { ScheduleExecutor } from '../types.js';
+export declare function createMemoryScheduleExecutor(config: ResolvedMemoryJobsConfig, dependencies: Pick<JobExecutorServiceDependencies, 'logger'>): ScheduleExecutor;
+//# sourceMappingURL=index.d.ts.map

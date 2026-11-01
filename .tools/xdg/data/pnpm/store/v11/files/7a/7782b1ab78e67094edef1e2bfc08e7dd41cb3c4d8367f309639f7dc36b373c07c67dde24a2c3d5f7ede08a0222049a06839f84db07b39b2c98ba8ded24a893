@@ -1,0 +1,3 @@
+import type { AuthenticationActionState, PasswordLoginInput } from './types.js';
+export declare function usePasswordLogin(): AuthenticationActionState<PasswordLoginInput>;
+//# sourceMappingURL=use-password-login.d.ts.map

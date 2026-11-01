@@ -1,0 +1,2 @@
+import type { CollectionMetadataDocument } from './document.js';
+export declare function validateCollectionMetadataDocument(input: unknown): CollectionMetadataDocument;

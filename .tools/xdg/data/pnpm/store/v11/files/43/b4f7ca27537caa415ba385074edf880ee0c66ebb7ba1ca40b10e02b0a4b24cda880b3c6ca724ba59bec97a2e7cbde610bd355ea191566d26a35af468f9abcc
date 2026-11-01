@@ -1,0 +1,26 @@
+import { createServiceToken, } from '@nocobase/service-provider';
+export class UserManagementError extends Error {
+    code;
+    status;
+    constructor(code, message, status = 400) {
+        super(message);
+        this.code = code;
+        this.status = status;
+        this.name = 'UserManagementError';
+    }
+}
+/** An application-defined role scope can reject a user-management operation. */
+export class UserRoleScopeError extends Error {
+    code;
+    status;
+    constructor(code, message, status = 400) {
+        super(message);
+        this.code = code;
+        this.status = status;
+        this.name = 'UserRoleScopeError';
+    }
+}
+export const userRoleScopeRegistryToken = createServiceToken('@nocobase/app-plugin-users/role-scopes');
+export const userManagementServiceToken = createServiceToken('@nocobase/app-plugin-users/service');
+export const userPreferencesServiceToken = createServiceToken('@nocobase/app-plugin-users/preferences');
+//# sourceMappingURL=tokens.js.map

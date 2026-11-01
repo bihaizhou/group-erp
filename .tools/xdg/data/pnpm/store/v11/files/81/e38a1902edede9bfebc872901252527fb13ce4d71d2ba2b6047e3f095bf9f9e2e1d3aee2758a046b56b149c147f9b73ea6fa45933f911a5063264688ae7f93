@@ -1,0 +1,914 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { PageContainer } from '../components/page-container.js';
+import { PageHeader } from '../components/page-header.js';
+import { prepareMailReply } from '../prepare-mail-reply.js';
+import { mailErrorDescription } from '../lib/mail-error-description.js';
+import { useMailWorkspaceData } from '../hooks/use-mail-workspace-data.js';
+import { createForwardQuote, readDraftComposerBody, } from '../lib/mail-forward-content.js';
+import { EMPTY_COMPOSER, } from '../lib/mail-composer-state.js';
+import { ChevronLeft, ChevronRight, Mailbox, Inbox, PenLine, RefreshCw, } from 'lucide-react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, } from 'react';
+import { useTranslation } from '@nocobase/i18n/client';
+import { resolveAppUrl } from '@nocobase/app-client';
+import { MailWorkspaceComposer } from '../components/mail-workspace-composer.js';
+import { MailboxSidebar, MailConversationView, MailMessageList, MAIL_UNREAD_COUNT_CHANGED_EVENT, } from '../components/index.js';
+import { Button } from '../components/ui/button.js';
+import { Input } from '../components/ui/input.js';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, } from '../components/ui/sheet.js';
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, } from '../components/ui/field.js';
+import { cn } from '../lib/utils.js';
+import { parseMailParticipant } from '../../shared/participant.js';
+import { getMailFolderDisplayName, getMailFolderSections, getVirtualMailFolders, } from '../lib/mail-folders.js';
+import { mailErrorMessage, } from '../mail-client.js';
+import { useMailClient } from '../runtime.js';
+import { mailSyncDateMonthsAgo } from '../../shared/mail-sync-date.js';
+import { MAIL_VIRTUAL_FOLDER_IDS } from '../../shared/mail.js';
+import { MAIL_PLUGIN_NS } from '../namespace.js';
+const LAST_COMPOSE_ACCOUNT_KEY_PREFIX = 'nocobase:mail:last-compose-account:v1:';
+export default function MailWorkspacePage({ title, description, accountsHref, headerActions, templateVariables = {}, } = {}) {
+    const { t } = useTranslation(MAIL_PLUGIN_NS);
+    const mail = useMailClient();
+    const [accounts, setAccounts] = useState([]);
+    const [providers, setProviders] = useState([]);
+    const [accountId, setAccountId] = useState('');
+    const [folders, setFolders] = useState([]);
+    const [foldersByAccountId, setFoldersByAccountId] = useState(() => new Map());
+    const [folderId, setFolderId] = useState(MAIL_VIRTUAL_FOLDER_IDS.inbox);
+    const [folderAccountId, setFolderAccountId] = useState();
+    const [customLabels, setCustomLabels] = useState([]);
+    const [labelId, setLabelId] = useState();
+    const [smartView, setSmartView] = useState('all');
+    const [query, setQuery] = useState('');
+    const [participant, setParticipant] = useState('');
+    const [debouncedParticipant, setDebouncedParticipant] = useState('');
+    const filterId = useId();
+    const participantInvalid = participant !== '' && !parseMailParticipant(participant);
+    const participantReady = participant === debouncedParticipant && !participantInvalid;
+    const [loadingAccounts, setLoadingAccounts] = useState(true);
+    const [syncRuns, setSyncRuns] = useState({});
+    const syncRunsRef = useRef({});
+    const syncPollInFlightRef = useRef(false);
+    const [error, setError] = useState();
+    const [notice, setNotice] = useState();
+    const [reloadVersion, setReloadVersion] = useState(0);
+    const accountIdRef = useRef('');
+    const [debouncedQuery, setDebouncedQuery] = useState('');
+    const [composeAccountId, setComposeAccountId] = useState('');
+    const [composerRequest, setComposerRequest] = useState();
+    const [navigationOpen, setNavigationOpen] = useState(false);
+    const workspaceRef = useRef(null);
+    const navigationButtonRef = useRef(null);
+    const conversationBackRef = useRef(null);
+    const selectedRowRef = useRef(null);
+    useEffect(() => {
+        if (!navigationOpen ||
+            !navigationButtonRef.current ||
+            typeof ResizeObserver === 'undefined')
+            return;
+        // CSS owns the breakpoint; observing its trigger also handles root font changes.
+        const observer = new ResizeObserver(() => {
+            if (!navigationButtonRef.current?.getClientRects().length)
+                setNavigationOpen(false);
+        });
+        observer.observe(navigationButtonRef.current);
+        return () => observer.disconnect();
+    }, [navigationOpen]);
+    useEffect(() => {
+        syncRunsRef.current = syncRuns;
+    }, [syncRuns]);
+    const requestError = useCallback((cause) => {
+        setError(mailErrorMessage(cause, t('errors.requestFailed', { defaultValue: 'Mail request failed.' })));
+    }, [t]);
+    const messageQuery = useMemo(() => ({
+        accountId: (folderAccountId ?? accountId) || undefined,
+        folderId,
+        labelId,
+        q: debouncedQuery.trim() || undefined,
+        ...(debouncedParticipant ? { participant: debouncedParticipant } : {}),
+        unread: smartView === 'unread' ? true : undefined,
+        starred: smartView === 'starred' ? true : undefined,
+        pageSize: 50,
+    }), [
+        accountId,
+        debouncedQuery,
+        debouncedParticipant,
+        folderAccountId,
+        folderId,
+        labelId,
+        smartView,
+    ]);
+    const { messages, total, nextCursor, pageIndex, listVersion, selected, conversation, conversationCursor, loadingMessages, loadingConversation, selectMessage, changeMessagePage, loadMoreConversation, updateVisibleMessage, setMessageRead, clearSelection, resetMailbox, cancelRequests, } = useMailWorkspaceData({
+        mail,
+        accounts,
+        messageQuery,
+        queryEnabled: participantReady,
+        reloadVersion,
+        requestError,
+        setError,
+        onFocus: () => loadAccounts(false),
+    });
+    const selectedMessageKey = selected
+        ? JSON.stringify([selected.accountId, selected.id])
+        : undefined;
+    useEffect(() => {
+        if (selectedMessageKey &&
+            navigationButtonRef.current?.getClientRects().length)
+            conversationBackRef.current?.focus({ preventScroll: true });
+    }, [selectedMessageKey]);
+    const currentAccount = accounts.find((account) => account.id === accountId);
+    const currentProviderCapabilities = findProviderCapabilities(currentAccount, providers);
+    const composeAccount = accounts.find((account) => account.id === composeAccountId);
+    const composeProviderCapabilities = findProviderCapabilities(composeAccount, providers);
+    const selectedMessageAccount = selected
+        ? accounts.find((account) => account.id === selected.accountId)
+        : undefined;
+    const selectedMessageProviderCapabilities = findProviderCapabilities(selectedMessageAccount, providers);
+    const syncableAccounts = accounts.filter((account) => {
+        const capabilities = findProviderCapabilities(account, providers);
+        return account.status === 'active' && capabilities?.incrementalSync;
+    });
+    const isAllAccounts = accountId === '';
+    const canSend = Boolean(composeAccount?.status === 'active' && composeProviderCapabilities?.send);
+    const canSync = isAllAccounts
+        ? syncableAccounts.length > 0
+        : Boolean(currentAccount?.status === 'active' &&
+            currentProviderCapabilities?.incrementalSync);
+    const selectedMessageCanMove = Boolean(selectedMessageAccount?.status === 'active' &&
+        selectedMessageProviderCapabilities?.moveMessage &&
+        [...(foldersByAccountId.get(selected?.accountId ?? '') ?? [])].some((folder) => folder.type === 'archive'));
+    const selectedMessageCanDraft = Boolean(selectedMessageAccount?.status === 'active' &&
+        selectedMessageProviderCapabilities?.send);
+    const selectedMessageCanUseLabels = selectedMessageAccount?.status === 'active';
+    const selectedMessageInTrash = Boolean(selected && isMessageInTrash(selected, foldersByAccountId));
+    const loadAccounts = useCallback((clearError = true) => {
+        setLoadingAccounts(true);
+        if (clearError)
+            setError(undefined);
+        void Promise.allSettled([
+            mail.listAccounts(),
+            mail.listProviders(),
+            mail.listLabels(),
+        ])
+            .then(([accountsResult, providersResult, labelsResult]) => {
+            if (accountsResult.status === 'rejected') {
+                requestError(accountsResult.reason);
+                return;
+            }
+            if (providersResult.status === 'rejected') {
+                requestError(providersResult.reason);
+            }
+            if (labelsResult.status === 'rejected') {
+                requestError(labelsResult.reason);
+            }
+            const nextAccounts = accountsResult.value.filter((account) => account.status !== 'suspended' && account.status !== 'removing');
+            const nextProviders = providersResult.status === 'fulfilled' ? providersResult.value : [];
+            const nextLabels = labelsResult.status === 'fulfilled' ? labelsResult.value : [];
+            const nextAccountId = nextAccounts.some((account) => account.id === accountIdRef.current)
+                ? accountIdRef.current
+                : '';
+            // Preserve effect dependencies when a focus refresh returns unchanged
+            // metadata, so folders and composer identities are not fetched again.
+            setProviders((current) => JSON.stringify(current) === JSON.stringify(nextProviders)
+                ? current
+                : nextProviders);
+            setAccounts((current) => JSON.stringify(current) === JSON.stringify(nextAccounts)
+                ? current
+                : nextAccounts);
+            setCustomLabels(nextLabels);
+            setComposeAccountId((current) => {
+                if (nextAccounts.some((account) => account.id === current))
+                    return current;
+                return resolveComposeAccountId(nextAccounts, nextProviders, readLastComposeAccountId(nextAccounts[0]?.userId));
+            });
+            if (nextAccountId !== accountIdRef.current) {
+                resetMailbox();
+                accountIdRef.current = nextAccountId;
+                setAccountId(nextAccountId);
+                setFolders([]);
+                setFolderId(MAIL_VIRTUAL_FOLDER_IDS.inbox);
+                setFolderAccountId(undefined);
+                setLabelId(undefined);
+            }
+        })
+            .catch(requestError)
+            .finally(() => setLoadingAccounts(false));
+    }, [mail, requestError, resetMailbox]);
+    useEffect(() => {
+        void Promise.resolve().then(() => loadAccounts());
+    }, [loadAccounts]);
+    useEffect(() => {
+        const timer = window.setInterval(() => {
+            if (syncPollInFlightRef.current)
+                return;
+            const activeRuns = Object.values(syncRunsRef.current).filter(isActiveSyncRun);
+            if (activeRuns.length === 0)
+                return;
+            syncPollInFlightRef.current = true;
+            void Promise.all(activeRuns.map((run) => mail.getSyncRun(run.id).catch((cause) => {
+                if (syncRunsRef.current[run.accountId]?.id === run.id) {
+                    setSyncRuns((current) => {
+                        if (current[run.accountId]?.id !== run.id)
+                            return current;
+                        const next = { ...current };
+                        delete next[run.accountId];
+                        return next;
+                    });
+                    requestError(cause);
+                }
+                return undefined;
+            })))
+                .then((nextRuns) => {
+                const resolvedRuns = nextRuns.filter((run) => Boolean(run));
+                const currentRuns = syncRunsRef.current;
+                const currentResolvedRuns = resolvedRuns.filter((run) => currentRuns[run.accountId]?.id === run.id);
+                setSyncRuns((current) => {
+                    const next = { ...current };
+                    let changed = false;
+                    for (const run of resolvedRuns) {
+                        if (current[run.accountId]?.id !== run.id)
+                            continue;
+                        changed = true;
+                        if (isActiveSyncRun(run))
+                            next[run.accountId] = run;
+                        else
+                            delete next[run.accountId];
+                    }
+                    return changed ? next : current;
+                });
+                const failedRuns = currentResolvedRuns.filter((run) => run.status === 'failed' || run.status === 'cancelled');
+                if (failedRuns.length > 0) {
+                    const fallback = t('errors.syncFailed', {
+                        defaultValue: 'Could not synchronize the mailbox.',
+                    });
+                    const syncError = failedRuns[0].error;
+                    const errorDescription = syncError
+                        ? mailErrorDescription(syncError)
+                        : undefined;
+                    const description = errorDescription
+                        ? t(errorDescription.key, {
+                            defaultValue: errorDescription.defaultValue,
+                        })
+                        : undefined;
+                    setError([fallback, description, syncError?.code]
+                        .filter(Boolean)
+                        .join(' '));
+                }
+                if (currentResolvedRuns.length === activeRuns.length &&
+                    currentResolvedRuns.every((run) => !isActiveSyncRun(run))) {
+                    loadAccounts(false);
+                    setReloadVersion((version) => version + 1);
+                }
+            })
+                .finally(() => {
+                syncPollInFlightRef.current = false;
+            });
+        }, 1500);
+        return () => window.clearInterval(timer);
+    }, [loadAccounts, mail, requestError, t]);
+    useEffect(() => {
+        const timer = window.setTimeout(() => setDebouncedQuery(query), 300);
+        return () => window.clearTimeout(timer);
+    }, [query]);
+    useEffect(() => {
+        const timer = window.setTimeout(() => setDebouncedParticipant(participant), 300);
+        return () => window.clearTimeout(timer);
+    }, [participant]);
+    const folderNames = useMemo(() => ({
+        inbox: t('workspace.defaultFolders.inbox', {
+            defaultValue: 'Inbox',
+        }),
+        sent: t('workspace.defaultFolders.sent', {
+            defaultValue: 'Sent',
+        }),
+        drafts: t('workspace.defaultFolders.drafts', {
+            defaultValue: 'Drafts',
+        }),
+        trash: t('workspace.defaultFolders.trash', {
+            defaultValue: 'Trash',
+        }),
+        junk: t('workspace.defaultFolders.junk', {
+            defaultValue: 'Spam',
+        }),
+        archive: t('workspace.defaultFolders.archive', {
+            defaultValue: 'Archive',
+        }),
+    }), [t]);
+    const systemFolderNames = useMemo(() => ({
+        allMail: t('workspace.systemFolders.allMail', {
+            defaultValue: 'All Mail',
+        }),
+        chat: t('workspace.systemFolders.chat', { defaultValue: 'Chats' }),
+        important: t('workspace.systemFolders.important', {
+            defaultValue: 'Important',
+        }),
+        starred: t('workspace.systemFolders.starred', {
+            defaultValue: 'Starred',
+        }),
+        unread: t('workspace.systemFolders.unread', { defaultValue: 'Unread' }),
+        personal: t('workspace.systemFolders.personal', {
+            defaultValue: 'Personal',
+        }),
+        social: t('workspace.systemFolders.social', { defaultValue: 'Social' }),
+        promotions: t('workspace.systemFolders.promotions', {
+            defaultValue: 'Promotions',
+        }),
+        updates: t('workspace.systemFolders.updates', {
+            defaultValue: 'Updates',
+        }),
+        forums: t('workspace.systemFolders.forums', { defaultValue: 'Forums' }),
+    }), [t]);
+    useEffect(() => {
+        const requestedAccountIds = accountId
+            ? [accountId]
+            : accounts.map((account) => account.id);
+        let active = true;
+        void Promise.allSettled(requestedAccountIds.map(async (requestedAccountId) => ({
+            accountId: requestedAccountId,
+            folders: await mail.listFolders(requestedAccountId),
+        }))).then((results) => {
+            if (!active)
+                return;
+            const next = new Map();
+            for (const result of results) {
+                if (result.status === 'fulfilled') {
+                    next.set(result.value.accountId, result.value.folders);
+                }
+                else {
+                    requestError(result.reason);
+                }
+            }
+            setFoldersByAccountId(next);
+            setFolders(accountId
+                ? getMailFolderSections(accountId, next.get(accountId) ?? [], folderNames).standard
+                : getVirtualMailFolders(folderNames));
+        });
+        return () => {
+            active = false;
+        };
+    }, [accountId, accounts, folderNames, mail, reloadVersion, requestError]);
+    const accountFolderGroups = useMemo(() => accounts.map((account) => {
+        const accountFolders = foldersByAccountId.get(account.id) ?? [];
+        const visibleFolders = accountId
+            ? getMailFolderSections(account.id, accountFolders, folderNames).other
+            : accountFolders;
+        return {
+            accountId: account.id,
+            accountLabel: account.address,
+            folders: visibleFolders,
+        };
+    }), [accountId, accounts, folderNames, foldersByAccountId]);
+    const rememberComposeAccount = useCallback((nextAccountId) => {
+        const account = accounts.find((item) => item.id === nextAccountId);
+        if (!account)
+            return;
+        setComposeAccountId(account.id);
+        writeLastComposeAccountId(account);
+    }, [accounts]);
+    const startSync = () => {
+        if (!canSync || Object.values(syncRuns).some(isActiveSyncRun))
+            return;
+        const targetAccounts = accountId
+            ? currentAccount && canSync
+                ? [currentAccount]
+                : []
+            : syncableAccounts;
+        if (targetAccounts.length === 0)
+            return;
+        setError(undefined);
+        void Promise.allSettled(targetAccounts.map((account) => mail.startSync({
+            accountId: account.id,
+            receivedAfter: account.initialSyncReceivedAfter ??
+                new Date(`${mailSyncDateMonthsAgo(1)}T00:00:00.000Z`).toISOString(),
+        }))).then((results) => {
+            const started = results.filter((result) => result.status === 'fulfilled');
+            if (started.length > 0) {
+                setSyncRuns((current) => ({
+                    ...current,
+                    ...Object.fromEntries(started.map(({ value }) => [value.accountId, value])),
+                }));
+            }
+            const failed = results.filter((result) => result.status === 'rejected');
+            if (failed.length > 0) {
+                const fallback = t('errors.syncFailed', {
+                    defaultValue: 'Could not synchronize the mailbox.',
+                });
+                setError(failed.length === targetAccounts.length
+                    ? fallback
+                    : `${fallback} (${failed.length} account${failed.length === 1 ? '' : 's'} failed)`);
+            }
+            if (started.length > 0 &&
+                started.every(({ value }) => !isActiveSyncRun(value))) {
+                loadAccounts(false);
+                setReloadVersion((version) => version + 1);
+            }
+        });
+    };
+    const mutateMessage = (operation, removeMessage = false) => {
+        setError(undefined);
+        void operation.then((updated) => {
+            if (updated) {
+                updateVisibleMessage(updated);
+                window.dispatchEvent(new Event(MAIL_UNREAD_COUNT_CHANGED_EVENT));
+            }
+            if (removeMessage) {
+                clearSelection();
+                setReloadVersion((version) => version + 1);
+            }
+        }, requestError);
+    };
+    const cancellingScheduledRef = useRef(false);
+    const cancelScheduledDraft = async (message) => {
+        if (!message.scheduledSend)
+            return message;
+        try {
+            await mail.cancelSubmission(message.scheduledSend.id);
+        }
+        catch {
+            setReloadVersion((version) => version + 1);
+            throw new Error(t('workspace.scheduledCancelFailed', {
+                defaultValue: 'Sending has started or the status has changed. Refresh to check the sending status.',
+            }));
+        }
+        const restored = { ...message, scheduledSend: undefined };
+        updateVisibleMessage(restored);
+        setReloadVersion((version) => version + 1);
+        return restored;
+    };
+    const editScheduledDraft = (message, open) => {
+        if (cancellingScheduledRef.current)
+            return;
+        cancellingScheduledRef.current = true;
+        void mail
+            .getMessage(message.accountId, message.id)
+            .then((latest) => {
+            if (!latest?.draft)
+                throw new Error(t('errors.messageNotFound'));
+            return cancelScheduledDraft(latest);
+        })
+            .then((latest) => {
+            updateVisibleMessage(latest);
+            open(latest);
+        }, requestError)
+            .finally(() => {
+            cancellingScheduledRef.current = false;
+        });
+    };
+    const preparingReplyRef = useRef(false);
+    const composerRequestRef = useRef(composerRequest);
+    useEffect(() => {
+        composerRequestRef.current = composerRequest;
+    }, [composerRequest]);
+    const openComposer = (value, attachments = [], preferredAccountId = composeAccountId, uploads) => {
+        if (composerRequestRef.current ||
+            !accounts.some((account) => account.id === preferredAccountId))
+            return;
+        rememberComposeAccount(preferredAccountId);
+        setComposerRequest({
+            value,
+            attachments,
+            accountId: preferredAccountId,
+            uploads,
+        });
+    };
+    const deleteWorkspaceMessage = (message) => {
+        const permanently = isMessageInTrash(message, foldersByAccountId);
+        if (permanently &&
+            !window.confirm(t('workspace.permanentlyDeleteConfirm', {
+                defaultValue: 'Permanently delete this message? This action cannot be undone.',
+            }))) {
+            return;
+        }
+        mutateMessage(mail.deleteMessage(message.accountId, message.id, permanently), true);
+    };
+    const syncing = Object.values(syncRuns).some(isActiveSyncRun);
+    const accountNames = useMemo(() => new Map(accounts.map((account) => [account.id, account.address])), [accounts]);
+    const syncLabel = isAllAccounts
+        ? t('workspace.syncAll', { defaultValue: 'Sync all mailboxes' })
+        : t('workspace.incrementalRefresh', { defaultValue: 'Sync mailbox' });
+    const closeMailboxNavigation = () => {
+        setNavigationOpen(false);
+        if (navigationOpen)
+            clearSelection();
+    };
+    const mailboxNavigation = (_jsx(MailboxSidebar, { accountId: accountId, accounts: accounts, customLabels: customLabels, folderId: folderId, folderAccountId: folderAccountId, folders: folders, accountFolderGroups: accountFolderGroups, labelId: labelId, labels: {
+            account: t('dev.account', { defaultValue: 'Account' }),
+            allAccounts: t('workspace.allAccounts', {
+                defaultValue: 'All accounts',
+            }),
+            unread: t('workspace.unreadOnly', { defaultValue: 'Unread' }),
+            starred: t('workspace.starredOnly', { defaultValue: 'Starred' }),
+            folders: t('workspace.folders', { defaultValue: 'Folders' }),
+            accounts: t('workspace.accounts', { defaultValue: 'Accounts' }),
+            labels: t('workspace.labels', { defaultValue: 'Labels' }),
+            folderNames,
+            systemFolderNames,
+        }, onAccountChange: (value) => {
+            closeMailboxNavigation();
+            if (value === accountId)
+                return;
+            cancelRequests();
+            accountIdRef.current = value;
+            setAccountId(value);
+            if (value)
+                rememberComposeAccount(value);
+            setFolders([]);
+            setFolderId(MAIL_VIRTUAL_FOLDER_IDS.inbox);
+            setFolderAccountId(undefined);
+            setLabelId(undefined);
+            setSmartView('all');
+        }, onFolderChange: (value, ownerAccountId) => {
+            closeMailboxNavigation();
+            if (value === folderId && ownerAccountId === folderAccountId)
+                return;
+            cancelRequests();
+            setFolderId(value);
+            setFolderAccountId(ownerAccountId);
+            setLabelId(undefined);
+            setSmartView('all');
+        }, onLabelChange: (value) => {
+            closeMailboxNavigation();
+            if (value === labelId)
+                return;
+            cancelRequests();
+            setLabelId(value);
+            setFolderId(value ? undefined : MAIL_VIRTUAL_FOLDER_IDS.inbox);
+            setFolderAccountId(undefined);
+            setSmartView('all');
+        }, onSmartViewChange: (value) => {
+            closeMailboxNavigation();
+            if (value === smartView)
+                return;
+            cancelRequests();
+            setSmartView(value);
+            setFolderId(undefined);
+            setFolderAccountId(undefined);
+            setLabelId(undefined);
+        }, smartView: smartView }));
+    const selectedFolder = [
+        ...folders,
+        ...accountFolderGroups.flatMap((group) => group.folders),
+    ].find((folder) => folder.providerFolderId === folderId &&
+        (!folderAccountId || folder.accountId === folderAccountId));
+    const selectedFolderName = selectedFolder
+        ? getMailFolderDisplayName(selectedFolder, folderNames, systemFolderNames)
+        : folderId === MAIL_VIRTUAL_FOLDER_IDS.inbox
+            ? folderNames.inbox
+            : undefined;
+    const viewTitle = (selectedFolderName
+        ? `${selectedFolderName}${folderAccountId && !accountId ? ` — ${accountNames.get(folderAccountId) ?? ''}` : ''}`
+        : undefined) ??
+        customLabels.find((label) => label.id === labelId)?.name ??
+        (smartView === 'unread'
+            ? t('workspace.unreadOnly', { defaultValue: 'Unread' })
+            : smartView === 'starred'
+                ? t('workspace.starredOnly', { defaultValue: 'Starred' })
+                : t('workspace.allMail', { defaultValue: 'All mail' }));
+    return (_jsxs(PageContainer, { className: 'flex h-full min-h-0 min-w-0 flex-col space-y-0 gap-6', children: [_jsx(PageHeader, { title: title ?? t('workspace.title', { defaultValue: 'Mail' }), description: description, actions: _jsxs("div", { className: 'flex flex-wrap items-center justify-end gap-2', children: [_jsxs(Button, { disabled: !canSend || Boolean(composerRequest), onClick: () => openComposer(EMPTY_COMPOSER), children: [_jsx(PenLine, { "aria-hidden": 'true', className: 'size-4' }), t('workspace.compose', { defaultValue: 'Compose' })] }), _jsxs(Button, { "aria-label": syncLabel, disabled: !canSync ||
+                                syncing ||
+                                loadingAccounts ||
+                                loadingMessages ||
+                                loadingConversation, onClick: startSync, variant: 'outline', children: [_jsx(RefreshCw, { "aria-hidden": 'true', className: `size-4 ${syncing ? 'animate-spin' : ''}` }), _jsx("span", { children: syncing
+                                        ? t('workspace.syncing', {
+                                            defaultValue: 'Synchronizing…',
+                                        })
+                                        : syncLabel })] }), accountsHref && accounts.length > 0 ? (_jsx(Button, { render: _jsx("a", { href: resolveAppUrl(accountsHref) }), nativeButton: false, role: 'link', variant: 'outline', children: t('navigation.accounts', { defaultValue: 'Mail accounts' }) })) : null, headerActions] }) }), _jsxs("div", { ref: workspaceRef, "data-slot": 'mail-workspace', className: '@container/mail flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background', children: [_jsxs("div", { className: 'grid shrink-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-2 border-b px-4 py-1.5 @min-[44rem]/mail:flex @min-[44rem]/mail:flex-wrap @min-[44rem]/mail:gap-4 @min-[44rem]/mail:py-4', children: [accounts.length > 0 ? (_jsxs(Button, { ref: navigationButtonRef, variant: 'outline', className: '@min-[56rem]/mail:hidden', "aria-haspopup": 'dialog', "aria-expanded": navigationOpen, onClick: () => setNavigationOpen(true), children: [_jsx(Mailbox, { "aria-hidden": 'true', className: 'size-4' }), _jsx("span", { className: 'sr-only @min-[44rem]/mail:not-sr-only', children: t('workspace.mailboxNavigation', {
+                                            defaultValue: 'Mailboxes and folders',
+                                        }) })] })) : null, _jsxs(FieldGroup, { className: 'contents @min-[44rem]/mail:flex @min-[44rem]/mail:min-w-0 @min-[44rem]/mail:flex-1 @min-[44rem]/mail:basis-full @min-[44rem]/mail:flex-row @min-[44rem]/mail:items-start @min-[44rem]/mail:gap-4 @min-[56rem]/mail:basis-auto', children: [_jsxs(Field, { className: 'col-start-2 min-w-0 @min-[44rem]/mail:w-64', children: [_jsx(FieldLabel, { className: 'sr-only @min-[44rem]/mail:not-sr-only', htmlFor: `${filterId}-search`, children: t('workspace.search', { defaultValue: 'Search mail' }) }), _jsx(Input, { id: `${filterId}-search`, onChange: (event) => setQuery(event.target.value), placeholder: t('workspace.search', {
+                                                    defaultValue: 'Search mail',
+                                                }), value: query })] }), _jsxs(Field, { className: 'col-span-2 min-w-0 gap-1 @min-[44rem]/mail:w-80 @min-[44rem]/mail:gap-2', "data-invalid": participantInvalid, children: [_jsx(FieldLabel, { htmlFor: `${filterId}-participant`, children: t('workspace.participant', { defaultValue: 'Participant' }) }), _jsx(Input, { id: `${filterId}-participant`, "aria-invalid": participantInvalid, "aria-describedby": `${filterId}-participant-hint`, "aria-errormessage": participantInvalid
+                                                    ? `${filterId}-participant-error`
+                                                    : undefined, onChange: (event) => {
+                                                    // Invalidate immediately, before the debounced replacement request.
+                                                    resetMailbox();
+                                                    setParticipant(event.target.value);
+                                                }, placeholder: 'alice@example.com / @example.com', value: participant }), _jsx(FieldDescription, { id: `${filterId}-participant-hint`, children: t('workspace.participantHint', {
+                                                    defaultValue: 'Full email address or @domain. Matches From, To and Cc only.',
+                                                }) }), participantInvalid ? (_jsx(FieldError, { id: `${filterId}-participant-error`, children: t('workspace.participantInvalid', {
+                                                    defaultValue: 'Enter a valid full email address or @domain.',
+                                                }) })) : null] })] })] }), error ? (_jsxs("div", { role: 'alert', className: 'flex items-center gap-3 border-b bg-destructive/5 px-4 py-2 text-sm text-destructive', children: [_jsx("span", { className: 'flex-1', children: error }), _jsx(Button, { onClick: () => {
+                                    loadAccounts();
+                                    setReloadVersion((version) => version + 1);
+                                }, variant: 'ghost', children: t('workspace.retry', { defaultValue: 'Try again' }) })] })) : null, notice ? (_jsxs("div", { role: 'status', className: 'flex items-center gap-3 border-b bg-primary/5 px-4 py-2 text-sm', children: [_jsx("span", { className: 'flex-1', children: notice }), _jsx(Button, { variant: 'ghost', onClick: () => setNotice(undefined), children: t('workspace.dismiss', { defaultValue: 'Dismiss' }) })] })) : null, loadingAccounts && accounts.length === 0 ? (_jsxs("div", { role: 'status', className: 'flex min-h-64 flex-1 items-center justify-center gap-2 text-sm text-muted-foreground', children: [_jsx(RefreshCw, { "aria-hidden": 'true', className: 'size-4 animate-spin' }), t('workspace.loading', { defaultValue: 'Loading messages…' })] })) : accounts.length === 0 ? (_jsx("div", { className: 'grid flex-1 place-items-center p-8', children: _jsxs("div", { className: 'max-w-md space-y-4 text-center', children: [_jsx("span", { className: 'mx-auto grid size-14 place-items-center rounded-2xl bg-muted', children: _jsx(Inbox, { "aria-hidden": 'true', className: 'size-6 text-muted-foreground' }) }), _jsxs("div", { children: [_jsx("h2", { className: 'text-lg font-semibold text-foreground', children: t('workspace.noAccountsTitle', {
+                                                defaultValue: 'Connect your first mailbox',
+                                            }) }), _jsx("p", { className: 'mt-2 text-sm leading-6 text-muted-foreground', children: t('workspace.noAccounts', {
+                                                defaultValue: 'Connect a mail account to sync messages, search conversations, and send from this workspace.',
+                                            }) })] }), accountsHref ? (_jsxs(Button, { render: _jsx("a", { href: resolveAppUrl(accountsHref) }), nativeButton: false, role: 'link', children: [_jsx(PenLine, { "aria-hidden": 'true', className: 'size-4' }), t('workspace.connectAccount', {
+                                            defaultValue: 'Connect mail account',
+                                        })] })) : null] }) })) : (_jsxs("div", { className: 'grid min-h-0 min-w-0 flex-1 grid-cols-1 overflow-hidden @min-[56rem]/mail:grid-cols-[13rem_20rem_minmax(0,1fr)]', children: [_jsx("div", { "data-slot": 'mail-navigation-pane', className: 'hidden min-h-0 @min-[56rem]/mail:block', children: mailboxNavigation }), _jsxs("div", { "data-slot": 'mail-list-pane', onClickCapture: (event) => {
+                                    if (!(event.target instanceof Element))
+                                        return;
+                                    const row = event.target.closest('button');
+                                    const list = event.currentTarget.querySelector('section');
+                                    if (row instanceof HTMLButtonElement && list?.contains(row))
+                                        selectedRowRef.current = row;
+                                }, className: cn('min-h-0 min-w-0 flex-col @min-[56rem]/mail:flex @min-[56rem]/mail:border-r', selected ? 'hidden' : 'flex'), children: [_jsx("div", { className: 'flex shrink-0 items-center justify-between gap-3 border-b bg-muted/20 px-4 py-3', children: _jsx("h2", { className: 'truncate text-sm font-semibold', children: viewTitle }) }), _jsx(MailMessageList, { accountNames: accountNames, availableLabels: customLabels, labels: {
+                                            loading: t('workspace.loading', {
+                                                defaultValue: 'Loading messages…',
+                                            }),
+                                            messages: t('workspace.title', { defaultValue: 'Mail' }),
+                                            empty: t('workspace.empty', {
+                                                defaultValue: 'No messages match this mailbox view.',
+                                            }),
+                                            loadMore: t('workspace.loadMore', {
+                                                defaultValue: 'Load more',
+                                            }),
+                                            noSubject: t('workspace.noSubject', {
+                                                defaultValue: '(no subject)',
+                                            }),
+                                            subjectCount: (count) => t('workspace.subjectCount', {
+                                                count,
+                                                defaultValue: '{{count}} messages in this conversation',
+                                            }),
+                                            unknownSender: t('workspace.unknownSender', {
+                                                defaultValue: 'Unknown sender',
+                                            }),
+                                        }, loading: loadingMessages, messages: messages, onLoadMore: () => changeMessagePage(pageIndex + 1), onSelect: selectMessage, showAccount: isAllAccounts, selectedMessageId: selected?.id }, listVersion), _jsxs("nav", { "aria-label": t('workspace.pagination', {
+                                            defaultValue: 'Message pages',
+                                        }), className: 'flex shrink-0 items-center justify-end gap-2 border-t px-3 py-2', children: [_jsx("span", { "aria-live": 'polite', className: 'min-w-0 overflow-x-auto text-xs whitespace-nowrap tabular-nums text-muted-foreground', children: total === undefined
+                                                    ? t('workspace.pageNumber', {
+                                                        page: pageIndex + 1,
+                                                        defaultValue: `Page ${pageIndex + 1}`,
+                                                    })
+                                                    : messages.length === 0
+                                                        ? t('workspace.noResults', { defaultValue: '0 results' })
+                                                        : t('workspace.pageRange', {
+                                                            start: pageIndex * messageQuery.pageSize + 1,
+                                                            end: pageIndex * messageQuery.pageSize + messages.length,
+                                                            total,
+                                                            defaultValue: '{{start}}-{{end}} of {{total}}',
+                                                        }) }), _jsxs("div", { className: 'flex shrink-0 items-center gap-1', children: [_jsx(Button, { variant: 'ghost', className: 'size-7 shrink-0 rounded-md border-0 p-0 text-muted-foreground shadow-none', disabled: loadingMessages || pageIndex === 0, "aria-label": t('workspace.previousPage', {
+                                                            defaultValue: 'Previous page',
+                                                        }), title: t('workspace.previousPage', {
+                                                            defaultValue: 'Previous page',
+                                                        }), type: 'button', onClick: () => changeMessagePage(pageIndex - 1), children: _jsx(ChevronLeft, { "aria-hidden": 'true', className: 'size-3.5' }) }), _jsx(Button, { variant: 'ghost', className: 'size-7 shrink-0 rounded-md border-0 p-0 text-muted-foreground shadow-none', disabled: loadingMessages || !nextCursor, "aria-label": t('workspace.nextPage', {
+                                                            defaultValue: 'Next page',
+                                                        }), title: t('workspace.nextPage', {
+                                                            defaultValue: 'Next page',
+                                                        }), type: 'button', onClick: () => changeMessagePage(pageIndex + 1), children: _jsx(ChevronRight, { "aria-hidden": 'true', className: 'size-3.5' }) })] })] })] }), _jsxs("div", { "data-slot": 'mail-conversation-pane', className: cn('min-h-0 min-w-0 flex-col @min-[56rem]/mail:flex', selected ? 'flex' : 'hidden'), children: [_jsxs(Button, { ref: conversationBackRef, variant: 'ghost', className: 'm-2 shrink-0 self-start @min-[56rem]/mail:hidden', onClick: () => {
+                                            clearSelection();
+                                            window.requestAnimationFrame(() => {
+                                                if (selectedRowRef.current?.isConnected)
+                                                    selectedRowRef.current.focus({ preventScroll: true });
+                                            });
+                                        }, children: [_jsx(ChevronLeft, { "aria-hidden": 'true', className: 'size-4' }), t('workspace.backToMessages', {
+                                                defaultValue: 'Back to message list',
+                                            })] }), _jsx(MailConversationView, { availableLabels: selectedMessageCanUseLabels ? customLabels : [], actions: selectedMessageAccount?.status === 'active'
+                                            ? {
+                                                archive: selectedMessageCanMove
+                                                    ? (message) => {
+                                                        const archive = foldersByAccountId
+                                                            .get(message.accountId)
+                                                            ?.find((folder) => folder.type === 'archive');
+                                                        if (archive)
+                                                            mutateMessage(mail.moveMessage({
+                                                                accountId: message.accountId,
+                                                                messageId: message.id,
+                                                                providerFolderId: archive.providerFolderId,
+                                                            }), true);
+                                                    }
+                                                    : undefined,
+                                                delete: (message) => deleteWorkspaceMessage(message),
+                                                canDelete: (message) => Boolean(!message.scheduledSend &&
+                                                    (selectedMessageProviderCapabilities?.moveMessage ||
+                                                        isMessageInTrash(message, foldersByAccountId) ||
+                                                        message.providerMessageId.startsWith('local-draft:'))),
+                                                downloadAttachment: (message, attachment) => {
+                                                    void downloadAttachment(mail, message, attachment).catch((cause) => setError(mailErrorMessage(cause, t('workspace.downloadFailed', {
+                                                        defaultValue: 'Unable to download attachment.',
+                                                    }))));
+                                                },
+                                                reply: (message) => {
+                                                    if (preparingReplyRef.current || composerRequest)
+                                                        return;
+                                                    preparingReplyRef.current = true;
+                                                    void prepareMailReply(mail, message)
+                                                        .then((reply) => {
+                                                        openComposer(reply.value, reply.attachments, reply.accountId, reply.uploads);
+                                                    })
+                                                        .catch(requestError)
+                                                        .finally(() => {
+                                                        preparingReplyRef.current = false;
+                                                    });
+                                                },
+                                                forward: (message) => openComposer({
+                                                    ...EMPTY_COMPOSER,
+                                                    mode: 'forward',
+                                                    relatedMessageId: message.id,
+                                                    subject: forwardSubject(message.subject),
+                                                    forwardQuote: createForwardQuote(message),
+                                                    forwardBodyIncluded: true,
+                                                }, [], message.accountId),
+                                                cancelScheduled: (message) => editScheduledDraft(message, () => { }),
+                                                editDraft: selectedMessageCanDraft
+                                                    ? (message) => editScheduledDraft(message, (message) => openComposer({
+                                                        ...EMPTY_COMPOSER,
+                                                        mode: 'edit',
+                                                        draftMessageId: message.id,
+                                                        draftRevision: message.draftRevision,
+                                                        draftSource: message.draftSource,
+                                                        fromAddress: message.from?.address,
+                                                        to: formatAddressList(message.to),
+                                                        cc: formatAddressList(message.cc),
+                                                        bcc: formatAddressList(message.bcc),
+                                                        subject: message.subject,
+                                                        ...readDraftComposerBody(message),
+                                                        draftConflict: message.draftConflict,
+                                                    }, message.attachments, message.accountId))
+                                                    : undefined,
+                                                toggleRead: (message) => mutateMessage(setMessageRead(message, !message.read)),
+                                                toggleStarred: (message) => mutateMessage(mail.updateMessage({
+                                                    accountId: message.accountId,
+                                                    messageId: message.id,
+                                                    starred: !message.starred,
+                                                })),
+                                                toggleTodo: (message) => mutateMessage(mail.updateMessage({
+                                                    accountId: message.accountId,
+                                                    messageId: message.id,
+                                                    todo: !message.todo,
+                                                })),
+                                                saveNote: (message, note) => mutateMessage(mail.updateMessage({
+                                                    accountId: message.accountId,
+                                                    messageId: message.id,
+                                                    note: note.trim() || null,
+                                                })),
+                                                toggleLabel: selectedMessageCanUseLabels
+                                                    ? (message, labelId, assigned) => mutateMessage(mail.updateMessageLabels({
+                                                        accountId: message.accountId,
+                                                        messageId: message.id,
+                                                        addLabelIds: assigned ? [labelId] : [],
+                                                        removeLabelIds: assigned ? [] : [labelId],
+                                                    }))
+                                                    : undefined,
+                                            }
+                                            : undefined, actionLabels: {
+                                            archive: t('workspace.archive', { defaultValue: 'Archive' }),
+                                            delete: selectedMessageInTrash
+                                                ? t('workspace.permanentlyDelete', {
+                                                    defaultValue: 'Permanently delete',
+                                                })
+                                                : t('workspace.delete', { defaultValue: 'Delete' }),
+                                            download: t('workspace.download', {
+                                                defaultValue: 'Download',
+                                            }),
+                                            reply: t('workspace.reply', { defaultValue: 'Reply' }),
+                                            forward: t('workspace.forward', { defaultValue: 'Forward' }),
+                                            editDraft: t('workspace.editDraft', {
+                                                defaultValue: 'Edit draft',
+                                            }),
+                                            markRead: t('workspace.markRead', {
+                                                defaultValue: 'Mark read',
+                                            }),
+                                            markUnread: t('workspace.markUnread', {
+                                                defaultValue: 'Mark unread',
+                                            }),
+                                            star: t('workspace.star', { defaultValue: 'Star' }),
+                                            unstar: t('workspace.unstar', {
+                                                defaultValue: 'Remove star',
+                                            }),
+                                            collapseMessage: t('workspace.collapseMessage', {
+                                                defaultValue: 'Collapse message',
+                                            }),
+                                            expandMessage: t('workspace.expandMessage', {
+                                                defaultValue: 'Expand message',
+                                            }),
+                                        }, labels: {
+                                            attachmentCount: (count) => t('workspace.attachmentCount', {
+                                                count,
+                                                defaultValue: '{{count}} attachments',
+                                            }),
+                                            conversation: (count) => t('workspace.conversation', {
+                                                count,
+                                                defaultValue: '{{count}} messages in this conversation',
+                                            }),
+                                            loadMore: t('workspace.loadEarlier', {
+                                                defaultValue: 'Load earlier messages',
+                                            }),
+                                            noSubject: t('workspace.noSubject', {
+                                                defaultValue: '(no subject)',
+                                            }),
+                                            selectMessage: t('workspace.selectMessage', {
+                                                defaultValue: 'Select a message to read it.',
+                                            }),
+                                            unknownSender: t('workspace.unknownSender', {
+                                                defaultValue: 'Unknown sender',
+                                            }),
+                                            labels: t('workspace.labels', { defaultValue: 'Labels' }),
+                                            note: t('workspace.note', { defaultValue: 'Note' }),
+                                            notePlaceholder: t('workspace.notePlaceholder', {
+                                                defaultValue: 'Add a private note…',
+                                            }),
+                                            saveNote: t('workspace.saveNote', {
+                                                defaultValue: 'Save note',
+                                            }),
+                                            todo: t('workspace.todo', { defaultValue: 'To do' }),
+                                            more: t('workspace.more', { defaultValue: 'More actions' }),
+                                        }, loading: loadingConversation, messages: conversation, nextCursor: conversationCursor, onLoadMore: loadMoreConversation, subject: selected?.subject })] })] })), _jsx(Sheet, { open: navigationOpen, onOpenChange: setNavigationOpen, children: _jsxs(SheetContent, { side: 'left', closeLabel: t('workspace.closeNavigation', {
+                                defaultValue: 'Close mailbox navigation',
+                            }), finalFocus: () => navigationButtonRef.current?.getClientRects().length
+                                ? navigationButtonRef.current
+                                : workspaceRef.current?.querySelector('input'), children: [_jsx(SheetHeader, { className: 'pr-14', children: _jsx(SheetTitle, { children: t('workspace.mailboxNavigation', {
+                                            defaultValue: 'Mailboxes and folders',
+                                        }) }) }), _jsx("div", { className: 'min-h-0 flex-1 overflow-y-auto', onClickCapture: (event) => {
+                                        // Current folders can return early inside the reused sidebar itself.
+                                        if (event.target instanceof Element &&
+                                            event.target.closest('button[aria-current="page"]'))
+                                            closeMailboxNavigation();
+                                    }, children: mailboxNavigation })] }) }), composerRequest ? (_jsx(MailWorkspaceComposer, { onSelectAccount: rememberComposeAccount, request: composerRequest, accounts: accounts, providers: providers, templateVariables: templateVariables, onClose: () => setComposerRequest(undefined), onComplete: (result, rejectedRecipients, operationError) => {
+                            setReloadVersion((version) => version + 1);
+                            const notice = result === 'partial'
+                                ? t('workspace.submissionPartial', {
+                                    recipients: rejectedRecipients?.join(', '),
+                                    defaultValue: 'The provider rejected these recipients: {{recipients}}. Sending requests for the other recipients were accepted. Resend only to the rejected addresses.',
+                                })
+                                : result === 'unknown'
+                                    ? t('workspace.submissionUnknown', {
+                                        defaultValue: 'The sending result could not be confirmed. Check your mailbox with the provider before sending again.',
+                                    })
+                                    : result === 'failed'
+                                        ? t('workspace.submissionFailed', {
+                                            defaultValue: 'One or more messages could not be sent. Check the delivery result before retrying.',
+                                        })
+                                        : result === 'scheduled'
+                                            ? t('workspace.scheduledSaved')
+                                            : result === 'draft'
+                                                ? t('workspace.draftSaved', {
+                                                    defaultValue: 'Draft saved',
+                                                })
+                                                : undefined;
+                            const operationErrorDescription = operationError
+                                ? mailErrorDescription(operationError)
+                                : undefined;
+                            const detail = operationError && operationErrorDescription
+                                ? `${t(operationErrorDescription.key, {
+                                    defaultValue: operationErrorDescription.defaultValue,
+                                })} (${operationError.code})`
+                                : undefined;
+                            setNotice([notice, detail].filter(Boolean).join(' ') || undefined);
+                        } })) : null] })] }));
+}
+function isActiveSyncRun(run) {
+    return run.status === 'pending' || run.status === 'running';
+}
+function resolveComposeAccountId(accounts, providers, preferredId) {
+    const preferred = accounts.find((account) => account.id === preferredId);
+    if (preferred && isSendCapableAccount(preferred, providers)) {
+        return preferred.id;
+    }
+    return (accounts.find((account) => isSendCapableAccount(account, providers))?.id ??
+        preferred?.id ??
+        accounts[0]?.id ??
+        '');
+}
+function isSendCapableAccount(account, providers) {
+    return Boolean(account.status === 'active' &&
+        findProviderCapabilities(account, providers)?.send);
+}
+function readLastComposeAccountId(userId) {
+    if (!userId)
+        return undefined;
+    try {
+        return (window.localStorage.getItem(`${LAST_COMPOSE_ACCOUNT_KEY_PREFIX}${encodeURIComponent(userId)}`) ?? undefined);
+    }
+    catch {
+        return undefined;
+    }
+}
+function writeLastComposeAccountId(account) {
+    try {
+        window.localStorage.setItem(`${LAST_COMPOSE_ACCOUNT_KEY_PREFIX}${encodeURIComponent(account.userId)}`, account.id);
+    }
+    catch {
+        // Browser privacy settings or storage pressure can disable this preference.
+    }
+}
+function findProviderCapabilities(account, providers) {
+    if (!account)
+        return undefined;
+    return providers.find((provider) => provider.type === account.provider.type &&
+        provider.name === account.provider.name)?.capabilities;
+}
+function isMessageInTrash(message, foldersByAccountId) {
+    const trash = foldersByAccountId
+        .get(message.accountId)
+        ?.find((folder) => folder.type === 'trash');
+    return Boolean(trash && message.folderIds.includes(trash.providerFolderId));
+}
+function formatAddressList(addresses) {
+    return addresses.map((address) => address.address).join(', ');
+}
+function forwardSubject(subject) {
+    return /^fwd?:/iu.test(subject.trim()) ? subject : `Fwd: ${subject}`;
+}
+async function downloadAttachment(mail, message, attachment) {
+    const stream = await mail.downloadAttachment(message.accountId, message.id, attachment.id);
+    const blob = await new Response(stream, {
+        headers: { 'content-type': attachment.contentType },
+    }).blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = attachment.fileName;
+    anchor.click();
+    URL.revokeObjectURL(url);
+}
+//# sourceMappingURL=mail-workspace-page.js.map

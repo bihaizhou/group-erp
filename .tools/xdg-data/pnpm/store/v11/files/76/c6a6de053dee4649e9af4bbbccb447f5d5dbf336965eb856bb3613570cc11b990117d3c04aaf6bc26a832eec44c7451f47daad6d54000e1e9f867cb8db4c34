@@ -1,0 +1,17 @@
+import type { DatabaseDriverDefinition } from '@nocobase/db';
+import type { PostgresConnectionConfig } from './config.js';
+export type { PostgresConnectionConfig } from './config.js';
+export type PostgresOptions = Omit<PostgresConnectionConfig, 'dialect' | 'driver' | 'databaseDriver'>;
+export declare const postgresDriver: DatabaseDriverDefinition<'postgres', PostgresConnectionConfig>;
+export type PostgresConnection = PostgresOptions & {
+    dialect: 'postgres';
+    databaseDriver: typeof postgresDriver;
+};
+export interface PostgresFactory {
+    (options?: PostgresOptions): PostgresConnection;
+    readonly dialect: 'postgres';
+    readonly driver: typeof postgresDriver;
+}
+export declare const postgres: PostgresFactory;
+export default postgres;
+export { postgresTypes, postgresNumeric } from './inspectors/postgres.js';

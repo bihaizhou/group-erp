@@ -1,0 +1,115 @@
+import { normalizeRepositoryPolicy } from '../../../repository/policy/normalize.js';
+import { expandPolicyRefs } from '../../../repository/policy/refs.js';
+/**
+ * A connection that hands out policy-bound repositories.
+ *
+ * It delegates to the connection it was derived from rather than building a
+ * second one. That is not only tidier: a second connection would carry its own
+ * empty collection registry, so every request that bound a policy would
+ * re-introspect the schema, and it would open its own pool the first time it
+ * was used because the original had not connected yet. Delegating keeps one
+ * connection, one registry cache and one pool, and leaves transactions to the
+ * connection that knows how to run them.
+ */
+export class PolicyBoundConnection {
+    inner;
+    policies;
+    constructor(inner, policies) {
+        this.inner = inner;
+        this.policies = policies;
+    }
+    get name() {
+        return this.inner.name;
+    }
+    get driver() {
+        return this.inner.driver;
+    }
+    get dialect() {
+        return this.inner.dialect;
+    }
+    get schemaManagement() {
+        return this.inner.schemaManagement;
+    }
+    get capabilities() {
+        return this.inner.capabilities;
+    }
+    get runtime() {
+        return this.inner.runtime;
+    }
+    get builder() {
+        return this.inner.builder;
+    }
+    get collections() {
+        return this.inner.collections;
+    }
+    get collectionMetadata() {
+        return this.inner.collectionMetadata;
+    }
+    get query() {
+        return this.inner.query;
+    }
+    get schema() {
+        return this.inner.schema;
+    }
+    get schemaInspector() {
+        return this.inner.schemaInspector;
+    }
+    /**
+     * A collection the map does not cover returns an unbound Repository, which
+     * is why this cannot promise a ScopedRepository. Tightening that is what
+     * `requireScope` on the Collection is for.
+     */
+    repository(collection) {
+        return this.inner.createRepository(collection, this.policies[collection]);
+    }
+    /** The policies this connection binds, by collection name. */
+    explainPolicies() {
+        return this.policies;
+    }
+    async client() {
+        return this.inner.client();
+    }
+    async connect() {
+        await this.inner.connect();
+        return this;
+    }
+    async disconnect() {
+        return this.inner.disconnect();
+    }
+    async reconnect() {
+        await this.inner.reconnect();
+        return this;
+    }
+    async resetManagedSchema() {
+        return this.inner.resetManagedSchema();
+    }
+    afterCommit(callback) {
+        this.inner.afterCommit(callback);
+    }
+    afterRollback(callback) {
+        this.inner.afterRollback(callback);
+    }
+    /** Registers on the connection underneath; bindings do not narrow what is observed. */
+    onRepositoryMutation(options, listeners) {
+        return this.inner.onRepositoryMutation(options, listeners);
+    }
+    explainRepositoryEvents(options) {
+        return this.inner.explainRepositoryEvents(options);
+    }
+    /**
+     * Transactions run on the connection underneath, so everything it sets up
+     * for one — the deferred invalidation collector above all — stays in place.
+     * The bindings ride along into the transaction.
+     */
+    async transaction(fn) {
+        return this.inner.transaction((connection) => fn(new PolicyBoundConnection(connection, this.policies)));
+    }
+}
+/** Bind normalized Policies, per Collection, to a connection for one principal. */
+export function bindPolicies(connection, policies, principal) {
+    const normalized = Object.fromEntries(Object.entries(policies).map(([collection, policy]) => [
+        collection,
+        normalizeRepositoryPolicy(typeof policy === 'function' ? policy(principal) : policy),
+    ]));
+    return new PolicyBoundConnection(connection, expandPolicyRefs(normalized));
+}

@@ -1,0 +1,35 @@
+import { CommandError, type CommandErrorJson } from '../command/errors.ts';
+/** A plan without the complete rewritten sources it carries, keyed like the plan itself. */
+export type PluginPlanJson<TPlan> = {
+    readonly [TKey in keyof TPlan as TKey extends `${string}Text` ? never : TKey]: TPlan[TKey];
+};
+/** A package manager invocation a run performs, or that a dry run would perform. */
+export interface PluginCommandInvocation {
+    readonly command: string;
+    readonly args: readonly string[];
+    readonly cwd: string;
+}
+/**
+ * A failure a command recovered from, reported in its result next to what did succeed. It has the shape of the `error`
+ * of a failed run, so a caller reads both the same way.
+ */
+export type PluginCommandIssue = CommandErrorJson;
+/** Keeps machine-readable plans compact and avoids embedding complete rewritten source files. */
+export declare function pluginPlanForJson<TPlan extends object>(plan: TPlan): PluginPlanJson<TPlan>;
+/** The code a plugin command reports for a failure no rule recognizes. */
+export declare const PLUGIN_COMMAND_FAILED = "PLUGIN_COMMAND_FAILED";
+export interface PluginErrorOptions {
+    /** The process exit code. Defaults to 1. */
+    readonly exit?: number;
+    readonly cause?: unknown;
+}
+/** A `CommandError` whose code and suggestions follow from what the message says went wrong. */
+export declare function pluginError(message: string, options?: PluginErrorOptions): CommandError;
+/**
+ * The `CommandError` a plugin command fails with. A `CommandError` is already classified and passes through; anything
+ * else, which is what the registration and Skills libraries throw, is classified by its message.
+ */
+export declare function classifyPluginError(error: unknown): CommandError;
+/** A recovered failure as it appears in a result's `issues`. */
+export declare function pluginCommandIssue(error: unknown): PluginCommandIssue;
+//# sourceMappingURL=plugin-json.d.ts.map

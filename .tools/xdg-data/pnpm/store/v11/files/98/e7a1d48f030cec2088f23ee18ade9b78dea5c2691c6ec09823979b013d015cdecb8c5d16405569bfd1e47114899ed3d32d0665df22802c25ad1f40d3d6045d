@@ -1,0 +1,30 @@
+import { RuleService } from '../internal/rules.js';
+import { requireStore } from '../internal/store.js';
+/** A resource holds one default-access rule; a second one conflicts. */
+export class DefaultAccessConflictError extends Error {
+    existing;
+    constructor(resource, existing) {
+        super(`${resource.type}:${resource.id} already has a default-access rule: ${existing}`);
+        this.name = 'DefaultAccessConflictError';
+        this.existing = existing;
+    }
+}
+export function defaultAccessPlugin(options) {
+    const service = new RuleService({
+        id: 'default-access',
+        effect: 'expand',
+        bySubject: false,
+        allowAll: true,
+        onePerResource: (rule, existing) => new DefaultAccessConflictError(rule.resource, existing.key),
+    }, requireStore(options.store, 'Default Access'));
+    return {
+        id: 'default-access',
+        authorizationApi: {
+            defaultAccess: service,
+        },
+        setup(authz) {
+            authz.constraints.add(service);
+        },
+    };
+}
+//# sourceMappingURL=plugin.js.map

@@ -1,0 +1,23 @@
+import type { ResolvedMemoryJobsConfig } from '../../config.js';
+export interface PendingJobState {
+    readonly jobId: string;
+    readonly jobName: string;
+    readonly payload: unknown;
+    readonly enqueuedAt: number;
+    readonly attempts: number;
+    started: number;
+    failures: number;
+}
+/**
+ * Like Schedule, the file is named by namespace and scope only, so renaming
+ * the configuration key keeps reading the same pending tasks.
+ */
+export declare function jobStateFilePath(config: Pick<ResolvedMemoryJobsConfig, 'persistencePath' | 'namespace' | 'scope'>): string;
+export declare class JobStateFile {
+    private readonly config;
+    readonly filePath: string;
+    constructor(config: ResolvedMemoryJobsConfig);
+    read(): Promise<PendingJobState[]>;
+    write(jobs: readonly PendingJobState[]): Promise<void>;
+}
+//# sourceMappingURL=state-file.d.ts.map

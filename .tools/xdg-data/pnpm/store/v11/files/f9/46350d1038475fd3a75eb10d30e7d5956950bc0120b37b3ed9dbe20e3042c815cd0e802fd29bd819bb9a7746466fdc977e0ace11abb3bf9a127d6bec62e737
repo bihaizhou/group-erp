@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "files": {
+    "202608220003_authentication_create_default_admin_user.js": {
+      "sourceChecksum": "8fc1ccbab9c2b10070c6170e73e8051a743d33b896cae26223df561cb82f069a",
+      "artifactChecksum": "c146599fb0061b15897932b24482bf516cea4be14b80a815491c031098f41fd8"
+    }
+  }
+}

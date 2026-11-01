@@ -1,0 +1,23 @@
+/**
+ * A store is built when the plugin is created, because the library reads the
+ * plugin's api before it runs `setup`; the connection only arrives with
+ * `setup`. The store reads it through this handle instead of holding it.
+ */
+export class DatabaseConnectionHandle {
+    owner;
+    connection;
+    constructor(owner, connection) {
+        this.owner = owner;
+        this.connection = connection;
+    }
+    set(connection) {
+        this.connection = connection;
+    }
+    resolve = () => {
+        if (!this.connection) {
+            throw new Error(`${this.owner} requires a database connection`);
+        }
+        return this.connection;
+    };
+}
+//# sourceMappingURL=connection.js.map

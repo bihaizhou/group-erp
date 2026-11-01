@@ -1,0 +1,5 @@
+import type { AppPluginProviderConstructor } from '@nocobase/app-server/plugins';
+import { type NotificationProviderApplicationConfig } from './notification.js';
+declare const serviceProviders: readonly AppPluginProviderConstructor<NotificationProviderApplicationConfig>[];
+export default serviceProviders;
+//# sourceMappingURL=index.d.ts.map

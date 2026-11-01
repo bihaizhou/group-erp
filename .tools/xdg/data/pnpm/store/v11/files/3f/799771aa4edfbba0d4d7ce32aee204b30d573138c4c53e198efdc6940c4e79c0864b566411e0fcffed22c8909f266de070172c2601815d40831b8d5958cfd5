@@ -1,0 +1,8 @@
+import type { ReactNode, ReactElement } from 'react';
+export interface PageHeaderProps {
+    readonly title: ReactNode;
+    readonly description?: ReactNode;
+    readonly actions?: ReactNode;
+}
+export declare function PageHeader({ actions, description, title, }: PageHeaderProps): ReactElement;
+//# sourceMappingURL=page-header.d.ts.map

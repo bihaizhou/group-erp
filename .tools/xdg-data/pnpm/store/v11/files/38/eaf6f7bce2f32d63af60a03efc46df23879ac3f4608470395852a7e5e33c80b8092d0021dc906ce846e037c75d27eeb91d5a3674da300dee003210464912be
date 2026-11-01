@@ -1,0 +1,37 @@
+export class RelationConfigurationError extends Error {
+    relation;
+    option;
+    code = 'COLLECTION_RELATION_INVALID';
+    path;
+    constructor(relation, option) {
+        super(`Relation "${relation}" requires an explicit ${option}.`);
+        this.relation = relation;
+        this.option = option;
+        this.name = 'RelationConfigurationError';
+        this.path = ['relations', relation, option];
+    }
+}
+export function requiredRelationOptions(type) {
+    switch (type) {
+        case 'belongsTo':
+            return ['foreignKey', 'targetKey'];
+        case 'hasOne':
+        case 'hasMany':
+            return ['sourceKey', 'foreignKey'];
+        case 'belongsToMany':
+            return ['sourceKey', 'targetKey', 'foreignKey', 'otherKey', 'through'];
+    }
+}
+export function requireRelationOption(relation, option) {
+    const value = relation[option];
+    if (typeof value !== 'string' ||
+        value.length === 0 ||
+        value.trim() !== value) {
+        throw new RelationConfigurationError(relation.name, option);
+    }
+    return value;
+}
+export function validateRelationOptions(relation) {
+    for (const option of requiredRelationOptions(relation.type))
+        requireRelationOption(relation, option);
+}

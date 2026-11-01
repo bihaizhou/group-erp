@@ -1,0 +1,8 @@
+import { type JobClass } from './types.js';
+export declare function assertJobName(value: unknown): asserts value is string;
+/** Registration never invokes a constructor. Arity checks cannot inspect dependencies hidden in its body. */
+export declare function assertJobClass(value: unknown): asserts value is JobClass;
+export declare function assertJobProgress(value: unknown): asserts value is number;
+/** Only JSON data is accepted; JSON.stringify must not silently erase or transform input. */
+export declare function copyJobPayload(value: unknown): unknown;
+//# sourceMappingURL=validation.d.ts.map

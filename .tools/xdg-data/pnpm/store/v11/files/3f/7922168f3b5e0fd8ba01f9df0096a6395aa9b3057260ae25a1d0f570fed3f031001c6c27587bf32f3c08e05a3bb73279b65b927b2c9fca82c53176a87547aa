@@ -1,0 +1,363 @@
+import { CollectionResolver } from '../resolver/resolver.js';
+import { CollectionResolutionError } from '../resolver/errors.js';
+import { invalidateMetadataNamingSnapshot } from '../../metadata/internal/naming-snapshot.js';
+import { DefaultNamingStrategy } from '../../naming/default-strategy.js';
+import { CollectionNamingIndex } from './naming-index.js';
+import { CollectionRelationValidator } from './relation-validator.js';
+/** Metadata records read per page while diagnosing. */
+const DIAGNOSE_PAGE_SIZE = 200;
+export class CollectionRegistry {
+    options;
+    cache = new Map();
+    inFlight = new Map();
+    resolver;
+    generation = 0;
+    collectionGenerations = new Map();
+    namingIndexPromise;
+    initializationPromise;
+    relationValidator;
+    constructor(options) {
+        this.options = options;
+        this.resolver = options.resolver ?? new CollectionResolver();
+        this.relationValidator = new CollectionRelationValidator({
+            get: (name) => this.get(name),
+            scan: () => this.scan(),
+        });
+    }
+    async initialize() {
+        if (!this.initializationPromise) {
+            const initializing = this.options.metadataStore.initialize();
+            this.initializationPromise = initializing.catch((error) => {
+                this.initializationPromise = undefined;
+                throw error;
+            });
+        }
+        await this.initializationPromise;
+    }
+    async get(name) {
+        return (await this.getResolution(name))?.collection;
+    }
+    /** Resolve Query's relative table identifiers without treating them as logical names. */
+    async getForQuery(name) {
+        const index = await this.namingIndex();
+        const tableName = new DefaultNamingStrategy(this.options.naming).collectionToTableName(name);
+        const identity = index.resolvePhysicalCollection({ tableName });
+        return identity ? this.get(identity.name) : undefined;
+    }
+    async getPhysical(name) {
+        validateName(name);
+        const index = await this.namingIndex();
+        const inspected = await this.inspectLogicalCollection(name, index);
+        return inspected ? structuredClone(inspected.physical) : undefined;
+    }
+    async getResolution(name) {
+        const result = await this.getResolutionInternal(name);
+        return result ? structuredClone(result) : undefined;
+    }
+    async getResolutionInternal(name) {
+        validateName(name);
+        const cached = this.cache.get(name);
+        if (cached)
+            return cached;
+        const loading = this.inFlight.get(name);
+        if (loading)
+            return loading;
+        const token = this.generationToken(name);
+        const promise = this.load(name).then((result) => {
+            if (result && this.sameGeneration(name, token)) {
+                this.cache.set(name, result);
+            }
+            return result;
+        });
+        this.inFlight.set(name, promise);
+        try {
+            return await promise;
+        }
+        finally {
+            if (this.inFlight.get(name) === promise)
+                this.inFlight.delete(name);
+        }
+    }
+    async list(options = {}) {
+        await this.initialize();
+        const index = await this.namingIndex();
+        const limit = options.limit ?? 100;
+        const tableNamePrefixes = index.physicalTableNamePrefixes(options.tableNamePrefixes);
+        const seen = new Map();
+        const items = [];
+        let cursor = options.cursor;
+        let nextCursor;
+        do {
+            const page = await this.options.inspector.listPhysicalCollections({
+                ...options,
+                tableNamePrefixes,
+                limit: limit - items.length,
+                cursor,
+            });
+            for (const physical of page.items) {
+                if (this.options.isInternalPhysicalCollection?.(physical))
+                    continue;
+                const identity = index.resolvePhysicalCollection(physical);
+                if (!identity)
+                    throw physicalNameError(physical);
+                const duplicate = seen.get(identity.name);
+                if (duplicate &&
+                    (duplicate.tableName !== physical.tableName ||
+                        duplicate.schema !== physical.schema)) {
+                    throw logicalNameConflict(identity.name, duplicate, physical);
+                }
+                seen.set(identity.name, physical);
+                const metadata = index.metadata(identity.name);
+                items.push(summarize(physical, identity.name, metadata));
+            }
+            nextCursor = page.nextCursor;
+            cursor = nextCursor;
+        } while (items.length < limit && nextCursor);
+        return nextCursor ? { items, nextCursor } : { items };
+    }
+    async *scan(options = {}) {
+        await this.initialize();
+        const index = await this.namingIndex();
+        const tableNamePrefixes = index.physicalTableNamePrefixes(options.tableNamePrefixes);
+        const seen = new Map();
+        for await (const physical of this.options.inspector.scanPhysicalCollections({ ...options, tableNamePrefixes })) {
+            if (this.options.isInternalPhysicalCollection?.(physical))
+                continue;
+            const identity = index.resolvePhysicalCollection(physical);
+            if (!identity)
+                throw physicalNameError(physical);
+            const duplicate = seen.get(identity.name);
+            if (duplicate &&
+                (duplicate.tableName !== physical.tableName ||
+                    duplicate.schema !== physical.schema)) {
+                throw logicalNameConflict(identity.name, duplicate, physical);
+            }
+            seen.set(identity.name, physical);
+            const stored = await this.options.metadataStore.get(identity.name);
+            const token = this.generationToken(identity.name);
+            const result = this.resolver.resolve({
+                physical,
+                metadata: stored?.document,
+                naming: this.options.naming,
+                context: index,
+            });
+            if (this.sameGeneration(identity.name, token)) {
+                this.cache.set(identity.name, result);
+            }
+            yield structuredClone(result.collection);
+        }
+    }
+    async refresh(name) {
+        this.invalidate(name);
+        return this.get(name);
+    }
+    invalidate(input) {
+        if (typeof input === 'string') {
+            this.bumpCollectionGeneration(input);
+            this.cache.delete(input);
+            this.inFlight.delete(input);
+            return;
+        }
+        if (input) {
+            for (const name of input.collections) {
+                this.bumpCollectionGeneration(name);
+                this.cache.delete(name);
+                this.inFlight.delete(name);
+            }
+            if (input.namingIndex)
+                this.namingIndexPromise = undefined;
+            return;
+        }
+        this.invalidateAll();
+    }
+    invalidateAll() {
+        invalidateMetadataNamingSnapshot(this.options.metadataStore);
+        this.generation += 1;
+        this.collectionGenerations.clear();
+        this.cache.clear();
+        this.inFlight.clear();
+        this.namingIndexPromise = undefined;
+    }
+    async validateRelations(name) {
+        await this.relationValidator.validateGraph(name);
+    }
+    async diagnose() {
+        const index = await this.namingIndex();
+        const issues = [];
+        let checked = 0;
+        let cursor;
+        do {
+            const page = await this.options.metadataStore.list({
+                limit: DIAGNOSE_PAGE_SIZE,
+                ...(cursor === undefined ? {} : { cursor }),
+            });
+            for (const { name } of page.items) {
+                checked += 1;
+                const { tableName } = index.resolveLogicalCollection(name);
+                const physical = await this.options.inspector.getPhysicalCollection({
+                    tableName,
+                });
+                if (!physical) {
+                    issues.push({
+                        name,
+                        tableName,
+                        code: 'COLLECTION_TABLE_MISSING',
+                        message: `Metadata Collection "${name}" maps to missing physical table "${tableName}".`,
+                        orphaned: true,
+                    });
+                    continue;
+                }
+                // The table is there, so whatever disagrees is inside it. Resolving is
+                // what the runtime does, so its own issues are what to report.
+                try {
+                    await this.get(name);
+                }
+                catch (error) {
+                    if (!(error instanceof CollectionResolutionError))
+                        throw error;
+                    for (const issue of error.issues)
+                        issues.push({
+                            name,
+                            tableName,
+                            code: issue.code,
+                            message: issue.message,
+                            orphaned: false,
+                        });
+                }
+            }
+            cursor = page.nextCursor;
+        } while (cursor);
+        return { checked, issues };
+    }
+    async load(name) {
+        const index = await this.namingIndex();
+        const inspected = await this.inspectLogicalCollection(name, index);
+        if (!inspected)
+            return undefined;
+        return this.resolver.resolve({
+            physical: inspected.physical,
+            metadata: inspected.stored?.document,
+            naming: this.options.naming,
+            context: index,
+        });
+    }
+    async inspectLogicalCollection(name, index) {
+        const identity = index.resolveLogicalCollection(name);
+        const [physical, stored] = await Promise.all([
+            this.options.inspector.getPhysicalCollection({
+                tableName: identity.tableName,
+            }),
+            this.options.metadataStore.get(name),
+        ]);
+        if (physical && this.options.isInternalPhysicalCollection?.(physical)) {
+            return undefined;
+        }
+        if (!physical) {
+            if (stored) {
+                throw new CollectionResolutionError([
+                    {
+                        code: 'COLLECTION_SCHEMA_DRIFT',
+                        path: ['metadata', name],
+                        message: `Metadata Collection "${name}" maps to missing physical table "${identity.tableName}".`,
+                    },
+                ]);
+            }
+            return undefined;
+        }
+        const canonical = index.resolvePhysicalCollection(physical);
+        if (canonical && canonical.name !== name) {
+            throw new CollectionResolutionError([
+                {
+                    code: 'COLLECTION_NAME_CONFLICT',
+                    path: ['collections', name],
+                    message: `Collection name "${name}" resolves to physical table "${physical.tableName}", which belongs to logical Collection "${canonical.name}". Use the logical Collection name "${canonical.name}".`,
+                },
+            ]);
+        }
+        if (identity.metadata) {
+            const defaultTableName = new DefaultNamingStrategy(this.options.naming).collectionToTableName(name);
+            if (defaultTableName !== identity.tableName) {
+                const conflicting = await this.options.inspector.getPhysicalCollection({
+                    tableName: defaultTableName,
+                });
+                if (conflicting) {
+                    throw logicalNameConflict(name, conflicting, physical);
+                }
+            }
+        }
+        return { physical, stored };
+    }
+    namingIndex() {
+        if (!this.namingIndexPromise) {
+            const created = this.initialize().then(() => CollectionNamingIndex.create(this.options.metadataStore, this.options.naming));
+            this.namingIndexPromise = created.catch((error) => {
+                this.namingIndexPromise = undefined;
+                throw error;
+            });
+        }
+        return this.namingIndexPromise;
+    }
+    generationToken(name) {
+        return [this.generation, this.collectionGenerations.get(name) ?? 0];
+    }
+    sameGeneration(name, token) {
+        return (token[0] === this.generation &&
+            token[1] === (this.collectionGenerations.get(name) ?? 0));
+    }
+    bumpCollectionGeneration(name) {
+        this.collectionGenerations.set(name, (this.collectionGenerations.get(name) ?? 0) + 1);
+    }
+}
+function summarize(physical, name, metadata) {
+    const base = {
+        name,
+        tableName: physical.tableName,
+        schema: physical.schema,
+        kind: collectionKind(physical.kind),
+    };
+    return metadata?.title !== undefined || metadata?.description !== undefined
+        ? {
+            ...base,
+            ...(metadata.title !== undefined ? { title: metadata.title } : {}),
+            ...(metadata.description !== undefined
+                ? { description: metadata.description }
+                : {}),
+        }
+        : base;
+}
+function collectionKind(kind) {
+    if (kind === 'view')
+        return 'view';
+    if (kind === 'materializedView')
+        return 'materializedView';
+    return 'table';
+}
+function validateName(name) {
+    if (typeof name !== 'string' || name.length === 0 || name.trim() !== name) {
+        throw new CollectionResolutionError([
+            {
+                code: 'COLLECTION_NAME_CONFLICT',
+                path: ['name'],
+                message: 'Collection name must be a non-empty string without surrounding whitespace.',
+            },
+        ]);
+    }
+}
+function physicalNameError(physical) {
+    return new CollectionResolutionError([
+        {
+            code: 'COLLECTION_NAME_CONFLICT',
+            path: ['physical', physical.schema, physical.tableName],
+            message: `Physical Collection "${physical.schema}.${physical.tableName}" cannot be mapped to a logical name.`,
+        },
+    ]);
+}
+function logicalNameConflict(name, first, second) {
+    return new CollectionResolutionError([
+        {
+            code: 'COLLECTION_NAME_CONFLICT',
+            path: ['collections', name],
+            message: `Physical Collections "${first.schema}.${first.tableName}" and "${second.schema}.${second.tableName}" map to the same logical name "${name}".`,
+        },
+    ]);
+}

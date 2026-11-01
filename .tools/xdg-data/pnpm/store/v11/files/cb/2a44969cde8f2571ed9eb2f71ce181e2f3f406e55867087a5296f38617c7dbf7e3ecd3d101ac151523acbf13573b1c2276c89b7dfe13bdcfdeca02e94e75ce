@@ -1,0 +1,6 @@
+import type { CollectionMetadataIssue } from './errors.js';
+export declare class CollectionMetadataPatchError extends Error {
+    readonly issues: readonly CollectionMetadataIssue[];
+    readonly code: "COLLECTION_METADATA_PATCH_INVALID";
+    constructor(issues: readonly CollectionMetadataIssue[]);
+}

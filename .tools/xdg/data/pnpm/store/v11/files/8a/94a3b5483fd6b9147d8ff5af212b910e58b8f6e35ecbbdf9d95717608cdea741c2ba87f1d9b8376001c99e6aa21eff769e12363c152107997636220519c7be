@@ -1,0 +1,834 @@
+import { lockWritableAccount } from './account-guard.js';
+import { validateLogPagination } from '../log-pagination.js';
+import { randomUUID } from 'node:crypto';
+import { MAIL_LOCAL_DRAFT_FOLDER_ID, } from '../../shared/mail.js';
+import { fromSyncRunRow, toSyncRunRow } from './mappers.js';
+import { applyImapLocationChanges, deleteImapOrphans, deleteMessages, refreshImapMessages, removeMessagesFromFolders, removeStaleMessageFolders, upsertFolders, upsertImapMessages, upsertMessages, validateImapStoredLocation, validateImapCopyEvidence, } from './message-writes.js';
+import { MailAccountsStore } from './accounts.js';
+import { closeDrafts } from './draft-states.js';
+import { chunks, jsonOrNull, parseJson } from './serialization.js';
+import { insertOutbox, upsertSyncState } from './sync-writes.js';
+export class MailSyncStore {
+    database;
+    accounts;
+    constructor(database, accounts) {
+        this.database = database;
+        this.accounts = accounts;
+    }
+    async commitSyncBatch(batch) {
+        await this.database.transaction(async (connection) => {
+            await lockWritableAccount(connection.query, batch.accountId);
+            await upsertFolders(connection.query, batch.accountId, batch.folders);
+            await upsertMessages(connection.query, batch.accountId, batch.messages);
+            await removeMessagesFromFolders(connection.query, batch.accountId, batch.removedFromFolders ?? []);
+            await deleteMessages(connection.query, batch.accountId, batch.deletedProviderMessageIds);
+            await upsertSyncState(connection.query, batch.accountId, batch.nextCursor);
+        });
+    }
+    async getSyncCursor(accountId) {
+        const row = await this.database
+            .query()
+            .selectFrom('mailSyncStates')
+            .selectAll()
+            .where('accountId', '=', accountId)
+            .executeTakeFirst();
+        return row
+            ? parseJson(row.cursor, 'sync cursor')
+            : undefined;
+    }
+    async getLastSyncedAt(accountId) {
+        const row = await this.database
+            .query()
+            .selectFrom('mailSyncStates')
+            .select('lastSyncedAt')
+            .where('accountId', '=', accountId)
+            .executeTakeFirst();
+        return row?.lastSyncedAt;
+    }
+    async clearSyncCursor(accountId) {
+        await this.database
+            .query()
+            .deleteFrom('mailSyncStates')
+            .where('accountId', '=', accountId)
+            .execute();
+    }
+    async createSyncRun(input) {
+        const now = new Date().toISOString();
+        const run = {
+            ...input,
+            phase: 'preparing',
+            status: 'pending',
+            historyStartedAt: now,
+            revision: 0,
+            processedMessages: 0,
+            processedPages: 0,
+            retryAttempts: 0,
+            createdAt: now,
+            updatedAt: now,
+        };
+        try {
+            await this.database.transaction(async (connection) => {
+                const account = await connection.query
+                    .updateTable('mailAccounts')
+                    // This conditional update serializes sync creation with account
+                    // removal while keeping the account status unchanged.
+                    .set({ status: 'active' })
+                    .where('id', '=', input.accountId)
+                    .where('status', '=', 'active')
+                    .execute();
+                if (account.updatedCount !== 1) {
+                    throw new Error('Mail account is not active.');
+                }
+                await connection.query
+                    .insertInto('mailSyncRuns')
+                    .values(toSyncRunRow(run))
+                    .execute();
+                await insertOutbox(connection.query, run, 0, now);
+            });
+        }
+        catch (error) {
+            const account = await this.accounts.getAccount(input.accountId);
+            const active = account?.status === 'active'
+                ? await this.findActiveSyncRun(input.accountId)
+                : undefined;
+            if (active)
+                return active;
+            throw error;
+        }
+        return run;
+    }
+    async findActiveSyncRun(accountId) {
+        const row = await this.database
+            .query()
+            .selectFrom('mailSyncRuns')
+            .selectAll()
+            .where('accountId', '=', accountId)
+            .where('status', 'in', ['pending', 'running'])
+            .orderBy('createdAt', 'asc')
+            .executeTakeFirst();
+        return row ? fromSyncRunRow(row) : undefined;
+    }
+    async getSyncRun(syncRunId) {
+        const row = await this.database
+            .query()
+            .selectFrom('mailSyncRuns')
+            .selectAll()
+            .where('id', '=', syncRunId)
+            .executeTakeFirst();
+        return row ? fromSyncRunRow(row) : undefined;
+    }
+    async countSyncRuns(userId) {
+        const accounts = await this.accounts.listAccounts(userId);
+        if (accounts.length === 0)
+            return 0;
+        const query = this.database
+            .query()
+            .selectFrom('mailSyncRuns')
+            .select(({ fn }) => [fn.countAll().as('count')])
+            .where('accountId', 'in', accounts.map((account) => account.id));
+        const row = await query.executeTakeFirst();
+        return Number(row?.count ?? 0);
+    }
+    async listSyncRuns(userId, offset = 0, limit = 100) {
+        validateLogPagination(offset, limit);
+        const accounts = await this.accounts.listAccounts(userId);
+        if (accounts.length === 0)
+            return [];
+        const rows = await this.database
+            .query()
+            .selectFrom('mailSyncRuns')
+            .selectAll()
+            .where('accountId', 'in', accounts.map((account) => account.id))
+            .orderBy('createdAt', 'desc')
+            .orderBy('id', 'desc')
+            .offset(offset)
+            .limit(limit)
+            .execute();
+        return rows.map(fromSyncRunRow);
+    }
+    async listAllSyncRuns(offset, limit) {
+        validateLogPagination(offset, limit);
+        const [rows, count] = await Promise.all([
+            this.database
+                .query()
+                .selectFrom('mailSyncRuns')
+                .selectAll()
+                .orderBy('createdAt', 'desc')
+                .orderBy('id', 'desc')
+                .offset(offset)
+                .limit(limit)
+                .execute(),
+            this.database
+                .query()
+                .selectFrom('mailSyncRuns')
+                .select(({ fn }) => [fn.countAll().as('count')])
+                .executeTakeFirst(),
+        ]);
+        return {
+            items: rows.map(fromSyncRunRow),
+            total: Number(count?.count ?? 0),
+        };
+    }
+    /** Recreate lost queue deliveries from durable checkpoints, fenced by revision and lease. */
+    async recoverSyncRuns(now) {
+        const staleBefore = new Date(Date.parse(now) - 120_000).toISOString();
+        const candidates = await this.database
+            .query()
+            .selectFrom('mailSyncRuns')
+            .selectAll()
+            .where('status', 'in', ['pending', 'running'])
+            .where((builder) => builder.not(builder.exists(builder
+            .selectFrom('mailOutbox')
+            .select('id')
+            .whereRef('mailOutbox.aggregateId', '=', 'mailSyncRuns.id')
+            .where('mailOutbox.status', 'in', ['pending', 'publishing']))))
+            .where((builder) => builder.or([
+            builder.eb('leaseExpiresAt', '<=', now),
+            builder.eb.and([
+                builder.eb('leaseToken', 'is', null),
+                builder.eb('updatedAt', '<=', staleBefore),
+            ]),
+        ]))
+            .orderBy('updatedAt', 'asc')
+            .orderBy('id', 'asc')
+            .limit(100)
+            .execute();
+        let recovered = 0;
+        for (const row of candidates) {
+            recovered += await this.database.transaction(async (connection) => {
+                const writable = await connection.query
+                    .updateTable('mailAccounts')
+                    .set({ id: row.accountId })
+                    .where('id', '=', row.accountId)
+                    .where('status', '=', 'active')
+                    .execute();
+                if (writable.updatedCount !== 1)
+                    return 0;
+                const waiting = await connection.query
+                    .selectFrom('mailOutbox')
+                    .select('id')
+                    .where('aggregateId', '=', row.id)
+                    .where('status', 'in', ['pending', 'publishing'])
+                    .executeTakeFirst();
+                if (waiting)
+                    return 0;
+                let update = connection.query
+                    .updateTable('mailSyncRuns')
+                    .set({
+                    revision: Number(row.revision) + 1,
+                    status: 'pending',
+                    leaseToken: null,
+                    leaseExpiresAt: null,
+                    updatedAt: now,
+                })
+                    .where('id', '=', row.id)
+                    .where('revision', '=', row.revision)
+                    .where('status', 'in', ['pending', 'running']);
+                update = row.leaseToken
+                    ? update
+                        .where('leaseToken', '=', row.leaseToken)
+                        .where('leaseExpiresAt', '<=', now)
+                    : update
+                        .where('leaseToken', 'is', null)
+                        .where('updatedAt', '<=', staleBefore);
+                const result = await update.execute();
+                if (result.updatedCount !== 1)
+                    return 0;
+                await insertOutbox(connection.query, {
+                    id: row.id,
+                    phase: row.phase,
+                    revision: Number(row.revision) + 1,
+                }, Number(row.processedPages), now, randomUUID());
+                return 1;
+            });
+        }
+        return recovered;
+    }
+    async cancelSyncRun(syncRunId) {
+        const current = await this.getSyncRun(syncRunId);
+        if (!current || !['pending', 'running'].includes(current.status)) {
+            return undefined;
+        }
+        const now = new Date().toISOString();
+        const result = await this.database
+            .query()
+            .updateTable('mailSyncRuns')
+            .set({
+            status: 'cancelled',
+            activeKey: null,
+            revision: current.revision + 1,
+            leaseToken: null,
+            leaseExpiresAt: null,
+            updatedAt: now,
+            completedAt: now,
+        })
+            .where('id', '=', syncRunId)
+            .where('status', 'in', ['pending', 'running'])
+            .where('revision', '=', current.revision)
+            .execute();
+        return result.updatedCount === 1 ? this.getSyncRun(syncRunId) : undefined;
+    }
+    async claimSyncRun(syncRunId, expectedRevision, expectedPhase, leaseToken, leaseExpiresAt) {
+        const now = new Date().toISOString();
+        const result = await this.database
+            .query()
+            .updateTable('mailSyncRuns')
+            .set({ status: 'running', leaseToken, leaseExpiresAt, updatedAt: now })
+            .where('id', '=', syncRunId)
+            .where('revision', '=', expectedRevision)
+            .where('phase', '=', expectedPhase)
+            .where('status', 'in', ['pending', 'running'])
+            .where((builder) => builder.or([
+            builder.eb('leaseToken', 'is', null),
+            builder.eb('leaseExpiresAt', '<=', now),
+        ]))
+            .execute();
+        return result.updatedCount === 1 ? this.getSyncRun(syncRunId) : undefined;
+    }
+    async renewSyncRunLease(syncRunId, leaseToken, leaseExpiresAt) {
+        const result = await this.database
+            .query()
+            .updateTable('mailSyncRuns')
+            .set({ leaseExpiresAt, updatedAt: new Date().toISOString() })
+            .where('id', '=', syncRunId)
+            .where('status', '=', 'running')
+            .where('leaseToken', '=', leaseToken)
+            .execute();
+        return result.updatedCount === 1;
+    }
+    async commitSyncStep(input, imap) {
+        const now = new Date().toISOString();
+        await this.database.transaction(async (connection) => {
+            await lockWritableAccount(connection.query, input.run.accountId);
+            for (const copy of imap?.copies ?? [])
+                validateImapCopyEvidence(copy);
+            await upsertFolders(connection.query, input.run.accountId, input.folders ?? []);
+            if (input.completeProviderFolderIds) {
+                let staleFolders = connection.query
+                    .deleteFrom('mailFolders')
+                    .where('accountId', '=', input.run.accountId);
+                staleFolders = staleFolders.where('providerFolderId', '!=', MAIL_LOCAL_DRAFT_FOLDER_ID);
+                if (input.completeProviderFolderIds.length > 0) {
+                    staleFolders = staleFolders.where('providerFolderId', 'not in', input.completeProviderFolderIds);
+                }
+                await staleFolders.execute();
+                await removeStaleMessageFolders(connection.query, input.run.accountId, input.completeProviderFolderIds);
+            }
+            let messages = input.messages;
+            if (input.historyPage && messages.length > 0) {
+                const removed = await connection.query
+                    .selectFrom('mailSyncTombstones')
+                    .select('providerMessageId')
+                    .where('runId', '=', input.run.id)
+                    .where('providerMessageId', 'in', messages.map((message) => message.providerMessageId))
+                    .execute();
+                const deletedIds = new Set(removed.map((row) => row.providerMessageId));
+                messages = messages.filter((message) => !deletedIds.has(message.providerMessageId));
+            }
+            const preserveUpdatedAfter = input.historyPage
+                ? (input.run.historyStartedAt ?? input.run.createdAt)
+                : undefined;
+            if (imap) {
+                const kept = new Set(messages.map((message) => message.providerMessageId));
+                await upsertImapMessages(connection.query, input.run.accountId, messages, imap.copies.filter((copy) => copy.flagsOnly || kept.has(copy.providerMessageId)), input.run.id, preserveUpdatedAfter);
+                await applyImapLocationChanges(connection.query, input.run.accountId, imap.changes, input.run.id);
+            }
+            else {
+                await upsertMessages(connection.query, input.run.accountId, messages, preserveUpdatedAfter);
+            }
+            if (input.run.mode === 'initial' && !input.historyPage) {
+                const affectedIds = [
+                    ...new Set([
+                        ...input.messages.map((message) => message.providerMessageId),
+                        ...(input.deletedProviderMessageIds ?? []),
+                    ]),
+                ];
+                for (const ids of chunks(affectedIds, 100)) {
+                    await connection.query
+                        .deleteFrom('mailSyncTombstones')
+                        .where('runId', '=', input.run.id)
+                        .where('providerMessageId', 'in', ids)
+                        .execute();
+                }
+                for (const ids of chunks([...new Set(input.deletedProviderMessageIds ?? [])], 100)) {
+                    await connection.query
+                        .insertInto('mailSyncTombstones')
+                        .values(ids.map((providerMessageId) => ({
+                        runId: input.run.id,
+                        providerMessageId,
+                    })))
+                        .execute();
+                }
+            }
+            await removeMessagesFromFolders(connection.query, input.run.accountId, input.removedFromFolders ?? []);
+            await deleteMessages(connection.query, input.run.accountId, input.deletedProviderMessageIds ?? []);
+            const pendingPush = input.status === 'completed'
+                ? await connection.query
+                    .selectFrom('mailPushPending')
+                    .select(['accountId', 'requestToken'])
+                    .where('accountId', '=', input.run.accountId)
+                    .executeTakeFirst()
+                : undefined;
+            if (pendingPush) {
+                await connection.query
+                    .deleteFrom('mailPushPending')
+                    .where('accountId', '=', input.run.accountId)
+                    .where('requestToken', '=', pendingPush.requestToken)
+                    .execute();
+            }
+            // Only the step that finishes the run, after every batch and two
+            // matching verification passes, may remove messages without copies.
+            if (imap?.cleanup && input.status === 'completed' && !pendingPush) {
+                await deleteImapOrphans(connection.query, input.run.accountId, input.run.id);
+            }
+            const pending = await connection.query
+                .selectFrom('mailMessages')
+                .select(({ fn }) => [fn.countAll().as('count')])
+                .where('accountId', '=', input.run.accountId)
+                .where('contentStatus', '!=', 'complete')
+                .executeTakeFirst();
+            const pendingMessages = Number(pending?.count ?? 0);
+            const status = pendingPush
+                ? 'running'
+                : input.status === 'completed' && pendingMessages > 0
+                    ? 'partial'
+                    : input.status;
+            // Refresh folder metadata too: a send may have created the Sent folder.
+            const phase = pendingPush ? 'preparing' : input.phase;
+            const createNextTask = pendingPush || input.createNextTask;
+            let fenced = connection.query
+                .updateTable('mailSyncRuns')
+                .set({
+                phase,
+                status,
+                mode: input.restart
+                    ? 'initial'
+                    : pendingPush
+                        ? 'incremental'
+                        : input.run.mode,
+                policy: JSON.stringify(input.restart
+                    ? {
+                        receivedAfter: input.receivedAfter,
+                        batchSize: input.run.policy.batchSize,
+                    }
+                    : input.run.policy),
+                historyStartedAt: input.restart
+                    ? now
+                    : (input.run.historyStartedAt ?? input.run.createdAt),
+                historyComplete: input.restart
+                    ? false
+                    : (input.historyComplete ?? input.run.historyComplete ?? false),
+                recovering: input.restart ||
+                    (status === 'running' && (input.run.recovering ?? false)),
+                pendingMessages,
+                retryAttempts: 0,
+                revision: input.run.revision + 1,
+                activeKey: status === 'completed' || status === 'partial'
+                    ? null
+                    : input.run.accountId,
+                processedMessages: input.run.processedMessages + input.messages.length,
+                processedPages: input.run.processedPages + 1,
+                historyCursor: input.historyCursor ?? null,
+                folderCursor: input.folderCursor ?? null,
+                baselineCursor: jsonOrNull(input.baselineCursor),
+                changeCursor: jsonOrNull(input.changeCursor),
+                leaseToken: null,
+                leaseExpiresAt: null,
+                error: null,
+                updatedAt: now,
+                completedAt: status === 'completed' || status === 'partial' ? now : null,
+            })
+                .where('id', '=', input.run.id)
+                .where('status', '=', 'running')
+                .where('leaseToken', '=', input.run.leaseToken ?? '');
+            // IMAP location writes also require the claimed revision and a live lease.
+            if (imap)
+                fenced = fenced
+                    .where('revision', '=', input.run.revision)
+                    .where('phase', '=', input.run.phase)
+                    .where('leaseExpiresAt', '>', new Date().toISOString());
+            const result = await fenced.execute();
+            if (result.updatedCount !== 1) {
+                throw new Error('Mail sync run lease was lost before commit.');
+            }
+            if (input.restart || input.status === 'completed')
+                await connection.query
+                    .deleteFrom('mailSyncTombstones')
+                    .where('runId', '=', input.run.id)
+                    .execute();
+            if (input.restart) {
+                await connection.query
+                    .deleteFrom('mailSyncStates')
+                    .where('accountId', '=', input.run.accountId)
+                    .execute();
+            }
+            if (input.status === 'completed' && input.changeCursor) {
+                await upsertSyncState(connection.query, input.run.accountId, input.changeCursor);
+            }
+            if (createNextTask) {
+                await insertOutbox(connection.query, {
+                    ...input.run,
+                    phase,
+                    revision: input.run.revision + 1,
+                }, input.run.processedPages + 1, now);
+            }
+        });
+        const updated = await this.getSyncRun(input.run.id);
+        if (!updated)
+            throw new Error('Committed mail sync run could not be read.');
+        return updated;
+    }
+    async failSyncRun(run, error) {
+        const now = new Date().toISOString();
+        await this.database
+            .query()
+            .updateTable('mailSyncRuns')
+            .set({
+            status: 'failed',
+            activeKey: null,
+            error: JSON.stringify(error),
+            leaseToken: null,
+            leaseExpiresAt: null,
+            updatedAt: now,
+        })
+            .where('id', '=', run.id)
+            .where('leaseToken', '=', run.leaseToken ?? '')
+            .execute();
+        const updated = await this.getSyncRun(run.id);
+        if (!updated)
+            throw new Error('Failed mail sync run could not be read.');
+        return updated;
+    }
+    async releaseSyncRun(run, error, availableAt) {
+        const now = new Date().toISOString();
+        await this.database.transaction(async (connection) => {
+            await lockWritableAccount(connection.query, run.accountId);
+            const result = await connection.query
+                .updateTable('mailSyncRuns')
+                .set({
+                status: 'pending',
+                activeKey: run.accountId,
+                error: JSON.stringify(error),
+                retryAttempts: (run.retryAttempts ?? 0) + 1,
+                leaseToken: null,
+                leaseExpiresAt: null,
+                updatedAt: now,
+            })
+                .where('id', '=', run.id)
+                .where('leaseToken', '=', run.leaseToken ?? '')
+                .execute();
+            if (result.updatedCount !== 1) {
+                throw new Error('Mail sync run lease was lost before retry planning.');
+            }
+            await insertOutbox(connection.query, run, run.processedPages, availableAt, randomUUID());
+        });
+        const updated = await this.getSyncRun(run.id);
+        if (!updated)
+            throw new Error('Released mail sync run could not be read.');
+        return updated;
+    }
+}
+const IMAP_LOCATIONS = 'mailMessageImapLocations';
+/**
+ * Narrow persistence for one account's IMAP adapter. Reads are scoped to the
+ * account; every commit locks it and rechecks the copy inside its transaction.
+ */
+export function createImapLocationPersistence(database, accountId) {
+    const sync = new MailSyncStore(database, new MailAccountsStore(database));
+    const resolve = async (query, rows) => {
+        const ids = [...new Set(rows.map((row) => row.messageId))];
+        const messages = new Map();
+        for (const batch of chunks(ids, 100)) {
+            for (const row of await query
+                .selectFrom('mailMessages')
+                .select([
+                'id',
+                'providerMessageId',
+                'providerDraftMessageId',
+                'imapIdSource',
+                'providerDraftMessageIdSource',
+            ])
+                .where('accountId', '=', accountId)
+                .where('id', 'in', batch)
+                .execute())
+                messages.set(row.id, row);
+        }
+        return rows.flatMap((row) => {
+            const message = messages.get(row.messageId);
+            if (!message)
+                return [];
+            const location = toStoredLocation(row, message);
+            validateImapStoredLocation(location);
+            return [location];
+        });
+    };
+    const select = (query) => query
+        .selectFrom(IMAP_LOCATIONS)
+        .selectAll()
+        .where('accountId', '=', accountId);
+    /** Recheck a copy under the account lock before writing its effect. */
+    const current = async (query, location) => {
+        validateImapStoredLocation(location);
+        await lockWritableAccount(query, accountId);
+        const row = await select(query)
+            .where('id', '=', location.id)
+            .where('messageId', '=', location.messageId)
+            .where('status', '=', 'valid')
+            .executeTakeFirst();
+        const [stored] = row ? await resolve(query, [row]) : [];
+        if (!stored ||
+            stored.providerMessageId !== location.providerMessageId ||
+            stored.uid !== location.uid ||
+            stored.uidValidity !== location.uidValidity ||
+            stored.folder !== location.folder ||
+            stored.source !== location.source ||
+            stored.updatedAt !== location.updatedAt)
+            throw Object.assign(new Error('The IMAP copy changed before its result was saved.'), { code: 'IMAP_MESSAGE_COPY_CHANGED' });
+        return stored;
+    };
+    async function commitFlags(location, flags, check) {
+        await database.transaction(async ({ query }) => {
+            if ((flags.read !== undefined && typeof flags.read !== 'boolean') ||
+                (flags.starred !== undefined && typeof flags.starred !== 'boolean'))
+                throw new Error('Invalid IMAP flag evidence.');
+            const stored = await current(query, location);
+            await check?.(query);
+            await query
+                .updateTable(IMAP_LOCATIONS)
+                .set({
+                ...(flags.read === undefined ? {} : { read: flags.read }),
+                ...(flags.starred === undefined ? {} : { starred: flags.starred }),
+                updatedAt: new Date(Math.max(Date.now(), Date.parse(stored.updatedAt) + 1)).toISOString(),
+            })
+                .where('id', '=', stored.id)
+                .execute();
+            await refreshImapMessages(query, accountId, [stored.messageId], undefined, new Date().toISOString());
+        });
+    }
+    async function commitDeleted(location, check) {
+        await database.transaction(async ({ query }) => {
+            const stored = await current(query, location);
+            await check?.(query);
+            const now = new Date(Math.max(Date.now(), Date.parse(stored.updatedAt) + 1)).toISOString();
+            await query
+                .updateTable(IMAP_LOCATIONS)
+                .set({
+                status: 'invalid',
+                invalidationReason: 'deleted',
+                updatedAt: now,
+            })
+                .where('id', '=', stored.id)
+                .execute();
+            const remaining = await select(query)
+                .where('messageId', '=', stored.messageId)
+                .where('status', 'in', ['valid', 'pending'])
+                .executeTakeFirst();
+            const message = await query
+                .selectFrom('mailMessages')
+                .select([
+                'providerMessageId',
+                'imapIdSource',
+                'scheduledSubmissionId',
+                'draft',
+            ])
+                .where('accountId', '=', accountId)
+                .where('id', '=', stored.messageId)
+                .executeTakeFirst();
+            // Local and scheduled drafts stay; their own deletion path decides.
+            if (!remaining &&
+                message?.imapIdSource &&
+                !message.scheduledSubmissionId) {
+                // A deleted remote draft is closed so a late copy cannot revive it.
+                if (message.draft)
+                    await closeDrafts(query, accountId, stored.messageId);
+                else
+                    await deleteMessages(query, accountId, [message.providerMessageId]);
+            }
+            else
+                await refreshImapMessages(query, accountId, [stored.messageId], undefined, now);
+        });
+    }
+    const persistence = {
+        accountId,
+        async findAttachment(location, providerAttachmentId) {
+            validateImapStoredLocation(location);
+            const row = await database
+                .query()
+                .selectFrom('mailMessages')
+                .selectAll()
+                .where('accountId', '=', accountId)
+                .where('id', '=', location.messageId)
+                .executeTakeFirst();
+            const id = row?.providerMessageId.startsWith('local-draft:')
+                ? row.providerDraftMessageId
+                : row?.providerMessageId;
+            if (!row || id !== location.providerMessageId)
+                return undefined;
+            const attachments = parseJson(row.attachments, 'attachments');
+            return attachments.find((attachment) => attachment.providerAttachmentId === providerAttachmentId);
+        },
+        async bindMessage(messageId, providerMessageId, operation) {
+            const query = database.query();
+            const row = await query
+                .selectFrom('mailMessages')
+                .selectAll()
+                .where('accountId', '=', accountId)
+                .where('id', '=', messageId)
+                .executeTakeFirst();
+            const remote = row?.providerMessageId.startsWith('local-draft:')
+                ? row.providerDraftMessageId
+                : row?.providerMessageId;
+            if (!row || remote !== providerMessageId)
+                throw new Error('The IMAP operation target changed.');
+            const source = remote === row.providerDraftMessageId
+                ? row.providerDraftMessageIdSource
+                : row.imapIdSource;
+            if (!source ||
+                !['objectid', 'x-gm-msgid', 'rfc-message-id', 'locator'].includes(source))
+                throw new Error('The IMAP operation target has no verified identity source.');
+            const target = Object.freeze({
+                accountId,
+                messageId,
+                providerMessageId,
+                source: source,
+                operation,
+            });
+            const check = async (q) => {
+                const owner = await q
+                    .selectFrom('mailMessages')
+                    .selectAll()
+                    .where('accountId', '=', target.accountId)
+                    .where('id', '=', target.messageId)
+                    .executeTakeFirst();
+                const id = owner?.providerMessageId.startsWith('local-draft:')
+                    ? owner.providerDraftMessageId
+                    : owner?.providerMessageId;
+                const currentSource = id === owner?.providerDraftMessageId
+                    ? owner?.providerDraftMessageIdSource
+                    : owner?.imapIdSource;
+                if (!owner ||
+                    id !== target.providerMessageId ||
+                    currentSource !== target.source ||
+                    owner.scheduledSubmissionId)
+                    throw new Error('The IMAP operation target changed.');
+            };
+            const bound = {
+                ...persistence,
+                async listValidLocations(id) {
+                    if (id !== target.providerMessageId)
+                        throw new Error('The IMAP operation identity changed.');
+                    await check(database.query());
+                    return (await persistence.listValidLocations(id)).filter((location) => location.messageId === target.messageId &&
+                        location.source === target.source);
+                },
+                async commitFlags(location, flags) {
+                    if (target.operation !== 'flags' ||
+                        location.messageId !== target.messageId)
+                        throw new Error('Invalid IMAP operation target.');
+                    await commitFlags(location, flags, check);
+                },
+                async commitDeleted(location) {
+                    if (target.operation !== 'delete' ||
+                        location.messageId !== target.messageId)
+                        throw new Error('Invalid IMAP operation target.');
+                    await commitDeleted(location, check);
+                },
+            };
+            return { persistence: bound, snapshot: target };
+        },
+        async findLocations(tuples) {
+            const found = [];
+            for (const tuple of tuples) {
+                const row = await select(database.query())
+                    .where('providerFolderId', '=', tuple.folder)
+                    .where('uidValidity', '=', tuple.uidValidity)
+                    .where('uid', '=', tuple.uid)
+                    .executeTakeFirst();
+                if (row)
+                    found.push(row);
+            }
+            return resolve(database.query(), found);
+        },
+        async findMessageSources(providerMessageIds) {
+            const sources = new Map();
+            for (const ids of chunks(providerMessageIds, 100)) {
+                const rows = await database
+                    .query()
+                    .selectFrom('mailMessages')
+                    .select([
+                    'providerMessageId',
+                    'providerDraftMessageId',
+                    'imapIdSource',
+                    'providerDraftMessageIdSource',
+                ])
+                    .where('accountId', '=', accountId)
+                    .where((builder) => builder.or([
+                    builder('providerMessageId', 'in', ids),
+                    builder('providerDraftMessageId', 'in', ids),
+                ]))
+                    .execute();
+                for (const row of rows) {
+                    if (ids.includes(row.providerMessageId))
+                        sources.set(row.providerMessageId, (row.imapIdSource ?? undefined));
+                    if (row.providerDraftMessageId &&
+                        ids.includes(row.providerDraftMessageId))
+                        sources.set(row.providerDraftMessageId, (row.providerDraftMessageIdSource ?? undefined));
+                }
+            }
+            return sources;
+        },
+        async listValidLocations(providerMessageId) {
+            const query = database.query();
+            const messages = await query
+                .selectFrom('mailMessages')
+                .select('id')
+                .where('accountId', '=', accountId)
+                .where((builder) => builder.or([
+                builder('providerMessageId', '=', providerMessageId),
+                builder('providerDraftMessageId', '=', providerMessageId),
+            ]))
+                .execute();
+            if (messages.length === 0)
+                return [];
+            const rows = await select(query)
+                .where('messageId', 'in', messages.map((message) => message.id))
+                .where('status', '=', 'valid')
+                .orderBy('createdAt', 'asc')
+                .orderBy('id', 'asc')
+                .execute();
+            return (await resolve(query, rows)).filter((location) => location.providerMessageId === providerMessageId);
+        },
+        async listKnownLocations() {
+            const query = database.query();
+            const rows = await select(query).execute();
+            return resolve(query, rows);
+        },
+        commitFlags,
+        commitDeleted,
+        commitSyncStep(input, evidence) {
+            if (input.run.accountId !== accountId)
+                throw new Error('Mail sync run belongs to another account.');
+            return sync.commitSyncStep(input, evidence);
+        },
+    };
+    return persistence;
+}
+function toStoredLocation(row, message) {
+    // A localized draft keeps its remote copy under the remote draft identity.
+    const draft = message.providerMessageId.startsWith('local-draft:') &&
+        message.providerDraftMessageId;
+    return {
+        id: row.id,
+        messageId: row.messageId,
+        folder: row.providerFolderId,
+        uidValidity: String(row.uidValidity),
+        uid: Number(row.uid),
+        status: row.status,
+        updatedAt: new Date(row.updatedAt).toISOString(),
+        providerMessageId: draft || message.providerMessageId,
+        source: ((draft
+            ? message.providerDraftMessageIdSource
+            : message.imapIdSource) ?? undefined),
+    };
+}
+//# sourceMappingURL=sync.js.map

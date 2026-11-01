@@ -1,0 +1,16 @@
+import { driveManagerToken } from '@nocobase/app-server/drive';
+import { databaseManagerToken } from '@nocobase/db';
+import { ServiceProvider } from '@nocobase/service-provider';
+import { ServerFileRepositoryManager } from '../repository.js';
+import { serverFileRepositoryManagerToken } from '../token.js';
+export class FileRepositoryServiceProvider extends ServiceProvider {
+    name = '@nocobase/app-plugin-file';
+    register() {
+        this.app.container.singleton(serverFileRepositoryManagerToken, (container) => new ServerFileRepositoryManager(container.resolve(databaseManagerToken), container.resolve(driveManagerToken)));
+    }
+}
+const serviceProviders = [
+    FileRepositoryServiceProvider,
+];
+export default serviceProviders;
+//# sourceMappingURL=index.js.map

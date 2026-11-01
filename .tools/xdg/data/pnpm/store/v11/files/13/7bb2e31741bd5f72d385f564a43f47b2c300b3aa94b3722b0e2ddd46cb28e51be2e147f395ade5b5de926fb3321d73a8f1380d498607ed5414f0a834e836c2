@@ -1,0 +1,3 @@
+/** This plugin's i18n namespace, which is its package name. */
+export const MAIL_PLUGIN_NS = '@nocobase/app-plugin-mail';
+//# sourceMappingURL=namespace.js.map

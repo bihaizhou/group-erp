@@ -1,0 +1,19 @@
+import type { LocaleResource } from '@nocobase/i18n';
+declare const enUS: {
+    errors: {
+        accessDenied: string;
+        idempotencyConflict: string;
+        invalidRequest: string;
+        accountCredentialsInvalid: string;
+        requestFailed: string;
+        providerRateLimited: string;
+        providerUnavailable: string;
+        reauthorizationRequired: string;
+        syncRunNotFound: string;
+        messageNotFound: string;
+        authorizationStateRequired: string;
+    };
+};
+export type MailServerResource = LocaleResource<typeof enUS>;
+export default enUS;
+//# sourceMappingURL=en-US.d.ts.map

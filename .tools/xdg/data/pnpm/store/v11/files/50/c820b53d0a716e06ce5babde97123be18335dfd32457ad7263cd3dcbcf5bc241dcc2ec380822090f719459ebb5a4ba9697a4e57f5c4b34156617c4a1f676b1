@@ -1,0 +1,24 @@
+import type { OpenAPIV3_1 } from 'openapi-types';
+/** The HTTP statuses that have a shared error response component, with the component's name. */
+export declare const apiErrorResponseNames: {
+    readonly 400: 'BadRequest';
+    readonly 401: 'Unauthenticated';
+    readonly 403: 'PermissionDenied';
+    readonly 404: 'NotFound';
+    readonly 409: 'Conflict';
+    readonly 413: 'PayloadTooLarge';
+    readonly 415: 'UnsupportedMediaType';
+    readonly 429: 'TooManyRequests';
+    readonly 500: 'InternalError';
+    readonly 501: 'NotImplemented';
+    readonly 503: 'Unavailable';
+    readonly 504: 'DeadlineExceeded';
+};
+export type ApiErrorResponseCode = keyof typeof apiErrorResponseNames;
+/** The schemas and responses every API document carries: the standard error body and list metadata. */
+export declare function apiDocumentBaseComponents(): OpenAPIV3_1.ComponentsObject;
+/** The description of the 400 a route answers when `apiValidator()` rejects its input. */
+export declare const invalidInputDescription: string;
+/** The shared response `apiValidator()` failures are documented with: the 400 every route with a validator can answer. */
+export declare const invalidInputResponseName = "InvalidInput";
+//# sourceMappingURL=components.d.ts.map

@@ -1,0 +1,23 @@
+import { type EmailMessage, type MailResult, type MailSendOptions } from '@nocobase/mailer';
+import { ServiceProvider, type ServiceToken } from '@nocobase/service-provider';
+import { type AppConfigDefinition, type AppConfigFactory, type ConfigValidator } from '../config/index.js';
+import type { AppPluginApplication } from '../plugins/index.js';
+export interface MailChannelsConfig {
+    readonly channels: Readonly<Record<string, unknown>>;
+}
+export interface Mailer {
+    available(channel: string): boolean;
+    send(channel: string, message: EmailMessage, options?: MailSendOptions): Promise<MailResult>;
+    close(): Promise<void>;
+}
+export declare const mailerToken: ServiceToken<Mailer>;
+export declare const validateMailChannels: ConfigValidator<MailChannelsConfig>;
+/** Declare the existing notification section without installing any notification plugin. */
+export declare function defineMailChannelsConfig<T extends MailChannelsConfig>(definition: AppConfigDefinition<T>): AppConfigFactory<T>;
+export declare function createMailer(config: MailChannelsConfig): Mailer;
+export declare class MailerProvider extends ServiceProvider<AppPluginApplication> {
+    readonly name: string;
+    register(): void;
+    shutdown(): Promise<void>;
+}
+//# sourceMappingURL=index.d.ts.map

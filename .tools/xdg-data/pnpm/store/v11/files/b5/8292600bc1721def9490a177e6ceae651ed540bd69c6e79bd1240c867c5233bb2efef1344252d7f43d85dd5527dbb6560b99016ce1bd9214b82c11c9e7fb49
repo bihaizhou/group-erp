@@ -1,0 +1,18 @@
+export function isI18nSession(value) {
+    if (!value || typeof value !== 'object')
+        return false;
+    const candidate = value;
+    return (typeof candidate.get === 'function' && typeof candidate.set === 'function');
+}
+/**
+ * Reads the session off a Hono context.
+ *
+ * Hono types `c.get` against the router's declared variables, and a router that declares none types every key as
+ * `never`. Route contributions here are plain `Hono` instances, so the lookup goes through this one accessor instead
+ * of each caller widening the context itself.
+ */
+export function getContextSession(context) {
+    const session = context.get('session');
+    return isI18nSession(session) ? session : undefined;
+}
+//# sourceMappingURL=session.js.map

@@ -1,0 +1,4 @@
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+import { type AppApiRouteContribution } from '@nocobase/app-server/router';
+export declare const mailApiRoutes: AppApiRouteContribution<AppPluginApplication>;
+//# sourceMappingURL=api.d.ts.map

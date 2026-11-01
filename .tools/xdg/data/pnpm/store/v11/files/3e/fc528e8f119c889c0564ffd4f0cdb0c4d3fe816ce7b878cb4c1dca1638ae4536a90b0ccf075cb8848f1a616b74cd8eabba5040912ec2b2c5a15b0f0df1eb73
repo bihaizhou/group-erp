@@ -1,0 +1,17 @@
+/** A secret could not be sealed or opened. `code` says why; the message never contains key material or plaintext. */
+export class SecretsError extends Error {
+    code;
+    constructor(code, message, options) {
+        super(message, options);
+        this.name = 'SecretsError';
+        this.code = code;
+    }
+}
+/** Recognised by `name` as well as by class, so a second copy of this package is still recognised. */
+export function isSecretsError(error) {
+    return (error instanceof SecretsError ||
+        (error instanceof Error &&
+            error.name === 'SecretsError' &&
+            typeof Reflect.get(error, 'code') === 'string'));
+}
+//# sourceMappingURL=errors.js.map

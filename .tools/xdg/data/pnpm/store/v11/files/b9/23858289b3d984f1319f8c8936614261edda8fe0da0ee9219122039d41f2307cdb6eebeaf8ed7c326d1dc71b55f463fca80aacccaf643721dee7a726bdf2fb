@@ -1,0 +1,7 @@
+import { createServiceToken, } from '@nocobase/service-provider';
+export const sampleDataToken = createServiceToken('@nocobase/app-server/sample-data');
+/** The seed history name a registration is recorded under. */
+export function sampleDataRecordName(name) {
+    return `sample-data:${name}`;
+}
+//# sourceMappingURL=token.js.map

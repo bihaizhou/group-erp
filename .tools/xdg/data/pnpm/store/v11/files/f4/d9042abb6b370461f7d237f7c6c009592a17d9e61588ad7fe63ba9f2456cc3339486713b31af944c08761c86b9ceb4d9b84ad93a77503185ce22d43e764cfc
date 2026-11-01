@@ -1,0 +1,25 @@
+export const selection = {
+    all: () => ({ type: 'all' }),
+    records: (ids) => ({ type: 'records', ids: [...ids] }),
+    recordAccess: (key, params) => params === undefined
+        ? { type: 'recordAccess', key }
+        : { type: 'recordAccess', key, params: structuredClone(params) },
+};
+/** Validates an untrusted value, returning it as a detached selection. */
+export function parseRecordSelection(value) {
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        const type = Reflect.get(value, 'type');
+        if (type === 'all')
+            return selection.all();
+        const ids = Reflect.get(value, 'ids');
+        if (type === 'records' &&
+            Array.isArray(ids) &&
+            ids.every((id) => typeof id === 'string' && id !== ''))
+            return selection.records(ids);
+        const key = Reflect.get(value, 'key');
+        if (type === 'recordAccess' && typeof key === 'string' && key)
+            return selection.recordAccess(key, Reflect.get(value, 'params'));
+    }
+    throw new TypeError('Invalid record selection');
+}
+//# sourceMappingURL=selection.js.map

@@ -1,0 +1,1999 @@
+import { normalizeParameterValues, ParameterConfigurationError, } from './parameter-configuration.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { describeLifecycle, } from './definition.js';
+import { EffectFailure, LifecycleError, } from './errors.js';
+import { checkCreation, guardBlockers, inputProblems, planTransition, stateOf, transitionsFrom, versionOf, } from './plan.js';
+import { waitingDueAt, } from './store.js';
+import { SYSTEM_ACTOR, } from './types.js';
+/** The log entry `runtime.create()` writes, so a record's history starts at its creation. */
+export const CREATE_TRANSITION = '$create';
+/**
+ * The work an entry's hooks queue with `afterEntry()`. It takes work only
+ * while they run: once they finish, or one throws, it is closed, so work
+ * queued later — by a callback, or through a context kept past its hook —
+ * is refused instead of silently never running.
+ */
+class EntryWork {
+    steps = [];
+    closed = false;
+    queue = (callback) => {
+        if (this.closed)
+            throw new Error('afterEntry() queues work only while an onEnterState hook runs.');
+        this.steps.push(callback);
+    };
+    close() {
+        this.closed = true;
+        return this.steps;
+    }
+    /** Runs the entry's hooks, and closes the queue however they end. */
+    async during(hooks) {
+        try {
+            return await hooks;
+        }
+        finally {
+            this.close();
+        }
+    }
+}
+const silent = { warn: () => { }, error: () => { } };
+function errorText(error) {
+    return error instanceof Error ? error.message : String(error);
+}
+function isJsonObject(value) {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+function storable(value) {
+    const text = JSON.stringify(value === undefined ? null : value);
+    if (text === undefined)
+        throw new Error('An effect result must be a JSON value.');
+    return JSON.parse(text);
+}
+/**
+ * The prefix of the request ids the library logs under itself. A caller's
+ * request id may not start with it, so no caller can spend the key a
+ * continuation will need, or pass for one.
+ */
+const RESERVED_REQUEST_PREFIX = '$';
+function checkRequestId(requestId) {
+    if (requestId === '')
+        throw new LifecycleError('INVALID_REQUEST_ID', 'Request id is empty; send a non-empty one, or none at all.');
+    if (requestId?.startsWith(RESERVED_REQUEST_PREFIX))
+        throw new LifecycleError('INVALID_REQUEST_ID', `Request id "${requestId}" starts with "${RESERVED_REQUEST_PREFIX}", which is reserved for the lifecycle's own entries; send another one.`);
+}
+/** Refusals that mean the record is no longer where the caller found it. */
+const MOVED_ON = new Set([
+    'RECORD_NOT_FOUND',
+    'INVALID_STATE',
+    'GUARD_REJECTED',
+]);
+/**
+ * The request id an effect's continuation is logged under. It ties the log
+ * entry to the run and the outcome that caused it, so `retryRun()` can tell
+ * a run that already moved its record on, and a run continues its record at
+ * most once per outcome.
+ */
+function continuationKey(runId, outcome) {
+    return `$run:${runId}:${outcome}`;
+}
+const CONFLICTS = new Set([
+    'CONFLICT',
+]);
+/** A trigger on a record, as its refusals are counted. */
+function triggerKey(lifecycle, trigger, id) {
+    return JSON.stringify([lifecycle, trigger, String(id)]);
+}
+/** What a sweep expects when another sweep or a person got there first. */
+const RACED = new Set([
+    ...MOVED_ON,
+    'CONFLICT',
+]);
+/**
+ * Refusals that escaped a hook or an `onTransition`: raised by a lifecycle
+ * call it made, or thrown by it, rather than by the transition it ran in. A
+ * trigger is refused this way on every sweep until someone fixes the cause,
+ * so the sweep says so, while it passes over its own routine refusals quietly.
+ */
+const raisedInStep = new WeakSet();
+/**
+ * Whether a refusal of a continuation means its record moved on, so nothing
+ * is to follow: only when the continuation's own transition was refused on
+ * its own record. A refusal a lifecycle call in its `onTransition` or a hook
+ * raised — a parent that will not move yet — leaves the record where it was,
+ * so the continuation waits instead.
+ */
+function recordMovedOn(error) {
+    return MOVED_ON.has(error.code) && !raisedInStep.has(error);
+}
+/** Whether a run of failed tries has reached a count worth a log line: 1, 2, 4, 8… */
+function isLogworthy(attempts) {
+    return attempts > 0 && (attempts & (attempts - 1)) === 0;
+}
+/** The code a continuation keeps for an exception that was not a refusal. */
+const CONTINUATION_ERROR = 'ERROR';
+/** How many trigger refusals raised inside a transition are counted at once, for the log. */
+const TRIGGER_REFUSALS_KEPT = 1000;
+function isRefusal(error, codes) {
+    return error instanceof LifecycleError && codes.has(error.code);
+}
+function isObject(value) {
+    return ((typeof value === 'object' && value !== null) || typeof value === 'function');
+}
+/** A record of a lifecycle, as the transitions a transaction made are noted. */
+function moveKey(lifecycle, id) {
+    return JSON.stringify([lifecycle, String(id)]);
+}
+function joining(transaction) {
+    return transaction === undefined ? undefined : { within: transaction };
+}
+/** The delay before retrying after `attempt`: grows by `factor`, capped at `maxMs`. */
+function backoffMs(retry, attempt) {
+    const base = retry?.backoffMs ?? 0;
+    const delay = base * (retry?.factor ?? 1) ** (attempt - 1);
+    return Math.min(delay, retry?.maxMs ?? Number.POSITIVE_INFINITY);
+}
+class InlineDispatcher {
+    runtime;
+    constructor(runtime) {
+        this.runtime = runtime;
+    }
+    async dispatch(runId) {
+        await this.runtime.runEffect(runId);
+    }
+}
+/**
+ * Fires transitions, runs their effects and sweeps triggers for every
+ * registered lifecycle. It keeps no state of its own: the store holds the
+ * records, the transition log and the effect runs, so any process holding a
+ * runtime over the same store can continue another one's work.
+ */
+export class LifecycleRuntime {
+    store;
+    dispatcher;
+    clock;
+    logger;
+    leaseMs;
+    beforeEffect;
+    continuations;
+    lifecycles = new Map();
+    subscriptions = [];
+    /** Attempts running in this process, so `cancelRun()` can abort them. */
+    attempts = new Map();
+    /**
+     * The records each running transition's transaction moved on, by the
+     * transaction's handle: what a hook fired through `tx`, or through a
+     * lifecycle call given that handle as its `transaction`. See `runSteps()`.
+     */
+    moves = new WeakMap();
+    /**
+     * How many sweeps in a row a trigger was refused on a record by a
+     * lifecycle call inside its transition, and with which code, so the log
+     * says so on the 1st, 2nd, 4th… sweep. Bounded: the oldest are forgotten.
+     */
+    triggerRefusals = new Map();
+    parameterExecution = new AsyncLocalStorage();
+    constructor(options) {
+        this.store = options.store;
+        this.dispatcher = options.dispatcher ?? new InlineDispatcher(this);
+        this.clock = options.clock ?? (() => new Date());
+        this.logger = options.logger ?? silent;
+        this.leaseMs = options.leaseMs ?? 5 * 60_000;
+        this.beforeEffect = options.beforeEffect;
+        this.continuations = {
+            batchSize: options.continuations?.batchSize ?? 100,
+            backoffMs: options.continuations?.backoffMs ?? 60_000,
+            factor: options.continuations?.factor ?? 2,
+            maxMs: options.continuations?.maxMs ?? 3_600_000,
+            maxAttempts: options.continuations?.maxAttempts ?? 10,
+        };
+    }
+    register(lifecycle, options = {}) {
+        if (this.lifecycles.has(lifecycle.name))
+            throw new LifecycleError('INVALID_DEFINITION', `Lifecycle "${lifecycle.name}" is already registered.`);
+        if (options.parameters && options.parameterProvider)
+            throw new LifecycleError('INVALID_DEFINITION', 'Register either parameters or parameterProvider, not both.');
+        if (lifecycle.parameterConfiguration && !options.parameterConfiguration)
+            throw new LifecycleError('INVALID_DEFINITION', `Lifecycle "${lifecycle.name}" requires a parameter storage adapter.`);
+        if (options.parameterConfiguration &&
+            (!lifecycle.parameterConfiguration ||
+                options.parameters ||
+                options.parameterProvider))
+            throw new LifecycleError('INVALID_DEFINITION', 'Configured parameters require a definition and cannot share another override reader.');
+        if (options.parameterConfiguration &&
+            [
+                'read',
+                'save',
+                'snapshot',
+                'saveSnapshot',
+                'usage',
+                'saveUsage',
+                'listUsage',
+            ].some((method) => typeof Reflect.get(options.parameterConfiguration.store, method) !==
+                'function'))
+            throw new LifecycleError('INVALID_DEFINITION', 'The parameter storage adapter is missing a required capability.');
+        const source = options.services;
+        this.lifecycles.set(lifecycle.name, {
+            lifecycle: lifecycle,
+            services: typeof source === 'function' ? source : () => source ?? {},
+            parameters: options.parameters ?? (() => ({})),
+            ...(options.parameterProvider
+                ? {
+                    parameterProvider: options.parameterProvider,
+                }
+                : {}),
+            ...(options.parameterConfiguration
+                ? {
+                    parameterConfiguration: options.parameterConfiguration,
+                }
+                : {}),
+            guards: new Map(),
+        });
+    }
+    /**
+     * Adds a guard to transitions of a registered lifecycle from outside its
+     * definition, the way another plugin would veto approvals while a budget
+     * is frozen. `'*'` adds it to every transition. Its refusals join the
+     * blockers of `available()`, `can()` and `fire()`. Returns a function that
+     * removes it again.
+     */
+    addGuard(name, transitions, guard) {
+        const registered = this.get(name);
+        const names = transitions === '*'
+            ? [...registered.lifecycle.transitions.keys()]
+            : typeof transitions === 'string'
+                ? [transitions]
+                : [...transitions];
+        for (const transition of names)
+            if (!registered.lifecycle.transitions.has(transition))
+                throw new LifecycleError('UNKNOWN_TRANSITION', `Lifecycle "${name}" has no transition "${transition}".`);
+        const added = guard;
+        for (const transition of names) {
+            const list = registered.guards.get(transition) ?? [];
+            list.push(added);
+            registered.guards.set(transition, list);
+        }
+        return () => {
+            for (const transition of names) {
+                const list = registered.guards.get(transition) ?? [];
+                registered.guards.set(transition, list.filter((other) => other !== added));
+            }
+        };
+    }
+    describe(name) {
+        return describeLifecycle(this.get(name).lifecycle);
+    }
+    /** Defaults plus synchronous overrides; excludes parameterProvider values. */
+    parameters(name) {
+        const registered = this.get(name);
+        return { ...registered.lifecycle.parameters, ...registered.parameters() };
+    }
+    /** Resolves current overrides. This does not persist snapshots or usage facts. */
+    async resolveParameters(name, context) {
+        const registered = this.get(name);
+        const execution = this.parameterExecution.getStore();
+        const scoped = execution &&
+            context.transactionHandle !== undefined &&
+            context.transactionHandle === execution.handle &&
+            context.purpose !== 'effect';
+        const key = context.record
+            ? moveKey(name, context.record.id)
+            : context.purpose === 'create'
+                ? moveKey(name, '$create')
+                : undefined;
+        const cached = scoped && key ? execution.values.get(key) : undefined;
+        if (cached) {
+            const parameters = await cached;
+            await this.bindParameterSnapshot(registered, context);
+            return parameters;
+        }
+        const pending = (async () => {
+            if (registered.parameterConfiguration &&
+                !(context.record &&
+                    registered.parameterConfiguration.legacyRecord?.(context.record))) {
+                const resolution = await this.readConfiguredParameters(registered, context);
+                if (scoped && key)
+                    execution.resolutions.set(key, resolution);
+                const parameters = freezeParameters(resolution.values);
+                await this.bindParameterSnapshot(registered, context, resolution);
+                return parameters;
+            }
+            const overrides = registered.parameterProvider
+                ? await registered.parameterProvider(Object.freeze({ ...context, lifecycle: name }))
+                : registered.parameters();
+            const values = { ...registered.lifecycle.parameters, ...overrides };
+            // Legacy readers may contain non-data values such as callback functions.
+            return registered.parameterProvider
+                ? freezeParameters(values)
+                : Object.freeze(values);
+        })();
+        if (scoped && key)
+            execution.values.set(key, pending);
+        try {
+            return await pending;
+        }
+        catch (error) {
+            if (scoped && key && execution.values.get(key) === pending)
+                execution.values.delete(key);
+            throw error;
+        }
+    }
+    /** Runs one server-owned action with the same values as its same-record tx.fire calls. */
+    withParameterExecution(name, id, work, options = {}) {
+        const registered = this.get(name);
+        return this.store.transaction((store) => this.parameterExecution.run({
+            handle: store.transactionHandle,
+            values: new Map(),
+            resolutions: new Map(),
+        }, async () => {
+            const record = await store.findRecord(registered.lifecycle.collection, id);
+            if (!record)
+                throw new LifecycleError('RECORD_NOT_FOUND', `No ${registered.lifecycle.collection} record "${String(id)}".`);
+            const parameters = await this.resolveParameters(name, {
+                record,
+                transactionHandle: store.transactionHandle,
+                purpose: 'action',
+            });
+            const resolution = this.parameterExecution
+                .getStore()
+                ?.resolutions.get(moveKey(name, id));
+            const result = await work(parameters, this.scope(store, this.clock()), resolution
+                ? freezeParameters(resolution)
+                : undefined);
+            if (options.actionId)
+                await this.recordParameterUsage(registered, record, 'action', options.actionId, store.transactionHandle);
+            return result;
+        }), joining(options.transaction));
+    }
+    inParameterExecution(store, parentHandle, work) {
+        const parent = this.parameterExecution.getStore();
+        // A savepoint gets its own cache. A refused child cannot contaminate its parent.
+        const values = parentHandle !== undefined && parent?.handle === parentHandle
+            ? new Map(parent.values)
+            : new Map();
+        const resolutions = parentHandle !== undefined && parent?.handle === parentHandle
+            ? new Map(parent.resolutions)
+            : new Map();
+        return this.parameterExecution.run({ handle: store.transactionHandle, values, resolutions }, async () => {
+            const result = await work();
+            if (parentHandle !== undefined && parent?.handle === parentHandle)
+                for (const [key, value] of values)
+                    if (!parent.values.has(key))
+                        parent.values.set(key, value);
+            if (parentHandle !== undefined && parent?.handle === parentHandle)
+                for (const [key, value] of resolutions)
+                    if (!parent.resolutions.has(key))
+                        parent.resolutions.set(key, value);
+            return result;
+        });
+    }
+    async readConfiguredParameters(registered, context) {
+        const config = registered.parameterConfiguration;
+        const definition = registered.lifecycle.parameterConfiguration;
+        const scope = config.scope({
+            ...context,
+            lifecycle: registered.lifecycle.name,
+        });
+        if (!scope)
+            throw new ParameterConfigurationError('CONFIGURATION_INVALID', 'The authoritative configuration scope is empty.');
+        const snapshot = context.record
+            ? await config.store.snapshot(scope, registered.lifecycle.name, String(context.record.id), context.transactionHandle)
+            : undefined;
+        if (!snapshot &&
+            context.record &&
+            config.snapshotRequired?.(context.record))
+            throw new ParameterConfigurationError('PARAMETER_SNAPSHOT_REQUIRED', 'This record needs a verified historical snapshot or an explicit legacy route.');
+        const values = { ...registered.lifecycle.parameters };
+        const sources = {};
+        for (const group of definition.groups) {
+            const current = await config.store.read(scope, group.key, context.transactionHandle);
+            if (current && current.schemaVersion !== group.schemaVersion)
+                throw new ParameterConfigurationError('CONFIGURATION_INCOMPATIBLE', `Configuration group "${group.key}" has an incompatible schema version.`);
+            const defaults = Object.fromEntries(Object.keys(group.fields).map((key) => [key, values[key]]));
+            const complete = normalizeParameterValues(group, current?.values ?? defaults);
+            for (const [key, field] of Object.entries(group.fields)) {
+                const mode = field.readMode ?? definition.readMode ?? 'live';
+                if (mode === 'snapshot' && snapshot) {
+                    const source = snapshot.sources[key];
+                    if (!(key in snapshot.values) ||
+                        !source ||
+                        source.schemaVersion !== group.schemaVersion)
+                        throw new ParameterConfigurationError('CONFIGURATION_INCOMPATIBLE', `Snapshot parameter "${key}" requires an explicit contract migration.`);
+                    values[key] = field.parse(snapshot.values[key]);
+                    sources[key] = source;
+                }
+                else {
+                    values[key] = complete[key];
+                    sources[key] = {
+                        group: group.key,
+                        schemaVersion: group.schemaVersion,
+                        revision: current?.revision ?? 0,
+                        origin: current ? 'configuration' : 'default',
+                        readMode: mode,
+                    };
+                }
+            }
+        }
+        return { scope, values, sources };
+    }
+    async bindParameterSnapshot(registered, context, supplied) {
+        const config = registered.parameterConfiguration;
+        if (!config ||
+            !registered.lifecycle.parameterConfiguration?.snapshotTransition ||
+            context.purpose !== 'transition' ||
+            !context.record ||
+            context.transition !==
+                registered.lifecycle.parameterConfiguration?.snapshotTransition ||
+            config.legacyRecord?.(context.record))
+            return;
+        const resolution = supplied ??
+            this.parameterExecution
+                .getStore()
+                ?.resolutions.get(moveKey(registered.lifecycle.name, context.record.id));
+        if (!resolution)
+            throw new Error('The parameter execution has no resolution to bind.');
+        if (await config.store.snapshot(resolution.scope, registered.lifecycle.name, String(context.record.id), context.transactionHandle))
+            return;
+        const values = {};
+        const sources = {};
+        for (const [key, source] of Object.entries(resolution.sources))
+            if (source.readMode === 'snapshot') {
+                values[key] = resolution.values[key];
+                sources[key] = source;
+            }
+        await config.store.saveSnapshot({
+            scope: resolution.scope,
+            lifecycle: registered.lifecycle.name,
+            recordId: String(context.record.id),
+            values,
+            sources,
+            at: this.clock().toISOString(),
+        }, context.transactionHandle);
+    }
+    async recordParameterUsage(registered, record, kind, associationId, transaction, attempt, supplied) {
+        const resolution = supplied ??
+            this.parameterExecution
+                .getStore()
+                ?.resolutions.get(moveKey(registered.lifecycle.name, record.id));
+        if (!resolution || !registered.parameterConfiguration)
+            return;
+        await registered.parameterConfiguration.store.saveUsage({
+            ...resolution,
+            lifecycle: registered.lifecycle.name,
+            recordId: String(record.id),
+            kind,
+            associationId,
+            ...(attempt === undefined ? {} : { attempt }),
+            at: this.clock().toISOString(),
+        }, transaction);
+    }
+    /**
+     * Fires one transition. The state check, the record update, the log entry
+     * and the effect runs it owes are one transaction; effects are dispatched
+     * and listeners told only after it commits. With `transaction`, that is
+     * the caller's: the transition is nested in it and its effects wait for
+     * its outermost commit.
+     */
+    async fire(name, id, transition, options) {
+        const registered = this.get(name);
+        checkRequestId(options.requestId);
+        const now = this.clock();
+        const inner = {};
+        const result = await this.store.transaction(async (store) => {
+            inner.handle = store.transactionHandle;
+            const outcome = {};
+            // Registered before deciding, so after the commit this transition is
+            // told about before anything its onTransition started.
+            store.afterCommit(() => {
+                const { decided } = outcome;
+                return decided && !decided.result.replayed
+                    ? this.settle(registered, decided, options.actor)
+                    : undefined;
+            });
+            outcome.decided = await this.decide(store, registered, id, transition, options, now);
+            return outcome.decided.result;
+        }, joining(options.transaction));
+        this.noteMoves(options.transaction, inner.handle, result.replayed ? undefined : moveKey(name, id));
+        return result;
+    }
+    /** Runs work on the store; each tx call nests as a savepoint. */
+    transaction(work) {
+        return this.store.transaction((store) => work(this.scope(store, this.clock())));
+    }
+    scope(store, now) {
+        return Object.freeze({
+            handle: store.transactionHandle,
+            now,
+            read: (name, id) => store.findRecord(this.get(name).lifecycle.collection, id),
+            fire: (name, id, transition, options) => this.fire(name, id, transition, {
+                ...options,
+                transaction: store.transactionHandle,
+            }),
+            create: (name, values, options) => this.create(name, values, {
+                ...options,
+                transaction: store.transactionHandle,
+            }),
+            afterCommit: (callback) => {
+                store.afterCommit(async () => {
+                    try {
+                        await callback();
+                    }
+                    catch (error) {
+                        this.logger.error('An afterCommit callback failed', { error });
+                    }
+                });
+            },
+        });
+    }
+    /**
+     * Runs a transition's hooks in order. A hook has moved the record on once
+     * a lifecycle call it made on this transaction — `tx.fire()`, or a call
+     * given its handle as `transaction` — completed a transition of this
+     * lifecycle on this record, directly or through the calls that one made in
+     * turn. Returns the record as it then is, read once, without running the
+     * steps after that one; undefined when every step ran without moving it.
+     * Only transitions count: a hook that advances the version itself, as a
+     * fence or an edit does, or that fires another lifecycle sharing the
+     * record's version field, has not moved this lifecycle's record on.
+     */
+    async runSteps(store, lifecycle, id, steps) {
+        if (!steps.length)
+            return undefined;
+        const handle = store.transactionHandle;
+        const moved = new Set();
+        if (isObject(handle))
+            this.moves.set(handle, moved);
+        const key = moveKey(lifecycle.name, id);
+        for (const step of steps) {
+            try {
+                await step();
+            }
+            catch (error) {
+                if (error instanceof LifecycleError)
+                    raisedInStep.add(error);
+                throw error;
+            }
+            if (moved.has(key))
+                return store.findRecord(lifecycle.collection, id);
+        }
+        return undefined;
+    }
+    /**
+     * After a lifecycle call joined `outer` and committed into it: what it
+     * moved — `key`, its own record, unless it moved nothing — and what the
+     * calls made inside it moved, are told to the transition running on
+     * `outer`, if one is. A call refused or rolled back never gets here.
+     */
+    noteMoves(outer, inner, key) {
+        if (!isObject(outer))
+            return;
+        const log = this.moves.get(outer);
+        if (!log)
+            return;
+        if (key !== undefined)
+            log.add(key);
+        const nested = isObject(inner) ? this.moves.get(inner) : undefined;
+        if (nested)
+            for (const each of nested)
+                log.add(each);
+    }
+    on(event, filter, listener) {
+        const subscription = {
+            event,
+            filter,
+            listener: listener,
+        };
+        this.subscriptions.push(subscription);
+        return () => {
+            const index = this.subscriptions.indexOf(subscription);
+            if (index >= 0)
+                this.subscriptions.splice(index, 1);
+        };
+    }
+    /**
+     * The transitions the record's state allows, each with whether `actor`
+     * may fire it now and, if not, every reason why.
+     */
+    async available(name, id, actor) {
+        const registered = this.get(name);
+        const record = await this.require(registered, id);
+        const context = await this.guardContext(registered, record, actor);
+        return this.availableFrom(registered, record, context);
+    }
+    async availableFrom(registered, record, context) {
+        const { lifecycle } = registered;
+        const result = [];
+        for (const transition of transitionsFrom(lifecycle, stateOf(lifecycle, record))) {
+            if (!transition.manual)
+                continue;
+            const blockers = await guardBlockers(transition, context, registered.guards.get(transition.name));
+            result.push({
+                name: transition.name,
+                title: transition.title,
+                to: [...transition.to],
+                allowed: blockers.length === 0,
+                blockers,
+            });
+        }
+        return result;
+    }
+    /**
+     * Whether `actor` may fire `transition` on the record now, with `input`
+     * when the answer depends on it. A transition the record's state does not
+     * allow is refused with a `state` blocker before anything else is asked;
+     * input that `validate` refuses is answered with its problems before any
+     * guard is asked, as `fire()` would. It is a preview: `fire()` decides
+     * again inside its transaction.
+     */
+    async can(name, id, transition, actor, options = {}) {
+        const registered = this.get(name);
+        const { lifecycle } = registered;
+        const declared = lifecycle.transitions.get(transition);
+        if (!declared)
+            throw new LifecycleError('UNKNOWN_TRANSITION', `Lifecycle "${name}" has no transition "${transition}".`);
+        if (!declared.manual)
+            return {
+                allowed: false,
+                blockers: [
+                    {
+                        source: 'manual',
+                        kind: 'permission',
+                        code: 'NOT_MANUAL',
+                        message: `"${transition}" is fired by the system, not by a person.`,
+                    },
+                ],
+                problems: [],
+            };
+        const record = await this.require(registered, id);
+        const state = stateOf(lifecycle, record);
+        if (!declared.from.includes(state))
+            return {
+                allowed: false,
+                blockers: [
+                    {
+                        source: 'state',
+                        kind: 'precondition',
+                        code: 'INVALID_STATE',
+                        message: `"${transition}" cannot start from "${state}".`,
+                    },
+                ],
+                problems: [],
+            };
+        const { input } = options;
+        if (input !== undefined) {
+            const problems = inputProblems(declared, input);
+            if (problems.length)
+                return { allowed: false, blockers: [], problems };
+        }
+        const blockers = await guardBlockers(declared, await this.guardContext(registered, record, actor, input ?? {}), registered.guards.get(transition));
+        return { allowed: blockers.length === 0, blockers, problems: [] };
+    }
+    /**
+     * Creates a record through the lifecycle: in one transaction it checks the
+     * definition's `create` — the values, then the guard — and writes the
+     * record in an initial state, a log entry from nothing, and the effect runs
+     * the state's `onEnter` owes, so a record's history starts where it does.
+     * A refusal writes nothing and is a `LifecycleError` as a transition's is.
+     * With `transaction`, the creation joins the caller's transaction as
+     * `fire()` does, so a parent can create its children in its own.
+     */
+    async create(name, values, options) {
+        const registered = this.get(name);
+        const { lifecycle } = registered;
+        const state = options.state ?? lifecycle.initial;
+        if (!lifecycle.initialStates.includes(state))
+            throw new LifecycleError('INVALID_STATE', `"${state}" is not an initial state of "${name}".`);
+        for (const field of [
+            lifecycle.stateField,
+            lifecycle.changedAtField,
+            lifecycle.versionField,
+        ])
+            if (field in values)
+                throw new LifecycleError('INVALID_SET', `Creating a ${name} record may not set "${field}"; the lifecycle owns it.`);
+        const now = this.clock();
+        const at = now.toISOString();
+        const inner = {};
+        const result = await this.store.transaction((store) => this.inParameterExecution(store, options.transaction, async () => {
+            inner.handle = store.transactionHandle;
+            this.parameterExecution
+                .getStore()
+                ?.values.delete(moveKey(name, '$create'));
+            this.parameterExecution
+                .getStore()
+                ?.resolutions.delete(moveKey(name, '$create'));
+            const parameters = await this.resolveParameters(name, {
+                record: null,
+                values,
+                transactionHandle: store.transactionHandle,
+                purpose: 'create',
+            });
+            await checkCreation(lifecycle, {
+                values,
+                state,
+                actor: options.actor,
+                input: options.input ?? {},
+                parameters: parameters,
+                services: registered.services(store.transactionHandle),
+                now,
+            });
+            const record = await store.createRecord(lifecycle.collection, {
+                ...values,
+                [lifecycle.stateField]: state,
+                [lifecycle.changedAtField]: at,
+                [lifecycle.versionField]: 1,
+            });
+            this.parameterExecution
+                .getStore()
+                ?.values.set(moveKey(name, record.id), Promise.resolve(parameters));
+            const creationResolution = this.parameterExecution
+                .getStore()
+                ?.resolutions.get(moveKey(name, '$create'));
+            if (creationResolution)
+                this.parameterExecution
+                    .getStore()
+                    ?.resolutions.set(moveKey(name, record.id), creationResolution);
+            const entry = await store.appendTransition({
+                lifecycle: lifecycle.name,
+                recordId: String(record.id),
+                transition: CREATE_TRANSITION,
+                from: null,
+                to: state,
+                actorId: options.actor.id,
+                input: options.input ?? {},
+                at,
+                version: 1,
+                requestId: null,
+            });
+            await this.recordParameterUsage(registered, record, 'transition', entry.id, store.transactionHandle);
+            const outcome = {};
+            store.afterCommit(() => outcome.created
+                ? this.settle(registered, outcome.created, options.actor)
+                : undefined);
+            const hooks = lifecycle.onEnterState.get(state) ?? [];
+            const entryWork = new EntryWork();
+            const context = Object.freeze({
+                lifecycle: name,
+                record,
+                previous: null,
+                from: null,
+                to: state,
+                transition: CREATE_TRANSITION,
+                actor: options.actor,
+                input: options.input ?? {},
+                entry,
+                parameters: parameters,
+                services: registered.services(store.transactionHandle),
+                tx: this.scope(store, now),
+                now,
+                afterEntry: entryWork.queue,
+            });
+            // A hook that moves the new record on through tx ends its stay in the
+            // initial state: the hooks after it and that state's effects are skipped.
+            const moved = await entryWork.during(this.runSteps(store, lifecycle, record.id, hooks.map((hook) => () => hook(context))));
+            const created = moved
+                ? {
+                    result: { record: moved, entry, effectRuns: [] },
+                    written: record,
+                    movedOn: true,
+                }
+                : await this.enterWith(store, lifecycle, record, entry, await this.owe(store, lifecycle, entry, lifecycle.onEnter.get(state) ?? [], true), entryWork);
+            outcome.created = created;
+            return created.result;
+        }), joining(options.transaction));
+        // A creation moves no record that existed, but its hooks may have.
+        this.noteMoves(options.transaction, inner.handle, undefined);
+        return result;
+    }
+    /** The names of the registered lifecycles. */
+    names() {
+        return [...this.lifecycles.keys()];
+    }
+    /** One record with what a page shows for it; see {@link RecordView}. */
+    async view(name, id, actor) {
+        const registered = this.get(name);
+        const { lifecycle } = registered;
+        const record = await this.require(registered, id);
+        const context = await this.guardContext(registered, record, actor);
+        return {
+            record,
+            state: stateOf(lifecycle, record),
+            version: versionOf(lifecycle, record),
+            available: await this.availableFrom(registered, record, context),
+            ...(registered.parameterConfiguration || registered.parameterProvider
+                ? { parameterValues: context.parameters }
+                : {}),
+            history: await this.history(name, id),
+        };
+    }
+    async history(name, id) {
+        const { lifecycle } = this.get(name);
+        const recordId = String(id);
+        return {
+            transitions: await this.store.listTransitions(lifecycle.name, recordId),
+            effectRuns: await this.store.listEffectRuns({
+                lifecycle: lifecycle.name,
+                recordId,
+            }),
+        };
+    }
+    /**
+     * Runs one attempt of a queued effect run. Claiming it is a conditional
+     * update, so two workers handed the same run execute it once; every later
+     * write names the attempt it belongs to, so an attempt `recover()` took
+     * back cannot record a result over the attempt that replaced it.
+     */
+    async runEffect(runId, signal = new AbortController().signal) {
+        const run = await this.store.findEffectRun(runId);
+        if (!run || run.status !== 'queued')
+            return run;
+        const registered = this.lifecycles.get(run.lifecycle);
+        const effect = registered?.lifecycle.effects.get(run.effect);
+        if (!registered || !effect) {
+            this.logger.warn(`Effect run "${runId}" names "${run.lifecycle}/${run.effect}", which is not registered; it stays queued.`);
+            return run;
+        }
+        const startedAt = this.clock().toISOString();
+        // Every attempt was claimed and none came back: the process running it
+        // stopped each time. Running it again could stop this one too.
+        if (run.attempts >= run.maxAttempts) {
+            await this.store.updateEffectRun(runId, { status: 'queued', attempts: run.attempts }, {
+                status: 'dead',
+                error: `None of its ${run.attempts} attempt(s) recorded an outcome; it needs a person to retry it.`,
+                claimedAt: null,
+                updatedAt: startedAt,
+            });
+            this.logger.error(`Effect "${effect.name}" is dead`, { runId });
+            return this.store.findEffectRun(runId);
+        }
+        const attempt = run.attempts + 1;
+        const claimed = await this.store.updateEffectRun(runId, { status: 'queued', attempts: run.attempts }, {
+            status: 'running',
+            attempts: attempt,
+            claimedAt: startedAt,
+            updatedAt: startedAt,
+        });
+        if (!claimed)
+            return this.store.findEffectRun(runId);
+        const { lifecycle } = registered;
+        let outcome;
+        // One controller per attempt: the caller's signal, cancelRun() and the
+        // timeout all abort it.
+        const controller = new AbortController();
+        const forward = () => controller.abort(signal.reason);
+        if (signal.aborted)
+            forward();
+        else
+            signal.addEventListener('abort', forward, { once: true });
+        this.attempts.set(runId, controller);
+        let timer;
+        try {
+            const entry = await this.store.findTransition(run.transitionId);
+            const record = await this.store.findRecord(lifecycle.collection, run.recordId);
+            if (!entry || !record)
+                throw new Error('Its transition or record no longer exists.');
+            await this.beforeEffect?.(effect.name, attempt);
+            const parameterContext = {
+                record,
+                transactionHandle: undefined,
+                purpose: 'effect',
+                transition: entry.transition,
+                runId,
+                attempt,
+            };
+            const resolution = registered.parameterConfiguration &&
+                !registered.parameterConfiguration.legacyRecord?.(record)
+                ? await this.readConfiguredParameters(registered, parameterContext)
+                : undefined;
+            const parameters = resolution
+                ? freezeParameters(resolution.values)
+                : await this.resolveParameters(lifecycle.name, parameterContext);
+            if (resolution)
+                await this.recordParameterUsage(registered, record, 'effect', runId, undefined, attempt, resolution);
+            const work = Promise.resolve(effect.run({
+                record,
+                input: entry.input,
+                transition: entry.transition,
+                from: entry.from,
+                to: entry.to,
+                attempt,
+                idempotencyKey: `${lifecycle.name}:${runId}`,
+                parameters: parameters,
+                services: registered.services(undefined),
+                signal: controller.signal,
+                now: this.clock(),
+            }));
+            const limit = effect.timeoutMs;
+            const value = limit === undefined
+                ? await work
+                : await Promise.race([
+                    work,
+                    new Promise((_, reject) => {
+                        timer = setTimeout(() => {
+                            const error = new Error(`Timed out after ${limit} ms.`);
+                            controller.abort(error);
+                            reject(error);
+                        }, limit);
+                    }),
+                ]);
+            outcome = { ok: true, result: storable(value) };
+        }
+        catch (error) {
+            outcome = { ok: false, error: errorText(error), cause: error };
+        }
+        finally {
+            clearTimeout(timer);
+            signal.removeEventListener('abort', forward);
+            this.attempts.delete(runId);
+        }
+        const finishedAt = this.clock().toISOString();
+        // An EffectFailure is an answer, not an outage, unless it says otherwise.
+        const failure = !outcome.ok && outcome.cause instanceof EffectFailure
+            ? outcome.cause
+            : undefined;
+        if (!outcome.ok &&
+            attempt < run.maxAttempts &&
+            (failure ? failure.retry : true) &&
+            (effect.retry?.shouldRetry?.(outcome.cause, attempt) ?? true)) {
+            const runAfter = new Date(this.clock().getTime() + backoffMs(effect.retry, attempt)).toISOString();
+            const requeued = await this.store.updateEffectRun(runId, { status: 'running', attempts: attempt }, {
+                status: 'queued',
+                error: outcome.error,
+                claimedAt: null,
+                runAfter,
+                updatedAt: finishedAt,
+            });
+            if (requeued)
+                await this.handOver(runId, runAfter);
+            else
+                this.discarded(effect.name, runId, attempt);
+            return this.store.findEffectRun(runId);
+        }
+        const status = outcome.ok
+            ? 'succeeded'
+            : 'failed';
+        const changes = outcome.ok
+            ? {
+                status: 'succeeded',
+                result: outcome.result,
+                error: null,
+                claimedAt: null,
+                updatedAt: finishedAt,
+            }
+            : {
+                status: 'failed',
+                error: outcome.error,
+                claimedAt: null,
+                updatedAt: finishedAt,
+            };
+        const next = outcome.ok ? effect.onSuccess : effect.onFailure;
+        // The next transition receives what the effect returned, or why it
+        // failed, so it can record a payment reference or a failure reason.
+        const input = outcome.ok
+            ? isJsonObject(outcome.result)
+                ? outcome.result
+                : {}
+            : failure
+                ? {
+                    error: outcome.error,
+                    errorCode: failure.code,
+                    details: this.failureDetails(effect.name, runId, failure),
+                }
+                : { error: outcome.error };
+        // Recording the outcome and firing what follows it commit together: a
+        // stop between the two would otherwise leave a succeeded run whose
+        // record never moves on.
+        let finished;
+        try {
+            finished = await this.store.transaction(async (store) => {
+                const recorded = await store.updateEffectRun(runId, { status: 'running', attempts: attempt }, changes);
+                if (!recorded)
+                    return undefined;
+                if (next === undefined)
+                    return null;
+                const continued = {};
+                // Registered before deciding, as fire() does, so after the commit
+                // the continuation is told about before anything its onTransition
+                // started.
+                store.afterCommit(() => {
+                    const { decided } = continued;
+                    return decided && !decided.result.replayed
+                        ? this.settle(registered, decided, SYSTEM_ACTOR)
+                        : undefined;
+                });
+                try {
+                    // Nested, so a refusal — the continuation's own, or one raised by
+                    // a lifecycle call its onTransition made — undoes everything the
+                    // continuation wrote and nothing of the outcome.
+                    continued.decided = await store.transaction((nested) => this.decide(nested, registered, run.recordId, next, {
+                        actor: SYSTEM_ACTOR,
+                        input,
+                        requestId: continuationKey(runId, status),
+                    }, this.clock(), run), { within: store.transactionHandle });
+                    return continued.decided.result;
+                }
+                catch (error) {
+                    // A conflict, or anything that is not a refusal, may go away: roll
+                    // the outcome back too, so the attempt runs again rather than
+                    // losing what should follow. Any other refusal would be the same
+                    // on every attempt, so the effect does not run again: the outcome
+                    // is recorded either way.
+                    if (!(error instanceof LifecycleError) || error.code === 'CONFLICT')
+                        throw error;
+                    const message = `Effect "${run.effect}" could not continue with "${next}": ${error.message}`;
+                    // The record moved on, or its guard refuses: nothing follows.
+                    if (recordMovedOn(error)) {
+                        this.logger.warn(message, { runId, code: error.code });
+                        return null;
+                    }
+                    // A lifecycle call the continuation made was refused — a parent
+                    // not ready to move — or the continuation cannot be fired as this
+                    // process defines it — an old definition in a rolling deploy, a
+                    // bug in `set` or `route` — which time or a deploy can change: it
+                    // waits on the run for reclaim() or continueRun() to try again.
+                    const nested = raisedInStep.has(error);
+                    const waits = `${message}. The outcome is recorded and the continuation is tried again by the sweep.`;
+                    if (nested)
+                        this.logger.warn(waits, { runId, code: error.code });
+                    else
+                        this.logger.error(waits, { runId, code: error.code, error });
+                    const waiting = this.refusedContinuation({
+                        transition: next,
+                        outcome: status,
+                        input,
+                        error: '',
+                        code: '',
+                        attempts: 0,
+                        errorTries: 0,
+                        failedAt: finishedAt,
+                        dueAt: finishedAt,
+                        abandonedAt: null,
+                    }, error, finishedAt, 'refusal');
+                    await store.updateEffectRun(runId, { status, attempts: attempt }, { continuation: waiting });
+                    if (waiting.abandonedAt)
+                        this.gaveUp(runId, waiting);
+                    return null;
+                }
+            });
+        }
+        catch (error) {
+            // Nothing of the outcome stuck. Put the attempt back in the queue now,
+            // after a backoff, rather than leaving it claimed until a lease expires
+            // and someone calls reclaim(); the run stays claimed only when even
+            // this write fails, and then reclaim() takes it back.
+            const runAfter = new Date(this.clock().getTime() + backoffMs(effect.retry, attempt)).toISOString();
+            const requeued = await this.store.updateEffectRun(runId, { status: 'running', attempts: attempt }, {
+                status: 'queued',
+                error: `Its outcome could not be recorded: ${errorText(error)}`,
+                claimedAt: null,
+                runAfter,
+                updatedAt: this.clock().toISOString(),
+            });
+            if (!requeued)
+                throw error;
+            this.logger.warn(`Effect "${effect.name}" ran, but its outcome could not be recorded; attempt ${attempt} is queued again.`, { runId, error });
+            await this.handOver(runId, runAfter);
+            return this.store.findEffectRun(runId);
+        }
+        // The continuation, if any, was settled when the transaction committed.
+        if (finished === undefined)
+            this.discarded(effect.name, runId, attempt);
+        // A forced retry that failed again: its continuation already ran.
+        else if (finished?.replayed)
+            return this.store.findEffectRun(runId);
+        if (!outcome.ok)
+            this.logger.warn(`Effect "${effect.name}" failed after ${attempt} attempt(s)`, { runId, error: outcome.error });
+        return this.store.findEffectRun(runId);
+    }
+    /**
+     * Effect runs for an operations page: the stuck, the failed, the dead,
+     * those whose continuation is pending (`continuationPending: true`) and
+     * those whose continuation the sweep gave up on
+     * (`continuationAbandoned: true`). Each says whether this process knows
+     * its effect.
+     */
+    async listEffectRuns(query = {}) {
+        const runs = await this.store.listEffectRuns(query);
+        return runs.map((run) => ({ ...run, registered: this.knows(run) }));
+    }
+    /**
+     * Runs a failed, dead or cancelled run again, with a fresh budget of
+     * attempts — once whatever made it fail is fixed. A run whose `onFailure`
+     * already moved the record on is refused with `RUN_SETTLED`: the record
+     * has left the state the effect served, and a success now would do its
+     * work without the record following, as a payment made while the report
+     * waits for reconciliation. Recover through the record's own transitions,
+     * or pass `force` when the failed attempts are known to have had no
+     * effect. The attempt count goes on from where it was: an earlier attempt
+     * still finishing somewhere cannot pass for a new one.
+     *
+     * A failed run whose `onFailure` is still pending, or was given up on by
+     * the sweep, is refused the same way, since its continuation is due to
+     * move the record on: continue it with `continueRun()`, or retry it with
+     * `force`, which drops it.
+     *
+     * Those are the only settled runs it refuses; it also refuses a run that
+     * is not failed, dead or cancelled with `INVALID_STATE`, and one whose
+     * effect this process does not know with `UNKNOWN_EFFECT`. A dead or
+     * cancelled run, a run whose effect has no `onFailure`, or one whose
+     * continuation was refused because the record moved on is retried without
+     * `force` even when the record has since left the state the effect served
+     * or entered it again; check the record before retrying such a run, or its
+     * success may do the work twice.
+     */
+    async retryRun(runId, options = {}) {
+        const run = await this.store.findEffectRun(runId);
+        if (!run)
+            return undefined;
+        if (run.status !== 'failed' &&
+            run.status !== 'dead' &&
+            run.status !== 'cancelled')
+            throw new LifecycleError('INVALID_STATE', `Effect run "${runId}" is ${run.status}; only a failed, dead or cancelled run can be retried.`);
+        const effect = this.lifecycles
+            .get(run.lifecycle)
+            ?.lifecycle.effects.get(run.effect);
+        if (!effect)
+            throw new LifecycleError('UNKNOWN_EFFECT', `Effect run "${runId}" names "${run.lifecycle}/${run.effect}", which is not registered here.`);
+        const continued = await this.store.findTransitionByRequest(run.lifecycle, run.recordId, continuationKey(runId, 'failed'));
+        if (continued && options.force !== true)
+            throw new LifecycleError('RUN_SETTLED', `Effect run "${runId}" already moved the record on with "${continued.transition}" to "${continued.to}"; recover through the record's own transitions, or retry with force once its attempts are known to have had no effect.`);
+        const { continuation } = run;
+        if (continuation && options.force !== true)
+            throw new LifecycleError('RUN_SETTLED', `Effect run "${runId}" is to move the record on with "${continuation.transition}", which is waiting to be tried again; continue it with continueRun(), or retry with force once its attempts are known to have had no effect.`);
+        if (continued)
+            this.logger.warn(`Effect run "${runId}" is retried by force although "${continued.transition}" already followed from it.`, { runId, reason: options.reason ?? null });
+        else if (continuation)
+            this.logger.warn(`Effect run "${runId}" is retried by force; the continuation "${continuation.transition}" it owed had not run and is dropped.`, { runId, reason: options.reason ?? null });
+        const reset = await this.store.updateEffectRun(runId, {
+            status: run.status,
+            attempts: run.attempts,
+            // Not if a sweep tried the continuation meanwhile.
+            continuationDueAt: waitingDueAt(continuation),
+        }, {
+            status: 'queued',
+            maxAttempts: run.attempts + (effect.retry?.attempts ?? 1),
+            error: null,
+            claimedAt: null,
+            runAfter: null,
+            continuation: null,
+            updatedAt: this.clock().toISOString(),
+        });
+        if (reset)
+            await this.handOver(runId, null);
+        return this.store.findEffectRun(runId);
+    }
+    /**
+     * Tries a run's pending continuation once, now, rather than waiting for
+     * the next `reclaim()`: once the deploy or the definition fix that it
+     * waited for is live, or once the sweep has given up on it. Returns the
+     * run as it then is, its continuation cleared, or undefined when there is
+     * no such run. The effect never runs again, and the effect need not be
+     * known here, only its lifecycle. A refusal is thrown as the error it is:
+     * one saying the record moved on (`RECORD_NOT_FOUND`, `INVALID_STATE`,
+     * `GUARD_REJECTED`) also drops the continuation, and so does
+     * `INVALID_STATE` when the record has left the stay an `onEnter` effect's
+     * run was queued for, even to enter the same state again; any other
+     * refusal leaves it pending with the new error and counts the try, a
+     * `CONFLICT` or an error that is not a refusal without counting it, and a
+     * continuation the sweep gave up on stays given up on. A run with nothing pending is refused with
+     * `NO_CONTINUATION`, and one whose lifecycle this process does not know
+     * with `UNKNOWN_LIFECYCLE`.
+     */
+    async continueRun(runId) {
+        const run = await this.store.findEffectRun(runId);
+        if (!run)
+            return undefined;
+        if (!run.continuation)
+            throw new LifecycleError('NO_CONTINUATION', `Effect run "${runId}" has no continuation waiting to be tried again.`);
+        const registered = this.lifecycles.get(run.lifecycle);
+        if (!registered)
+            throw new LifecycleError('UNKNOWN_LIFECYCLE', `Effect run "${runId}" belongs to lifecycle "${run.lifecycle}", which is not registered here.`);
+        const tried = await this.tryContinuation(run, registered);
+        if (tried.kind === 'movedOn') {
+            this.logger.warn(`Effect run "${runId}" no longer continues with "${run.continuation.transition}": ${tried.error.message}`, { runId, code: tried.error.code });
+            throw tried.error;
+        }
+        if (tried.kind === 'refused') {
+            if (tried.recorded &&
+                tried.continuation.abandonedAt &&
+                !tried.previous.abandonedAt)
+                this.gaveUp(runId, tried.continuation);
+            throw tried.error;
+        }
+        return this.store.findEffectRun(runId);
+    }
+    /**
+     * Gives up on a queued or running run. A running attempt in this process
+     * is aborted; one elsewhere finds the run cancelled when it finishes and
+     * its outcome is discarded. Nothing follows from a cancelled run.
+     */
+    async cancelRun(runId) {
+        const run = await this.store.findEffectRun(runId);
+        if (!run)
+            return undefined;
+        if (run.status !== 'queued' && run.status !== 'running')
+            throw new LifecycleError('INVALID_STATE', `Effect run "${runId}" is ${run.status}; only a queued or running run can be cancelled.`);
+        const cancelled = await this.store.updateEffectRun(runId, { status: run.status, attempts: run.attempts }, {
+            status: 'cancelled',
+            error: 'Cancelled.',
+            claimedAt: null,
+            updatedAt: this.clock().toISOString(),
+        });
+        if (cancelled)
+            this.attempts.get(runId)?.abort(new Error('The run was cancelled.'));
+        return this.store.findEffectRun(runId);
+    }
+    /**
+     * Deletes finished runs last changed before `olderThan`; returns how many.
+     * A run that holds a continuation is kept, whether it waits or the sweep
+     * gave up on it: its outcome never moved the record, and the run is the
+     * only record of it — a payment made for a report that never became paid.
+     * Once `continueRun()` fires it, or a forced retry drops it, the run is
+     * pruned as any other.
+     */
+    prune(options) {
+        const olderThan = typeof options.olderThan === 'string'
+            ? options.olderThan
+            : options.olderThan.toISOString();
+        return this.store.deleteEffectRuns({
+            statuses: options.statuses ?? ['succeeded', 'cancelled'],
+            updatedBefore: olderThan,
+        });
+    }
+    /**
+     * Fires every trigger whose records have waited long enough. Run it on a
+     * schedule; it is safe to run on several instances at once, because each
+     * transition is a conditional update and a record moved by one sweep is
+     * refused by the other. A trigger fires at most `batchSize` transitions
+     * per sweep; records its guard refuses stay idle and are paged past, so
+     * they cannot keep the records behind them from being reached.
+     */
+    async runTriggers() {
+        let fired = 0;
+        const failures = [];
+        for (const { lifecycle } of this.lifecycles.values()) {
+            const parameters = this.parameters(lifecycle.name);
+            for (const trigger of lifecycle.triggers.values()) {
+                const changedBefore = new Date(this.clock().getTime() - trigger.definition.after(parameters)).toISOString();
+                let after;
+                let firedHere = 0;
+                while (firedHere < trigger.batchSize) {
+                    const records = await this.store.findIdleRecords(lifecycle.collection, {
+                        stateField: lifecycle.stateField,
+                        states: trigger.when,
+                        changedAtField: lifecycle.changedAtField,
+                        changedBefore,
+                        limit: trigger.batchSize,
+                        ...(after ? { after } : {}),
+                    });
+                    for (const record of records) {
+                        if (firedHere >= trigger.batchSize)
+                            break;
+                        try {
+                            // The record must still be idle when the transition is
+                            // decided: another sweep may have moved it since this one read it.
+                            await this.fire(lifecycle.name, record.id, trigger.transition, {
+                                actor: SYSTEM_ACTOR,
+                                expect: { changedBefore },
+                            });
+                            this.triggerRefusals.delete(triggerKey(lifecycle.name, trigger.name, record.id));
+                            firedHere += 1;
+                        }
+                        catch (error) {
+                            // Another sweep or a person got there first, or the guard said
+                            // no: the record is no longer this trigger's business, and
+                            // nothing is logged, since a guard may refuse the same record
+                            // on every sweep by design. A refusal from inside the
+                            // transition — a lifecycle call its onTransition or a hook made
+                            // — is said aloud instead, so it does not fail unseen forever,
+                            // on the 1st, 2nd, 4th… sweep it recurs on.
+                            if (isRefusal(error, RACED)) {
+                                if (raisedInStep.has(error)) {
+                                    const sweeps = this.countTriggerRefusal(triggerKey(lifecycle.name, trigger.name, record.id), error.code);
+                                    if (isLogworthy(sweeps))
+                                        this.logger.warn(`Trigger "${trigger.name}" skipped "${trigger.transition}" on ${lifecycle.name} record "${String(record.id)}": ${error.message}`, {
+                                            lifecycle: lifecycle.name,
+                                            recordId: String(record.id),
+                                            transition: trigger.transition,
+                                            code: error.code,
+                                            sweeps,
+                                        });
+                                }
+                                continue;
+                            }
+                            // A broken definition or a failing store: keep sweeping the
+                            // other records, then report it rather than look idle forever.
+                            this.logger.error(`Trigger "${trigger.name}" could not fire "${trigger.transition}" on ${lifecycle.collection} record "${String(record.id)}"`, { error });
+                            failures.push(error);
+                        }
+                    }
+                    const last = records.at(-1);
+                    if (records.length < trigger.batchSize || !last)
+                        break;
+                    const next = {
+                        changedAt: String(last[lifecycle.changedAtField]),
+                        id: last.id,
+                    };
+                    // A store that ignores the cursor would hand back the same page forever.
+                    if (after &&
+                        after.changedAt === next.changedAt &&
+                        after.id === next.id)
+                        break;
+                    after = next;
+                }
+                fired += firedHere;
+            }
+        }
+        if (failures.length === 1)
+            throw failures[0];
+        if (failures.length > 1)
+            throw new AggregateError(failures, `${failures.length} triggered transitions failed.`);
+        return fired;
+    }
+    /**
+     * Hands over again what no process is working on, without waiting for a
+     * restart: every attempt whose lease has expired — its process stopped, or
+     * stalled past `leaseMs` — and every queued run that has been due for
+     * longer than a lease, whose dispatch was lost. It then tries again the
+     * pending continuations that are due; see {@link ContinuationSweepOptions}
+     * and `continueRun()`. Run it on the same
+     * schedule as `runTriggers()`. Returns how many runs it handed over or
+     * continued.
+     */
+    async reclaim() {
+        const taken = await this.takeBackStale();
+        for (const run of taken)
+            await this.handOver(run.id, null);
+        const stranded = await this.strandedRuns();
+        for (const run of stranded)
+            await this.handOver(run.id, null);
+        const continued = await this.continuePending();
+        return taken.length + stranded.length + continued;
+    }
+    /**
+     * Tries once each pending continuation that is due, at most `batchSize`
+     * of them and those due longest first, and returns how many fired. A
+     * continuation refused again with the error it was refused with before is
+     * logged as a warning on its 2nd, 4th, 8th… try, and one failing again
+     * with the same error that is not a refusal on its 2nd, 4th, 8th such try;
+     * a different refusal or error is logged as an error, since something has
+     * changed, and so is giving up on it. A run whose lifecycle this process does not know — a rolling
+     * deploy — is put off by its current backoff without counting a try, so
+     * it leaves the batch to the runs behind it.
+     */
+    async continuePending() {
+        const pending = await this.store.listEffectRuns({
+            continuationDueBy: this.clock().toISOString(),
+            limit: this.continuations.batchSize,
+        });
+        let continued = 0;
+        for (const run of pending) {
+            const { continuation } = run;
+            if (!continuation)
+                continue;
+            const registered = this.lifecycles.get(run.lifecycle);
+            if (!registered) {
+                await this.putOff(run, continuation);
+                continue;
+            }
+            let tried;
+            try {
+                tried = await this.tryContinuation(run, registered);
+            }
+            catch (error) {
+                // The store failed even to record the failure: the next sweep tries again.
+                this.logger.warn(`Effect run "${run.id}" could not continue with "${continuation.transition}" on this sweep; it is tried again.`, { runId: run.id, error });
+                continue;
+            }
+            if (tried.kind === 'continued')
+                continued += 1;
+            else if (tried.kind === 'movedOn')
+                this.logger.warn(`Effect run "${run.id}" no longer continues with "${continuation.transition}": ${tried.error.message}`, { runId: run.id, code: tried.error.code });
+            else if (tried.kind === 'refused' && tried.recorded)
+                this.reportRefusal(run.id, tried);
+        }
+        return continued;
+    }
+    /** Logs a refused try of the sweep, as `continuePending()` describes. */
+    reportRefusal(runId, tried) {
+        const { previous, continuation } = tried;
+        if (continuation.abandonedAt) {
+            this.gaveUp(runId, continuation);
+            return;
+        }
+        const details = {
+            runId,
+            code: continuation.code,
+            attempts: continuation.attempts,
+            errorTries: continuation.errorTries,
+        };
+        const message = `Effect run "${runId}" could not continue with "${continuation.transition}": ${continuation.error}`;
+        const counted = continuation.attempts !== previous.attempts;
+        const errored = continuation.errorTries !== previous.errorTries;
+        if (continuation.code !== previous.code ||
+            continuation.error !== previous.error) {
+            // A conflict is a race, not a fault.
+            if (counted || errored)
+                this.logger.error(message, { ...details, error: tried.error });
+            else
+                this.logger.warn(message, details);
+        }
+        else if (counted && isLogworthy(continuation.attempts))
+            this.logger.warn(message, details);
+        // An outage that goes on is said again less and less often.
+        else if (errored && isLogworthy(continuation.errorTries))
+            this.logger.warn(message, details);
+    }
+    /** Logs once that the sweep gave up on a run's continuation. */
+    gaveUp(runId, continuation) {
+        this.logger.error(`Effect run "${runId}" gave up on continuing with "${continuation.transition}" after ${String(continuation.attempts)} tries: ${continuation.error}. The sweep no longer tries it; continueRun() still can.`, { runId, code: continuation.code, attempts: continuation.attempts });
+    }
+    /**
+     * Puts off a run whose lifecycle this process does not know by the
+     * backoff it is at, without counting a try: an unregistered lifecycle
+     * says nothing about the continuation, and counting it would give up on
+     * continuations a rolling deploy is about to serve.
+     */
+    async putOff(run, continuation) {
+        const at = this.clock().toISOString();
+        try {
+            await this.store.updateEffectRun(run.id, {
+                status: run.status,
+                attempts: run.attempts,
+                continuationDueAt: continuation.dueAt,
+            }, {
+                continuation: {
+                    ...continuation,
+                    dueAt: this.continuationDue(at, Math.max(continuation.attempts, 1)),
+                },
+            });
+        }
+        catch (error) {
+            this.logger.warn(`Effect run "${run.id}" names lifecycle "${run.lifecycle}", which is not registered here, and could not be put off.`, { runId: run.id, error });
+        }
+    }
+    /**
+     * One try of a run's pending continuation, in a transaction of its own:
+     * the continuation is cleared on the condition that the run, and the
+     * continuation it holds, are still as they were read, and its transition
+     * is decided nested, so a refusal undoes only the transition and what its
+     * `onTransition` wrote. It is logged under the request id the run's
+     * outcome would have used, so a continuation that already fired replays
+     * rather than firing twice, and it is dropped once the record has left
+     * the stay an `onEnter` effect's run was queued for. A conflict, or
+     * anything that is not a refusal, rolls the whole try back, and is then
+     * recorded on the continuation in a write of its own, pushing its due time
+     * back without counting toward giving up.
+     */
+    async tryContinuation(run, registered) {
+        const pending = run.continuation;
+        if (!pending)
+            return { kind: 'changed' };
+        const requestId = continuationKey(run.id, pending.outcome);
+        const now = this.clock();
+        const at = now.toISOString();
+        const read = {
+            status: run.status,
+            attempts: run.attempts,
+            continuationDueAt: waitingDueAt(pending),
+        };
+        try {
+            return await this.store.transaction(async (store) => {
+                const cleared = await store.updateEffectRun(run.id, read, {
+                    continuation: null,
+                    updatedAt: at,
+                });
+                if (!cleared)
+                    return { kind: 'changed' };
+                if (await store.findTransitionByRequest(run.lifecycle, run.recordId, requestId))
+                    return { kind: 'continued' };
+                const continued = {};
+                store.afterCommit(() => {
+                    const { decided } = continued;
+                    return decided && !decided.result.replayed
+                        ? this.settle(registered, decided, SYSTEM_ACTOR)
+                        : undefined;
+                });
+                try {
+                    continued.decided = await store.transaction((nested) => this.decide(nested, registered, run.recordId, pending.transition, { actor: SYSTEM_ACTOR, input: pending.input, requestId }, now, run), { within: store.transactionHandle });
+                    return { kind: 'continued' };
+                }
+                catch (error) {
+                    if (!(error instanceof LifecycleError) || error.code === 'CONFLICT')
+                        throw error;
+                    if (recordMovedOn(error))
+                        return { kind: 'movedOn', error };
+                    const continuation = this.refusedContinuation(pending, error, at, 'refusal');
+                    // Cleared above, in this transaction: nothing waits now.
+                    await store.updateEffectRun(run.id, { ...read, continuationDueAt: null }, { continuation });
+                    return {
+                        kind: 'refused',
+                        error,
+                        previous: pending,
+                        continuation,
+                        recorded: true,
+                    };
+                }
+            });
+        }
+        catch (error) {
+            // Undone as a whole, the clearing included. Record the try on the
+            // continuation as it was read, so the sweep backs off rather than
+            // trying it again at once. A conflict is a race, tried again soon; an
+            // error that is not a refusal — a deadlock, a lost connection — backs
+            // off as a refusal does. Neither counts toward giving up: neither says
+            // anything about the continuation itself.
+            const continuation = this.refusedContinuation(pending, error, at, isRefusal(error, CONFLICTS)
+                ? 'conflict'
+                : error instanceof LifecycleError
+                    ? 'refusal'
+                    : 'error');
+            let recorded;
+            try {
+                recorded = await this.store.updateEffectRun(run.id, read, {
+                    continuation,
+                    updatedAt: at,
+                });
+            }
+            catch {
+                // The store itself is failing: the error that started it is what to report.
+                throw error;
+            }
+            return {
+                kind: 'refused',
+                error,
+                previous: pending,
+                continuation,
+                recorded,
+            };
+        }
+    }
+    /**
+     * A continuation after one more failed try at `at`: what failed it, its
+     * next due time and, once it has been refused `maxAttempts` times, the
+     * instant the sweep gives up on it. A `refusal` counts toward giving up
+     * and backs off by the refusals so far; a `conflict` counts nothing and
+     * is due again after `backoffMs`; an `error` that is not a refusal counts
+     * in `errorTries` only and backs off by every counted try so far, so an
+     * outage is tried less and less often, up to `maxMs`, and never given up
+     * on. One already given up on stays given up on.
+     */
+    refusedContinuation(pending, error, at, kind) {
+        const attempts = kind === 'refusal' ? pending.attempts + 1 : pending.attempts;
+        const errorTries = kind === 'error' ? pending.errorTries + 1 : pending.errorTries;
+        return {
+            ...pending,
+            error: errorText(error),
+            code: error instanceof LifecycleError ? error.code : CONTINUATION_ERROR,
+            attempts,
+            errorTries,
+            failedAt: at,
+            dueAt: kind === 'conflict'
+                ? new Date(Date.parse(at) + this.continuations.backoffMs).toISOString()
+                : this.continuationDue(at, kind === 'refusal' ? attempts : attempts + errorTries),
+            abandonedAt: pending.abandonedAt ??
+                (kind === 'refusal' && attempts >= this.continuations.maxAttempts
+                    ? at
+                    : null),
+        };
+    }
+    /**
+     * Whether the record has left the stay `run` was queued for, when the run
+     * serves one: an effect of the entered state's `onEnter` does, while an
+     * effect the transition itself declares does not, and its continuation is
+     * checked only against the state the record is in, as any transition is.
+     * The stay ends with the first transition of its lifecycle logged after
+     * the run's own, other than one the run's outcome fired. A self-transition
+     * ends it too: it leaves the state and enters it again, queuing the
+     * state's onEnter effects anew. An edit that advances the version outside
+     * the lifecycle logs nothing and does not end it. The answer is the refusal a continuation gets for it. Only the
+     * entries after the run's own are read.
+     */
+    async stayEnded(store, registered, run) {
+        const { lifecycle } = registered;
+        if (!run.stayBound)
+            return undefined;
+        const entry = await store.findTransition(run.transitionId);
+        const own = `$run:${run.id}:`;
+        // Any later transition ends the stay, a self-transition included: it
+        // leaves and enters the state again and queues its onEnter effects anew.
+        // Only this run's own continuation does not. The version check keeps a
+        // store that ignores `after` from counting the entry that queued the run.
+        const left = (await store.listTransitions(run.lifecycle, run.recordId, {
+            after: run.transitionId,
+        })).find((later) => (entry === undefined || later.version > entry.version) &&
+            later.requestId?.startsWith(own) !== true);
+        if (!left)
+            return undefined;
+        return new LifecycleError('INVALID_STATE', `The ${lifecycle.collection} record "${run.recordId}" has moved on with "${left.transition}" since the transition effect run "${run.id}" was queued for, so what follows from that run no longer applies to it.`);
+    }
+    /** When a continuation refused `attempts` times, the last at `at`, is due again. */
+    continuationDue(at, attempts) {
+        const { backoffMs, factor, maxMs } = this.continuations;
+        const delay = Math.min(backoffMs * factor ** (attempts - 1), maxMs);
+        return new Date(Date.parse(at) + delay).toISOString();
+    }
+    /** Counts one more sweep a trigger was refused on a record; see `triggerRefusals`. */
+    countTriggerRefusal(key, code) {
+        const previous = this.triggerRefusals.get(key);
+        const count = previous?.code === code ? previous.count + 1 : 1;
+        this.triggerRefusals.delete(key);
+        this.triggerRefusals.set(key, { code, count });
+        if (this.triggerRefusals.size > TRIGGER_REFUSALS_KEPT) {
+            const oldest = this.triggerRefusals.keys().next();
+            if (!oldest.done)
+                this.triggerRefusals.delete(oldest.value);
+        }
+        return count;
+    }
+    /**
+     * Hands over again every queued run, and takes back every attempt whose
+     * process stopped answering. Call it once a process starts.
+     */
+    async recover() {
+        await this.takeBackStale();
+        const queued = await this.store.listEffectRuns({ status: 'queued' });
+        for (const run of queued)
+            await this.handOver(run.id, run.runAfter);
+        return queued.length;
+    }
+    /**
+     * Queued runs due for longer than a lease. A dispatched run is claimed long
+     * before that, so one still queued was never handed over: the dispatch
+     * failed, or the timer waiting out its backoff died with its process. A run
+     * naming an effect this process does not know stays for one that does.
+     */
+    async strandedRuns() {
+        const threshold = new Date(this.clock().getTime() - this.leaseMs).toISOString();
+        // updatedAt never comes after runAfter, so the query narrows and the
+        // filter decides.
+        const queued = await this.store.listEffectRuns({
+            status: 'queued',
+            updatedBefore: threshold,
+        });
+        return queued.filter((run) => (run.runAfter ?? run.updatedAt) < threshold && this.knows(run));
+    }
+    knows(run) {
+        return (this.lifecycles.get(run.lifecycle)?.lifecycle.effects.has(run.effect) ===
+            true);
+    }
+    async takeBackStale() {
+        const now = this.clock();
+        const stale = await this.store.listEffectRuns({
+            status: 'running',
+            claimedBefore: new Date(now.getTime() - this.leaseMs).toISOString(),
+        });
+        const taken = [];
+        for (const run of stale)
+            if (await this.store.updateEffectRun(run.id, { status: 'running', attempts: run.attempts }, {
+                status: 'queued',
+                error: 'The attempt was interrupted and will run again.',
+                claimedAt: null,
+                updatedAt: now.toISOString(),
+            }))
+                taken.push(run);
+        return taken;
+    }
+    get(name) {
+        const registered = this.lifecycles.get(name);
+        if (!registered)
+            throw new LifecycleError('UNKNOWN_LIFECYCLE', `No lifecycle "${name}" is registered.`);
+        return registered;
+    }
+    async handOver(runId, runAfter) {
+        try {
+            await this.dispatcher.dispatch(runId, { runAfter });
+        }
+        catch (error) {
+            this.logger.error(`Effect run "${runId}" could not be dispatched; reclaim() hands it over once it has waited a lease, and recover() at the next start.`, { error });
+        }
+    }
+    /**
+     * Decides and writes one transition on `store`, which is a transaction.
+     * Everything it checks comes before anything it writes, so a refusal
+     * leaves the transaction as it found it.
+     */
+    async decide(store, registered, id, transition, options, now, continuing) {
+        return this.inParameterExecution(store, options.transaction, () => this.decideWithParameters(store, registered, id, transition, options, now, continuing));
+    }
+    async decideWithParameters(store, registered, id, transition, options, now, continuing) {
+        const { lifecycle } = registered;
+        if (options.manual &&
+            lifecycle.transitions.get(transition)?.manual === false)
+            throw new LifecycleError('NOT_MANUAL', `"${transition}" is fired by the system, not by a person.`);
+        const current = await store.findRecord(lifecycle.collection, id);
+        if (!current)
+            throw new LifecycleError('RECORD_NOT_FOUND', `No ${lifecycle.collection} record "${String(id)}".`);
+        if (options.requestId !== undefined) {
+            const earlier = await store.findTransitionByRequest(lifecycle.name, String(current.id), options.requestId);
+            // The same key for another transition is not a repeat but a second
+            // decision made under a key already spent: replaying the first would
+            // report success for something that never ran.
+            if (earlier && earlier.transition !== transition)
+                throw new LifecycleError('REQUEST_REUSED', `Request "${options.requestId}" was already used for "${earlier.transition}" on this ${lifecycle.collection} record; send "${transition}" under a new request id.`);
+            // Nor is the same key sent by someone else: replaying would hand them
+            // another actor's success and log entry without asking their guards.
+            if (earlier && earlier.actorId !== options.actor.id)
+                throw new LifecycleError('REQUEST_REUSED', `Request "${options.requestId}" was already used by another actor on this ${lifecycle.collection} record; send "${transition}" under a new request id.`);
+            if (earlier)
+                return {
+                    result: {
+                        record: current,
+                        entry: earlier,
+                        effectRuns: [],
+                        replayed: true,
+                    },
+                    written: current,
+                    movedOn: false,
+                };
+        }
+        // Read the record before checking its stay. The conditional update below
+        // uses this same version, so a transition committed during or after the
+        // history read cannot make an old outcome apply to a newer stay.
+        if (continuing) {
+            const ended = await this.stayEnded(store, registered, continuing);
+            if (ended)
+                throw ended;
+        }
+        const expected = options.expect;
+        if (expected?.version !== undefined &&
+            versionOf(lifecycle, current) !== expected.version)
+            throw new LifecycleError('CONFLICT', `The ${lifecycle.collection} record "${String(id)}" changed since it was read.`);
+        if (expected?.changedBefore !== undefined &&
+            !(String(current[lifecycle.changedAtField]) < expected.changedBefore))
+            throw new LifecycleError('CONFLICT', `The ${lifecycle.collection} record "${String(id)}" changed state after ${expected.changedBefore}.`);
+        const parameters = await this.resolveParameters(lifecycle.name, {
+            record: current,
+            transactionHandle: store.transactionHandle,
+            purpose: 'transition',
+            transition,
+        });
+        const plan = await planTransition(lifecycle, current, transition, {
+            actor: options.actor,
+            ...(options.input === undefined ? {} : { input: options.input }),
+            parameters: parameters,
+            services: registered.services(store.transactionHandle),
+            now,
+            guards: registered.guards.get(transition) ?? [],
+        });
+        const written = await store.updateRecordIf(lifecycle.collection, id, {
+            stateField: lifecycle.stateField,
+            state: plan.from,
+            versionField: lifecycle.versionField,
+            version: plan.version,
+        }, plan.values);
+        if (!written)
+            throw new LifecycleError('CONFLICT', `The ${lifecycle.collection} record "${String(id)}" changed while "${transition}" was being decided.`);
+        const at = now.toISOString();
+        const entry = await store.appendTransition({
+            lifecycle: lifecycle.name,
+            recordId: String(current.id),
+            transition,
+            from: plan.from,
+            to: plan.to,
+            actorId: options.actor.id,
+            input: plan.input,
+            at,
+            version: plan.nextVersion,
+            requestId: options.requestId ?? null,
+        });
+        const record = Object.freeze({
+            ...current,
+            ...plan.values,
+        });
+        await this.recordParameterUsage(registered, current, 'transition', entry.id, store.transactionHandle);
+        const hook = Object.freeze({
+            lifecycle: lifecycle.name,
+            record,
+            previous: current,
+            from: plan.from,
+            to: plan.to,
+            transition,
+            actor: options.actor,
+            input: plan.input,
+            entry,
+            parameters: parameters,
+            services: registered.services(store.transactionHandle),
+            tx: this.scope(store, now),
+            now,
+        });
+        // Only the entered state's hooks may finish the entry: leave hooks and
+        // onTransition get no afterEntry().
+        const entryWork = new EntryWork();
+        const entering = Object.freeze({
+            ...hook,
+            afterEntry: entryWork.queue,
+        });
+        const definition = lifecycle.transitions.get(transition)?.definition;
+        const steps = [
+            ...(lifecycle.onLeaveState.get(plan.from) ?? []).map((leave) => () => leave(hook)),
+            ...(definition?.onTransition
+                ? [
+                    () => definition.onTransition?.(Object.freeze({
+                        record,
+                        previous: current,
+                        actor: options.actor,
+                        input: plan.input,
+                        from: plan.from,
+                        to: plan.to,
+                        entry,
+                        parameters: parameters,
+                        services: registered.services(store.transactionHandle),
+                        transactionHandle: store.transactionHandle,
+                        tx: hook.tx,
+                        now,
+                    })),
+                ]
+                : []),
+            ...(lifecycle.onEnterState.get(plan.to) ?? []).map((enter) => () => enter(entering)),
+        ];
+        // A hook or onTransition that fires this record onward through tx has
+        // ended the stay this transition began: what is left of the transition
+        // would set up, owe and announce a state the record is no longer in.
+        const moved = await entryWork.during(this.runSteps(store, lifecycle, id, steps));
+        // The transition itself still happened, so its own effects are owed;
+        // only the entered state's onEnter effects belong to the stay that ended.
+        if (moved)
+            return {
+                result: {
+                    record: moved,
+                    entry,
+                    effectRuns: await this.owe(store, lifecycle, entry, lifecycle.transitions.get(transition)?.effects ?? [], false),
+                },
+                written: record,
+                movedOn: true,
+            };
+        const effectRuns = [
+            ...(await this.owe(store, lifecycle, entry, lifecycle.transitions.get(transition)?.effects ?? [], false)),
+            ...(await this.owe(store, lifecycle, entry, lifecycle.onEnter.get(plan.to) ?? [], true)),
+        ];
+        return this.enterWith(store, lifecycle, record, entry, effectRuns, entryWork);
+    }
+    async enterWith(store, lifecycle, record, entry, effectRuns, entryWork) {
+        const moved = await this.runSteps(store, lifecycle, record.id, entryWork.close());
+        return {
+            result: { record: moved ?? record, entry, effectRuns },
+            written: record,
+            movedOn: moved !== undefined,
+        };
+    }
+    /** What follows a commit: listeners hear of it, and its effects are handed over. */
+    async settle(registered, committed, actor) {
+        await this.emit(registered, committed, actor);
+        for (const run of committed.result.effectRuns)
+            await this.handOver(run.id, null);
+    }
+    /**
+     * Tells the listeners about a committed transition; a failing listener is
+     * logged, never thrown. They hear of the record as this transition wrote
+     * it. A transition whose record a hook moved on is still `completed` and
+     * `entered`, but announces nothing: its state no longer allows anything,
+     * and the transition that moved it on announces what the record's state
+     * does.
+     */
+    async emit(registered, committed, actor) {
+        if (!this.subscriptions.length)
+            return;
+        const { lifecycle } = registered;
+        const { entry } = committed.result;
+        const record = committed.written;
+        const base = Object.freeze({
+            lifecycle: lifecycle.name,
+            transition: entry.transition,
+            from: entry.from,
+            to: entry.to,
+            record,
+            entry,
+            actor,
+        });
+        const deliveries = [
+            ['completed', base],
+            ['entered', base],
+            ...(committed.movedOn ? [] : transitionsFrom(lifecycle, entry.to))
+                .filter((next) => next.manual)
+                .map((next) => [
+                'announce',
+                Object.freeze({ ...base, next: next.name }),
+            ]),
+        ];
+        for (const [event, payload] of deliveries)
+            for (const subscription of [...this.subscriptions]) {
+                if (subscription.event !== event)
+                    continue;
+                const { filter } = subscription;
+                const transition = event === 'announce'
+                    ? payload.next
+                    : payload.transition;
+                if ((filter.lifecycle !== undefined &&
+                    filter.lifecycle !== payload.lifecycle) ||
+                    (filter.transition !== undefined &&
+                        filter.transition !== transition) ||
+                    (filter.state !== undefined && filter.state !== payload.to))
+                    continue;
+                try {
+                    await subscription.listener(payload);
+                }
+                catch (error) {
+                    this.logger.error(`A "${event}" listener failed on ${lifecycle.name} record "${entry.recordId}"`, { error });
+                }
+            }
+    }
+    /** Writes a queued run for each effect a log entry owes. */
+    async owe(store, lifecycle, entry, effects, stayBound) {
+        const runs = [];
+        for (const effect of effects)
+            runs.push(await store.createEffectRun({
+                transitionId: entry.id,
+                lifecycle: lifecycle.name,
+                recordId: entry.recordId,
+                effect: effect.name,
+                stayBound,
+                status: 'queued',
+                attempts: 0,
+                maxAttempts: effect.retry?.attempts ?? 1,
+                result: null,
+                error: null,
+                createdAt: entry.at,
+                updatedAt: entry.at,
+                claimedAt: null,
+                runAfter: null,
+            }));
+        return runs;
+    }
+    async require(registered, id) {
+        const { lifecycle } = registered;
+        const record = await this.store.findRecord(lifecycle.collection, id);
+        if (!record)
+            throw new LifecycleError('RECORD_NOT_FOUND', `No ${lifecycle.collection} record "${String(id)}".`);
+        return record;
+    }
+    /** What a guard sees outside a transition: the input asked about, if any, and no transaction. */
+    async guardContext(registered, record, actor, input = {}) {
+        return Object.freeze({
+            record,
+            actor,
+            input,
+            parameters: (await this.resolveParameters(registered.lifecycle.name, {
+                record,
+                transactionHandle: undefined,
+                purpose: 'preview',
+            })),
+            services: registered.services(undefined),
+            now: this.clock(),
+        });
+    }
+    /**
+     * An `EffectFailure`'s details as `onFailure` receives them. Details that
+     * are not JSON — a BigInt, a cycle — would otherwise stop the outcome from
+     * being recorded at all and leave the run claimed; they are dropped
+     * instead, and the failure is recorded as any other.
+     */
+    failureDetails(effect, runId, failure) {
+        try {
+            return storable(failure.details);
+        }
+        catch (error) {
+            this.logger.error(`Effect "${effect}" failed with details that are not JSON; "${failure.code}" is recorded without them.`, { runId, error });
+            return {};
+        }
+    }
+    discarded(effect, runId, attempt) {
+        this.logger.warn(`Attempt ${attempt} of effect "${effect}" finished after recover() took it back; its outcome is discarded.`, { runId });
+    }
+}
+/** Detach provider-owned values before freezing callback input. */
+function freezeParameters(values) {
+    const copy = structuredClone(values);
+    const freeze = (value) => {
+        if (Object.isFrozen(value))
+            return;
+        if (!Array.isArray(value) &&
+            Object.getPrototypeOf(value) !== Object.prototype &&
+            Object.getPrototypeOf(value) !== null)
+            throw new TypeError('Asynchronous parameter values must use plain objects and arrays.');
+        Object.freeze(value);
+        for (const child of Object.values(value))
+            if (child !== null && typeof child === 'object')
+                freeze(child);
+    };
+    freeze(copy);
+    return copy;
+}
+//# sourceMappingURL=runtime.js.map

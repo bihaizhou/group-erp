@@ -1,0 +1,77 @@
+import { MailMessageMutations } from '../operations/message-mutations.js';
+import { notifyMailMessageChange } from '../realtime.js';
+import { requireOwnedAccount, requireOwnedMessage } from './access.js';
+import { assertProviderResult } from './errors.js';
+import { closeAdapter } from './provider-lifecycle.js';
+import { mailFailedPrecondition, mailNotFound } from './errors.js';
+export class MailMessagesService {
+    dependencies;
+    mutations;
+    constructor(dependencies) {
+        this.dependencies = dependencies;
+        this.mutations = new MailMessageMutations(dependencies);
+    }
+    async listFolders(context, accountId) {
+        await requireOwnedAccount(this.dependencies.store, context, accountId);
+        return this.dependencies.store.listFolders(accountId);
+    }
+    async updateMessageLabels(context, input) {
+        const { message } = await requireOwnedMessage(this.dependencies.store, context, input.accountId, input.messageId);
+        const add = [...new Set(input.addLabelIds ?? [])];
+        const remove = [...new Set(input.removeLabelIds ?? [])].filter((id) => !add.includes(id));
+        const labels = new Set((await this.dependencies.store.listLabels(context.actorId)).map((label) => label.id));
+        if ([...add, ...remove].some((id) => !labels.has(id))) {
+            throw mailNotFound('MAIL_LABEL_NOT_FOUND', 'Mail label was not found.', 'addLabelIds');
+        }
+        if (add.length === 0 && remove.length === 0)
+            return message;
+        const updated = await this.dependencies.store.updateMessageLabels(input.accountId, message.id, add, remove);
+        if (!updated)
+            throw new Error('Mail message was not found after update.');
+        notifyMailMessageChange(this.dependencies.messageChangeNotifier, context.actorId, this.dependencies.logger);
+        return updated;
+    }
+    getUnreadCount(context) {
+        return this.dependencies.store.countUnreadMessages(context.actorId);
+    }
+    listMessages(context, input) {
+        return this.dependencies.store.listMessages(context.actorId, input);
+    }
+    async retryMessageContent(context, accountId, messageId) {
+        const { account, message } = await requireOwnedMessage(this.dependencies.store, context, accountId, messageId);
+        if (!message.contentStatus || message.contentStatus === 'complete')
+            return message;
+        const adapter = await this.dependencies.adapters.resolve(account, context.signal);
+        try {
+            if (!adapter.getMessage)
+                throw mailFailedPrecondition('MAIL_PROVIDER_OPERATION_UNSUPPORTED', 'The mail Provider cannot load message content.');
+            const refreshed = assertProviderResult(await adapter.getMessage(message.providerMessageId, context.signal));
+            const saved = await this.dependencies.store.saveMessageContent(accountId, messageId, refreshed);
+            notifyMailMessageChange(this.dependencies.messageChangeNotifier, context.actorId, this.dependencies.logger);
+            return saved;
+        }
+        finally {
+            await closeAdapter(adapter);
+        }
+    }
+    getMessage(context, accountId, messageId) {
+        return this.dependencies.store.getMessage(context.actorId, accountId, messageId);
+    }
+    async listConversationMessages(context, accountId, conversationId, input = {}) {
+        await requireOwnedAccount(this.dependencies.store, context, accountId);
+        return this.dependencies.store.listConversationMessages(context.actorId, accountId, conversationId, input);
+    }
+    async updateMessage(context, input) {
+        const { account, message } = await requireOwnedMessage(this.dependencies.store, context, input.accountId, input.messageId);
+        return this.mutations.updateMessage(context, account, message, input);
+    }
+    async moveMessage(context, input) {
+        const { account, message } = await requireOwnedMessage(this.dependencies.store, context, input.accountId, input.messageId);
+        return this.mutations.moveMessage(context, account, message, input);
+    }
+    async deleteMessage(context, input) {
+        const { account, message } = await requireOwnedMessage(this.dependencies.store, context, input.accountId, input.messageId);
+        return this.mutations.deleteMessage(context, account, message, input);
+    }
+}
+//# sourceMappingURL=messages.js.map

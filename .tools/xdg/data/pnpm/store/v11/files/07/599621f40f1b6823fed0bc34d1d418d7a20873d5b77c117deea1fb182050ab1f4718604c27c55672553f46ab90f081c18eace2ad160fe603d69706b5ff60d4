@@ -1,0 +1,37 @@
+import { mkdir } from 'node:fs/promises';
+import { resolveDatabaseDriver, } from '@nocobase/db';
+import { resolveConnections } from './manager.js';
+import { defaultConnectionName } from './plan.js';
+export async function prepareAppDatabaseStorage(config, paths, names, drivers) {
+    if (config.default === 'none')
+        return;
+    const primary = defaultConnectionName(config);
+    const availableDrivers = { ...config.drivers, ...drivers };
+    const connections = resolveConnections(config.connections, paths, availableDrivers);
+    for (const name of names ?? (primary ? [primary] : [])) {
+        const connection = connections[name];
+        if (!connection)
+            throw new Error(`Unknown database connection "${name}".`);
+        const driver = resolveDatabaseDriver(connection, availableDrivers, name);
+        await driver?.prepareStorage?.(connection, {
+            ensureDirectory: async (directory) => {
+                await mkdir(directory, { recursive: true });
+            },
+        });
+    }
+}
+/**
+ * Whether the storage of connection `name` exists already. A driver that
+ * does not say, which is every driver without local storage, has it.
+ */
+export async function appDatabaseStorageExists(config, paths, name, drivers) {
+    if (config.default === 'none')
+        return true;
+    const availableDrivers = { ...config.drivers, ...drivers };
+    const connection = resolveConnections(config.connections, paths, availableDrivers)[name];
+    if (!connection)
+        throw new Error(`Unknown database connection "${name}".`);
+    const driver = resolveDatabaseDriver(connection, availableDrivers, name);
+    return (await driver?.hasStorage?.(connection)) ?? true;
+}
+//# sourceMappingURL=storage.js.map

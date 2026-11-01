@@ -1,0 +1,21 @@
+/** Collects Provider definitions without creating accounts or external clients. */
+export class DefaultMailProviderRegistry {
+    providerDefinitions = new Map();
+    register(definition) {
+        if (this.providerDefinitions.has(definition.type)) {
+            throw new Error(`Mail Provider definition "${definition.type}" is already registered.`);
+        }
+        this.providerDefinitions.set(definition.type, definition);
+        return this;
+    }
+    definition(type) {
+        return this.providerDefinitions.get(type);
+    }
+    definitions() {
+        return [...this.providerDefinitions.values()];
+    }
+}
+export function createMailProviderRegistry() {
+    return new DefaultMailProviderRegistry();
+}
+//# sourceMappingURL=registry.js.map

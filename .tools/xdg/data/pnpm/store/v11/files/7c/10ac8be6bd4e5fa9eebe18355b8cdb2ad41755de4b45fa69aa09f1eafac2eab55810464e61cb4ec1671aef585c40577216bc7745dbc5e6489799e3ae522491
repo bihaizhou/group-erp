@@ -1,0 +1,12 @@
+import { createEmailChannelDefinition, createResendProviderDefinition, createSmtpProviderDefinition, } from './email/index.js';
+import { createDingTalkWebhookProviderDefinition, createFeishuWebhookProviderDefinition, createImChannelDefinition, } from './im/index.js';
+export function registerBuiltInNotificationProviders(registry) {
+    registry
+        .registerChannel(createEmailChannelDefinition())
+        .registerProvider(createSmtpProviderDefinition())
+        .registerProvider(createResendProviderDefinition())
+        .registerChannel(createImChannelDefinition())
+        .registerProvider(createFeishuWebhookProviderDefinition())
+        .registerProvider(createDingTalkWebhookProviderDefinition());
+}
+//# sourceMappingURL=bootstrap.js.map

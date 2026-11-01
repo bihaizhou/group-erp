@@ -1,0 +1,4 @@
+import type { ReactElement } from 'react';
+declare function Spinner(inputProps: React.ComponentProps<'svg'>): ReactElement;
+export { Spinner };
+//# sourceMappingURL=spinner.d.ts.map

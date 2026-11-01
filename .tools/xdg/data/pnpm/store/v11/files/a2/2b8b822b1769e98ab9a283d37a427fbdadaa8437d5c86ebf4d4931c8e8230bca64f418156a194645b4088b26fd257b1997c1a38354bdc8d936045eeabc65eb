@@ -1,0 +1,18 @@
+/**
+ * Command-line hints on API routes, and the command manifest a CLI builds its commands from. The API document is the
+ * single source: every documented operation is a command, named from its tag, path and method unless its `x-cli`
+ * extension names it, and `x-cli: false` leaves it out.
+ */
+export const CLI_IDENTITIES = ['person', 'run'];
+/** The operation extension `cliRoute()` produces. */
+export const CLI_EXTENSION = 'x-cli';
+/**
+ * The `x-cli` extension for `describeRoute()`: `describeRoute({ tags, summary, operationId, ...cliRoute({ command:
+ * 'issue comment add', args: ['issueId'] }) })`. `cliRoute(false)` keeps the route out of the CLI.
+ */
+export function cliRoute(options) {
+    return { 'x-cli': options };
+}
+/** The `version` of the manifest format. */
+export const CLI_MANIFEST_VERSION = 4;
+//# sourceMappingURL=types.js.map

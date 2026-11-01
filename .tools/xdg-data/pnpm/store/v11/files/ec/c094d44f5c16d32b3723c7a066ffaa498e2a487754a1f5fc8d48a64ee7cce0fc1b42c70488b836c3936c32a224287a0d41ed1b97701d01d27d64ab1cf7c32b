@@ -1,0 +1,36 @@
+import { type MailLogger } from '../logging.js';
+import type { MailComposeInput, MailOperationContext, MailOutboundAttachmentStorage, MailSubmission } from '../../shared/mail.js';
+import type { MailProviderAdapterResolver, MailProviderMessageInput } from '../contracts/provider.js';
+import type { MailService } from '../contracts/service.js';
+import type { MailStore } from '../contracts/persistence.js';
+import { type MailMessageChangeNotifier } from '../realtime.js';
+export interface SendMailOperationDependencies {
+    readonly logger?: MailLogger;
+    readonly store: MailStore;
+    readonly adapters: MailProviderAdapterResolver;
+    readonly outbox?: {
+        kick(): void;
+    };
+    readonly outboundAttachments?: MailOutboundAttachmentStorage;
+    readonly messageChangeNotifier?: MailMessageChangeNotifier;
+}
+export interface SendMailExecutionOptions {
+    readonly scheduledDelivery?: boolean;
+}
+export declare class SendMailOperation {
+    private readonly dependencies;
+    constructor(dependencies: SendMailOperationDependencies);
+    execute(context: MailOperationContext, input: MailComposeInput, options?: SendMailExecutionOptions): Promise<MailSubmission>;
+    private executeSubmission;
+    private snapshotDelivery;
+    private draftAttachments;
+    private createScheduledDraft;
+    private saveAcceptedMessage;
+    private localAttachmentId;
+    prepareProviderMessage(context: MailOperationContext, input: MailComposeInput, contentAlreadyPrepared?: boolean): Promise<MailProviderMessageInput>;
+}
+export declare class MailIdempotencyConflictError extends Error {
+    constructor();
+}
+export type SendMessageMethod = MailService['sendMessage'];
+//# sourceMappingURL=send-mail.d.ts.map

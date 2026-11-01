@@ -1,0 +1,2 @@
+export const IN_APP_NOTIFICATION_REALTIME_TOPIC = 'notifications:in-app';
+//# sourceMappingURL=realtime.js.map

@@ -1,0 +1,8 @@
+import { Menu as MenuPrimitive } from '@base-ui/react/menu';
+import type { ReactElement } from 'react';
+export declare function DropdownMenu(props: MenuPrimitive.Root.Props): ReactElement;
+export declare function DropdownMenuTrigger(props: MenuPrimitive.Trigger.Props): ReactElement;
+export declare function DropdownMenuContent({ align, side, sideOffset, className, ...props }: MenuPrimitive.Popup.Props & Pick<MenuPrimitive.Positioner.Props, 'align' | 'side' | 'sideOffset'>): ReactElement;
+export declare function DropdownMenuItem({ className, ...props }: MenuPrimitive.Item.Props): ReactElement;
+export declare function DropdownMenuCheckboxItem({ className, children, ...props }: MenuPrimitive.CheckboxItem.Props): ReactElement;
+//# sourceMappingURL=dropdown-menu.d.ts.map

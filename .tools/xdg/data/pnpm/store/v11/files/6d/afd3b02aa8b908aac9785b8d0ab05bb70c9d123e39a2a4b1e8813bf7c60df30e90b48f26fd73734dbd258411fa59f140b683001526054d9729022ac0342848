@@ -1,0 +1,2 @@
+import type { Knex } from 'knex';
+export declare function preciseIntegerClient(nativeDriver?: unknown): string | typeof Knex.Client;

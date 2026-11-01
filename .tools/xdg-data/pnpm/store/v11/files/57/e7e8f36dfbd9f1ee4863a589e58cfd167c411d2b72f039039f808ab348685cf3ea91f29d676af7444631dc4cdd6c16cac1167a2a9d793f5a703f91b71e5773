@@ -1,0 +1,10 @@
+import path from 'node:path';
+import { defineServerPlugin, } from '@nocobase/app-server/plugins';
+import serviceProviders from './providers/index.js';
+const plugin = defineServerPlugin({
+    baseDir: path.resolve(import.meta.dirname, '..'),
+    packageName: '@nocobase/app-plugin-file',
+    serviceProviders,
+});
+export default plugin;
+//# sourceMappingURL=plugin.js.map

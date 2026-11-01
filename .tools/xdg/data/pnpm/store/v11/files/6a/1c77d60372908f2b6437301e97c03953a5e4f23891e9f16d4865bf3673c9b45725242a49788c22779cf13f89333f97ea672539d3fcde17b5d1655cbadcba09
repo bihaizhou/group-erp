@@ -1,0 +1,35 @@
+/**
+ * Telling a session made from an API key apart from a sign-in. Managing API keys takes a sign-in: no key, scoped or
+ * not, creates, rotates or revokes keys, so a leaked key cannot mint its own successors or remove the evidence. For the
+ * same reason no key approves another device's sign-in (Better Auth's device authorization), which issues a session.
+ */
+import type { AuthEnv } from '@nocobase/app-plugin-authentication/server';
+import type { MiddlewareHandler } from 'hono';
+/** The header a key arrives in; Better Auth's default `apiKeyHeaders`. */
+export declare const API_KEY_HEADER = "x-api-key";
+/** The Better Auth endpoints no API key may reach, whatever its scope: every `/api-key/*` endpoint. */
+export declare const KEY_MANAGEMENT_PATH_PREFIXES: readonly string[];
+/** Whether a Better Auth endpoint path manages API keys. */
+export declare function isKeyManagementPath(path: string): boolean;
+/**
+ * Whether a session was made from an API key: Better Auth's key session carries the key as its token, which a
+ * sign-in session never matches.
+ */
+export declare function isApiKeySession(session: {
+    readonly session: {
+        readonly token: string;
+    };
+}, headers: Headers, headerNames?: readonly string[]): boolean;
+/**
+ * The Better Auth endpoints that review, approve or deny a device authorization (`deviceAuthorization()`): approving
+ * issues the device a session, so no API key reaches them.
+ */
+export declare const DEVICE_APPROVAL_PATHS: readonly string[];
+/** Whether a Better Auth endpoint path reviews, approves or denies a device authorization. */
+export declare function isDeviceApprovalPath(path: string): boolean;
+/**
+ * Refuses a request whose session came from an API key with 403 `API_KEY_SESSION_FORBIDDEN`. Install after
+ * `auth.required()` on every route that manages keys, a service account's included.
+ */
+export declare function requireSignInSession(): MiddlewareHandler<AuthEnv>;
+//# sourceMappingURL=key-sessions.d.ts.map

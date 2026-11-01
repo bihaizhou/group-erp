@@ -1,0 +1,37 @@
+import { type Dispatch, type SetStateAction } from 'react';
+import type { MailClient, MailAccountView, MailMessage, MailMessageSummary, MailMessagesQuery } from '../mail-client.js';
+interface MailWorkspaceDataOptions {
+    readonly mail: MailClient;
+    readonly accounts: readonly MailAccountView[];
+    readonly messageQuery: MailMessagesQuery;
+    /** Suppress list requests while a filter is invalid or awaiting its debounce. */
+    readonly queryEnabled?: boolean;
+    readonly reloadVersion: number;
+    readonly requestError: (cause: unknown) => void;
+    readonly setError: Dispatch<SetStateAction<string | undefined>>;
+    readonly onFocus: () => void;
+}
+/** Owns list/conversation state, pagination and stale responses for one mailbox view. */
+export declare function useMailWorkspaceData({ mail, accounts, messageQuery, queryEnabled, reloadVersion, requestError, setError, onFocus, }: MailWorkspaceDataOptions): MailWorkspaceData;
+interface MailWorkspaceData {
+    readonly messages: readonly MailMessageSummary[];
+    readonly total: number | undefined;
+    readonly nextCursor: string | undefined;
+    readonly pageIndex: number;
+    readonly listVersion: number;
+    readonly selected: MailMessageSummary | undefined;
+    readonly conversation: readonly MailMessage[];
+    readonly conversationCursor: string | undefined;
+    readonly loadingMessages: boolean;
+    readonly loadingConversation: boolean;
+    readonly selectMessage: (message: MailMessageSummary) => void;
+    readonly changeMessagePage: (index: number) => void;
+    readonly loadMoreConversation: () => void;
+    readonly setMessageRead: (message: MailMessageSummary, read: boolean) => Promise<MailMessage>;
+    readonly updateVisibleMessage: (message: MailMessage) => void;
+    readonly clearSelection: () => void;
+    readonly resetMailbox: () => void;
+    readonly cancelRequests: () => void;
+}
+export {};
+//# sourceMappingURL=use-mail-workspace-data.d.ts.map

@@ -1,0 +1,49 @@
+import type { JobIdProducer, PublishOptions, QueueBackoffOptions, QueueRetentionPolicy, QueueRuntimeOptions, RateLimitOptions } from './types.js';
+/** The job defaults a queue applies to what it publishes next. */
+export interface QueueJobDefaults {
+    readonly removeOnComplete: QueueRetentionPolicy;
+    readonly removeOnFail: QueueRetentionPolicy;
+    readonly attempts: number;
+    readonly backoff: QueueBackoffOptions | undefined;
+    readonly jobIdProducer: JobIdProducer | undefined;
+}
+/** The options one job is written with, after every layer is merged. */
+export interface ResolvedJobOptions {
+    readonly priority: number;
+    readonly delay: number;
+    readonly attempts: number;
+    readonly backoff: QueueBackoffOptions | undefined;
+    readonly removeOnComplete: QueueRetentionPolicy;
+    readonly removeOnFail: QueueRetentionPolicy;
+}
+export declare const BUILT_IN_JOB_DEFAULTS: QueueJobDefaults;
+export declare function positiveInteger(value: unknown, label: string): number;
+export declare function assertKnownFields(value: Record<string, unknown>, allowed: ReadonlySet<string>, label: string): void;
+export declare function validateRetention(value: unknown, label: string): QueueRetentionPolicy;
+/**
+ * Only BullMQ's built-in strategies: a custom type needs a Worker strategy,
+ * which this package does not expose, so it is rejected rather than ignored.
+ */
+export declare function validateBackoff(value: unknown): QueueBackoffOptions;
+export declare function validateRateLimit(value: unknown): RateLimitOptions | null;
+export declare function validateJobIdProducer(value: unknown): JobIdProducer;
+/** Validated `configure()` input: absent fields are left untouched. */
+export interface QueueRuntimeChanges {
+    readonly concurrency?: number;
+    readonly jobDefaults: Partial<QueueJobDefaults>;
+    /** `undefined` leaves the backend's rate limit as it is. */
+    readonly rateLimit?: RateLimitOptions | null;
+}
+/** Validates everything before the caller changes anything. */
+export declare function validateRuntimeOptions(options: QueueRuntimeOptions): QueueRuntimeChanges;
+export interface ResolvedPublishOptions {
+    readonly job: ResolvedJobOptions;
+    readonly jobIdProducer: JobIdProducer | undefined;
+}
+/** Merges publish options over the queue defaults. */
+export declare function resolvePublishOptions(defaults: QueueJobDefaults, options: PublishOptions | undefined): ResolvedPublishOptions;
+/** BullMQ 6.3.6 `Job.validateOptions` rules, checked before anything is written. */
+export declare function assertJobId(value: unknown): asserts value is string;
+/** Retry delay after `failures` failed attempts, as BullMQ's built-in strategies compute it. */
+export declare function backoffDelay(backoff: QueueBackoffOptions | undefined, failures: number): number;
+//# sourceMappingURL=options.d.ts.map

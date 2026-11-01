@@ -1,0 +1,23 @@
+import type { PermissionGrant } from '@nocobase/authorization/core';
+import type { WritePolicy, WritePolicyProblem } from '@nocobase/db';
+/** One invalid member of a Permission Set body, named by its dotted path in that body. */
+export interface GrantFieldViolation {
+    readonly field: string;
+    readonly description: string;
+}
+/** What a grant check needs from the database plugin: db's verdict on a write policy for one Collection. */
+export interface WriteGrantChecker {
+    writePolicyProblems(name: string, policy: WritePolicy): Promise<readonly WritePolicyProblem[] | undefined>;
+}
+/**
+ * Every field and relation a `database.collection` `create` or `update` grant names that a write could never use: a
+ * field that does not exist or that db assigns itself, a relation that does not exist, `through` on a relation that has
+ * none. Such a grant would be accepted and then fail every write it allows with an opaque `500`, because db refuses a
+ * Policy that names one, so it is reported here, against the request body path of the offending member.
+ *
+ * `'*'` is never a problem: it resolves to the fields a write may name. A grant on a wildcard resource, on a
+ * Collection db does not know, or with no database at all has nothing to check against and is left alone; read and
+ * delete grants carry no write fields.
+ */
+export declare function databaseGrantViolations(checker: WriteGrantChecker, grants: readonly PermissionGrant[], prefix?: string): Promise<GrantFieldViolation[]>;
+//# sourceMappingURL=grant-validation.d.ts.map

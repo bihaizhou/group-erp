@@ -1,0 +1,22 @@
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+import { ServiceProvider } from '@nocobase/service-provider';
+export type AuthorizationProviderApplication = AppPluginApplication;
+export declare class AuthorizationProvider<TApplication extends AuthorizationProviderApplication = AuthorizationProviderApplication> extends ServiceProvider<TApplication> {
+    readonly name: string;
+    private instance?;
+    private permissionsChangedTopic?;
+    private globalPermissionsChangedTopic?;
+    private removeApiRoutes?;
+    register(): void;
+    private authorization;
+    private warn;
+    boot(): Promise<void>;
+    /**
+     * Every provider has booted, so every plugin has placed its resources:
+     * check the workspace placements once. Errors throw in development and are
+     * logged in production.
+     */
+    start(): Promise<void>;
+    shutdown(): Promise<void>;
+}
+//# sourceMappingURL=authorization.d.ts.map

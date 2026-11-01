@@ -1,0 +1,1 @@
+{"version":3,"file":"aliyun-ecs-ram-role.d.ts","sourceRoot":"","sources":["../../src/credentials/aliyun-ecs-ram-role.ts"],"names":[],"mappings":"AAIA,UAAU,WAAW;IACnB,WAAW,EAAE,MAAM,CAAC;IACpB,eAAe,EAAE,MAAM,CAAC;IACxB,YAAY,EAAE,MAAM,CAAC;IACrB,UAAU,EAAE,IAAI,CAAC;CAClB;AA6FD,wBAAgB,8BAA8B,CAC5C,QAAQ,CAAC,EAAE,MAAM,GAChB,MAAM,OAAO,CAAC,WAAW,CAAC,CA6C5B"}

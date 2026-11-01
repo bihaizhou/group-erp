@@ -1,0 +1,74 @@
+import { MailSyncScheduler } from '../operations/schedule-sync.js';
+import { toSyncRunView } from '../views.js';
+import { requireActiveAccount, requireOwnedAccount } from './access.js';
+import { mailSyncDateMonthsAgo } from '../../shared/mail-sync-date.js';
+import { mailFailedPrecondition, mailNotFound } from './errors.js';
+export class MailSyncService {
+    dependencies;
+    scheduler;
+    constructor(dependencies, syncBatchSize) {
+        this.dependencies = dependencies;
+        this.scheduler = new MailSyncScheduler(dependencies.store, syncBatchSize);
+    }
+    async startSync(context, input) {
+        const account = await requireActiveAccount(this.dependencies.store, context, input.accountId);
+        const { run } = await this.scheduler.request(account, context.actorId, input);
+        this.dependencies.outbox.kick();
+        return toSyncRunView(run);
+    }
+    async getSyncRun(context, syncRunId) {
+        const run = await this.dependencies.store.getSyncRun(syncRunId);
+        if (!run)
+            return undefined;
+        const account = await this.dependencies.store.getAccount(run.accountId);
+        return account?.userId === context.actorId ? toSyncRunView(run) : undefined;
+    }
+    async listSyncRunsPage(context, offset = 0, limit = 20) {
+        const [items, total] = await Promise.all([
+            this.listSyncRuns(context, offset, limit),
+            this.dependencies.store.countSyncRuns(context.actorId),
+        ]);
+        return { items, total };
+    }
+    async listSyncRuns(context, offset = 0, limit = 100) {
+        return (await this.dependencies.store.listSyncRuns(context.actorId, offset, limit)).map(toSyncRunView);
+    }
+    async retrySyncRun(context, syncRunId) {
+        const run = await this.requireOwnedSyncRun(context, syncRunId);
+        if (!['failed', 'cancelled'].includes(run.status)) {
+            throw mailFailedPrecondition('MAIL_SYNC_RUN_STATE_INVALID', 'Only failed or cancelled sync runs can be retried.');
+        }
+        const receivedAfter = run.mode === 'initial'
+            ? (validDateOrUndefined(run.policy.receivedAfter) ??
+                validDateOrUndefined((await this.dependencies.store.getAccount(run.accountId))
+                    ?.initialSyncReceivedAfter) ??
+                new Date(`${mailSyncDateMonthsAgo(1)}T00:00:00Z`).toISOString())
+            : undefined;
+        return this.startSync(context, {
+            accountId: run.accountId,
+            mode: run.mode,
+            receivedAfter,
+        });
+    }
+    async cancelSyncRun(context, syncRunId) {
+        const run = await this.requireOwnedSyncRun(context, syncRunId);
+        if (!['pending', 'running'].includes(run.status)) {
+            throw mailFailedPrecondition('MAIL_SYNC_RUN_STATE_INVALID', 'Only active sync runs can be cancelled.');
+        }
+        const cancelled = await this.dependencies.store.cancelSyncRun(syncRunId);
+        if (!cancelled)
+            throw mailFailedPrecondition('MAIL_SYNC_RUN_STATE_INVALID', 'Mail sync run is no longer active.');
+        return toSyncRunView(cancelled);
+    }
+    async requireOwnedSyncRun(context, syncRunId) {
+        const run = await this.dependencies.store.getSyncRun(syncRunId);
+        if (!run)
+            throw mailNotFound('MAIL_SYNC_RUN_NOT_FOUND', 'Mail sync run was not found.', 'syncRunId');
+        await requireOwnedAccount(this.dependencies.store, context, run.accountId);
+        return run;
+    }
+}
+function validDateOrUndefined(value) {
+    return value && Number.isFinite(Date.parse(value)) ? value : undefined;
+}
+//# sourceMappingURL=sync.js.map

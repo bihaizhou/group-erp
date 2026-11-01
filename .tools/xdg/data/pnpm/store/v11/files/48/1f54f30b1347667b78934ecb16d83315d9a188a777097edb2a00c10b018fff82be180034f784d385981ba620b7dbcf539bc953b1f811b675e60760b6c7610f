@@ -1,0 +1,30 @@
+import { generateSecretKey } from '@nocobase/secrets';
+export declare function generateAuthSecret(): string;
+export { generateSecretKey };
+export interface BuildConfigFileOptions {
+    /**
+     * Contents of the application's `config.example.yml`, used as the base so its comments and commented-out sections
+     * reach the user.
+     */
+    readonly example?: string;
+    /** What an older example's live `auth.secret` and `session.secret` are filled with. */
+    readonly secret?: string;
+    /** The first secrets key, version 1. Generated when not given. */
+    readonly secretsKey?: string;
+}
+/**
+ * Builds the `config.yml` an application starts with.
+ *
+ * The application's own `config.example.yml` is the base rather than a file assembled here. It is the one place that
+ * documents what an application can be configured with — the notification channels, the LLM services, the additional
+ * database connections — and every line of it is written for someone about to edit it. A file generated from scratch
+ * carried a fraction of that and went stale the moment the example grew.
+ *
+ * Only the secrets are filled in, because they are the one thing the example cannot ship: `secrets.keys` has no safe
+ * default, and the example's placeholder is rejected at startup precisely so that a copy made by hand cannot run on a
+ * key published in this repository. Everything else the example already answers, including the database, which the
+ * caller configures for the selected dialect before filling secrets. An older example that still carries live
+ * `auth.secret` and `session.secret` keys has those filled too, so it does not start on the placeholder.
+ */
+export declare function buildConfigFile(options?: BuildConfigFileOptions): string;
+//# sourceMappingURL=config-file.d.ts.map

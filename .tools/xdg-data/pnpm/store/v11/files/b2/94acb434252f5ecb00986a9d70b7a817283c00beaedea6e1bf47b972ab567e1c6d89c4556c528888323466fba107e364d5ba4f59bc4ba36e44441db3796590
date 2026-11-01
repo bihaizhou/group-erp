@@ -1,0 +1,13 @@
+import type { DatabaseManager } from '@nocobase/db';
+import type { MailAccountRemoval } from '../contracts/persistence.js';
+export declare class MailAccountRemovalsStore {
+    private readonly database;
+    constructor(database: DatabaseManager);
+    claimAccountRemoval(): Promise<MailAccountRemoval | undefined>;
+    renewAccountRemoval(task: MailAccountRemoval): Promise<boolean>;
+    releaseAccountRemoval(task: MailAccountRemoval, failed: boolean): Promise<void>;
+    /** A single bounded transaction; true means only external cleanup remains. */
+    deleteAccountBatch(task: MailAccountRemoval): Promise<boolean>;
+    finishAccountRemoval(task: MailAccountRemoval): Promise<boolean>;
+}
+//# sourceMappingURL=account-removals.d.ts.map

@@ -1,0 +1,70 @@
+/**
+ * The key-scope registry: the permission groups and presets an application assembles from its plugins, how each
+ * `AccessRef` maps to an authorization resource and action, and how a stored scope becomes the `KeyScope` the
+ * authorization core enforces. Plugins never import this; the application hands their declarations to it.
+ */
+import type { AuthorizationIdentity, KeyScope, ResourceRef } from '@nocobase/authorization/core';
+import { type ServiceToken } from '@nocobase/service-provider';
+import { type AccessRef, type KeyScopeGroupDeclaration, type KeyScopeInput, type KeyScopeLevel, type KeyScopeObject, type KeyScopePresetDeclaration } from '../shared/scopes.js';
+/** Lists the records a group may be limited to: only those the identity may see in that business. */
+export interface KeyScopeObjectSource {
+    list(input: {
+        readonly identity: AuthorizationIdentity;
+        readonly search?: string;
+        readonly ids?: readonly string[];
+    }): Promise<readonly KeyScopeObject[]>;
+}
+/**
+ * What an `AccessRef` is checked as: one action of a resource, or several where holding any of them is holding the ref
+ * (a business action granted once per level, `edit.related` and `edit.all`); a scope covering the ref allows every one.
+ * Null when the application does not offer it.
+ */
+export type AccessMapping = (ref: AccessRef) => {
+    readonly resource: ResourceRef;
+    readonly action: string;
+} | {
+    readonly resource: ResourceRef;
+    readonly actions: readonly string[];
+} | null;
+/** A mapped `AccessRef`: the actions of a resource it stands for, any one of which is holding it. */
+export interface MappedAccess {
+    readonly resource: ResourceRef;
+    readonly actions: readonly string[];
+}
+/** A refused scope: 400 with a stable code. */
+export declare class ApiKeyScopeError extends Error {
+    readonly code: 'INVALID_SCOPE' | 'EMPTY_SCOPE' | 'UNKNOWN_SCOPE_GROUP' | 'SCOPE_LEVEL_NOT_OFFERED' | 'SCOPE_OBJECTS_NOT_OFFERED' | 'UNKNOWN_SCOPE_OBJECT';
+    constructor(code: 'INVALID_SCOPE' | 'EMPTY_SCOPE' | 'UNKNOWN_SCOPE_GROUP' | 'SCOPE_LEVEL_NOT_OFFERED' | 'SCOPE_OBJECTS_NOT_OFFERED' | 'UNKNOWN_SCOPE_OBJECT', message: string);
+}
+export interface ApiKeyScopes {
+    readonly groups: {
+        /** Registers a group, with the source of its records when it offers object selection. Returns its removal. */
+        add(group: KeyScopeGroupDeclaration, objects?: KeyScopeObjectSource): () => void;
+        list(): readonly KeyScopeGroupDeclaration[];
+        get(id: string): KeyScopeGroupDeclaration | undefined;
+        /** The record source of a group that offers object selection. */
+        objects(id: string): KeyScopeObjectSource | undefined;
+    };
+    readonly presets: {
+        add(preset: KeyScopePresetDeclaration): () => void;
+        list(): readonly KeyScopePresetDeclaration[];
+    };
+    /**
+     * Sets how an `AccessRef` is checked. The default maps a page to `page:<id>/access` and a settings action to
+     * `settings:<id>/<action>`, and offers no business action, whose resource type only the application knows.
+     */
+    mapAccess(mapping: AccessMapping): void;
+    /** The resource actions a level of a group covers, mapped; refs the application does not offer are left out. */
+    accessOf(group: KeyScopeGroupDeclaration, level: KeyScopeLevel, options?: {
+        readonly allObjects?: boolean;
+    }): MappedAccess[];
+    /** Checks a scope against the registered groups; throws `ApiKeyScopeError`. Record ids are checked by the caller. */
+    validate(input: unknown): KeyScopeInput;
+    /** The `KeyScope` of a stored scope. Groups no longer registered grant nothing, so a removed group only narrows. */
+    compile(keyId: string, scope: KeyScopeInput): KeyScope;
+    /** The `KeyScope` of a key bounded only by its owner (a service account's unscoped key): it narrows nothing. */
+    unbounded(keyId: string): KeyScope;
+}
+export declare const apiKeyScopesToken: ServiceToken<ApiKeyScopes>;
+export declare function createApiKeyScopes(): ApiKeyScopes;
+//# sourceMappingURL=scopes.d.ts.map

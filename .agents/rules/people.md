@@ -1,0 +1,20 @@
+# Personnel and strategic HR
+
+Keep four parallel domains. Functional Platform / Personnel owns employees, employment, assignments and entry/regularization/transfer/part-time/exit transactions. Human Resources owns group talent dimensions, position models, one talent profile per employee, evaluations, development and workforce planning. Organization remains the single source of subjects, units and positions.
+
+Use server/providers/people*, server/routes/people*, client/pages/people and the independent 202610160002 migration/seed. Read docs/人事与人力资源交付说明.md and docs/开发经验与踩坑记录.md before changing these features.
+
+- Employee creation initializes an empty talent card atomically. Grade is nullable or integer 1–5, manually maintained; no automatic promotion or pay computation. Capability, potential and career intention are separate fields.
+- Scope every external read/write and related option through the authorization composite policy. Page grants alone are insufficient. Company scopes derive from subjectId; ownCompany is the signed-in account's current employment, with an explicit permission set still required. Binding an account is a separate permission, never implicitly allowed by personnel maintenance.
+- The framework's create scope is not a business row restriction: verify the produced row using the same action's read scope before transaction commit. Apply the same invariant to lifecycle creation and target-company change checks.
+- All organization/personnel mutations take orgMutationLock first, then validate, compare versions, write and audit in one transaction. No generated unrestricted business CRUD or physical deletion endpoint.
+- Workflow states change only with official @nocobase/lifecycle. Draft edits advance lifecycleVersion through internal edit. User requests carry expected version, idempotency key and reason. Future approved changes apply on the configured business date, with failed applications retained and logged for retry.
+- Employment/assignment date intervals are end-exclusive. One effective primary assignment and employment per employee; part-time does not increase group headcount. Scope changes move current cards/contact ownership; audit retains old scope.
+- businessDate(people.timeZone) defines effective dates/headcount, default Asia/Shanghai and configurable ERP_PEOPLE_TIME_ZONE. Never infer company dates from UTC or a visitor's browser timezone.
+- Evaluation snapshots freeze dimensions, anchors, targets and sources. No score defaults, no zero for unrated; confirmed evaluation is immutable. Self and manager identities are checked against bound accounts/current reporting positions; authorized proxies are recorded.
+- Workforce requested, approved and baseline counts remain separate. Freeze approved versions, revise by linked draft and supersede the previous approval. Completion evidence references actual new effective assignments and cannot reuse baseline staff.
+- File storage/upload uses the official repository. Read a bounded clone for magic/MIME validation, never consume the original stream ahead of official middleware. Photos are private, linked reads obey the current company scope; staging ownership does not bypass linked-record revocation.
+- Seeds contain permission templates only. Do not add demo employees or official talent standards. Business standards and grades require the group's own decisions.
+- Run scoped people/migration/component/route tests and organization consumers after cross-domain changes. Build and browser capture sequentially; test nested overlays by current layer and full source URL. Keep regressions for PATCH defaults, stale lifecycle edits, scoped creates, photo streams and timezone boundaries.
+
+- Mutation responses may omit workflow/derived fields: always reload complete record queries after a workflow save. A talent-card Refresh covers its independent talent query and busy state. Required action inputs need inline feedback and first-error focus; overview counts filter the documented states; related option errors are explicit, never rendered as missing names.

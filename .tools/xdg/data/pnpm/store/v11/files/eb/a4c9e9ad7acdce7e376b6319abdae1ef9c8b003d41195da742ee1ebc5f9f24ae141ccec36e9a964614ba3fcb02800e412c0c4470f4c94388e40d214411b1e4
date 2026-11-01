@@ -1,0 +1,52 @@
+import type { MiddlewareHandler } from 'hono';
+import type { AuthorizationContext, AuthorizationEnv, CompositeResourceActions, CompositeResourceApi, CompositeResourceCheck } from '@nocobase/authorization/core';
+import type { DatabaseConnection, RepositoryPolicy, WritePolicy, WritePolicyProblem } from '@nocobase/db';
+import { type AuthorizeRepositoryOptions } from '../authorize-repository.js';
+import { DatabaseCollectionRegistry, type DatabaseCollections } from './collection-registry.js';
+import type { AuthorizationCollection } from './model.js';
+/** `authz.database`. */
+export interface DatabaseApi {
+    readonly collections: DatabaseCollections;
+    /** Folds the four CRUD decisions of one context into one Repository Policy. */
+    policyFor(collection: string, context: AuthorizationContext, operation?: {
+        resource: string;
+        action: string;
+    }): Promise<RepositoryPolicy>;
+    /** Binds generated Repository routes to composite actions. */
+    authorizeRepository<A extends CompositeResourceActions>(options: AuthorizeRepositoryOptions<A>): MiddlewareHandler<AuthorizationEnv>;
+}
+export interface DatabaseAuthorizationApi {
+    database: DatabaseApi;
+}
+/** What the plugin learns during setup; read by the extension routes. */
+export interface DatabaseHost {
+    readonly compositeResources: CompositeResourceApi;
+    middleware(): MiddlewareHandler<AuthorizationEnv>;
+    readonly connection?: DatabaseConnection;
+    describe(name: string): Promise<AuthorizationCollection | undefined>;
+    /**
+     * What db would refuse in `policy` as a write to the named Collection, or
+     * `undefined` when there is no database or db does not know the Collection.
+     */
+    writePolicyProblems(name: string, policy: WritePolicy): Promise<readonly WritePolicyProblem[] | undefined>;
+}
+/** Package-internal: the setup-time host of an installed database API. */
+export declare function databaseHost(api: DatabaseApi): DatabaseHost | undefined;
+export declare class DatabaseAuthorizationService implements DatabaseApi {
+    readonly collections: DatabaseCollectionRegistry;
+    attach(host: DatabaseHost): void;
+    authorizeRepository<A extends CompositeResourceActions>(options: AuthorizeRepositoryOptions<A>): MiddlewareHandler<AuthorizationEnv>;
+    policyFor(collection: string, context: AuthorizationContext, operation?: {
+        resource: string;
+        action: string;
+    }): Promise<RepositoryPolicy>;
+}
+/** Translate resolved checks only; this never runs authorization again. */
+export declare function composeDatabasePolicies(checks: readonly CompositeResourceCheck[]): Readonly<Record<string, RepositoryPolicy>>;
+declare module '@nocobase/authorization/core' {
+    interface CompositeResourceConditions {
+        /** Policies for the tables used by this operation; other operations remain denied. */
+        database?: Readonly<Record<string, RepositoryPolicy>>;
+    }
+}
+//# sourceMappingURL=api.d.ts.map

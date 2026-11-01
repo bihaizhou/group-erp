@@ -1,0 +1,90 @@
+import { ConfigPathError } from './errors.js';
+const forbiddenKeys = new Set([
+    '__proto__',
+    'prototype',
+    'constructor',
+]);
+export function isConfigMap(value) {
+    return (typeof value === 'object' &&
+        value !== null &&
+        !Array.isArray(value) &&
+        (Object.getPrototypeOf(value) === Object.prototype ||
+            Object.getPrototypeOf(value) === null));
+}
+export function isConfigArray(value) {
+    return Array.isArray(value);
+}
+export function createConfigRecord() {
+    return {};
+}
+export function assertConfigMap(value, path = '') {
+    assertConfigValue(value, path);
+    if (!isConfigMap(value)) {
+        throw new ConfigPathError(path, 'the root value must be an object');
+    }
+    return value;
+}
+export function assertConfigValue(value, path = '') {
+    if (value === undefined ||
+        typeof value === 'function' ||
+        value === null ||
+        typeof value === 'string' ||
+        typeof value === 'boolean' ||
+        (typeof value === 'number' && Number.isFinite(value))) {
+        return;
+    }
+    if (Array.isArray(value)) {
+        value.forEach((item, index) => assertConfigValue(item, appendPath(path, String(index))));
+        return;
+    }
+    if (typeof value === 'object' && value !== null && !isConfigMap(value))
+        return;
+    if (!isConfigMap(value)) {
+        throw new ConfigPathError(path, 'values must be strings, finite numbers, booleans, null, undefined, functions, or objects');
+    }
+    for (const [key, item] of Object.entries(value)) {
+        if (forbiddenKeys.has(key)) {
+            throw new ConfigPathError(appendPath(path, key), 'the key is forbidden');
+        }
+        assertConfigValue(item, appendPath(path, key));
+    }
+}
+export function cloneConfigValue(value) {
+    if (isConfigArray(value)) {
+        return value.map((item) => cloneConfigValue(item));
+    }
+    if (isConfigMap(value)) {
+        const copy = createConfigRecord();
+        for (const [key, item] of Object.entries(value)) {
+            copy[key] = cloneConfigValue(item);
+        }
+        return copy;
+    }
+    return value;
+}
+export function freezeConfigValue(value) {
+    if (isConfigArray(value)) {
+        value.forEach((item) => freezeConfigValue(item));
+    }
+    else if (isConfigMap(value)) {
+        Object.values(value).forEach((item) => freezeConfigValue(item));
+    }
+    return isConfigMap(value) || isConfigArray(value)
+        ? Object.freeze(value)
+        : value;
+}
+export function configValueType(value) {
+    if (value === undefined)
+        return 'undefined';
+    if (value === null)
+        return 'null';
+    if (Array.isArray(value))
+        return 'array';
+    if (isConfigMap(value))
+        return 'object';
+    return typeof value;
+}
+function appendPath(path, key) {
+    return path ? `${path}.${key}` : key;
+}
+//# sourceMappingURL=value.js.map

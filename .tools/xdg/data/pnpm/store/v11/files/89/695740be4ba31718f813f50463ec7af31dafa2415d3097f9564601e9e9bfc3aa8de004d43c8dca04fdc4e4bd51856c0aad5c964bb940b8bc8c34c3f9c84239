@@ -1,0 +1,4 @@
+import type { MailProviderDefinition } from '../../contracts/provider.js';
+import type { MicrosoftMailProviderConfig } from './types.js';
+export declare const microsoftMailProviderDefinition: MailProviderDefinition<MicrosoftMailProviderConfig>;
+//# sourceMappingURL=definition.d.ts.map

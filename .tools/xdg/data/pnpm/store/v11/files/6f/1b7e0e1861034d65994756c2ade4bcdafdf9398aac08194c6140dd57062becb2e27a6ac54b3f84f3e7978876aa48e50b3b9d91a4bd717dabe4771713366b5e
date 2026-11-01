@@ -1,0 +1,2 @@
+import type { NormalizedRepositoryPolicy, RepositoryPolicy } from './types.js';
+export declare function normalizeRepositoryPolicy<TRecord extends object = Record<string, unknown>>(input: RepositoryPolicy<TRecord>): NormalizedRepositoryPolicy;

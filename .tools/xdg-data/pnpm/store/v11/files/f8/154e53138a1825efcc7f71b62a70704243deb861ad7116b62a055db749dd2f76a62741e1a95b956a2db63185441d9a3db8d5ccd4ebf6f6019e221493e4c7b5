@@ -1,0 +1,110 @@
+import { parseRecordSelection } from '../../core/selection.js';
+import { resolveAuthorizationSubjects } from '../../core/subjects.js';
+/** Rejects a malformed rule before it reaches a store. */
+export function validateRule(rule, kind) {
+    if (!rule.key)
+        throw new TypeError('A rule needs a key');
+    if (!rule.resource.type || !rule.resource.id)
+        throw new TypeError(`Rule ${rule.key} needs a resource`);
+    const seen = new Set();
+    for (const action of rule.actions) {
+        if (!action.action)
+            throw new TypeError(`Rule ${rule.key} has an unnamed action`);
+        const id = JSON.stringify([action.action, action.scopeKey ?? null]);
+        if (seen.has(id))
+            throw new TypeError(`Rule ${rule.key} repeats ${action.action}`);
+        seen.add(id);
+        const selection = parseRecordSelection(action.selection);
+        if (selection.type === 'all' && !kind.allowAll)
+            throw new TypeError(`A ${kind.id} rule cannot select all records`);
+    }
+}
+export class RuleService {
+    kind;
+    store;
+    id;
+    constructor(kind, store) {
+        this.kind = kind;
+        this.store = store;
+        this.id = kind.id;
+    }
+    withTransaction(transaction) {
+        return new RuleService(this.kind, this.store.withTransaction(transaction));
+    }
+    async create(rule) {
+        validateRule(rule, this.kind);
+        await this.assertResourceFree(rule, undefined);
+        return this.store.create(rule);
+    }
+    async update(key, rule) {
+        validateRule(rule, this.kind);
+        await this.assertResourceFree(rule, key);
+        return this.store.update(key, rule);
+    }
+    async assertResourceFree(rule, replacing) {
+        const conflict = this.kind.onePerResource;
+        if (!conflict)
+            return;
+        const existing = (await this.store.list()).find((entry) => entry.key !== replacing &&
+            entry.resource.type === rule.resource.type &&
+            entry.resource.id === rule.resource.id);
+        if (existing)
+            throw conflict(rule, existing);
+    }
+    delete(key) {
+        return this.store.delete(key);
+    }
+    get(key) {
+        return this.store.get(key);
+    }
+    list() {
+        return this.store.list();
+    }
+    /** Reads the rules once per identity context. */
+    for() {
+        let rules;
+        return {
+            id: this.id,
+            resolve: async (input) => this.constraints(input, await (rules ??= this.store.list())),
+        };
+    }
+    async resolve(input) {
+        return this.constraints(input, await this.store.list());
+    }
+    constraints(input, rules) {
+        const held = this.kind.bySubject
+            ? new Set(resolveAuthorizationSubjects(input).map((subject) => JSON.stringify([subject.type, subject.id])))
+            : undefined;
+        return rules.flatMap((rule) => {
+            if (rule.resource.type !== input.resource.type ||
+                (rule.resource.id !== '*' && rule.resource.id !== input.resource.id) ||
+                (held &&
+                    !(rule.subjects ?? []).some((subject) => held.has(JSON.stringify([subject.type, subject.id])))))
+                return [];
+            const configured = rule.actions.find((action) => action.action === input.action && action.scopeKey === input.scopeKey);
+            if (!configured)
+                return [];
+            return [
+                {
+                    source: {
+                        plugin: this.id,
+                        id: rule.key,
+                        ...(rule.title === undefined ? {} : { title: rule.title }),
+                    },
+                    effect: this.kind.effect,
+                    selection: configured.selection,
+                },
+            ];
+        });
+    }
+}
+/** Appends one action; the caller has validated its data scope. */
+export function appendRuleAction(actions, action) {
+    if (actions.some((entry) => entry.action === action.action && entry.scopeKey === action.scopeKey))
+        throw new TypeError(`Duplicate rule action: ${action.action}.${action.scopeKey ?? ''}`);
+    return [
+        ...actions,
+        { ...action, selection: parseRecordSelection(action.selection) },
+    ];
+}
+//# sourceMappingURL=rules.js.map

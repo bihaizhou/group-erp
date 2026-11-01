@@ -1,0 +1,22 @@
+import type { FetchQueryObject, ImapFlow, MessageStructureObject } from 'imapflow';
+import type { NormalizedMailAttachment } from '../../../shared/mail.js';
+import type { NormalizedMailMessage } from '../../contracts/provider.js';
+export declare const MAX_HEADER_BYTES: number;
+export declare function metadataQuery(): FetchQueryObject;
+/**
+ * True when raw MIME bytes can prove two copies identical without reading
+ * attachment or CID content: only known text leaves, within the byte limit.
+ */
+export declare function rawComparable(structure: MessageStructureObject | undefined, size: number | undefined, maxBytes: number): boolean;
+/**
+ * Read the complete RFC822 source in bounded windows. Returns undefined unless
+ * every window arrived in order and the total equals RFC822.SIZE.
+ */
+export declare function readRawSource(client: ImapFlow, uid: number, size: number, signal?: AbortSignal): Promise<Buffer | undefined>;
+export declare function attachmentParts(structure?: MessageStructureObject): MessageStructureObject[];
+export declare function bodyParts(structure?: MessageStructureObject): MessageStructureObject[] | undefined;
+export declare function attachmentMetadata(folder: string, uidValidity: string, uid: number, part: MessageStructureObject, index: number): NormalizedMailAttachment;
+type BodyContent = Pick<NormalizedMailMessage, 'text' | 'html' | 'contentStatus' | 'contentError'>;
+export declare function readBody(client: ImapFlow, uid: number, parts: MessageStructureObject[] | undefined, signal?: AbortSignal, maxBytes?: number): Promise<BodyContent>;
+export {};
+//# sourceMappingURL=content.d.ts.map

@@ -1,0 +1,18 @@
+import type { AppCommandRuntime } from '../context.ts';
+/**
+ * The top-level sections `config.example.yml` documents.
+ *
+ * Together with the sections the application defaults in code, these are the ones something reads. The example is the
+ * one statement of what may go in a configuration file, and it names sections — `client`, `users` — that no default
+ * mentions, so neither list is enough on its own.
+ */
+export declare function exampleSections(deploymentRootDir: string): Promise<string[]>;
+/** The nearest known key within two edits, which covers a dropped, doubled or swapped letter. */
+export declare function closestKey(key: string, known: Iterable<string>): string | undefined;
+/**
+ * The file the application reads, resolved the way its default `server/config.ts` does: `APP_CONFIG_FILE` relative to
+ * the application root, otherwise `config.*` beside the deployment root. Without a runtime to ask, the same probe is
+ * done by hand.
+ */
+export declare function activeConfigFile(rootDir: string, deploymentRootDir: string, runtime: AppCommandRuntime | undefined, environment: NodeJS.ProcessEnv): string;
+//# sourceMappingURL=config-keys.d.ts.map

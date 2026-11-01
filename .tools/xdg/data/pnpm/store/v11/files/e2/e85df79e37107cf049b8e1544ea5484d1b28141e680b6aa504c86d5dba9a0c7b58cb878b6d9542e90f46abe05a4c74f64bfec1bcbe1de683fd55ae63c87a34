@@ -1,0 +1,49 @@
+import type { MiddlewareHandler } from 'hono';
+import type { AuthorizationEnv } from './authorization.js';
+import type { CompositeResourceApi, CompositeResourceCheck, CompositeResourceConditions } from './composite.js';
+import type { AccessConstraintRegistry } from './constraints.js';
+import type { AuthorizationGrantService } from './grants.js';
+import type { AuthorizationMiddleware } from './middleware.js';
+import type { RecordAccessRegistry } from './record-access.js';
+import type { ResourceTypeRegistry } from './resource-types.js';
+import type { AuthorizationRouteRegistry } from './routes.js';
+import type { AuthorizationSubjectRegistry } from './subjects.js';
+export interface AuthorizationPluginSetup<TConnection = unknown> {
+    /** The handle the host passed to `createAuthorization`, never inspected here. */
+    readonly connection?: TConnection;
+    /** The Grant Provider; reading it without one installed throws. */
+    readonly grants: AuthorizationGrantService;
+    readonly resourceTypes: ResourceTypeRegistry;
+    /** Built in: define composites and read their actions. */
+    readonly compositeResources: CompositeResourceApi;
+    readonly recordAccess: RecordAccessRegistry;
+    readonly constraints: AccessConstraintRegistry;
+    readonly subjects: AuthorizationSubjectRegistry;
+    readonly routes: AuthorizationRouteRegistry;
+    use(middleware: AuthorizationMiddleware): void;
+    middleware(): MiddlewareHandler<AuthorizationEnv>;
+}
+export interface AuthorizationPlugin<TAuthorizationApi extends object = object, TConnection = unknown, TRequiredApi extends object = object> {
+    id: string;
+    dependencies?: readonly string[];
+    /** Supplies the single source of grants for this Authorization instance. */
+    grants?: AuthorizationGrantService;
+    /** Declares that setup and runtime authorization require a Grant Provider. */
+    requiresGrants?: boolean;
+    /** Members added to the created Authorization instance. */
+    authorizationApi?: TAuthorizationApi;
+    /** Turns the resolved checks of a composite action into plugin conditions. */
+    composeConditions?(checks: readonly CompositeResourceCheck[]): Partial<Omit<CompositeResourceConditions, 'type' | 'checks'>>;
+    /**
+     * Receives the registries plus every installed plugin's API; `TRequiredApi`
+     * types the APIs this plugin needs, whose plugins it lists in `dependencies`.
+     */
+    setup?(authz: AuthorizationPluginSetup<TConnection> & TRequiredApi): void;
+}
+export type AuthorizationPluginApi<TPlugin> = TPlugin extends AuthorizationPlugin<infer TApi> ? TApi : object;
+export type AuthorizationPluginApis<TPlugins extends readonly AuthorizationPlugin[]> = UnionToIntersection<AuthorizationPluginApi<TPlugins[number]>>;
+type UnionToIntersection<T> = (T extends unknown ? (value: T) => void : never) extends (value: infer TIntersection) => void ? TIntersection : never;
+/** Orders plugins so dependencies and the Grant Provider set up first. */
+export declare function sortAuthorizationPlugins(plugins: readonly AuthorizationPlugin[]): AuthorizationPlugin[];
+export {};
+//# sourceMappingURL=plugin.d.ts.map

@@ -1,0 +1,137 @@
+import { lockWritableAccount } from './account-guard.js';
+import { toAccountRow, toIdentityRow } from './mappers.js';
+export async function persistAccount(query, account) {
+    const now = new Date().toISOString();
+    const existing = await query
+        .selectFrom('mailAccounts')
+        .select('id')
+        .where('id', '=', account.id)
+        .executeTakeFirst();
+    const row = toAccountRow(account, now, existing ? undefined : now);
+    if (existing) {
+        await lockWritableAccount(query, account.id);
+        await query
+            .updateTable('mailAccounts')
+            .set(row)
+            .where('id', '=', account.id)
+            .execute();
+        return;
+    }
+    await query.insertInto('mailAccounts').values(row).execute();
+}
+export async function replaceAccountIdentities(query, accountId, identities) {
+    await query
+        .updateTable('mailIdentities')
+        .set({ primaryForAccountId: null })
+        .where('accountId', '=', accountId)
+        .execute();
+    const existingIds = await query
+        .selectFrom('mailIdentities')
+        .where('accountId', '=', accountId)
+        .pluck('id');
+    const nextIds = new Set(identities.map((identity) => identity.id));
+    const staleIds = existingIds.filter((id) => !nextIds.has(id));
+    for (const identity of identities) {
+        const row = toIdentityRow(identity);
+        if (existingIds.includes(identity.id)) {
+            await query
+                .updateTable('mailIdentities')
+                .set(row)
+                .where('id', '=', identity.id)
+                .execute();
+        }
+        else {
+            await query
+                .insertInto('mailIdentities')
+                .values(row)
+                .execute();
+        }
+    }
+    if (staleIds.length > 0 && identities.length > 0) {
+        const fallbackIdentityId = identities.find((identity) => identity.isPrimary)?.id ?? identities[0].id;
+        await query
+            .updateTable('mailSignatures')
+            .set({
+            identityId: fallbackIdentityId,
+            defaultForIdentityId: null,
+        })
+            .where('accountId', '=', accountId)
+            .where('identityId', 'in', staleIds)
+            .execute();
+        await query
+            .deleteFrom('mailIdentities')
+            .where('id', 'in', staleIds)
+            .execute();
+    }
+}
+export async function saveSignature(query, signature) {
+    const existing = await query
+        .selectFrom('mailSignatures')
+        .select(['id', 'identityId'])
+        .where('id', '=', signature.id)
+        .executeTakeFirst();
+    const legacyIdentityId = existing?.identityId ??
+        (await findPrimaryIdentityId(query, signature.accountId));
+    if (!legacyIdentityId) {
+        throw new Error('Mail account has no sending identity.');
+    }
+    if (signature.isDefault) {
+        await query
+            .updateTable('mailSignatures')
+            .set({
+            defaultForAccountId: null,
+            defaultForIdentityId: null,
+            updatedAt: signature.updatedAt,
+        })
+            .where('accountId', '=', signature.accountId)
+            .execute();
+        await query
+            .updateTable('mailSignatures')
+            .set({ defaultForIdentityId: null })
+            .where('identityId', '=', legacyIdentityId)
+            .execute();
+    }
+    const row = {
+        id: signature.id,
+        accountId: signature.accountId,
+        identityId: legacyIdentityId,
+        name: signature.name,
+        text: signature.text,
+        html: signature.html,
+        defaultForAccountId: signature.isDefault ? signature.accountId : null,
+        defaultForIdentityId: signature.isDefault ? legacyIdentityId : null,
+        createdAt: signature.createdAt,
+        updatedAt: signature.updatedAt,
+    };
+    if (existing) {
+        await query
+            .updateTable('mailSignatures')
+            .set(row)
+            .where('id', '=', signature.id)
+            .execute();
+    }
+    else {
+        await query
+            .insertInto('mailSignatures')
+            .values(row)
+            .execute();
+    }
+}
+async function findPrimaryIdentityId(query, accountId) {
+    const primary = await query
+        .selectFrom('mailIdentities')
+        .select('id')
+        .where('accountId', '=', accountId)
+        .where('primaryForAccountId', '=', accountId)
+        .executeTakeFirst();
+    if (primary)
+        return primary.id;
+    const first = await query
+        .selectFrom('mailIdentities')
+        .select('id')
+        .where('accountId', '=', accountId)
+        .orderBy('address', 'asc')
+        .executeTakeFirst();
+    return first?.id;
+}
+//# sourceMappingURL=account-writes.js.map

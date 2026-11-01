@@ -1,0 +1,70 @@
+import { toMailTemplate } from './mappers.js';
+export class MailTemplatesStore {
+    database;
+    constructor(database) {
+        this.database = database;
+    }
+    async listTemplates(ownerId) {
+        const rows = await this.database
+            .query()
+            .selectFrom('mailTemplates')
+            .selectAll()
+            .where('ownerId', '=', ownerId)
+            .orderBy('name', 'asc')
+            .execute();
+        return rows.map(toMailTemplate);
+    }
+    async saveTemplate(template) {
+        const existing = await this.database
+            .query()
+            .selectFrom('mailTemplates')
+            .select('id')
+            .where('id', '=', template.id)
+            .where('ownerId', '=', template.ownerId ?? '')
+            .executeTakeFirst();
+        const now = new Date().toISOString();
+        const row = {
+            id: template.id,
+            name: template.name,
+            subject: template.subject,
+            text: template.text,
+            html: template.html,
+            ownerId: template.ownerId ?? '',
+            createdAt: now,
+            updatedAt: now,
+        };
+        if (existing) {
+            await this.database
+                .query()
+                .updateTable('mailTemplates')
+                .set({
+                name: row.name,
+                subject: row.subject,
+                text: row.text,
+                html: row.html,
+                updatedAt: row.updatedAt,
+            })
+                .where('id', '=', template.id)
+                .where('ownerId', '=', row.ownerId)
+                .execute();
+        }
+        else {
+            await this.database
+                .query()
+                .insertInto('mailTemplates')
+                .values(row)
+                .execute();
+        }
+        return toMailTemplate(row);
+    }
+    async deleteTemplate(ownerId, templateId) {
+        const result = await this.database
+            .query()
+            .deleteFrom('mailTemplates')
+            .where('id', '=', templateId)
+            .where('ownerId', '=', ownerId)
+            .execute();
+        return result.deletedCount === 1;
+    }
+}
+//# sourceMappingURL=templates.js.map

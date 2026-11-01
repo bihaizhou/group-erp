@@ -1,0 +1,14 @@
+export function mailAddressName(value) {
+    const address = value?.address.trim() ?? '';
+    const name = value?.name?.trim();
+    return name && name.toLowerCase() !== address.toLowerCase() ? name : address;
+}
+export function formatMailAddress(value) {
+    const name = mailAddressName(value);
+    const address = value.address.trim();
+    return address && name !== address ? `${name} <${address}>` : name;
+}
+export function formatMailAddresses(values) {
+    return values.map(formatMailAddress).filter(Boolean).join(', ');
+}
+//# sourceMappingURL=mail-address.js.map

@@ -1,0 +1,73 @@
+import { Hono, type MiddlewareHandler } from 'hono';
+import { ApiError, type ApiDocsService } from '@nocobase/app-server/router';
+import type { AuthorizationContext, AuthorizationRouteHandler, AuthorizationRouteRegistry } from '@nocobase/authorization/core';
+export interface SettingsRouterEnv {
+    Bindings: {
+        authorization: AuthorizationContext;
+    };
+}
+/** The domain of every error the authorization plugin and its rule plugins report. */
+export declare const AUTHORIZATION_ERROR_DOMAIN = "authorization";
+/**
+ * A `TypeError` for administrator input the registered model does not accept, naming the offending request field as
+ * a dotted path such as `actions.1.scopeKey`. `toAuthorizationApiError` reports the field as a field violation.
+ */
+export declare class AuthorizationInputError extends TypeError {
+    readonly field: string;
+    constructor(message: string, field: string);
+}
+/** `409 ALREADY_EXISTS` with reason `RULE_ALREADY_EXISTS`: another rule of this kind already uses `key`. */
+export declare function ruleAlreadyExists(key: string, cause?: unknown, message?: string): ApiError;
+/**
+ * Refuse a rule `key` another rule of the same kind already uses, for a create (`current` omitted) or a rename (`key`
+ * differs from `current`). A pre-check: a concurrent write can still reach the unique index, which
+ * `rethrowRuleConflict` reports the same way.
+ */
+export declare function assertRuleKeyAvailable(get: (key: string) => Promise<unknown>, key: string, current?: string): Promise<void>;
+/**
+ * A `.catch` for a rule write: a unique-constraint violation, which the request bodies leave only the rule key (and,
+ * for default access, the rule's resource) to cause, answers like the pre-check; anything else is rethrown.
+ */
+export declare function rethrowRuleConflict(key: string): (error: unknown) => never;
+/** Turns an error a settings router recognizes into the standard API error, or `undefined` for one it does not. */
+export type AuthorizationErrorTranslator = (error: unknown) => ApiError | undefined;
+/**
+ * The standard API error for a domain error every authorization settings surface can raise, or `undefined` for anything
+ * else: the Permission Set errors, and the authorization library's validation errors.
+ *
+ * The library validates grants, rules, titles and record selections as it stores them and reports a rejected one as a
+ * `TypeError`. Inside a settings router that is the administrator's input, so it answers `400 INVALID_ARGUMENT` with
+ * reason `INVALID_AUTHORIZATION_INPUT`, and an `AuthorizationInputError` adds the field it names as a field violation.
+ */
+export declare function toAuthorizationApiError(error: unknown): ApiError | undefined;
+/**
+ * A router for one authorization settings surface. The domain errors `translate` recognizes, then those
+ * `toAuthorizationApiError` recognizes, answer in the standard API error body; anything else goes to the framework,
+ * which renders what it recognizes, such as a denial or invalid input, and rethrows the rest.
+ */
+export declare function createSettingsRouter(translate?: AuthorizationErrorTranslator): Hono<SettingsRouterEnv>;
+/**
+ * `requireSettings` as route middleware. Register it before a route's validators, so a caller without the permission
+ * gets `403` whatever the request holds, and learns nothing about what a valid request looks like.
+ */
+export declare function settingsAccess(id: string, action: string): MiddlewareHandler<SettingsRouterEnv>;
+/** The one settings check: `settings:<id>` `<action>`, or `AuthorizationDeniedError`. */
+export declare function requireSettings(authorization: AuthorizationContext, id: string, action: string): Promise<void>;
+/**
+ * Adapts a settings router to `authz.routes.add`. The router declares its routes at their dispatcher-relative paths,
+ * which start with the path it is registered under, such as `/sharingRules/options` for `/sharingRules`. A handler
+ * built here is registered with the application's API documentation as a forwarded router, so its routes are
+ * documented and checked like any other; declare each route with `describeRoute()`.
+ */
+export declare function createRouteHandler(routes: Hono<SettingsRouterEnv>): AuthorizationRouteHandler;
+/**
+ * Registers every handler on `registry` with the application's API documentation, which cannot see past the
+ * `/api/authorization` dispatcher on its own: a handler `createRouteHandler` built as a router forwarded to under
+ * `/api/authorization`, so its routes are documented and checked like routes mounted on `/api`; any other handler as an
+ * undeclared `ALL` route at its registered path, so `findUndeclaredApiRoutes(app)` reports it. A router route outside
+ * the path its handler is registered under, which the dispatcher never forwards to, is left out of the document,
+ * reported as undeclared, and reported through `onWarning`.
+ * Reads the registrations once; returns a function that removes them all.
+ */
+export declare function documentAuthorizationRoutes(apiDocs: ApiDocsService, registry: AuthorizationRouteRegistry, onWarning?: (message: string) => void): () => void;
+//# sourceMappingURL=http.d.ts.map

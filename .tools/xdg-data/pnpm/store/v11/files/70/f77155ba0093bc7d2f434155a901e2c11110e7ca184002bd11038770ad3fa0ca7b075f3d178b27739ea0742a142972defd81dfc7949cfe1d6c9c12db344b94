@@ -1,0 +1,64 @@
+import type { Channel, ConsumeHandler, UnregisterHandler } from './types.js';
+/** A job handed to the handlers, independent of the implementation that stored it. */
+export interface DispatchedJob {
+    readonly id: string;
+    readonly channel: Channel;
+    /** The message as JSON text; each handler receives its own parsed copy. */
+    readonly text: string;
+}
+/**
+ * How a dispatch ended, for the implementation to record:
+ * - `completed`: every handler succeeded
+ * - `failed`: a handler failed; retried within `attempts`
+ * - `cancelled`: cancelled by the manager; fails without retrying
+ * - `requeue`: not run to completion because no handler was registered or
+ *   the service is shutting down; returns to waiting without spending an attempt
+ */
+export type DispatchOutcome = {
+    readonly kind: 'completed';
+} | {
+    readonly kind: 'failed';
+    readonly error: unknown;
+} | {
+    readonly kind: 'cancelled';
+    readonly reason: string;
+} | {
+    readonly kind: 'requeue';
+};
+export interface QueueDispatcherEvents {
+    /** The first handler was registered, or one was registered after the last left. */
+    readonly onActive: () => void;
+    /** The last handler was unregistered. */
+    readonly onIdle: () => void;
+}
+/**
+ * Keeps the handlers of one queue on this instance and runs every job
+ * through all of them. Both implementations dispatch through it, so
+ * snapshots, result aggregation, unregistration and cancellation behave the
+ * same whatever stores the job.
+ */
+export declare class QueueDispatcher {
+    private readonly events;
+    private readonly handlers;
+    private readonly active;
+    private readonly interruption;
+    constructor(events: QueueDispatcherEvents);
+    get hasHandlers(): boolean;
+    get activeCount(): number;
+    register(handler: ConsumeHandler<unknown>): UnregisterHandler;
+    /**
+     * Runs the job through a snapshot of the handlers and waits for all of
+     * them. `signal` is the implementation's own signal, such as BullMQ's.
+     */
+    dispatch(job: DispatchedJob, signal?: AbortSignal): Promise<DispatchOutcome>;
+    cancelJob(jobId: string, reason?: string): boolean;
+    cancelAllJobs(reason?: string): void;
+    /** Sends the shutdown signal, which is not a cancellation, to every current and later job. */
+    interrupt(): void;
+}
+/**
+ * Runs `handler` only for jobs published on one of `channels`, and returns
+ * without doing anything for the rest. An empty list matches nothing.
+ */
+export declare function withChannel<T = unknown>(channels: Channel | readonly Channel[], handler: ConsumeHandler<T>): ConsumeHandler<T>;
+//# sourceMappingURL=consumer.d.ts.map

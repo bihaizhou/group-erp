@@ -1,0 +1,9 @@
+import type { MailClient, MailMessage, MailOutboundAttachmentView } from '../mail-client.js';
+import { type MailForwardQuote } from './mail-forward-content.js';
+/** Copy referenced inline images into owned uploads so replies survive draft recovery. */
+export declare function prepareReplyContent(mail: Pick<MailClient, 'retryMessageContent' | 'downloadAttachment' | 'uploadAttachment'>, message: MailMessage): Promise<{
+    message: MailMessage;
+    quote: MailForwardQuote;
+    uploads: readonly MailOutboundAttachmentView[];
+}>;
+//# sourceMappingURL=mail-reply-content.d.ts.map

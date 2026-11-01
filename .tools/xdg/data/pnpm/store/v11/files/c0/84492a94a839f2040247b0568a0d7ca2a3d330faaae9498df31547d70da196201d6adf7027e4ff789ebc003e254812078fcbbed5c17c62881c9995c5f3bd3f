@@ -1,0 +1,117 @@
+import { createTaskServiceResolver } from './task-container.js';
+import { snapshotDatabaseTaskConfig } from './task-config.js';
+import { existsSync } from 'node:fs';
+import { createSeeder, loadSeeds, } from '@nocobase/db';
+import { pendingTasksResult, } from './migrator.js';
+export function createAppSeeder(options) {
+    return {
+        async run() {
+            if (!hasSeedDirectory(options)) {
+                return {
+                    status: 'skipped',
+                    reason: 'missing-directory',
+                };
+            }
+            return completedRunResult(await createDatabaseSeeder(options).run());
+        },
+        async runSamples() {
+            if (!hasSeedDirectory(options)) {
+                return {
+                    status: 'skipped',
+                    reason: 'missing-directory',
+                };
+            }
+            const { executed } = await createDatabaseSeeder(options).runSamples();
+            return { status: 'completed', executed };
+        },
+        async history() {
+            return createDatabaseSeeder(options).history();
+        },
+        async record(entry) {
+            await createDatabaseSeeder(options).record(entry);
+        },
+        async pending(pendingOptions = {}) {
+            if (!hasSeedDirectory(options)) {
+                return {
+                    status: 'skipped',
+                    reason: 'missing-directory',
+                };
+            }
+            const seeds = await loadSeeds(createDatabaseSeederOptions(options));
+            // A fresh run drops the seed history with the rest of the schema.
+            return pendingTasksResult(seeds, pendingOptions.fresh || pendingOptions.withoutHistory
+                ? []
+                : await createDatabaseSeeder(options).history());
+        },
+        // Unlocking needs no seed directory: the lock is taken by whichever run
+        // reached the connection, including one with only plugin seeds.
+        async unlock(releaseOptions) {
+            return {
+                status: 'completed',
+                ...(await createDatabaseSeeder(options).unlock(releaseOptions)),
+            };
+        },
+        async repair(repairOptions) {
+            if (!hasSeedDirectory(options)) {
+                return {
+                    status: 'skipped',
+                    reason: 'missing-directory',
+                };
+            }
+            return completedRepairResult(await createDatabaseSeeder(options).repair(repairOptions));
+        },
+    };
+}
+function createDatabaseSeeder(options) {
+    return createSeeder(createDatabaseSeederOptions(options));
+}
+function createDatabaseSeederOptions(options) {
+    const common = {
+        config: snapshotDatabaseTaskConfig(options.runtimeConfig),
+        container: createTaskServiceResolver(options.container),
+        database: options.database,
+        connection: options.connection,
+        tableName: options.config.tableName,
+        lockTableName: options.config.lockTableName,
+        extensions: options.config.extensions,
+        onChecksumMismatch: options.config.onChecksumMismatch,
+        onStaleLock: options.onStaleLock,
+        ...(options.sample ? { sample: options.sample } : {}),
+    };
+    if (options.sources) {
+        return {
+            ...common,
+            sources: options.sources,
+        };
+    }
+    return {
+        ...common,
+        directory: options.config.directory,
+        packageName: options.config.packageName,
+    };
+}
+function hasSeedDirectory(options) {
+    if (options.sources) {
+        return options.sources.some((source) => existsSync(source.directory));
+    }
+    return existsSync(options.config.directory);
+}
+function completedRunResult(result) {
+    return {
+        status: 'completed',
+        executed: result.executed,
+        skipped: result.skipped,
+        ...(result.skippedSamples.length > 0
+            ? { skippedSamples: result.skippedSamples }
+            : {}),
+        warnings: result.warnings,
+    };
+}
+function completedRepairResult(result) {
+    return {
+        status: 'completed',
+        repaired: result.repaired,
+        dryRun: result.dryRun,
+    };
+}
+//# sourceMappingURL=seeder.js.map

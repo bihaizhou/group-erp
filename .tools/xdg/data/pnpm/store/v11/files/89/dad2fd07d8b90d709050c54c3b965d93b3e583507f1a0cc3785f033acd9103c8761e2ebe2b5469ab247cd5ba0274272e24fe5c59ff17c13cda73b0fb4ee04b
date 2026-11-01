@@ -1,0 +1,15 @@
+import { apiClientToken } from '@nocobase/app-client';
+import { ServiceProvider } from '@nocobase/service-provider';
+import { mailClientToken } from './runtime.js';
+import { MailClient } from './mail-client.js';
+export class MailClientServiceProvider extends ServiceProvider {
+    name = '@nocobase/app-plugin-mail/client';
+    register() {
+        this.app.container.singleton(mailClientToken, () => new MailClient(this.app.container.resolve(apiClientToken)));
+    }
+}
+const serviceProviders = [
+    MailClientServiceProvider,
+];
+export default serviceProviders;
+//# sourceMappingURL=service-provider.js.map

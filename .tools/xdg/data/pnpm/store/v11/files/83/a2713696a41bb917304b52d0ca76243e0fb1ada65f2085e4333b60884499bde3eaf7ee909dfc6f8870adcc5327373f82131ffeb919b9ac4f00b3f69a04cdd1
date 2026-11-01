@@ -1,0 +1,6 @@
+import { type MailAccount, type MailAccountView, type MailSubmission, type MailSubmissionLogView, type MailSubmissionView, type MailSyncRun, type MailSyncRunView } from '../shared/mail.js';
+export declare function toSyncRunView(run: MailSyncRun): MailSyncRunView;
+export declare function toSubmissionView(submission: MailSubmission): MailSubmissionView;
+export declare function toSubmissionLogView(submission: import('./contracts/persistence.js').MailStoredSubmission): MailSubmissionLogView;
+export declare function toMailAccountView(account: MailAccount): MailAccountView;
+//# sourceMappingURL=views.d.ts.map

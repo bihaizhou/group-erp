@@ -1,0 +1,22 @@
+import { type MailAccount, type MailFolder, type MailIdentity, type MailLabel, type MailMessage, type MailMessageSummary, type MailSignature, type MailSyncRun, type MailTemplate } from '../../shared/mail.js';
+import { type MailOutboxRecord, type MailStoredSubmission } from '../contracts/persistence.js';
+import { type MailProviderPushSubscription, type NormalizedMailMessage } from '../contracts/provider.js';
+import { type AccountRow, type FolderRow, type IdentityRow, type LabelRow, type MessageRow, type OutboxRow, type PushSubscriptionRow, type SignatureRow, type SubmissionRow, type SyncRunRow, type TemplateRow } from './rows.js';
+export declare function toAccountRow(account: MailAccount, updatedAt: string, createdAt?: string): AccountRow;
+export declare function fromAccountRow(row: AccountRow): MailAccount;
+export declare function toIdentityRow(identity: MailIdentity): IdentityRow;
+export declare function fromIdentityRow(row: IdentityRow): MailIdentity;
+export declare function fromSignatureRow(row: SignatureRow): MailSignature;
+export declare function toMailTemplate(row: TemplateRow): MailTemplate;
+export declare function fromFolderRow(row: FolderRow): MailFolder;
+export declare function fromLabelRow(row: LabelRow): MailLabel;
+export declare function toMessageRow(accountId: string, message: NormalizedMailMessage, id: string, createdAt: string, updatedAt: string, local?: Pick<MessageRow, 'note' | 'todo'>): MessageRow;
+export declare function toMailMessageSummary(row: MessageRow, folderIds: readonly string[], labelIds: readonly string[]): MailMessageSummary;
+export declare function toMailMessage(row: MessageRow, folderIds: readonly string[], labelIds: readonly string[]): MailMessage;
+export declare function toSyncRunRow(run: MailSyncRun): SyncRunRow;
+export declare function fromSyncRunRow(row: SyncRunRow): MailSyncRun;
+export declare function fromSubmissionRow(row: SubmissionRow): MailStoredSubmission;
+export declare function fromPushSubscriptionRow(row: PushSubscriptionRow): MailProviderPushSubscription;
+export declare function completePushSubscription(row: PushSubscriptionRow): boolean;
+export declare function fromOutboxRow(row: OutboxRow): MailOutboxRecord;
+//# sourceMappingURL=mappers.d.ts.map

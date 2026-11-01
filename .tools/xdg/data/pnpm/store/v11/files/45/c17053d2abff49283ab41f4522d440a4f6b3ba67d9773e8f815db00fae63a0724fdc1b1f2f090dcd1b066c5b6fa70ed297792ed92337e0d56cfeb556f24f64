@@ -1,0 +1,4 @@
+import type { QueryAdapter } from '@nocobase/db';
+/** Call inside the writing transaction. Serialize writes with account removal. */
+export declare function lockWritableAccount(query: QueryAdapter, accountId: string): Promise<void>;
+//# sourceMappingURL=account-guard.d.ts.map

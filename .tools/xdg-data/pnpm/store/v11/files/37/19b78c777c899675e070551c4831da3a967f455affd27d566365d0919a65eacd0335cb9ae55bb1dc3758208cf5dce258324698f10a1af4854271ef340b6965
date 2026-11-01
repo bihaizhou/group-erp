@@ -1,0 +1,186 @@
+import { randomUUID } from 'node:crypto';
+import { requireOwnedAccount } from './access.js';
+import { normalizeMailLabelColor } from './input.js';
+import { MailError, mailAccountNotFound, mailInvalidArgument, mailNotFound, } from './errors.js';
+export class MailPreferencesService {
+    dependencies;
+    constructor(dependencies) {
+        this.dependencies = dependencies;
+    }
+    async listIdentities(context, accountId) {
+        await requireOwnedAccount(this.dependencies.store, context, accountId);
+        return this.dependencies.store.listIdentities(accountId);
+    }
+    async updateIdentity(context, input) {
+        const account = await this.dependencies.store.getAccount(input.accountId);
+        if (!account || account.userId !== context.actorId) {
+            throw mailAccountNotFound();
+        }
+        const identity = await this.dependencies.store.getIdentity(input.identityId);
+        if (!identity || identity.accountId !== account.id) {
+            throw mailNotFound('MAIL_IDENTITY_NOT_FOUND', 'Mail sending identity was not found.', 'identityId');
+        }
+        const updated = await this.dependencies.store.updateIdentity(identity.id, {
+            displayName: input.displayName === undefined
+                ? identity.displayName
+                : (input.displayName ?? undefined),
+        });
+        if (!updated)
+            throw mailNotFound('MAIL_IDENTITY_NOT_FOUND', 'Mail sending identity was not found.', 'identityId');
+        return updated;
+    }
+    async listSignatures(context, accountId) {
+        await requireOwnedAccount(this.dependencies.store, context, accountId);
+        return this.dependencies.store.listSignatures(accountId);
+    }
+    async saveSignature(context, input) {
+        await requireOwnedAccount(this.dependencies.store, context, input.accountId);
+        const name = input.name.trim();
+        if (!name)
+            throw mailInvalidArgument('Mail signature name is required.', 'name');
+        const existing = input.id
+            ? await this.dependencies.store.getSignature(input.id)
+            : undefined;
+        if (input.id && (!existing || existing.accountId !== input.accountId)) {
+            throw mailNotFound('MAIL_SIGNATURE_NOT_FOUND', 'Mail signature was not found.', 'signatureId');
+        }
+        const now = new Date().toISOString();
+        return this.dependencies.store.saveSignature({
+            id: input.id ?? randomUUID(),
+            accountId: input.accountId,
+            name,
+            text: input.text,
+            html: input.html ?? undefined,
+            isDefault: input.isDefault ?? existing?.isDefault ?? false,
+            createdAt: existing?.createdAt ?? now,
+            updatedAt: now,
+        });
+    }
+    async updateSignature(context, input) {
+        await requireOwnedAccount(this.dependencies.store, context, input.accountId);
+        const existing = await this.dependencies.store.getSignature(input.id);
+        if (!existing || existing.accountId !== input.accountId) {
+            throw mailNotFound('MAIL_SIGNATURE_NOT_FOUND', 'Mail signature was not found.', 'signatureId');
+        }
+        const name = input.name === undefined ? existing.name : input.name.trim();
+        if (!name)
+            throw mailInvalidArgument('Mail signature name is required.', 'name');
+        return this.dependencies.store.saveSignature({
+            ...existing,
+            name,
+            text: input.text ?? existing.text,
+            html: input.html === undefined ? existing.html : (input.html ?? undefined),
+            isDefault: input.isDefault ?? existing.isDefault,
+            updatedAt: new Date().toISOString(),
+        });
+    }
+    async deleteSignature(context, accountId, signatureId) {
+        await requireOwnedAccount(this.dependencies.store, context, accountId);
+        const signature = await this.dependencies.store.getSignature(signatureId);
+        if (!signature ||
+            signature.accountId !== accountId ||
+            !(await this.dependencies.store.deleteSignature(accountId, signatureId))) {
+            throw mailNotFound('MAIL_SIGNATURE_NOT_FOUND', 'Mail signature was not found.', 'signatureId');
+        }
+        if (signature.isDefault) {
+            const replacement = (await this.dependencies.store.listSignatures(accountId))[0];
+            if (replacement) {
+                await this.dependencies.store.saveSignature({
+                    ...replacement,
+                    isDefault: true,
+                    updatedAt: new Date().toISOString(),
+                });
+            }
+        }
+    }
+    listLabels(context) {
+        return this.dependencies.store.listLabels(context.actorId);
+    }
+    async createLabel(context, input) {
+        const labelName = input.name.trim();
+        if (!labelName)
+            throw mailInvalidArgument('Mail label name is required.', 'name');
+        const labels = await this.dependencies.store.listLabels(context.actorId);
+        if (labels.some((label) => label.name === labelName)) {
+            throw new MailError({
+                status: 'ALREADY_EXISTS',
+                reason: 'MAIL_LABEL_ALREADY_EXISTS',
+                message: 'Mail label name is already in use.',
+            });
+        }
+        return this.dependencies.store.createLabel(context.actorId, labelName, normalizeMailLabelColor(input.color));
+    }
+    async updateLabel(context, input) {
+        const labels = await this.dependencies.store.listLabels(context.actorId);
+        const existing = labels.find((label) => label.id === input.id);
+        if (!existing)
+            throw mailNotFound('MAIL_LABEL_NOT_FOUND', 'Mail label was not found.', 'labelId');
+        const labelName = input.name === undefined ? existing.name : input.name.trim();
+        if (!labelName)
+            throw mailInvalidArgument('Mail label name is required.', 'name');
+        if (labels.some((label) => label.id !== input.id && label.name === labelName)) {
+            throw new MailError({
+                status: 'ALREADY_EXISTS',
+                reason: 'MAIL_LABEL_ALREADY_EXISTS',
+                message: 'Mail label name is already in use.',
+            });
+        }
+        const updated = await this.dependencies.store.updateLabel(context.actorId, input.id, {
+            name: labelName,
+            color: normalizeMailLabelColor(input.color, existing.color),
+        });
+        if (!updated)
+            throw mailNotFound('MAIL_LABEL_NOT_FOUND', 'Mail label was not found.', 'labelId');
+        return updated;
+    }
+    async deleteLabel(context, labelId) {
+        if (!(await this.dependencies.store.deleteLabel(context.actorId, labelId))) {
+            throw mailNotFound('MAIL_LABEL_NOT_FOUND', 'Mail label was not found.', 'labelId');
+        }
+    }
+    listTemplates(context) {
+        return this.dependencies.store.listTemplates(context.actorId);
+    }
+    async saveTemplate(context, input) {
+        const name = input.name.trim();
+        if (!name)
+            throw mailInvalidArgument('Mail template name is required.', 'name');
+        if (input.id) {
+            const owned = await this.dependencies.store.listTemplates(context.actorId);
+            if (!owned.some((template) => template.id === input.id)) {
+                throw mailNotFound('MAIL_TEMPLATE_NOT_FOUND', 'Mail template was not found.', 'templateId');
+            }
+        }
+        return this.dependencies.store.saveTemplate({
+            id: input.id ?? randomUUID(),
+            name,
+            subject: input.subject,
+            text: input.text,
+            html: input.html ?? '',
+            ownerId: context.actorId,
+        });
+    }
+    async updateTemplate(context, input) {
+        const existing = (await this.dependencies.store.listTemplates(context.actorId)).find((template) => template.id === input.id);
+        if (!existing) {
+            throw mailNotFound('MAIL_TEMPLATE_NOT_FOUND', 'Mail template was not found.', 'templateId');
+        }
+        const name = input.name === undefined ? existing.name : input.name.trim();
+        if (!name)
+            throw mailInvalidArgument('Mail template name is required.', 'name');
+        return this.dependencies.store.saveTemplate({
+            id: existing.id,
+            name,
+            subject: input.subject ?? existing.subject,
+            text: input.text === undefined ? existing.text : input.text,
+            html: input.html ?? existing.html,
+            ownerId: context.actorId,
+        });
+    }
+    async deleteTemplate(context, templateId) {
+        if (!(await this.dependencies.store.deleteTemplate(context.actorId, templateId))) {
+            throw mailNotFound('MAIL_TEMPLATE_NOT_FOUND', 'Mail template was not found.', 'templateId');
+        }
+    }
+}
+//# sourceMappingURL=preferences.js.map

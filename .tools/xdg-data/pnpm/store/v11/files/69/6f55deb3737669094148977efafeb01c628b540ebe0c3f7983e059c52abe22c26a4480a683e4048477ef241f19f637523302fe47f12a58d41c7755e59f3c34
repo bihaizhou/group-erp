@@ -1,0 +1,4 @@
+import type { ComponentProps, ReactElement } from 'react';
+export type NativeSelectProps = ComponentProps<'select'>;
+export declare function NativeSelect({ className, children, ...props }: NativeSelectProps): ReactElement;
+//# sourceMappingURL=native-select.d.ts.map

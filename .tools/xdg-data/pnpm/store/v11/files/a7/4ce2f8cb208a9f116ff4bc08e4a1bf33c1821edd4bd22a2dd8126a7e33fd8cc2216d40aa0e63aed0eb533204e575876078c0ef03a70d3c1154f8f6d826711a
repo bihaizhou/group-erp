@@ -1,0 +1,29 @@
+import type { CreateTarget, NestedCreateOptions, RelationDeleteInput, RelationTargetSelector, RelationUpdateInput, RelationUpsertInput, UpdateRelationFieldMutationBuilder } from './types.js';
+export interface RelationFieldMutationBuilderState {
+    readonly create: readonly CreateTarget[];
+    readonly connect: readonly RelationTargetSelector[];
+    readonly disconnect: true | readonly RelationTargetSelector[] | undefined;
+    readonly set: readonly RelationTargetSelector[] | undefined;
+    readonly update: readonly RelationUpdateInput[];
+    readonly upsert: readonly RelationUpsertInput[];
+    readonly delete: readonly RelationDeleteInput[];
+}
+export declare class DefaultRelationFieldMutationBuilder implements UpdateRelationFieldMutationBuilder {
+    private readonly created;
+    private readonly connected;
+    private readonly disconnected;
+    private clear;
+    private replacement;
+    private readonly updates;
+    private readonly upserts;
+    private readonly deletes;
+    create(values: Readonly<Record<string, unknown>>, options?: NestedCreateOptions): this;
+    connect(values: RelationTargetSelector, options?: Pick<NestedCreateOptions, 'through'>): this;
+    disconnect(values?: RelationTargetSelector): this;
+    set(values: readonly RelationTargetSelector[]): this;
+    update(input: RelationUpdateInput): this;
+    upsert(input: RelationUpsertInput): this;
+    delete(input?: RelationDeleteInput): this;
+    toState(): RelationFieldMutationBuilderState;
+}
+//# sourceMappingURL=relation-mutation-builder.d.ts.map

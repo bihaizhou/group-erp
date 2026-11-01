@@ -1,0 +1,47 @@
+import { type AppRouteContribution, type RepositoryApiActions } from '@nocobase/app-server/router';
+import type { RepositoryPolicy } from '@nocobase/db';
+import type { ServiceContainer } from '@nocobase/service-provider';
+import { type Context } from 'hono';
+export interface FileRepositoryApiActions extends RepositoryApiActions {
+    readonly uploadOne?: {
+        readonly maxSize?: number;
+    };
+    readonly uploadMany?: {
+        readonly maxSize?: number;
+    };
+}
+export interface FileRepositoryApiExposure<P = unknown> {
+    readonly name: string;
+    readonly collection?: string;
+    readonly connection?: string;
+    readonly disk: string;
+    readonly accessPath?: string;
+    readonly accessMode?: 'stream' | 'redirect';
+    /**
+     * The Policy every action of this exposure runs under, including uploads.
+     *
+     * `uploadOne` and `uploadMany` do not go through `defineRepositoryApiRoutes`
+     * — they compose their own values and call the Repository directly — so what
+     * they bind is derived from this one: the `create` scope and defaults are
+     * inherited, and the field allowlist is replaced by the file columns, which
+     * is the only thing a caller cannot influence here. See `uploadPolicy`.
+     *
+     * The public byte route under `accessPath` is the deliberate exception. It
+     * serves anyone holding the UUID, has no authentication of its own, and is
+     * unaffected by this Policy.
+     */
+    readonly policy: RepositoryPolicy | ((principal: P) => RepositoryPolicy);
+    readonly actions: FileRepositoryApiActions;
+}
+export interface FileRepositoryRoutesApplication {
+    readonly container: ServiceContainer;
+    readonly publicBasePath?: string;
+}
+export interface DefineFileRepositoryApiRoutesOptions<P = unknown> {
+    readonly repositories: readonly FileRepositoryApiExposure<P>[];
+    /** Resolve the principal a Policy function receives. See `app-server`. */
+    readonly principal?: (context: Context) => P | Promise<P>;
+}
+/** Public first-version routes. Authentication and authorization are application-owned. */
+export declare function defineFileRepositoryApiRoutes<P = unknown>(options: DefineFileRepositoryApiRoutesOptions<P>): readonly AppRouteContribution<FileRepositoryRoutesApplication>[];
+//# sourceMappingURL=routes.d.ts.map

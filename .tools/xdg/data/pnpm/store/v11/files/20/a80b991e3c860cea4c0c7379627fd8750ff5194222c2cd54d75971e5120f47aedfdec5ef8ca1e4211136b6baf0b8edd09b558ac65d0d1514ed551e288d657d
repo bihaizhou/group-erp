@@ -1,0 +1,9 @@
+import { type ReactElement } from 'react';
+import type { MailMessage } from '../mail-client.js';
+interface MailMessageContentProps {
+    readonly message: MailMessage;
+    readonly title: string;
+}
+export declare function MailMessageContent(props: MailMessageContentProps): ReactElement;
+export {};
+//# sourceMappingURL=mail-message-content.d.ts.map

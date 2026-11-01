@@ -1,0 +1,8 @@
+import { type JobClass } from '@nocobase/jobs';
+import type { MailScheduledSendTaskPayload } from '../contracts/persistence.js';
+/** The handler identity stored with every scheduled send task: keep it stable. */
+export declare const MAIL_SCHEDULED_SEND_JOB_NAME = "@nocobase/app-plugin-mail/send-scheduled-mail";
+export type MailScheduledSendJobHandler = (payload: MailScheduledSendTaskPayload) => Promise<void>;
+/** Like the sync job, the class closes over the handler of the runtime that registers it. */
+export declare function createSendScheduledMailJob(handler: MailScheduledSendJobHandler): JobClass<MailScheduledSendTaskPayload>;
+//# sourceMappingURL=send-scheduled-mail.d.ts.map

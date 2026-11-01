@@ -1,0 +1,12 @@
+import type { MailProviderError, MailProviderResult } from '../../../shared/mail.js';
+export declare function unknownError(error: unknown, code: string): MailProviderError;
+export declare function contentPreparationError(error: unknown, code: string): MailProviderError;
+export declare class ProviderRequestError extends Error {
+    readonly providerError: MailProviderError;
+    constructor(providerError: MailProviderError);
+}
+export declare function errorResult(error: unknown, code: string): MailProviderError;
+export declare function failure<T>(code: string, message: string, category: MailProviderError['category'], retryable: boolean): MailProviderResult<T>;
+export declare function invalidPushNotification<T>(): MailProviderResult<T>;
+export declare function record(value: unknown): Record<string, unknown>;
+//# sourceMappingURL=errors.d.ts.map

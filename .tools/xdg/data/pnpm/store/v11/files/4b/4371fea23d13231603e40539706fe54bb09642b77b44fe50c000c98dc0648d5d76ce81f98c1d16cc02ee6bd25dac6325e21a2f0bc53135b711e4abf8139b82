@@ -1,0 +1,17 @@
+import { type ReviewerSelection } from './parameter-configuration.js';
+import type { JsonValue } from './types.js';
+export interface ReviewerResolverContext {
+    readonly scope: string;
+    readonly applicantId: string;
+    readonly transactionHandle?: unknown;
+}
+export type ReviewerSelector = (referenceId: string, context: ReviewerResolverContext) => Promise<readonly string[]>;
+export interface ReviewerResolverOptions {
+    readonly selectors: Readonly<Record<string, ReviewerSelector>>;
+    /** Applies uniformly to every candidate, including explicit-user groups. */
+    readonly eligible: (userId: string, context: ReviewerResolverContext) => Promise<boolean>;
+}
+export declare function normalizeReviewerSelections(value: unknown, allowedTypes: readonly string[]): JsonValue;
+/** Fixed semantics: intersection within each group, union across groups, then eligibility. */
+export declare function resolveReviewerSelections(selections: readonly ReviewerSelection[], context: ReviewerResolverContext, options: ReviewerResolverOptions): Promise<readonly string[]>;
+//# sourceMappingURL=reviewers.d.ts.map

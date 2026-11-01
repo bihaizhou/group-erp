@@ -1,0 +1,8 @@
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { JobExecutorService } from '@nocobase/jobs';
+/**
+ * The application's ordinary and recurring jobs service. Each consumer asks
+ * for its own JobExecutor or ScheduleExecutor under its package name as scope.
+ */
+export declare const jobExecutorServiceToken: ServiceToken<JobExecutorService>;
+//# sourceMappingURL=token.d.ts.map

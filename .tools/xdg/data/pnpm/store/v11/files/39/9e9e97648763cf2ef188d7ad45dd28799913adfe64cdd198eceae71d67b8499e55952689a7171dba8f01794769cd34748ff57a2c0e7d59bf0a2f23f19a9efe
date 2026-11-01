@@ -1,0 +1,21 @@
+import { type Command } from '@oclif/core';
+import type { Interfaces } from '@oclif/core';
+import { AppCommand } from '../../context.ts';
+import { type ConfigSetResult } from '../../lib/config-set.ts';
+/**
+ * What `config set` reports. What the write left unconfirmed — a key an environment variable overrides, a
+ * configuration that does not load yet, a secret given on the command line — is reported as warnings, which `--json`
+ * carries in the envelope's `warnings`.
+ */
+export type AppConfigSetResult = Omit<ConfigSetResult, 'warnings'>;
+export default class AppConfigSet extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static strict: boolean;
+    static flags: {
+        'from-env': Interfaces.BooleanFlag<boolean>;
+    };
+    run(): Promise<AppConfigSetResult>;
+}
+//# sourceMappingURL=set.d.ts.map

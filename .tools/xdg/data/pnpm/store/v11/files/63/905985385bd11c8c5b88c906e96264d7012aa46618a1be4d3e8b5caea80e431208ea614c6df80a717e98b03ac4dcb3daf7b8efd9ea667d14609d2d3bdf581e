@@ -1,0 +1,37 @@
+import { I18nRuntime, type Locale, type LocalesModule } from '@nocobase/i18n';
+import { type AppConfigAccessor } from '../config/index.js';
+import { ServiceProvider, type ServiceContainer, type ServiceToken } from '@nocobase/service-provider';
+import { type AppHttpMiddleware } from '../router/index.js';
+export declare const i18nToken: ServiceToken<I18nRuntime>;
+export interface AppI18nConfig {
+    readonly defaultLocale: Locale;
+}
+export interface I18nProviderApplication {
+    readonly container: ServiceContainer;
+    readonly config: AppConfigAccessor;
+}
+export interface AppI18nLocaleContribution {
+    readonly packageName: string;
+    readonly locales: LocalesModule;
+}
+/**
+ * Registers the i18n runtime as a service.
+ *
+ * Only the default locale's resources are loaded at startup; another locale is imported the first time a request
+ * actually needs it, and stays in memory afterwards.
+ */
+export declare class I18nProvider<TApplication extends I18nProviderApplication = I18nProviderApplication> extends ServiceProvider<TApplication> {
+    readonly name: string;
+    register(): void;
+}
+/**
+ * Registers each plugin's locale loaders against its package name and initializes the runtime.
+ */
+export declare function registerAppLocales(runtime: I18nRuntime, applicationPackageName: string, contributions: readonly AppI18nLocaleContribution[]): Promise<void>;
+/**
+ * Resolves the request's language and puts a translator on the context.
+ *
+ * Mount it after the session middleware: a visitor's stored choice lives there, and it outranks `Accept-Language`.
+ */
+export declare const i18nHttpMiddleware: AppHttpMiddleware<I18nProviderApplication>;
+//# sourceMappingURL=index.d.ts.map

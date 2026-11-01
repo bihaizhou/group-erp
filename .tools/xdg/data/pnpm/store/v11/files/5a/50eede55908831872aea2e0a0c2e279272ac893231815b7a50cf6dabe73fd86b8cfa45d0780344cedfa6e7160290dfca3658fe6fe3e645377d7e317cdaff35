@@ -1,0 +1,17 @@
+import type { AppAuthorization } from './authorization.js';
+/**
+ * Every stored grant that no longer applies, one message naming its Permission Set, resource, action and problem: a
+ * composite grant that no longer expands against the current composite definitions, and a `database.collection`
+ * create or update grant, given directly or through a composite action, that names a field or relation a write can no
+ * longer use. The Permission Set routes refuse both when a set is saved, so these come from a seed, a direct write, or
+ * a Collection or definition that changed afterwards.
+ */
+export declare function storedGrantProblems(authz: AppAuthorization): Promise<string[]>;
+export interface StoredGrantReportOptions {
+    /** Warn instead of throwing. */
+    production: boolean;
+    warn(message: string): void;
+}
+/** Throws in development and warns in production, as the workspace check does. */
+export declare function reportStoredGrants(problems: readonly string[], options: StoredGrantReportOptions): void;
+//# sourceMappingURL=stored-grants.d.ts.map

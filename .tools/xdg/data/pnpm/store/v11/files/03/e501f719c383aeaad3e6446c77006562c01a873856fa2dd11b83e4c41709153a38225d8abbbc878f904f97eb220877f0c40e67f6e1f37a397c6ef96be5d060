@@ -1,0 +1,27 @@
+export interface AppPathOptions {
+    readonly rootDir: string;
+    readonly deploymentRootDir?: string;
+    readonly serverDir?: string;
+    readonly databaseDir?: string;
+    readonly clientDir?: string;
+    readonly configDir?: string;
+    readonly storageDir?: string;
+}
+export interface AppPaths {
+    readonly rootDir: string;
+    readonly deploymentRootDir: string;
+    readonly serverDir: string;
+    readonly databaseDir: string;
+    readonly clientDir: string;
+    readonly configDir: string;
+    readonly storageDir: string;
+    root(relativePath?: string): string;
+    server(relativePath?: string): string;
+    database(relativePath?: string): string;
+    client(relativePath?: string): string;
+    config(relativePath?: string): string;
+    storage(relativePath?: string): string;
+}
+/** Resolve directory inputs once; all application consumers share this object. */
+export declare function createAppPaths(options: AppPathOptions): AppPaths;
+//# sourceMappingURL=paths.d.ts.map

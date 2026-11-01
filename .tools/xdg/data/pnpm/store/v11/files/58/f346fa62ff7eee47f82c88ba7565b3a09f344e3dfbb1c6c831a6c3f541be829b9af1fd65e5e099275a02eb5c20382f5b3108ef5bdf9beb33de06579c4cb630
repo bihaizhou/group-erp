@@ -1,0 +1,19 @@
+interface Accumulator {
+    coefficient: bigint;
+    scale: number;
+    count: bigint;
+}
+interface SqliteFunctions {
+    aggregate(name: string, options: {
+        start: () => Accumulator;
+        step: (state: Accumulator, value: unknown) => Accumulator;
+        result: (state: Accumulator) => string | null;
+        safeIntegers: boolean;
+    }): void;
+    function(name: string, options: {
+        deterministic: boolean;
+        safeIntegers: boolean;
+    }, fn: (...values: unknown[]) => string | bigint | null): void;
+}
+export declare function installDecimalAggregates(connection: SqliteFunctions): void;
+export {};

@@ -1,0 +1,10 @@
+import type { MailProviderError, MailProviderResult } from '../../../shared/mail.js';
+export declare function throwIfAborted(signal: AbortSignal | undefined): void;
+export declare function failure<T>(code: string, message: string, category: MailProviderError['category'], retryable: boolean): MailProviderResult<T>;
+/**
+ * Classify an IMAP (imapflow) or SMTP (nodemailer) failure. IMAP servers report the reason as a response code (RFC
+ * 5530) such as `[AUTHENTICATIONFAILED]`, `[UNAVAILABLE]` or Gmail's `[THROTTLED]`, which imapflow exposes as
+ * `serverResponseCode`; SMTP servers report a reply code, where 4xx is transient and 5xx permanent.
+ */
+export declare function classifyError(error: unknown, code: string): MailProviderError;
+//# sourceMappingURL=errors.d.ts.map

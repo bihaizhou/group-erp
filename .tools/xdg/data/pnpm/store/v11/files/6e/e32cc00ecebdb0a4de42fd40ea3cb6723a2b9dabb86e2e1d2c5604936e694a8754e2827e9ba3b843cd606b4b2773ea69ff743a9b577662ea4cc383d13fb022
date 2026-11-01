@@ -1,0 +1,20 @@
+import type { Logger, LoggingConfig } from './types.js';
+export declare class Logging {
+    private readonly outputs;
+    private readonly defaultLogger;
+    private readonly defaultConfig;
+    private readonly loggerConfigs;
+    private readonly loggers;
+    private readonly transportLoggers;
+    private readonly transportStreams;
+    private readonly destinations;
+    private closePromise;
+    constructor(config?: LoggingConfig);
+    getLogger(name?: string): Logger;
+    flush(): Promise<void>;
+    close(): Promise<void>;
+    private closeLoggers;
+    private flushLogger;
+}
+export declare function createLogging(config?: LoggingConfig): Logging;
+//# sourceMappingURL=logging.d.ts.map

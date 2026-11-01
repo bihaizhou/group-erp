@@ -1,0 +1,4 @@
+import type { SeedDefinition } from '../types.js';
+export declare const SEED_DEFINITION_SYMBOL: symbol;
+export declare function markSeedDefinition<T extends SeedDefinition>(definition: T): T;
+export declare function isDefinedSeed(value: unknown): value is SeedDefinition;

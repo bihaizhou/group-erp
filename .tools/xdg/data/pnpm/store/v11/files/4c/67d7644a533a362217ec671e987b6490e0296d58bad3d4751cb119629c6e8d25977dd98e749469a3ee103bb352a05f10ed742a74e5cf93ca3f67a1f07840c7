@@ -1,0 +1,14 @@
+import type { NormalizedRepositoryPolicy, PartialRepositoryPolicy } from './types.js';
+/**
+ * Narrow a bound Policy.
+ *
+ * Every rule here only ever takes away: scopes are ANDed, field lists
+ * intersected, relations intersected, and `false` on either side wins. There
+ * is deliberately no spelling that widens — a caller holding a narrowed
+ * Repository cannot climb back out of it.
+ *
+ * A patch is a patch: a member it does not mention is left as it was. A member
+ * it does mention is intersected with what was there, so `relations: {}` is a
+ * way to say "none of them" rather than "no change".
+ */
+export declare function narrowRepositoryPolicy<TRecord extends object>(current: NormalizedRepositoryPolicy, patch: PartialRepositoryPolicy<TRecord>): NormalizedRepositoryPolicy;

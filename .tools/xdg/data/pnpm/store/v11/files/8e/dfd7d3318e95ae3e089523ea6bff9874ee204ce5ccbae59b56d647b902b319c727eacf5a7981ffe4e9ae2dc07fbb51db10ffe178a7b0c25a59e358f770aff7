@@ -1,0 +1,8 @@
+import type { ReactElement } from 'react';
+export type MailStatusTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
+export interface MailStatusBadgeProps {
+    readonly label: string;
+    readonly tone?: MailStatusTone;
+}
+export declare function MailStatusBadge({ label, tone, }: MailStatusBadgeProps): ReactElement;
+//# sourceMappingURL=mail-status-badge.d.ts.map

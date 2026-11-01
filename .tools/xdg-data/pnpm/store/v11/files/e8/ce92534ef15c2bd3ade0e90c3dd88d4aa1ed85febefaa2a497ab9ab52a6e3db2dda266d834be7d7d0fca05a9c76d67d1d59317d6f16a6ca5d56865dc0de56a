@@ -1,0 +1,10 @@
+import { mailApiRoutes } from './api.js';
+import { mailOAuthCallbackRoutes } from './oauth-callback.js';
+import { mailPushWebhookRoutes } from './push-webhook.js';
+const routes = [
+    mailOAuthCallbackRoutes,
+    mailPushWebhookRoutes,
+    mailApiRoutes,
+];
+export default routes;
+//# sourceMappingURL=index.js.map

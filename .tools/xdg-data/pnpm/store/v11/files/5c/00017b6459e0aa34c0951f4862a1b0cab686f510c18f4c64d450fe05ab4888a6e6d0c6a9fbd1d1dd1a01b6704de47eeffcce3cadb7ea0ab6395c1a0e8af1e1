@@ -1,0 +1,14 @@
+import type { SpaClientConfigMap } from './types.js';
+/**
+ * Renders what the browser needs into the page: the `lang` attribute, the page's relative URLs pointed at the mount
+ * path, and the client configuration data block, ahead of the entry module so that module-level code can already read it. Nothing
+ * is put on `window`: the configuration block is the client's only source of runtime values.
+ */
+export declare function injectSpaRuntimeHtml(html: string, options?: {
+    readonly clientConfig?: SpaClientConfigMap;
+    readonly publicConfig?: SpaClientConfigMap;
+    /** The path the application is mounted at, such as `/crm`, or `''` at the origin root. */
+    readonly publicBasePath?: string;
+}): string;
+export declare function escapeScriptJson(value: string): string;
+//# sourceMappingURL=runtime-html.d.ts.map

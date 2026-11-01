@@ -1,0 +1,50 @@
+import type { AppConfigFactory } from '../config/index.js';
+import type { ConfigMap } from '@nocobase/config';
+import { AppConfig } from '../config/index.js';
+import type { Application, ApplicationServiceProviderConstructor } from '../application/index.js';
+import { type ConfigContext, type AppPaths } from '../config/index.js';
+import { type AppServerPluginLocales, type AppServerPlugins, type ResolvedAppServerPlugins } from '../plugins/index.js';
+import type { AppRouteContribution } from '../router/index.js';
+import { type ResolvedAppScopeRuntime } from './scope.js';
+import type { AppPathOptions, AppScope } from './types.js';
+export type AppRuntimeConfig = object;
+export interface AppRuntimeConfigContext extends ConfigContext {
+    readonly mode?: 'standalone' | 'embedded';
+    readonly routing?: ResolvedAppScopeRuntime['routing'];
+    readonly plugins?: ResolvedAppServerPlugins;
+    readonly appPackageName?: string;
+    readonly configPath?: string;
+}
+export interface ResolvedAppRuntimeConfigContext extends AppRuntimeConfigContext {
+    readonly mode: 'standalone' | 'embedded';
+    readonly routing: ResolvedAppScopeRuntime['routing'];
+    readonly plugins: ResolvedAppServerPlugins;
+    readonly appPackageName: string;
+    readonly configPath: string | undefined;
+}
+export interface AppRuntimeDefinition {
+    /** Standalone deployment root, absolute or relative to the code root; shared by server and CLI. */
+    readonly deploymentRootDir?: string;
+    /** Application-owned paths, applied consistently to server and CLI resolution. */
+    readonly resolvePaths?: (runtime: ResolvedAppScopeRuntime) => AppPathOptions;
+    readonly defaultConfigs?: AppConfigFactory<ConfigMap>;
+    readonly createAppConfig: (context: ResolvedAppRuntimeConfigContext) => AppConfig;
+    readonly plugins: AppServerPlugins;
+    readonly serviceProviders: readonly ApplicationServiceProviderConstructor[];
+    readonly routes: readonly AppRouteContribution<Application>[];
+    readonly locales?: AppServerPluginLocales;
+}
+export interface AppRuntimeContext extends ResolvedAppScopeRuntime {
+    app?: Application;
+    readonly scope: AppScope;
+    readonly paths: AppPaths;
+    readonly plugins: ResolvedAppServerPlugins;
+    readonly serviceProviders: readonly ApplicationServiceProviderConstructor[];
+    readonly routes: readonly AppRouteContribution<Application>[];
+    readonly config: AppConfig;
+    readonly locales?: AppServerPluginLocales;
+}
+export type ResolvedAppRuntime = AppRuntimeContext;
+export declare function defineAppRuntime(definition: AppRuntimeDefinition): AppRuntimeDefinition;
+export declare function resolveAppRuntime(definition: AppRuntimeDefinition, scope: AppScope): Promise<ResolvedAppRuntime>;
+//# sourceMappingURL=definition.d.ts.map

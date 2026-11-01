@@ -1,0 +1,4 @@
+import type { I18nPluginResource } from './en-US.js';
+declare const zhCN: I18nPluginResource;
+export default zhCN;
+//# sourceMappingURL=zh-CN.d.ts.map

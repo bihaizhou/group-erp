@@ -1,0 +1,35 @@
+import type { DatabaseManager } from '@nocobase/db';
+/** A key: lower-case letters, digits, dots, dashes and underscores, starting with a letter, at most 100 characters. */
+export declare const USER_PREFERENCE_KEY_PATTERN: RegExp;
+/** The longest a value may be once written as JSON. */
+export declare const MAX_USER_PREFERENCE_BYTES = 4096;
+/** At most this many preferences per person. */
+export declare const MAX_USER_PREFERENCES = 200;
+export type UserPreferenceValue = string | number | boolean | null | readonly UserPreferenceValue[] | {
+    readonly [key: string]: UserPreferenceValue;
+};
+export type UserPreferences = Readonly<Record<string, UserPreferenceValue>>;
+export declare class UserPreferenceError extends Error {
+    readonly code: 'INVALID_PREFERENCE_KEY' | 'INVALID_PREFERENCE_VALUE' | 'TOO_MANY_PREFERENCES';
+    constructor(code: 'INVALID_PREFERENCE_KEY' | 'INVALID_PREFERENCE_VALUE' | 'TOO_MANY_PREFERENCES', message: string);
+}
+export interface UserPreferencesService {
+    /** Every preference of `userId`, by key. */
+    list(userId: string): Promise<UserPreferences>;
+    get(userId: string, key: string): Promise<UserPreferenceValue | undefined>;
+    /** Stores one value, replacing what the key held. */
+    set(userId: string, key: string, value: unknown): Promise<void>;
+    /** Stores several values in one transaction. */
+    setMany(userId: string, values: Readonly<Record<string, unknown>>): Promise<void>;
+    remove(userId: string, key: string): Promise<void>;
+    /** Every preference of `userId`, as when the account is deleted. */
+    removeAll(userId: string): Promise<void>;
+}
+export interface UserPreferencesServiceOptions {
+    readonly database: Pick<DatabaseManager, 'connection' | 'transaction'>;
+}
+export declare function checkPreferenceKey(key: unknown): string;
+/** The value as stored: JSON text of at most `MAX_USER_PREFERENCE_BYTES`. */
+export declare function encodePreferenceValue(value: unknown): string;
+export declare function createUserPreferencesService(options: UserPreferencesServiceOptions): UserPreferencesService;
+//# sourceMappingURL=service.d.ts.map

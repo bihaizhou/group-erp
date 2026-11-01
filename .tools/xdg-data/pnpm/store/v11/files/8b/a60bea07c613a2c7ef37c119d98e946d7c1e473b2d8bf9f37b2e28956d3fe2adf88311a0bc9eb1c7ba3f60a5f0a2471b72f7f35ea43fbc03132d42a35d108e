@@ -1,0 +1,97 @@
+import { ImapFlow } from 'imapflow';
+import type { MailAttachmentContent, MailProviderResult, MailSyncCursor } from '../../../shared/mail.js';
+import type { MailProviderAdapter, MailProviderAccount, MailProviderContext, MailProviderFolderPage, MailProviderListChangesInput, MailProviderListFoldersInput, MailProviderListMessagesInput, MailProviderMessagePage, MailProviderSendInput, MailProviderSendResult, NormalizedMailMessage } from '../../contracts/provider.js';
+import type { ImapOperationSnapshot, ImapLocationPersistence, ImapSmtpCredential } from './types.js';
+import type { MailSyncStepCommit } from '../../contracts/persistence.js';
+import type { MailSyncRun } from '../../../shared/mail.js';
+import type { ImapSmtpMailProviderConfig } from './config.js';
+import { createImapClient, createSmtpTransport } from './connection.js';
+export declare class ImapSmtpAdapter implements MailProviderAdapter {
+    private readonly context;
+    private readonly config;
+    private readonly account;
+    private readonly credential;
+    private readonly locations?;
+    private readonly protocol;
+    private readonly operation?;
+    readonly identity: MailProviderAccount['provider'];
+    readonly capabilities: MailProviderAdapter['capabilities'];
+    private readonly folderTypes;
+    private imapClient?;
+    private readonly smtpTransport;
+    private copies;
+    private changes;
+    private cleanup;
+    private verificationIncomplete;
+    private readonly verificationCopies;
+    private readonly syncRun?;
+    private rawBudget;
+    private readonly rawCache;
+    constructor(context: MailProviderContext, config: ImapSmtpMailProviderConfig, account: MailProviderAccount, credential: ImapSmtpCredential, locations?: ImapLocationPersistence | undefined, run?: MailSyncRun, protocol?: {
+        readonly imap: typeof createImapClient;
+        readonly smtp: typeof createSmtpTransport;
+        readonly expungeUid: typeof expungeUid;
+    }, operation?: ImapOperationSnapshot | undefined);
+    forSync(run: MailSyncRun): ImapSmtpAdapter;
+    forMessage(messageId: string, providerMessageId: string, operation: 'flags' | 'delete'): Promise<ImapSmtpAdapter>;
+    /** True when this instance records message copies in the account's location table. */
+    get persistsLocations(): boolean;
+    /** Commit a sync step together with the location evidence this instance gathered for it. */
+    commitSyncStep(input: MailSyncStepCommit): Promise<MailSyncRun>;
+    listFolders(input: MailProviderListFoldersInput): Promise<MailProviderResult<MailProviderFolderPage>>;
+    getCurrentSyncCursor(signal?: AbortSignal): Promise<MailProviderResult<MailSyncCursor>>;
+    listMessages(input: MailProviderListMessagesInput): Promise<MailProviderResult<MailProviderMessagePage>>;
+    listChanges(input: MailProviderListChangesInput): Promise<MailProviderResult<{
+        readonly messages: readonly NormalizedMailMessage[];
+        readonly deletedProviderMessageIds: readonly string[];
+        readonly nextCursor: MailSyncCursor;
+        readonly hasMore: boolean;
+    }>>;
+    getMessage(providerMessageId: string, signal?: AbortSignal): Promise<MailProviderResult<NormalizedMailMessage>>;
+    getAttachment(providerMessageId: string, providerAttachmentId: string, signal?: AbortSignal): Promise<MailProviderResult<MailAttachmentContent>>;
+    sendMessage(input: MailProviderSendInput): Promise<MailProviderSendResult>;
+    setRead(providerMessageId: string, read: boolean, signal?: AbortSignal): Promise<MailProviderResult<void>>;
+    setStarred(providerMessageId: string, starred: boolean, signal?: AbortSignal): Promise<MailProviderResult<void>>;
+    deleteMessage(providerMessageId: string, permanently: boolean, signal?: AbortSignal): Promise<MailProviderResult<void>>;
+    close(): Promise<void>;
+    private updateFlags;
+    private closeImap;
+    private imap;
+    private listMailboxes;
+    private selectableMailboxes;
+    private folderState;
+    private selectedFolderState;
+    private normalizeFolder;
+    private fetchMessages;
+    private beginStep;
+    /**
+     * Choose each copy's identity: its persisted location first, then the
+     * server's native ID, then an RFC Message-ID proven by identical MIME bytes,
+     * and otherwise the copy's own location.
+     */
+    private assignIdentities;
+    private nativeSource;
+    /** Compare a new copy with a verified copy already stored under this RFC Message-ID. */
+    private matchesStoredCopy;
+    private sameRawCopies;
+    /** Complete raw MIME of one copy within the per-message and per-step budgets. */
+    private rawCopy;
+    /**
+     * Select a stored copy and confirm it is still the same message. Returns
+     * undefined for a changed generation, a missing UID or another identity.
+     */
+    private openCopy;
+    private copyChanged;
+    /** Change one flag on every verified copy, committing each confirmed copy on its own. */
+    private updateCopyFlags;
+    /**
+     * One complete pass over every selectable folder. It reconciles stored
+     * copies, and two matching passes in a row authorize orphan cleanup.
+     */
+    private verifyFolders;
+    private normalizeMessage;
+}
+/** ImapFlow 2.2.10's command primitive keeps the verb explicitly scoped to a UID. */
+declare function expungeUid(client: ImapFlow, uid: number): Promise<void>;
+export {};
+//# sourceMappingURL=adapter.d.ts.map

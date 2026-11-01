@@ -1,0 +1,43 @@
+import type { AuthorizationGrantSource } from './grants.js';
+import type { RecordSelection } from './selection.js';
+import type { AuthorizationIdentity, AuthorizationSubject, Principal, ResourceRef } from './types.js';
+/** One action of a default-access, sharing or restriction rule. */
+export interface RuleAction {
+    action: string;
+    /** The composite action's data scope; omit for a rule on the resource itself. */
+    scopeKey?: string;
+    selection: RecordSelection;
+}
+/** A rule's contribution to the records one action reaches. */
+export interface AccessConstraint {
+    source: AuthorizationGrantSource;
+    /** `expand` adds records to a grant; `restrict` intersects them. */
+    effect: 'expand' | 'restrict';
+    selection: RecordSelection;
+}
+export interface ResolveAccessConstraintsInput {
+    /** The composite action's data scope, when the check fills one. */
+    scopeKey?: string;
+    principal: Principal;
+    subjects?: readonly AuthorizationSubject[];
+    resource: ResourceRef;
+    action: string;
+}
+export interface AccessConstraintResolver {
+    id: string;
+    /** A resolver bound to one identity, shared by all of its checks. */
+    for?(identity: AuthorizationIdentity): AccessConstraintResolver;
+    resolve(input: ResolveAccessConstraintsInput): Promise<readonly AccessConstraint[]>;
+}
+export interface AccessConstraintService {
+    resolve(input: ResolveAccessConstraintsInput): Promise<readonly AccessConstraint[]>;
+}
+export declare class AccessConstraintRegistry implements AccessConstraintService {
+    private readonly resolvers;
+    add(resolver: AccessConstraintResolver): void;
+    resolve(input: ResolveAccessConstraintsInput): Promise<readonly AccessConstraint[]>;
+    list(): readonly string[];
+    /** Caches each answer for the lifetime of one identity's context. */
+    for(identity: AuthorizationIdentity): AccessConstraintService;
+}
+//# sourceMappingURL=constraints.d.ts.map

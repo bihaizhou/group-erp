@@ -1,0 +1,61 @@
+import type { CreateContext, EffectDefinition, GuardVerdict, Lifecycle, LifecycleTransition, TransitionContext } from './definition.js';
+import { type Blocker, type InputProblem } from './errors.js';
+import type { JsonObject, LifecycleActor, LifecycleTypes, ParametersOf, ServicesOf } from './types.js';
+/**
+ * A guard added from outside the definition, with `runtime.addGuard()`: a
+ * budget plugin refusing approvals while a budget is frozen, say. It answers
+ * like a definition's guard, and its refusals join the same blockers.
+ */
+export type ExtraGuard<T extends LifecycleTypes> = (context: TransitionContext<T> & {
+    readonly transition: string;
+}) => GuardVerdict | Promise<GuardVerdict>;
+export interface PlanContext<T extends LifecycleTypes> {
+    readonly actor: LifecycleActor;
+    readonly input?: JsonObject;
+    readonly parameters: ParametersOf<T>;
+    readonly services: ServicesOf<T>;
+    readonly now: Date;
+    /** Guards added for this transition with `runtime.addGuard()`. */
+    readonly guards?: readonly ExtraGuard<T>[];
+}
+/**
+ * Every guard's answer for this context: the definition's, then the added
+ * ones. All are asked, so a page can show each reason at once; `fire()` and
+ * `available()` call this same function, so what a button shows and what a
+ * click does cannot disagree.
+ */
+export declare function guardBlockers<T extends LifecycleTypes>(transition: LifecycleTransition<T>, context: TransitionContext<T>, guards?: readonly ExtraGuard<T>[]): Promise<Blocker[]>;
+/** What the transition's `validate` finds wrong with `input`; empty when nothing is. */
+export declare function inputProblems<T extends LifecycleTypes>(transition: LifecycleTransition<T>, input: JsonObject): readonly InputProblem[];
+/**
+ * Checks a creation against the definition's `create`: the values first,
+ * then the guard, so a guard reads only values that passed. Throws the
+ * refusal; returns when the record may be written.
+ */
+export declare function checkCreation<T extends LifecycleTypes>(lifecycle: Lifecycle<T>, context: CreateContext<T>): Promise<void>;
+/** What a transition will write and run, decided without touching any store. */
+export interface TransitionPlan<T extends LifecycleTypes> {
+    readonly transition: string;
+    readonly from: T['state'];
+    readonly to: T['state'];
+    /** The record's version as it was read; the update is conditional on it. */
+    readonly version: number | null;
+    /** The version this transition writes, also stored on its log entry. */
+    readonly nextVersion: number;
+    /** Every field the transition writes, the state, its timestamp and the version included. */
+    readonly values: Readonly<Record<string, unknown>>;
+    readonly input: JsonObject;
+    readonly effects: readonly EffectDefinition<T>[];
+}
+export declare function stateOf<T extends LifecycleTypes>(lifecycle: Lifecycle<T>, record: T['record']): T['state'];
+/** The record's version, or null for a record written before it had one. */
+export declare function versionOf<T extends LifecycleTypes>(lifecycle: Lifecycle<T>, record: T['record']): number | null;
+/** Transitions that may start from the record's current state, before any guard. */
+export declare function transitionsFrom<T extends LifecycleTypes>(lifecycle: Lifecycle<T>, state: T['state']): readonly LifecycleTransition<T>[];
+/**
+ * Decides one transition: state, input, guard, route and extra fields, in
+ * that order. The function is pure apart from what `guard`, `route` and `set`
+ * do, so a lifecycle can be tested by calling it directly.
+ */
+export declare function planTransition<T extends LifecycleTypes>(lifecycle: Lifecycle<T>, record: T['record'], transitionName: string, context: PlanContext<T>): Promise<TransitionPlan<T>>;
+//# sourceMappingURL=plan.d.ts.map

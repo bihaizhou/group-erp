@@ -1,0 +1,79 @@
+{
+  "name": "@nocobase/app-plugin-api-keys",
+  "displayName": "API Keys App Plugin",
+  "description": "API key authentication for NocoBase applications, built on Better Auth.",
+  "version": "1.0.0-beta.16",
+  "type": "module",
+  "prettier": "@nocobase/dev-config/prettier",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "sideEffects": false,
+  "exports": {
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
+    },
+    "./client/plugin": {
+      "types": "./dist/client/plugin.d.ts",
+      "import": "./dist/client/plugin.js"
+    },
+    "./shared/scopes": {
+      "types": "./dist/shared/scopes.d.ts",
+      "import": "./dist/shared/scopes.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "skills"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@better-auth/api-key": "1.7.5",
+    "@better-auth/core": "1.7.5",
+    "@better-auth/utils": "0.4.2",
+    "better-auth": "1.7.5",
+    "better-call": "1.4.0",
+    "hono": "^4.13.2",
+    "zod": "^4.6.5"
+  },
+  "peerDependencies": {
+    "@nocobase/app-client": "^3.0.0-beta.1",
+    "@nocobase/app-plugin-authentication": "^2.0.0-beta.7",
+    "@nocobase/app-plugin-authorization": "^1.0.0-beta.27",
+    "@nocobase/app-server": "^2.0.0-beta.4",
+    "@nocobase/authorization": "^1.0.0-beta.13",
+    "@nocobase/db": "^1.0.0-beta.19",
+    "@nocobase/service-provider": "^0.0.2-beta.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "eslint": "^10.0.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10",
+    "@nocobase/app-testing": "0.1.0-beta.3",
+    "@nocobase/dev-config": "0.1.0-beta.22"
+  },
+  "scripts": {
+    "clean": "node ./scripts/clean-dist.mjs",
+    "build": "pnpm clean && tsc -p tsconfig.json && tsc -p tsconfig.migrations.json && nocobase-db-manifests",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.migrations.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix --max-warnings 0",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
+    "fix": "pnpm lint:fix && pnpm format"
+  }
+}

@@ -1,0 +1,22 @@
+import type { ConfigDecoder, ConfigMap, ConfigValue } from './types.js';
+export declare class ConfigView {
+    protected readonly root: ConfigMap;
+    protected readonly delimiter: string;
+    private readonly flat;
+    constructor(root: ConfigMap, delimiter: string);
+    get(path: string): ConfigValue | undefined;
+    has(path: string): boolean;
+    keys(): readonly string[];
+    mapKeys(path: string): readonly string[];
+    raw(): ConfigMap;
+    all(): Readonly<Record<string, ConfigValue>>;
+    string(path: string): string | undefined;
+    integer(path: string): number | undefined;
+    float(path: string): number | undefined;
+    boolean(path: string): boolean | undefined;
+    strings(path: string): readonly string[] | undefined;
+    duration(path: string): number | undefined;
+    parse<T>(decoder: ConfigDecoder<T>, path?: string): T;
+    private typed;
+}
+//# sourceMappingURL=config-view.d.ts.map

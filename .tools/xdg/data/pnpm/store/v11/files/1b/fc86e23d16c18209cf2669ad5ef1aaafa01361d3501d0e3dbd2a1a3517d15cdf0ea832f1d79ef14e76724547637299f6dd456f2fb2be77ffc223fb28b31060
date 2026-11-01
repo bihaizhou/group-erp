@@ -1,0 +1,20 @@
+import { RuleService } from '../internal/rules.js';
+import { requireStore } from '../internal/store.js';
+export function restrictionRulesPlugin(options) {
+    const service = new RuleService({
+        id: 'restriction-rules',
+        effect: 'restrict',
+        bySubject: true,
+        allowAll: true,
+    }, requireStore(options.store, 'Restriction Rules'));
+    return {
+        id: 'restriction-rules',
+        authorizationApi: {
+            restrictionRules: service,
+        },
+        setup(authz) {
+            authz.constraints.add(service);
+        },
+    };
+}
+//# sourceMappingURL=plugin.js.map

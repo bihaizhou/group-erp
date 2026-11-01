@@ -1,0 +1,26 @@
+import { type AppSessionConfig } from '@nocobase/session';
+import { ServiceProvider } from '@nocobase/service-provider';
+import type { AppPluginApplication } from '../plugins/index.js';
+import { type AppHttpMiddleware } from '../router/index.js';
+import { type AppSessionConfigInput } from './config.js';
+export declare class SessionProvider extends ServiceProvider<AppPluginApplication> {
+    readonly name: string;
+    private readonly ephemeralSecret;
+    register(): void;
+    shutdown(): Promise<void>;
+    /**
+     * The cookie keys used when `session.secret` is not set: derived from the secrets keys, current first, so adding a
+     * key keeps existing cookies readable. Without secrets keys, a key made up for this process.
+     */
+    private fallbackSecrets;
+}
+/** The purpose session cookie keys are derived for from the secrets keys. */
+export declare const SESSION_COOKIE_PURPOSE = "@nocobase/session/cookie";
+/** The keys a session cookie is encrypted with when `session.secret` is not set. */
+export interface AppSessionSecrets {
+    readonly secret: string;
+    readonly previousSecrets: readonly string[];
+}
+export declare function resolveAppSessionConfig(configured: AppSessionConfigInput, fallback: string | AppSessionSecrets): AppSessionConfig;
+export declare const sessionHttpMiddleware: AppHttpMiddleware<AppPluginApplication>;
+//# sourceMappingURL=provider.d.ts.map

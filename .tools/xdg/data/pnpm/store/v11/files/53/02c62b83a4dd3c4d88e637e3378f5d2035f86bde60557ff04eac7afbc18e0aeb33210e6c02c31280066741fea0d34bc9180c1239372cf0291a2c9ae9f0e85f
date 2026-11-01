@@ -1,0 +1,1 @@
+{"version":3,"file":"zh-CN.js","sourceRoot":"","sources":["../../../client/locales/zh-CN.ts"],"names":[],"mappings":"AAAA,OAAO,cAAc,MAAM,wBAAwB,CAAC;AAGpD,MAAM,IAAI,GAA0B;IAClC,OAAO,EAAE,cAAc,CAAC,OAAO;IAC/B,QAAQ,EAAE,cAAc,CAAC,QAAQ;IACjC,cAAc,EAAE;QACd,OAAO,EAAE,EAAE,IAAI,EAAE,OAAO,EAAE,MAAM,EAAE,IAAI,EAAE;KACzC;CACF,CAAC;AAEF,eAAe,IAAI,CAAC"}

@@ -1,0 +1,16 @@
+export class SchemaInspectorError extends Error {
+    code;
+    connectionName;
+    dialect;
+    schema;
+    tableName;
+    constructor(message, options) {
+        super(message, { cause: options.cause });
+        this.name = 'SchemaInspectorError';
+        this.code = options.code;
+        this.connectionName = options.connectionName;
+        this.dialect = options.dialect;
+        this.schema = options.schema;
+        this.tableName = options.tableName;
+    }
+}

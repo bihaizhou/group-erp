@@ -1,0 +1,22 @@
+import { ConfigView } from './config-view.js';
+import type { ConfigLoadOptions, ConfigMap, ConfigOptions, ConfigParser, ConfigProvider, ConfigValue } from './types.js';
+export declare class Config extends ConfigView {
+    private mutableRoot;
+    private readonly strictMerge;
+    constructor(options?: ConfigOptions, initial?: ConfigMap);
+    get(path: string): ConfigValue | undefined;
+    has(path: string): boolean;
+    keys(): readonly string[];
+    mapKeys(path: string): readonly string[];
+    raw(): ConfigMap;
+    all(): Readonly<Record<string, ConfigValue>>;
+    load(provider: ConfigProvider, parser?: ConfigParser, options?: ConfigLoadOptions): Promise<void>;
+    merge(config: Config): void;
+    mergeAt(config: Config, path: string): void;
+    set(path: string, value: ConfigValue): void;
+    delete(path: string): void;
+    cut(path: string): Config;
+    copy(): Config;
+    serialize(parser: ConfigParser): Uint8Array;
+}
+//# sourceMappingURL=config.d.ts.map

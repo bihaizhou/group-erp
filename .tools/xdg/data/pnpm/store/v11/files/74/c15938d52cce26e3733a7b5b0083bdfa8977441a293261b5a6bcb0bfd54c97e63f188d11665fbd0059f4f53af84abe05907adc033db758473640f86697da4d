@@ -1,0 +1,52 @@
+import { COMPOSITE_RESOURCE_TYPE, } from '../../core/composite.js';
+import { appendRuleAction } from '../internal/rules.js';
+export class SharingRuleBuilder {
+    resource;
+    definition;
+    constructor(resource, definition) {
+        this.resource = resource;
+        this.definition = definition;
+    }
+    scope(action, scopeKey, selection) {
+        if (selection.type === 'all')
+            throw new TypeError('A sharing rule cannot select all records');
+        this.resource.scope(action, scopeKey);
+        return new SharingRuleBuilder(this.resource, {
+            ...this.definition,
+            actions: appendRuleAction(this.definition.actions, {
+                action,
+                scopeKey,
+                selection,
+            }),
+        });
+    }
+    title(title) {
+        return new SharingRuleBuilder(this.resource, { ...this.definition, title });
+    }
+    subjects(...subjects) {
+        return new SharingRuleBuilder(this.resource, {
+            ...this.definition,
+            subjects: [...this.definition.subjects, ...structuredClone(subjects)],
+        });
+    }
+    reason(reason) {
+        return new SharingRuleBuilder(this.resource, {
+            ...this.definition,
+            reason,
+        });
+    }
+    build() {
+        return structuredClone(this.definition);
+    }
+}
+export function defineSharingRule(key, resource) {
+    if (!key)
+        throw new TypeError('A rule needs a key');
+    return new SharingRuleBuilder(resource, {
+        key,
+        resource: { type: COMPOSITE_RESOURCE_TYPE, id: resource.name },
+        actions: [],
+        subjects: [],
+    });
+}
+//# sourceMappingURL=builder.js.map

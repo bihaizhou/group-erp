@@ -1,0 +1,33 @@
+// Shared by the commands that run a development or build script against the application.
+import { Command } from '@oclif/core';
+import { applicationState } from "../runtime/command-store.js";
+import { runAppTool } from "../tools/run-tool.js";
+import { collectCliHooks } from "./cli-hooks.js";
+/**
+ * A command that forwards its arguments untouched to one script.
+ *
+ * The scripts parse their own options — `build --target`, `dist retarget --node-version` — and print their own
+ * usage, so the command does not declare flags it would only have to keep in step with them.
+ */
+export class ToolCommand extends Command {
+    static strict = false;
+    toolOptions = {};
+    async run() {
+        const { location, loadPlugins } = applicationState();
+        const env = {};
+        if (this.toolOptions.hooks) {
+            env['NOCOBASE_CLI_HOOKS'] = JSON.stringify(collectCliHooks(await loadPlugins()));
+        }
+        const exitCode = await runAppTool(this.tool, {
+            rootDir: location.root,
+            args: this.argv,
+            env,
+            ...(this.toolOptions.execArgv === undefined
+                ? {}
+                : { execArgv: this.toolOptions.execArgv }),
+        });
+        if (exitCode !== 0)
+            this.exit(exitCode);
+    }
+}
+//# sourceMappingURL=tool-command.js.map

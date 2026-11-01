@@ -1,0 +1,17 @@
+import type { ReactElement, ReactNode } from 'react';
+import type { MailTemplateVariables } from '../contracts/composer.js';
+export interface MailWorkspacePageProps {
+    readonly title?: string;
+    readonly description?: string;
+    /** Additional actions appended after the built-in workspace actions. */
+    readonly headerActions?: ReactNode;
+    /** Values available to `{{path.to.value}}` placeholders in mail templates. */
+    readonly templateVariables?: MailTemplateVariables;
+    /**
+     * The application page that renders `MailAccountsPage`, relative to the application's base path. A user with no
+     * account is linked there; without it the empty state shows no link, because the plugin ships no such page.
+     */
+    readonly accountsHref?: string;
+}
+export default function MailWorkspacePage({ title, description, accountsHref, headerActions, templateVariables, }?: MailWorkspacePageProps): ReactElement;
+//# sourceMappingURL=mail-workspace-page.d.ts.map

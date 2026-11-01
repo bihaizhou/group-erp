@@ -1,0 +1,6 @@
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { Auth } from './auth.js';
+import type { UserAdministrationService } from './user-administration.js';
+export declare const authenticationToken: ServiceToken<Auth>;
+export declare const userAdministrationServiceToken: ServiceToken<UserAdministrationService>;
+//# sourceMappingURL=tokens.d.ts.map

@@ -1,0 +1,28 @@
+import type { RecordAccessDefinition, RecordAccessReference } from '@nocobase/authorization/core';
+import { type DatabaseScope } from './scope.js';
+/** Which column carries the principal. The default suits most collections. */
+export interface RecordOwnerParams {
+    field?: string;
+}
+export interface CustomFilterParams {
+    filter: DatabaseScope;
+}
+export declare class UserContextRequiredError extends Error {
+    constructor();
+}
+/** DB-specific applicability metadata, interpreted only by the DB adapter. */
+export interface DatabaseRecordAccessDefinition<P = unknown> extends RecordAccessDefinition<P> {
+    requiredFields?: readonly string[];
+}
+/** The built-in record access, registered by `databasePlugin`. */
+export declare const builtInRecordAccess: readonly DatabaseRecordAccessDefinition[];
+export interface BuiltInRecordAccess {
+    readonly allRecords: RecordAccessReference<'allRecords'>;
+    readonly recordsIOwn: RecordAccessReference<'recordsIOwn'>;
+    readonly recordsICreated: RecordAccessReference<'recordsICreated'>;
+    readonly customFilter: RecordAccessReference<'customFilter'>;
+}
+/** References to the built-in record access, for type-safe options and grants. */
+export declare const recordAccess: BuiltInRecordAccess;
+export declare function databaseRecordAccessApplicable(definition: RecordAccessDefinition, fields: readonly string[]): boolean;
+//# sourceMappingURL=record-access.d.ts.map

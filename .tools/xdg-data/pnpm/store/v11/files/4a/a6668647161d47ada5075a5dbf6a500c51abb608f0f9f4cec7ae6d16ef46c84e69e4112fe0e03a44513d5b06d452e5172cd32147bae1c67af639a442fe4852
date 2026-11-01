@@ -1,0 +1,1 @@
+{"version":3,"file":"token.d.ts","sourceRoot":"","sources":["../../src/id-generator/token.ts"],"names":[],"mappings":"AAAA,OAAO,EAEL,KAAK,YAAY,EAClB,MAAM,4BAA4B,CAAC;AAEpC,OAAO,KAAK,EAAE,kBAAkB,EAAE,MAAM,qBAAqB,CAAC;AAE9D,eAAO,MAAM,gBAAgB,EAAE,YAAY,CAAC,kBAAkB,CACC,CAAC"}

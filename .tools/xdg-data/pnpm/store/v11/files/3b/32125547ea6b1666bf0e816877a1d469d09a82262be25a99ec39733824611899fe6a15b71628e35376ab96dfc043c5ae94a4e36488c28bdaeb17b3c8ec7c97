@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "files": {
+    "202608240001_authorization_create_root_set.js": {
+      "sourceChecksum": "8d5c7e604afe8de0f446c0cd5bfb7297d17bd0491516724528656915e17524bb",
+      "artifactChecksum": "264c22bfa1f01d0c0000de4798d8fe11466bd52b048d7810d9e80343f9e4b535"
+    },
+    "202608250002_authorization_create_member_set.js": {
+      "sourceChecksum": "f954c1e621d247c89dcf6d87bc29d43ef9f67b840149d875110760ed5b38466b",
+      "artifactChecksum": "c8a5d5ca1f00bb4a6792e9c33a0597a7848bc89962a3ca04bac9943bb4eec295"
+    }
+  }
+}

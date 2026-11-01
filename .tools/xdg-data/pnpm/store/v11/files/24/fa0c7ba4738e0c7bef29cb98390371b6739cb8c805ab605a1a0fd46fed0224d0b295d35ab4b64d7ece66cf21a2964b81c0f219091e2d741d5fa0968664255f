@@ -1,0 +1,24 @@
+import type { ResolvedMemoryJobsConfig } from '../../config.js';
+import type { JobBackend, JobRunner, JobSubmission } from '../backend.js';
+import { type JobReceipt } from '../types.js';
+export declare class MemoryJobBackend implements JobBackend {
+    private readonly config;
+    private readonly file;
+    private readonly pending;
+    private queue;
+    private readonly running;
+    private runner;
+    private abort;
+    private opened;
+    private pumpQueued;
+    private failures;
+    constructor(config: ResolvedMemoryJobsConfig);
+    open(): Promise<void>;
+    enqueue(submission: JobSubmission): Promise<JobReceipt>;
+    consume(runner: JobRunner): Promise<void>;
+    close(): Promise<void>;
+    private schedulePump;
+    private pump;
+    private execute;
+}
+//# sourceMappingURL=backend.d.ts.map

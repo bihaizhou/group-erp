@@ -1,0 +1,28 @@
+import { Readable } from 'node:stream';
+import type { MailOutboundAttachment, MailOutboundAttachmentStorage, MailOutboundAttachmentView, MailUploadAttachmentInput } from '../shared/mail.js';
+import type { MailStore } from './contracts/persistence.js';
+interface MailAttachmentDisk {
+    putStream(key: string, stream: Readable, options: {
+        contentType: string;
+        contentLength: number;
+    }): Promise<void>;
+    getStream(key: string): Promise<Readable>;
+    delete(key: string): Promise<void>;
+}
+interface MailAttachmentDriveManager {
+    use(diskName: string): MailAttachmentDisk;
+}
+export declare class DriveMailOutboundAttachmentStorage implements MailOutboundAttachmentStorage {
+    private readonly store;
+    private readonly drive;
+    private readonly diskName;
+    constructor(store: MailStore, drive: MailAttachmentDriveManager, diskName: string);
+    create(userId: string, input: MailUploadAttachmentInput): Promise<MailOutboundAttachmentView>;
+    open(userId: string, attachmentId: string): Promise<{
+        readonly attachment: MailOutboundAttachment;
+        readonly stream: ReadableStream<Uint8Array>;
+    }>;
+    cleanupExpired(now: string): Promise<number>;
+}
+export {};
+//# sourceMappingURL=outbound-attachments.d.ts.map

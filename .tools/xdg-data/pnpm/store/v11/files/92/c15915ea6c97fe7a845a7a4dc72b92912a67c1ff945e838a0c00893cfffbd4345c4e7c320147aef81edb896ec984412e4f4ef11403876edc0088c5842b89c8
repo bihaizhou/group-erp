@@ -1,0 +1,7 @@
+import { type AppClientPluginFactory } from '@nocobase/app-client/plugins';
+export interface I18nClientOptions {
+    readonly placeholder?: never;
+}
+declare const i18n: AppClientPluginFactory<I18nClientOptions>;
+export default i18n;
+//# sourceMappingURL=plugin.d.ts.map

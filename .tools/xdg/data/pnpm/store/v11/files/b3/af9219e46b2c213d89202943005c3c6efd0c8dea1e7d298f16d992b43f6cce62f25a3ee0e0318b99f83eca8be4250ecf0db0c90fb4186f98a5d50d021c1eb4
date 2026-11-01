@@ -1,0 +1,9 @@
+import { z } from 'zod';
+/** The body of `PUT /i18n/locale`: the language this session wants answers in. */
+export declare const SetSessionLocaleInput: z.ZodObject<{
+    locale: z.ZodString;
+}, z.core.$strict>;
+/** What `GET /i18n/locales` answers in `data`, for the API document at `/api/swagger/docs`. */
+export declare const ServerLocaleListSchema: z.ZodType;
+export type SetSessionLocaleInput = z.infer<typeof SetSessionLocaleInput>;
+//# sourceMappingURL=schemas.d.ts.map

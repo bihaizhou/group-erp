@@ -1,0 +1,192 @@
+import { dataScopeTarget, } from '@nocobase/authorization/core';
+import { databaseHost } from './database/api.js';
+import { PAGE_SECTION } from './pages-authorization.js';
+import { databaseRecordAccessApplicable } from './database/record-access.js';
+import { optionText } from './i18n.js';
+const title = (value, fallback) => optionText(value, fallback);
+function actionOption(action) {
+    return { name: action.name, title: title(action.title, action.name) };
+}
+/**
+ * The workspace catalogue: sections, their subsections and each
+ * subsection's resources, placed by `authz.ui`. `rules` narrows it to
+ * composites with data scopes, which is all a rule plugin can target.
+ */
+export async function authorizationOptions(host, options = {}) {
+    const database = databaseHost(host.database);
+    const described = await Promise.all(host.database.collections.list().map(async ({ name }) => {
+        const collection = await database?.describe(name);
+        return collection && { name, fields: collection.fields };
+    }));
+    const collections = described.filter((item) => item !== undefined);
+    const fields = new Map(collections.map((item) => [item.name, item.fields]));
+    const placed = new Map();
+    for (const type of host.resourceTypes.list()) {
+        const defaultSection = host.ui.defaultSectionOf(type.type);
+        if (options.rules && type.type !== 'composite')
+            continue;
+        if (!type.items)
+            continue;
+        for (const item of type.items.list()) {
+            // A placement production startup only warned about falls back to "Other".
+            const found = host.ui.placementOf({ type: type.type, id: item.id });
+            const placement = found && host.ui.sections.isSubsection(found.section)
+                ? found
+                : undefined;
+            // Unplaced items of a type without a default section are not displayed.
+            const section = placement?.section ??
+                (defaultSection === undefined
+                    ? undefined
+                    : host.ui.sections.other(defaultSection));
+            if (section === undefined)
+                continue;
+            const dataScopes = type.type === 'composite'
+                ? compositeDataScopes(host, item.id, fields)
+                : undefined;
+            if (options.rules && !Object.keys(dataScopes ?? {}).length)
+                continue;
+            const group = placement?.group !== undefined && host.ui.groups.has(placement.group)
+                ? placement.group
+                : undefined;
+            placed.set(section, [
+                ...(placed.get(section) ?? []),
+                {
+                    order: placement?.order ?? Number.POSITIVE_INFINITY,
+                    resource: {
+                        type: type.type,
+                        id: item.id,
+                        title: title(item.title, item.id),
+                        ...(item.description === undefined
+                            ? {}
+                            : { description: title(item.description, '') }),
+                        ...(group === undefined ? {} : { group }),
+                        actions: item.actions.map(actionOption),
+                        ...(dataScopes && Object.keys(dataScopes).length
+                            ? { dataScopes }
+                            : {}),
+                    },
+                },
+            ]);
+        }
+    }
+    // Array.prototype.sort is stable, so unordered resources keep registration order.
+    const resources = new Map([...placed].map(([section, entries]) => [
+        section,
+        [...entries]
+            .sort((left, right) => left.order === right.order ? 0 : left.order < right.order ? -1 : 1)
+            .map((entry) => entry.resource),
+    ]));
+    const sections = host.ui.sections.tree().map((section) => ({
+        name: section.name,
+        title: title(section.title, section.name),
+        order: section.order,
+        subsections: section.subsections.flatMap((subsection) => {
+            const registered = subsection.name === PAGE_SECTION && host.resourceTypes.has('page')
+                ? host.resourceTypes.get('page')
+                : undefined;
+            // The client fills the page subsection from its route tree.
+            if (registered)
+                return options.rules
+                    ? []
+                    : [
+                        {
+                            name: subsection.name,
+                            title: title(subsection.title, subsection.name),
+                            recordType: {
+                                type: registered.type,
+                                actions: registered.actions.map(actionOption),
+                            },
+                            resources: [],
+                        },
+                    ];
+            const listed = resources.get(subsection.name) ?? [];
+            return listed.length
+                ? [
+                    {
+                        name: subsection.name,
+                        title: title(subsection.title, subsection.name),
+                        resources: listed,
+                    },
+                ]
+                : [];
+        }),
+    }));
+    const resourceGroups = referencedGroups(host, [...resources.values()].flat());
+    return {
+        sections,
+        ...(resourceGroups.length ? { resourceGroups } : {}),
+        subjectTypes: host.subjects.list().flatMap((type) => {
+            const administration = host.subjects.get(type)?.administration;
+            if (!administration)
+                return [];
+            return [
+                {
+                    type,
+                    title: optionText(administration.title, type),
+                    selection: administration.selection.type === 'fixed'
+                        ? { type: 'fixed', id: administration.selection.id }
+                        : { type: 'collection' },
+                },
+            ];
+        }),
+        recordAccess: host.recordAccess.list().map((definition) => ({
+            key: definition.key,
+            title: title(definition.title, definition.key),
+            ...(definition.description === undefined
+                ? {}
+                : { description: title(definition.description, '') }),
+            collections: definition.collections,
+        })),
+        collections,
+    };
+}
+/** The groups the resources name, with every ancestor, in registration order. */
+function referencedGroups(host, resources) {
+    const wanted = new Set();
+    for (const resource of resources) {
+        let name = resource.group;
+        while (name !== undefined && !wanted.has(name)) {
+            wanted.add(name);
+            name = host.ui.groups.get(name)?.parent;
+        }
+    }
+    return host.ui.groups
+        .list()
+        .filter((group) => wanted.has(group.name))
+        .map((group) => ({
+        name: group.name,
+        title: title(group.title, group.name),
+        ...(group.parent === undefined ? {} : { parent: group.parent }),
+        ...(group.order === undefined ? {} : { order: group.order }),
+    }));
+}
+function compositeDataScopes(host, id, fields) {
+    const resource = host.compositeResources
+        .list()
+        .find((entry) => entry.name === id);
+    const result = {};
+    for (const action of resource?.actions ?? []) {
+        const scopes = (action.dataScopes ?? []).map((scope) => {
+            const collection = dataScopeTarget(action, scope.key).id;
+            const collectionFields = fields.get(collection) ?? [];
+            return {
+                key: scope.key,
+                title: title(scope.title, scope.key),
+                collection,
+                fields: collectionFields,
+                recordAccess: host.recordAccess
+                    .listFor(collection)
+                    .filter((definition) => databaseRecordAccessApplicable(definition, collectionFields))
+                    .filter((definition) => !scope.options || scope.options.includes(definition.key))
+                    .map((definition) => definition.key),
+                ...(scope.defaultValue === undefined
+                    ? {}
+                    : { defaultValue: scope.defaultValue }),
+            };
+        });
+        if (scopes.length)
+            result[action.name] = scopes;
+    }
+    return result;
+}
+//# sourceMappingURL=options.js.map

@@ -1,0 +1,57 @@
+import type { ResolvedMemoryJobsConfig } from '../../config.js';
+import { type ScheduleBackend, type ScheduleExecutionSettings, type ScheduleRuleWrite, type ScheduleRunner, type StoredScheduleRule } from '../executor.js';
+import type { JobsLogger } from '../../types.js';
+import type { JobScheduler } from '../types.js';
+/**
+ * Schedules in this process, keeping every rule, its next firing and its
+ * firing count in memory. The state is read from one file per namespace and
+ * scope when the executor is set up, and written back whole when it shuts
+ * down; nothing reaches the disk in between, so a process that ends without
+ * shutting down loses what changed since it started. Each process holds its
+ * own copy: two processes on one file each fire every rule, and the one that
+ * shuts down last overwrites the other's.
+ *
+ * Each planned firing waits on one timer, and `cron-parser` computes the
+ * firing after it.
+ */
+export declare class InMemoryScheduleBackend implements ScheduleBackend {
+    private readonly config;
+    private readonly logger;
+    readonly settings: ScheduleExecutionSettings;
+    private readonly file;
+    private state;
+    private readonly timers;
+    private readonly queue;
+    private readonly running;
+    private runner;
+    private abort;
+    constructor(config: ResolvedMemoryJobsConfig, logger: JobsLogger | undefined);
+    get statePath(): string;
+    open(): Promise<void>;
+    read(name: string): Promise<StoredScheduleRule | undefined>;
+    write(rule: ScheduleRuleWrite): Promise<Date | undefined>;
+    remove(name: string): Promise<boolean>;
+    count(): Promise<number>;
+    list(start: number, end: number): Promise<JobScheduler[]>;
+    consume(runner: ScheduleRunner): Promise<void>;
+    /** Stops firing, waits for running handlers, then writes the whole state back. */
+    close(): Promise<void>;
+    private removeRule;
+    private arm;
+    /**
+     * Waits until the clock reaches `scheduledAt`, then queues the firing. A
+     * timer can wake before that: its delay is capped at what `setTimeout`
+     * accepts, and it runs on a monotonic clock that can be slightly ahead of
+     * `Date.now()`. It then waits again for what remains, so a firing never
+     * starts before its planned time.
+     */
+    private wait;
+    private disarm;
+    private dropQueued;
+    private enqueue;
+    private pump;
+    private start;
+    private execute;
+    private nextRunAt;
+}
+//# sourceMappingURL=backend.d.ts.map

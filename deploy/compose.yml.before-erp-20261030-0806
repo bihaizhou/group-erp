@@ -1,0 +1,48 @@
+name: group-erp
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: group_erp
+      POSTGRES_USER: group_erp
+      POSTGRES_PASSWORD: ${ERP_DB_PASSWORD:?Set ERP_DB_PASSWORD}
+    volumes:
+      - erp-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U group_erp -d group_erp']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 512m
+  app:
+    image: group-erp:erp-20261030-0740
+    build:
+      context: ../releases/erp-20261030-0740
+      dockerfile: deploy/Dockerfile.prebuilt
+      args:
+        NODE_VERSION: '24'
+    init: true
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_BASE_PATH: /main
+      APP_PUBLIC_ORIGIN: http://192.168.5.189:13010
+      APP_SERVER_HOST: 0.0.0.0
+      APP_SERVER_PORT: '13000'
+      DB_PASSWORD: ${ERP_DB_PASSWORD:?Set ERP_DB_PASSWORD}
+      INITIAL_ADMIN_USERNAME: admin
+      INITIAL_ADMIN_EMAIL: admin@group-erp.local
+      INITIAL_ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD:?Set ERP_ADMIN_PASSWORD}
+      SECRETS_KEYS: 1:${ERP_SECRET_KEY:?Set ERP_SECRET_KEY}
+    ports:
+      - '192.168.5.189:13010:13000'
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+      - ./storage:/app/storage
+    mem_limit: 1536m
+    cpus: 2
+volumes:
+  erp-postgres:

@@ -1,0 +1,4 @@
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { NocoBaseDriveManager } from '@nocobase/drive';
+export declare const driveManagerToken: ServiceToken<NocoBaseDriveManager>;
+//# sourceMappingURL=token.d.ts.map

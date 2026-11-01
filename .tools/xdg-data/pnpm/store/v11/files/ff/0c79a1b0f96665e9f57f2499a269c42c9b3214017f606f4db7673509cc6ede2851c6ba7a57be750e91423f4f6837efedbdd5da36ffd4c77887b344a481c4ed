@@ -1,0 +1,3 @@
+import { type PropsWithChildren, type ReactElement } from 'react';
+export declare function NotificationInAppProvider({ children, }: PropsWithChildren): ReactElement;
+//# sourceMappingURL=notification-in-app-provider.d.ts.map

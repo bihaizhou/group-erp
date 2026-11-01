@@ -1,0 +1,16 @@
+import { TextDecoder, TextEncoder } from 'node:util';
+import { assertConfigMap } from '../value.js';
+const decoder = new TextDecoder();
+const encoder = new TextEncoder();
+export function jsonParser() {
+    return {
+        name: 'json',
+        parse(input) {
+            return assertConfigMap(JSON.parse(decoder.decode(input)));
+        },
+        serialize(value) {
+            return encoder.encode(JSON.stringify(value, null, 2));
+        },
+    };
+}
+//# sourceMappingURL=json.js.map

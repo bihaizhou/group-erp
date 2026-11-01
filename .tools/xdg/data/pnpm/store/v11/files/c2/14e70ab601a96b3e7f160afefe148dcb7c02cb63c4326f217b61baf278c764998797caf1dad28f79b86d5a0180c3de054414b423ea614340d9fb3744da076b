@@ -1,0 +1,43 @@
+import type { CollectionDiagnosisIssue, DatabaseDriverRegistration, DatabaseManager } from '@nocobase/db';
+import type { AppPaths } from '../config/index.js';
+import type { AppDatabaseConfig } from './types.js';
+export interface AppCollectionsDoctorOptions {
+    readonly paths?: AppPaths;
+    readonly drivers?: Record<string, DatabaseDriverRegistration>;
+    /** One connection; defaults to the default connection. Exclusive with `all`. */
+    readonly connection?: string;
+    /** Every configured connection, external ones included. */
+    readonly all?: boolean;
+    /** Delete the metadata records whose tables are missing. */
+    readonly fix?: boolean;
+    /** Reuse an open manager instead of creating and destroying one. */
+    readonly database?: DatabaseManager;
+}
+export interface AppCollectionsDoctorConnectionResult {
+    readonly connection: string;
+    readonly status: 'completed' | 'failed';
+    /** Metadata records examined. */
+    readonly checked?: number;
+    readonly issues?: readonly CollectionDiagnosisIssue[];
+    /** Records deleted, which `fix` does for orphaned ones alone. */
+    readonly repaired?: readonly string[];
+    readonly error?: string;
+}
+export interface AppCollectionsDoctorResult {
+    readonly ok: boolean;
+    readonly status: 'completed' | 'failed' | 'not-configured';
+    readonly fix: boolean;
+    readonly results: readonly AppCollectionsDoctorConnectionResult[];
+}
+/**
+ * Compares each connection's stored Collection metadata with the physical
+ * schema behind it, and optionally deletes the records whose tables are gone.
+ *
+ * The two are separate records of what exists. A table dropped outside a
+ * migration leaves its metadata record behind, and from then on resolving that
+ * Collection fails — including inside the migration that would recreate it.
+ * That state is reachable by hand, so there has to be a way out of it that is
+ * not "edit the internal table yourself".
+ */
+export declare function runAppCollectionsDoctor(config: AppDatabaseConfig, options?: AppCollectionsDoctorOptions): Promise<AppCollectionsDoctorResult>;
+//# sourceMappingURL=collections-doctor.d.ts.map

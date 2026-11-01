@@ -1,0 +1,45 @@
+import type { Application } from '../application/index.js';
+import { type NodeServerProxyOptions } from './proxy.js';
+import { type AppRuntimeDefinition, type ResolvedAppRuntime } from '../runtime/definition.js';
+import type { AppScope } from '../runtime/types.js';
+import { type CreateStandaloneScopeOptions, type StandaloneAppScope } from './scope.js';
+import { type ClosableNodeAppServer, type NodeShutdownOptions } from './server.js';
+export type CreateStandaloneRuntimeScopeOptions = CreateStandaloneScopeOptions;
+export interface StandaloneServerListenOptions {
+    readonly hostname: string;
+    readonly port: number;
+    readonly startLog: boolean;
+}
+export interface StandaloneServer extends ClosableNodeAppServer {
+    readonly application: Application;
+    readonly listenOptions: StandaloneServerListenOptions;
+    /** Shutdown budget resolved from the environment; empty keeps the defaults. */
+    readonly shutdownOptions: NodeShutdownOptions;
+    readonly signal: AbortSignal;
+}
+export type StandaloneServerFactory = (scope: AppScope) => Promise<Application>;
+export interface StandaloneApplicationDefinition {
+    readonly rootDir: string;
+    readonly appRuntime: AppRuntimeDefinition;
+    readonly createServer: StandaloneServerFactory;
+    /** Configure listener-level forwarding after the application has started. */
+    readonly proxy?: (context: {
+        readonly application: Application;
+    }) => NodeServerProxyOptions;
+}
+export type StandaloneServerOptions = CreateStandaloneRuntimeScopeOptions & {
+    readonly viteDevUrl?: string | false;
+};
+export type CreateStandaloneServerOptions = StandaloneApplicationDefinition & StandaloneServerOptions;
+export interface DefinedStandaloneServer {
+    readonly create: (options?: StandaloneServerOptions) => Promise<StandaloneServer>;
+    readonly start: (options?: StandaloneServerOptions) => void;
+}
+export declare function createStandaloneServer(options: CreateStandaloneServerOptions): Promise<StandaloneServer>;
+export declare function startServer(options: CreateStandaloneServerOptions): void;
+export declare function defineStandaloneServer(definition: StandaloneApplicationDefinition): DefinedStandaloneServer;
+export declare function createStandaloneRuntimeScope(options: CreateStandaloneRuntimeScopeOptions): StandaloneAppScope;
+export declare function resolveStandaloneAppRuntime(definition: AppRuntimeDefinition, options: CreateStandaloneRuntimeScopeOptions): Promise<ResolvedAppRuntime & {
+    readonly scope: StandaloneAppScope;
+}>;
+//# sourceMappingURL=runtime.d.ts.map

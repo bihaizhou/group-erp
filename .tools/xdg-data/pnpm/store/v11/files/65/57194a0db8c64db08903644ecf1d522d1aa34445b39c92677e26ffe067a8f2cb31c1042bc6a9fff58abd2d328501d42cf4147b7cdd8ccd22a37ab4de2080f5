@@ -1,0 +1,7 @@
+/**
+ * Serialize a value as JSON whose bytes depend only on its content: object keys
+ * are sorted, `undefined` members are dropped, indentation is fixed, and the
+ * output ends with one newline. Array order is preserved — the caller decides
+ * which arrays are unordered sets and sorts those before serializing.
+ */
+export declare function stableJson(value: unknown): string;

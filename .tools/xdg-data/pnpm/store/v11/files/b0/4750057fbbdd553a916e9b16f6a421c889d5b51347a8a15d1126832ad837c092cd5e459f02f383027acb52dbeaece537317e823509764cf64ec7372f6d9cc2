@@ -1,0 +1,69 @@
+/** Trusted, database-backed operations. Callers must enforce their own authorization. */
+export class ApiKeyService {
+    auth;
+    configId;
+    constructor(auth, configId) {
+        this.auth = auth;
+        this.configId = configId;
+    }
+    withConnection(connection) {
+        return new ApiKeyService(this.auth.forConnection(connection), this.configId);
+    }
+    async runtime() {
+        const endpoints = this.auth.pluginApi('api-key');
+        // Validate the configuration rather than accepting Better Auth's fallback to default.
+        await endpoints.getServerApiKey({ query: { configId: this.configId } });
+        return endpoints;
+    }
+    async create(input) {
+        const endpoints = await this.runtime();
+        const { key: secret, ...key } = await endpoints.createApiKey({
+            body: { ...input, configId: this.configId },
+        });
+        return { key, secret };
+    }
+    async verify(secret) {
+        const endpoints = await this.runtime();
+        const result = await endpoints.verifyApiKey({
+            body: { configId: this.configId, key: secret },
+        });
+        return result.valid ? result.key : null;
+    }
+    async get(id) {
+        const endpoints = await this.runtime();
+        return endpoints.getServerApiKey({
+            query: { id, configId: this.configId },
+        });
+    }
+    async disable(id) {
+        const key = await this.get(id);
+        if (!key || !key.enabled)
+            return;
+        const endpoints = await this.runtime();
+        await endpoints.updateApiKey({
+            body: {
+                configId: this.configId,
+                keyId: id,
+                userId: key.referenceId,
+                enabled: false,
+            },
+        });
+    }
+    async remove(id) {
+        const endpoints = await this.runtime();
+        await endpoints.deleteServerApiKey({
+            body: { keyId: id, configId: this.configId },
+        });
+    }
+}
+/** Remove database-backed user credentials in the caller's deletion transaction. */
+export async function removeUserApiKeys(connection, userId, configIds) {
+    if (!configIds.length)
+        return;
+    await connection.query
+        .deleteFrom('apikey')
+        .where('referenceId', '=', userId)
+        .where('configId', 'in', [...configIds])
+        .execute();
+}
+//# sourceMappingURL=service.js.map

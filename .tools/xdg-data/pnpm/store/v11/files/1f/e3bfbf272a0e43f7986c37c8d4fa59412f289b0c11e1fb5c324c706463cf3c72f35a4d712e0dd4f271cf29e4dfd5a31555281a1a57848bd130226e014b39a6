@@ -1,0 +1,4 @@
+import { type AppClientReactProviderDefinition } from '@nocobase/app-client/plugins';
+export declare const reactProviders: readonly AppClientReactProviderDefinition[];
+export default reactProviders;
+//# sourceMappingURL=react-providers.d.ts.map

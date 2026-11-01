@@ -1,0 +1,8 @@
+export type AuthorizationTitle = string | {
+    readonly key: string;
+    readonly ns: string;
+};
+export declare function parseAuthorizationTitle(value: unknown): AuthorizationTitle | undefined;
+export declare function encodeAuthorizationTitle(value: AuthorizationTitle | undefined): string | null;
+export declare function decodeAuthorizationTitle(value: unknown): AuthorizationTitle | undefined;
+//# sourceMappingURL=titles.d.ts.map

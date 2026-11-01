@@ -1,0 +1,6 @@
+import { z } from 'zod';
+export const PasswordResetCapabilitySchema = z.object({ passwordResetAvailable: z.boolean() }).meta({
+    ref: 'AuthenticationPasswordResetCapability',
+    description: 'Whether email-based password reset is configured.',
+});
+//# sourceMappingURL=schemas.js.map

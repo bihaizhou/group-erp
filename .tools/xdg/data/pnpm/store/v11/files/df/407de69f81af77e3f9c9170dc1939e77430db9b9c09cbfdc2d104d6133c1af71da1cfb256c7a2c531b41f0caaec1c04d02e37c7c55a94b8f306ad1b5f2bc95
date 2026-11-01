@@ -1,0 +1,73 @@
+import type { AssembledCli, CommandSource } from './assemble.ts';
+export interface CommandArgInfo {
+    readonly name: string;
+    readonly description: string | null;
+    readonly required: boolean;
+}
+export interface CommandFlagInfo {
+    /** The long name, without dashes. */
+    readonly name: string;
+    /** The single-letter alias, when the flag has one. */
+    readonly char?: string;
+    /** `boolean` takes no value; `option` takes one. */
+    readonly type: 'boolean' | 'option';
+    readonly description: string | null;
+    readonly required: boolean;
+    /** Whether the flag may be given more than once. */
+    readonly multiple: boolean;
+    /** Present only for a boolean flag that also accepts `--no-<name>`. */
+    readonly allowNo?: true;
+    /** The default when it is a fixed value; left out when there is none or it is computed at run time. */
+    readonly default?: unknown;
+    /**
+     * `application-root` for a path flag declared with `appPath()`: its `default` is relative to the application root,
+     * wherever the command runs, while a typed value resolves from the current directory.
+     */
+    readonly defaultRelativeTo?: 'application-root';
+    /** The only values the flag accepts, when it restricts them. */
+    readonly options?: readonly string[];
+}
+export interface CommandExampleInfo {
+    /** The command line, with the bin and the command id filled in. */
+    readonly command: string;
+    readonly description?: string;
+}
+export interface CommandInfo {
+    /** Space-separated, as typed: `db apply`. */
+    readonly id: string;
+    readonly summary: string | null;
+    readonly description: string | null;
+    readonly source: CommandSource;
+    /** The plugin package, for `source: 'plugin'`. */
+    readonly package?: string;
+    /** Absent from a built `dist/`. */
+    readonly developmentOnly: boolean;
+    /** Whether the command takes `--json` and answers with the one JSON document. */
+    readonly json: boolean;
+    /** Whether it has a `--dry-run` flag. */
+    readonly dryRun: boolean;
+    /** Whether it has a `--force` flag. */
+    readonly force: boolean;
+    readonly args: readonly CommandArgInfo[];
+    /** Every visible flag except `--json`, which `json` reports. */
+    readonly flags: readonly CommandFlagInfo[];
+    readonly examples: readonly CommandExampleInfo[];
+}
+export interface TopicInfo {
+    readonly name: string;
+    readonly description: string;
+    readonly source: CommandSource;
+    /** The plugin package, for `source: 'plugin'`. */
+    readonly package?: string;
+}
+export interface CommandCatalog {
+    readonly commands: readonly CommandInfo[];
+    readonly topics: readonly TopicInfo[];
+}
+/** Every visible command and topic in `assembled`, sorted by id and name. */
+export declare function describeCommandTree(assembled: AssembledCli, { bin }: {
+    readonly bin: string;
+}): CommandCatalog;
+/** The catalog for people: each command's id and summary, top-level commands first, then one group per topic. */
+export declare function formatCommandCatalog(catalog: CommandCatalog): string;
+//# sourceMappingURL=catalog.d.ts.map

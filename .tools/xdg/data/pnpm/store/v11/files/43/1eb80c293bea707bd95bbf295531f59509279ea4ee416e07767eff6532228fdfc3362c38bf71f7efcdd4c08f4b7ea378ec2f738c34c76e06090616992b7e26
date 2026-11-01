@@ -1,0 +1,10 @@
+import { type DatabaseDriverRegistration } from '@nocobase/db';
+import type { AppPaths } from '../config/index.js';
+import type { AppDatabaseConfig } from './types.js';
+export declare function prepareAppDatabaseStorage<TConfig extends AppDatabaseConfig>(config: TConfig, paths?: AppPaths, names?: readonly string[], drivers?: Record<string, DatabaseDriverRegistration>): Promise<void>;
+/**
+ * Whether the storage of connection `name` exists already. A driver that
+ * does not say, which is every driver without local storage, has it.
+ */
+export declare function appDatabaseStorageExists<TConfig extends AppDatabaseConfig>(config: TConfig, paths: AppPaths | undefined, name: string, drivers?: Record<string, DatabaseDriverRegistration>): Promise<boolean>;
+//# sourceMappingURL=storage.d.ts.map

@@ -1,0 +1,3 @@
+import type { MailTransport, SmtpProviderConfig } from './types.js';
+export declare function createSmtpTransport(config: SmtpProviderConfig): MailTransport;
+//# sourceMappingURL=smtp.d.ts.map

@@ -1,0 +1,8 @@
+import type { ReactElement } from 'react';
+import type { MailAccountView } from '../mail-client.js';
+export interface MailSignatureManagerProps {
+    readonly accounts: readonly MailAccountView[];
+    readonly onError: (message: string) => void;
+}
+export declare function MailSignatureManager({ accounts, onError, }: MailSignatureManagerProps): ReactElement;
+//# sourceMappingURL=mail-signature-manager.d.ts.map

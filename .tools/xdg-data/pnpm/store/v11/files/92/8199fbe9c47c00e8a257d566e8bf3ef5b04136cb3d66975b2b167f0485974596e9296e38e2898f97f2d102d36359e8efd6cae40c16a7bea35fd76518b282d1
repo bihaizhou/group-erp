@@ -1,0 +1,57 @@
+import { type ConnectionCheckResult } from '@nocobase/app-server/database';
+import type { AppCommandRuntime } from '../context.ts';
+import { type ConfigInitMode } from './config-init.ts';
+export type ConfigCheckLevel = 'error' | 'warning';
+export type ConfigCheckCode = 'load-failed' | 'driver-missing' | 'secret-missing' | 'secret-placeholder' | 'secrets-missing' | 'session-secret-ephemeral' | 'unknown-key' | 'unexpanded-reference' | 'invalid' | 'connection-failed';
+export interface ConfigCheckFinding {
+    readonly level: ConfigCheckLevel;
+    readonly code: ConfigCheckCode;
+    /** The configuration key the finding is about, when there is one. */
+    readonly key?: string;
+    readonly message: string;
+    /** A command that resolves it, runnable as written. */
+    readonly fix?: string;
+}
+/**
+ * When to open database connections.
+ *
+ * `auto` connects to every connection that is not SQLite. A SQLite database is a local file, so there is nothing to
+ * reach, and opening one would create the file as a side effect of checking; any other dialect is exactly where a
+ * configuration that loads cleanly still fails to start, so leaving it out would make a passing check the
+ * least trustworthy answer this command can give.
+ */
+export type ConfigCheckConnectMode = 'auto' | 'always' | 'never';
+export interface ConfigCheckOptions {
+    readonly rootDir: string;
+    /** Loads the application exactly as a start would, without starting it. */
+    readonly loadRuntime: () => Promise<AppCommandRuntime>;
+    readonly connect?: ConfigCheckConnectMode;
+    readonly connectTimeoutMs?: number;
+    readonly environment?: NodeJS.ProcessEnv;
+}
+export interface ConfigCheckResult {
+    readonly ok: boolean;
+    readonly mode: ConfigInitMode;
+    /** The configuration file the application reads, when it has one. */
+    readonly configFile?: string;
+    readonly findings: readonly ConfigCheckFinding[];
+    readonly connections: readonly ConnectionCheckResult[];
+    /**
+     * What the browser receives through `config.public`, nested under section names. Lets a change be checked without
+     * opening the application.
+     */
+    readonly public: Readonly<Record<string, unknown>>;
+}
+/**
+ * Checks a configuration by loading it the way the application does, then asking of it what startup would.
+ *
+ * Nothing here re-implements a rule the runtime already applies. Loading goes through the application's own runtime
+ * definition, so a file that fails to parse, a dialect with no driver or a configured path that is not there fails here
+ * for the same reason it would fail a start. What loading cannot show — a secret left at the placeholder, a section
+ * name misspelled so that it is silently ignored, a database that cannot be reached — is then asked of the result.
+ *
+ * The application is never created. Creating it connects, starts queues, and with `autoRun` applies migrations, none of
+ * which a check may do.
+ */
+export declare function runConfigCheck(options: ConfigCheckOptions): Promise<ConfigCheckResult>;
+//# sourceMappingURL=config-check.d.ts.map

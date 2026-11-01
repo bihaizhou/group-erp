@@ -1,0 +1,5 @@
+import { type AppServerPlugin } from '@nocobase/app-server/plugins';
+import type { NotificationProviderApplicationConfig } from './providers/notification.js';
+declare const notificationPlugin: AppServerPlugin<NotificationProviderApplicationConfig>;
+export default notificationPlugin;
+//# sourceMappingURL=plugin.d.ts.map

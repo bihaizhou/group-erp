@@ -1,0 +1,9 @@
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+import { ServiceProvider } from '@nocobase/service-provider';
+export declare class FileRepositoryServiceProvider extends ServiceProvider<AppPluginApplication> {
+    readonly name: string;
+    register(): void;
+}
+declare const serviceProviders: readonly (typeof FileRepositoryServiceProvider)[];
+export default serviceProviders;
+//# sourceMappingURL=index.d.ts.map

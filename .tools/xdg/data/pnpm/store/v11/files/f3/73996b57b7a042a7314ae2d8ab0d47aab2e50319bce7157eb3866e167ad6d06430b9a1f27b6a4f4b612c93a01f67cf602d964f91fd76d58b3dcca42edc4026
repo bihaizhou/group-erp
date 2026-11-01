@@ -1,0 +1,11 @@
+import type { ConfigMap, ConfigValue } from './types.js';
+export declare function splitConfigPath(path: string, delimiter: string): string[];
+export declare function getConfigValue(root: ConfigMap, segments: readonly string[]): ConfigValue | undefined;
+export declare function setConfigValue(root: Record<string, ConfigValue>, segments: readonly string[], value: ConfigValue): void;
+export declare function deleteConfigValue(root: Record<string, ConfigValue>, segments: readonly string[]): void;
+export interface ConfigIndex {
+    readonly flat: ReadonlyMap<string, ConfigValue>;
+    readonly parts: ReadonlyMap<string, readonly string[]>;
+}
+export declare function buildConfigIndex(root: ConfigMap, delimiter: string): ConfigIndex;
+//# sourceMappingURL=path.d.ts.map

@@ -1,0 +1,16 @@
+import type { AuthorizationRequirement } from './authorization-client.js';
+export interface UseCanOptions {
+    readonly enabled?: boolean;
+}
+export interface UseCanResult {
+    readonly can: boolean;
+    readonly isPending: boolean;
+    readonly error: unknown;
+    readonly retry: () => void;
+}
+/**
+ * Checks feature visibility against the current session's permission snapshot.
+ * `'unrestricted'` passes only for identities with unrestricted access, such as root.
+ */
+export declare function useCan(check: AuthorizationRequirement | undefined, { enabled }?: UseCanOptions): UseCanResult;
+//# sourceMappingURL=use-can.d.ts.map

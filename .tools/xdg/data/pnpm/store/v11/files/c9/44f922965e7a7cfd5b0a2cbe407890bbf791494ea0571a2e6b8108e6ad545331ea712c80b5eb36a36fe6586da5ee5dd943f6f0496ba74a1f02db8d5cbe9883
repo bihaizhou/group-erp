@@ -1,0 +1,54 @@
+export declare const REALTIME_MAX_MESSAGE_BYTES: number;
+export type RealtimeMessageData = string | ArrayBuffer;
+export type RealtimeClientMessage = {
+    readonly type: 'subscribe';
+    readonly id?: string;
+    readonly topic: string;
+} | {
+    readonly type: 'unsubscribe';
+    readonly id?: string;
+    readonly subscriptionId?: string;
+    readonly topic?: string;
+} | {
+    readonly type: 'publish';
+    readonly id?: string;
+    readonly topic: string;
+    readonly payload: unknown;
+} | {
+    readonly type: 'ping';
+    readonly id?: string;
+};
+export type RealtimeServerMessage = {
+    readonly type: 'subscribed';
+    readonly id?: string;
+    readonly topic: string;
+    readonly subscriptionId: string;
+} | {
+    readonly type: 'unsubscribed';
+    readonly id?: string;
+    readonly subscriptionId?: string;
+    readonly topic?: string;
+} | {
+    readonly type: 'event';
+    readonly topic: string;
+    readonly payload: unknown;
+    readonly publishedAt: string;
+} | {
+    readonly type: 'error';
+    readonly id?: string;
+    readonly code: string;
+    readonly message: string;
+} | {
+    readonly type: 'pong';
+    readonly id?: string;
+};
+export declare class RealtimeProtocolError extends Error {
+    readonly code: string;
+    constructor(code: string, message: string);
+}
+export declare function parseRealtimeClientMessage(data: RealtimeMessageData): RealtimeClientMessage;
+export declare function parseRealtimeServerMessage(data: RealtimeMessageData): RealtimeServerMessage;
+export declare function encodeRealtimeClientMessage(message: RealtimeClientMessage): string;
+export declare function encodeRealtimeServerMessage(message: RealtimeServerMessage): string;
+export declare function validateRealtimeTopic(topic: string): void;
+//# sourceMappingURL=protocol.d.ts.map

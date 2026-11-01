@@ -1,0 +1,378 @@
+import { createHash } from 'node:crypto';
+import { isVisibleMailAttachment } from '../../shared/inline-images.js';
+import { DEFAULT_MAIL_AUTOMATIC_SYNC_INTERVAL_MINUTES } from '../config.js';
+import { DEFAULT_MAIL_LABEL_COLOR, isMailLabelColor, } from '../../shared/mail.js';
+import { jsonOrNull, normalizeAddress, parseJson, toIsoString, } from './serialization.js';
+export function toAccountRow(account, updatedAt, createdAt) {
+    return {
+        id: account.id,
+        userId: account.userId,
+        providerType: account.provider.type,
+        providerName: account.provider.name,
+        address: normalizeAddress(account.address),
+        displayName: account.displayName,
+        credentialReference: account.credentialReference,
+        authorizationSubject: account.authorizationSubject,
+        scopes: JSON.stringify(account.scopes),
+        status: account.status,
+        initialSyncReceivedAfter: account.initialSyncReceivedAfter ?? null,
+        automaticSyncIntervalMinutes: account.automaticSyncIntervalMinutes ??
+            DEFAULT_MAIL_AUTOMATIC_SYNC_INTERVAL_MINUTES,
+        createdAt: createdAt ?? updatedAt,
+        updatedAt,
+    };
+}
+export function fromAccountRow(row) {
+    return {
+        id: row.id,
+        userId: row.userId,
+        provider: { type: row.providerType, name: row.providerName },
+        address: row.address,
+        displayName: row.displayName ?? undefined,
+        credentialReference: row.credentialReference,
+        authorizationSubject: row.authorizationSubject ?? undefined,
+        scopes: parseJson(row.scopes, 'account scopes'),
+        status: row.status,
+        removalFailed: row.removalFailed || undefined,
+        initialSyncReceivedAfter: row.initialSyncReceivedAfter ?? undefined,
+        automaticSyncIntervalMinutes: row.automaticSyncIntervalMinutes ??
+            DEFAULT_MAIL_AUTOMATIC_SYNC_INTERVAL_MINUTES,
+    };
+}
+export function toIdentityRow(identity) {
+    return {
+        id: identity.id,
+        accountId: identity.accountId,
+        address: normalizeAddress(identity.address),
+        displayName: identity.displayName,
+        primaryForAccountId: identity.isPrimary ? identity.accountId : null,
+        canSend: identity.canSend,
+    };
+}
+export function fromIdentityRow(row) {
+    return {
+        id: row.id,
+        accountId: row.accountId,
+        address: row.address,
+        displayName: row.displayName ?? undefined,
+        isPrimary: Boolean(row.primaryForAccountId),
+        canSend: Boolean(row.canSend),
+    };
+}
+export function fromSignatureRow(row) {
+    return {
+        id: row.id,
+        accountId: row.accountId,
+        name: row.name,
+        text: row.text,
+        html: row.html ?? undefined,
+        isDefault: Boolean(row.defaultForAccountId),
+        createdAt: toIsoString(row.createdAt),
+        updatedAt: toIsoString(row.updatedAt),
+    };
+}
+export function toMailTemplate(row) {
+    return {
+        id: row.id,
+        name: row.name,
+        subject: row.subject,
+        text: row.text ?? undefined,
+        html: row.html ?? '',
+        ownerId: row.ownerId,
+    };
+}
+export function fromFolderRow(row) {
+    return {
+        id: row.id,
+        accountId: row.accountId,
+        providerFolderId: row.providerFolderId,
+        type: row.type,
+        name: row.name,
+        unreadCount: row.unreadCount ?? undefined,
+        kind: row.kind,
+    };
+}
+export function fromLabelRow(row) {
+    return {
+        id: row.id,
+        name: row.name,
+        color: isMailLabelColor(row.color) ? row.color : DEFAULT_MAIL_LABEL_COLOR,
+        createdAt: toIsoString(row.createdAt),
+        updatedAt: toIsoString(row.updatedAt),
+    };
+}
+export function toMessageRow(accountId, message, id, createdAt, updatedAt, local) {
+    return {
+        id,
+        accountId,
+        contentStatus: message.contentStatus ?? 'complete',
+        contentError: message.contentError ?? null,
+        size: message.size ?? null,
+        providerMessageId: message.providerMessageId,
+        providerDraftId: message.providerDraftId,
+        providerDraftMessageId: message.providerDraftMessageId,
+        internetMessageId: message.internetMessageId,
+        providerConversationId: message.providerConversationId ?? fallbackConversationId(message),
+        senderSearch: message.from
+            ? [message.from.name, message.from.address].filter(Boolean).join(' ')
+            : '',
+        recipientsSearch: [...message.to, ...message.cc, ...message.bcc]
+            .flatMap((address) => [address.name, address.address])
+            .filter(Boolean)
+            .join(' '),
+        sender: jsonOrNull(message.from),
+        recipients: JSON.stringify({
+            to: message.to,
+            cc: message.cc,
+            bcc: message.bcc,
+        }),
+        replyTo: JSON.stringify(message.replyTo),
+        inReplyTo: message.inReplyTo,
+        references: JSON.stringify(message.references),
+        subject: message.subject,
+        preview: message.preview,
+        text: message.text,
+        html: message.html,
+        receivedAt: message.receivedAt ?? null,
+        sentAt: message.sentAt ?? null,
+        sortAt: message.receivedAt ?? message.sentAt ?? createdAt,
+        read: message.read,
+        starred: message.starred,
+        draft: message.draft,
+        attachments: JSON.stringify(message.attachments),
+        note: local?.note ?? null,
+        todo: local?.todo ?? false,
+        draftConflict: jsonOrNull(message.draftConflict),
+        draftSource: jsonOrNull(message.draftSource),
+        remoteDraftFingerprint: message.remoteDraftFingerprint ?? null,
+        createdAt,
+        updatedAt,
+    };
+}
+export function toMailMessageSummary(row, folderIds, labelIds) {
+    const recipients = parseJson(row.recipients, 'message recipients');
+    const attachments = parseJson(row.attachments, 'message attachments');
+    return {
+        id: row.id,
+        accountId: row.accountId,
+        contentStatus: row.contentStatus ?? 'complete',
+        contentError: row.contentError ?? undefined,
+        size: row.size ?? undefined,
+        providerMessageId: row.providerMessageId,
+        providerDraftId: row.providerDraftId ?? undefined,
+        providerDraftMessageId: row.providerDraftMessageId ?? undefined,
+        internetMessageId: row.internetMessageId ?? undefined,
+        conversationId: row.providerConversationId ?? undefined,
+        folderIds,
+        labelIds,
+        from: row.sender
+            ? parseJson(row.sender, 'message sender')
+            : undefined,
+        ...recipients,
+        subject: row.subject,
+        preview: row.preview ?? undefined,
+        receivedAt: row.receivedAt ?? undefined,
+        sentAt: row.sentAt ?? undefined,
+        read: Boolean(row.read),
+        starred: Boolean(row.starred),
+        draft: Boolean(row.draft),
+        hasAttachments: attachments.some(isVisibleMailAttachment),
+        note: row.note ?? undefined,
+        todo: Boolean(row.todo),
+        draftConflict: row.draftConflict
+            ? parseJson(row.draftConflict, 'draft conflict')
+            : undefined,
+    };
+}
+export function toMailMessage(row, folderIds, labelIds) {
+    const recipients = parseJson(row.recipients, 'message recipients');
+    const attachments = parseJson(row.attachments, 'message attachments').map((attachment) => ({
+        ...attachment,
+        id: `${row.id}:${attachment.providerAttachmentId}`,
+        messageId: row.id,
+    }));
+    return {
+        id: row.id,
+        updatedAt: row.updatedAt,
+        draftSource: row.draftSource
+            ? parseJson(row.draftSource, 'draft source')
+            : undefined,
+        remoteDraftFingerprint: row.remoteDraftFingerprint ?? undefined,
+        accountId: row.accountId,
+        contentStatus: row.contentStatus ?? 'complete',
+        contentError: row.contentError ?? undefined,
+        size: row.size ?? undefined,
+        providerMessageId: row.providerMessageId,
+        providerDraftId: row.providerDraftId ?? undefined,
+        providerDraftMessageId: row.providerDraftMessageId ?? undefined,
+        internetMessageId: row.internetMessageId ?? undefined,
+        conversationId: row.providerConversationId ?? undefined,
+        folderIds,
+        labelIds,
+        from: row.sender
+            ? parseJson(row.sender, 'message sender')
+            : undefined,
+        ...recipients,
+        subject: row.subject,
+        preview: row.preview ?? undefined,
+        receivedAt: row.receivedAt ?? undefined,
+        sentAt: row.sentAt ?? undefined,
+        read: Boolean(row.read),
+        starred: Boolean(row.starred),
+        draft: Boolean(row.draft),
+        hasAttachments: attachments.some(isVisibleMailAttachment),
+        note: row.note ?? undefined,
+        todo: Boolean(row.todo),
+        draftConflict: row.draftConflict
+            ? parseJson(row.draftConflict, 'draft conflict')
+            : undefined,
+        replyTo: parseJson(row.replyTo, 'message reply-to'),
+        inReplyTo: row.inReplyTo ?? undefined,
+        references: parseJson(row.references, 'message references'),
+        text: row.text ?? undefined,
+        html: row.html ?? undefined,
+        attachments,
+    };
+}
+export function toSyncRunRow(run) {
+    return {
+        ...run,
+        activeKey: run.status === 'pending' || run.status === 'running'
+            ? run.accountId
+            : null,
+        policy: JSON.stringify(run.policy),
+        baselineCursor: jsonOrNull(run.baselineCursor),
+        changeCursor: jsonOrNull(run.changeCursor),
+        error: jsonOrNull(run.error),
+    };
+}
+export function fromSyncRunRow(row) {
+    return {
+        id: row.id,
+        accountId: row.accountId,
+        requestedBy: row.requestedBy,
+        mode: row.mode,
+        phase: row.phase,
+        status: row.status,
+        revision: Number(row.revision),
+        policy: parseJson(row.policy, 'sync policy'),
+        historyStartedAt: row.historyStartedAt ?? undefined,
+        historyComplete: Boolean(row.historyComplete),
+        recovering: Boolean(row.recovering),
+        pendingMessages: Number(row.pendingMessages ?? 0),
+        retryAttempts: Number(row.retryAttempts ?? 0),
+        processedMessages: Number(row.processedMessages),
+        processedPages: Number(row.processedPages),
+        historyCursor: row.historyCursor ?? undefined,
+        folderCursor: row.folderCursor ?? undefined,
+        baselineCursor: row.baselineCursor
+            ? parseJson(row.baselineCursor, 'baseline cursor')
+            : undefined,
+        changeCursor: row.changeCursor
+            ? parseJson(row.changeCursor, 'change cursor')
+            : undefined,
+        leaseToken: row.leaseToken ?? undefined,
+        leaseExpiresAt: row.leaseExpiresAt ?? undefined,
+        error: row.error
+            ? parseJson(row.error, 'sync error')
+            : undefined,
+        createdAt: toIsoString(row.createdAt),
+        updatedAt: toIsoString(row.updatedAt),
+        completedAt: row.completedAt ? toIsoString(row.completedAt) : undefined,
+    };
+}
+export function fromSubmissionRow(row) {
+    const input = row.composeInput
+        ? parseJson(row.composeInput, 'submission input')
+        : undefined;
+    return {
+        text: input?.text,
+        html: input?.html,
+        cc: input?.cc,
+        bcc: input?.bcc,
+        attachmentIds: input?.attachmentIds,
+        attachmentContentIds: Object.fromEntries((input?.deliverySnapshot?.attachments ?? []).flatMap((attachment) => attachment.outboundAttachmentId && attachment.contentId
+            ? [[attachment.outboundAttachmentId, attachment.contentId]]
+            : [])),
+        recipients: input?.to,
+        subject: input?.subject,
+        bulk: row.idempotencyKey.startsWith('bulk:'),
+        batchId: row.idempotencyKey.startsWith('bulk:')
+            ? `${row.accountId}:${row.idempotencyKey.slice(0, row.idempotencyKey.lastIndexOf(':'))}`
+            : undefined,
+        hasComposeInput: Boolean(input),
+        id: row.id,
+        accountId: row.accountId,
+        status: row.status,
+        providerMessageId: row.providerMessageId ?? undefined,
+        scheduledAt: row.scheduledAt ? toIsoString(row.scheduledAt) : undefined,
+        error: row.error
+            ? parseJson(row.error, 'submission error')
+            : undefined,
+        requestFingerprint: row.requestFingerprint,
+        createdAt: toIsoString(row.createdAt),
+        updatedAt: toIsoString(row.updatedAt),
+    };
+}
+export function fromPushSubscriptionRow(row) {
+    return {
+        accountId: row.accountId,
+        provider: { type: row.providerType, name: row.providerName },
+        providerSubscriptionId: row.providerSubscriptionId,
+        configurationFingerprint: row.configurationFingerprint,
+        renewAfter: toIsoString(row.renewAfter),
+        expiresAt: toIsoString(row.expiresAt),
+        updatedAt: toIsoString(row.updatedAt),
+    };
+}
+export function completePushSubscription(row) {
+    return Boolean(row.providerSubscriptionId &&
+        row.configurationFingerprint &&
+        row.renewAfter &&
+        row.expiresAt);
+}
+export function fromOutboxRow(row) {
+    const base = {
+        id: row.id,
+        aggregateId: row.aggregateId,
+        deduplicationKey: row.deduplicationKey,
+        status: row.status,
+        attempts: Number(row.attempts),
+        availableAt: toIsoString(row.availableAt),
+        leaseToken: row.leaseToken ?? undefined,
+        leaseExpiresAt: row.leaseExpiresAt
+            ? toIsoString(row.leaseExpiresAt)
+            : undefined,
+        createdAt: toIsoString(row.createdAt),
+        publishedAt: row.publishedAt ? toIsoString(row.publishedAt) : undefined,
+    };
+    if (row.type === 'requestMailboxSync') {
+        return {
+            ...base,
+            type: 'requestMailboxSync',
+            payload: parseJson(row.payload, 'sync request payload'),
+        };
+    }
+    return row.type === 'syncMailbox'
+        ? {
+            ...base,
+            type: 'syncMailbox',
+            payload: parseJson(row.payload, 'sync outbox payload'),
+        }
+        : {
+            ...base,
+            type: 'sendScheduledMail',
+            payload: parseJson(row.payload, 'scheduled send outbox payload'),
+        };
+}
+// RFC reply chains carry the root Message-ID as their first Reference. Hash it
+// because Message-IDs can exceed the conversation column's length limit.
+function fallbackConversationId(message) {
+    const root = message.references.find((reference) => reference.trim())?.trim() ||
+        message.inReplyTo?.trim() ||
+        message.internetMessageId?.trim();
+    return root
+        ? `rfc:${createHash('sha256').update(root).digest('hex')}`
+        : undefined;
+}
+//# sourceMappingURL=mappers.js.map

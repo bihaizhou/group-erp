@@ -1,0 +1,586 @@
+import { createHash } from 'node:crypto';
+/** A schedule id that names no schedule of this application. */
+export class ScheduleNotFoundError extends Error {
+    scheduleId;
+    constructor(scheduleId) {
+        super('Schedule not found.');
+        this.scheduleId = scheduleId;
+        this.name = 'ScheduleNotFoundError';
+    }
+}
+/** How many times the conditional run count update retries a concurrent change. */
+const RUN_COUNT_ATTEMPTS = 5;
+/**
+ * Keeps the schedule definitions and hands their rules to the executor.
+ *
+ * Every definition in the manifest gets its handler registered, including
+ * disabled and exhausted ones, so whichever instance a firing reaches can run
+ * it. Only enabled definitions with firings left get a rule. Before the
+ * executor is set up, rules are only registered — it writes them in setup() —
+ * so removals and the planned times they return wait for {@link activate}.
+ */
+export class ScheduleStore {
+    database;
+    appName;
+    executor;
+    createJob;
+    now;
+    active = false;
+    awaitingPlan = new Set();
+    awaitingRemoval = new Set();
+    awaitingStaleRemoval = new Set();
+    constructor(database, appName, executor, createJob, now = () => new Date()) {
+        this.database = database;
+        this.appName = appName;
+        this.executor = executor;
+        this.createJob = createJob;
+        this.now = now;
+    }
+    async reconcile(manifest, finalize = false) {
+        const plan = await this.database.transaction(async (connection) => {
+            await this.lockManifestOwners(connection);
+            const seen = new Set();
+            const materializations = [];
+            for (const entry of manifest) {
+                const id = scheduleId(this.appName, entry.definition.key);
+                seen.add(id);
+                materializations.push(await this.upsertDefinition(connection.query, id, entry));
+            }
+            const deactivate = finalize
+                ? await this.findMissing(connection.query, seen)
+                : [];
+            const inactive = await this.findInactive(connection.query, seen);
+            return { materializations, deactivate, inactive };
+        });
+        for (const materialization of plan.materializations) {
+            const id = materialization.spec.id;
+            try {
+                await this.materialize(materialization);
+                if (this.active)
+                    await this.recordSyncResult(id, 'synced');
+                else
+                    this.awaitingPlan.add(id);
+            }
+            catch (error) {
+                await this.recordSyncResult(id, 'failed', error instanceof Error ? error.message : String(error));
+                throw error;
+            }
+        }
+        for (const id of plan.deactivate) {
+            await this.deactivate(id);
+            await this.removeRule(id);
+        }
+        // A removal can be lost — the memory adapter overwrites its state file
+        // with what a running process holds — so every sync removes again the
+        // rules of definitions already deactivated.
+        for (const id of plan.inactive)
+            await this.removeStaleRule(id);
+    }
+    /**
+     * Runs what had to wait for the executor's setup(): removing rules, and
+     * recording the planned time of every rule setup() wrote.
+     */
+    async activate() {
+        this.active = true;
+        for (const id of [...this.awaitingRemoval]) {
+            this.awaitingRemoval.delete(id);
+            await this.executor.removeJob(id);
+        }
+        for (const id of [...this.awaitingStaleRemoval]) {
+            this.awaitingStaleRemoval.delete(id);
+            await this.removeRuleIfOff(id);
+        }
+        for (const id of [...this.awaitingPlan]) {
+            this.awaitingPlan.delete(id);
+            const rule = await this.executor.getJob(id);
+            await this.updateDefinition(id, { nextRunAt: rule?.nextRunAt ?? null });
+            await this.recordSyncResult(id, 'synced');
+        }
+    }
+    /**
+     * Records a firing this instance ran. A start counts once per occurrence:
+     * the conditional update matches only while `lastOccurrenceId` is another
+     * occurrence, so a redelivered start is ignored. The query builder has no
+     * arithmetic, so the increment is a compare-and-set on the count it read.
+     */
+    async recordEvent(event) {
+        const nextRunAt = event.nextRunAt ?? null;
+        if (event.name !== 'ScheduleStart') {
+            await this.updateDefinition(event.jobName, { nextRunAt });
+            return;
+        }
+        for (let attempt = 0; attempt < RUN_COUNT_ATTEMPTS; attempt += 1) {
+            const row = await this.database
+                .query()
+                .selectFrom('schedule_definitions')
+                .select(['runCount', 'lastOccurrenceId'])
+                .where('id', '=', event.jobName)
+                .where('appName', '=', this.appName)
+                .executeTakeFirst();
+            if (!row || row.lastOccurrenceId === event.jobId)
+                return;
+            const runCount = Number(row.runCount ?? 0);
+            const updated = await this.database
+                .query()
+                .updateTable('schedule_definitions')
+                .set({
+                runCount: runCount + 1,
+                lastRunAt: event.runAt,
+                nextRunAt,
+                lastOccurrenceId: event.jobId,
+                updatedAt: this.now(),
+            })
+                .where('id', '=', event.jobName)
+                .where('appName', '=', this.appName)
+                .where('runCount', '=', runCount)
+                .where((eb) => eb.or([
+                eb('lastOccurrenceId', 'is', null),
+                eb('lastOccurrenceId', '<>', event.jobId),
+            ]))
+                .execute();
+            if ((updated.updatedCount ?? 0) > 0)
+                return;
+        }
+        throw new Error(`Could not record the start of occurrence ${event.jobId}: its schedule kept changing.`);
+    }
+    async list() {
+        const definitions = await this.database
+            .query()
+            .selectFrom('schedule_definitions')
+            .selectAll()
+            .where('appName', '=', this.appName)
+            .orderBy('title', 'asc')
+            .execute();
+        const completedByScheduleId = await this.countCompleted(definitions.map((definition) => definition.id));
+        return definitions.map((definition) => {
+            const enabled = Boolean(definition.enabled);
+            return {
+                id: definition.id,
+                appName: definition.appName,
+                key: definition.key,
+                title: definition.title,
+                ...(definition.description
+                    ? { description: definition.description }
+                    : {}),
+                cron: definition.cron,
+                timezone: definition.timezone,
+                enabled,
+                targetType: definition.targetType,
+                lifecycleState: definition.lifecycleState,
+                ...(definition.inactiveReason
+                    ? { inactiveReason: definition.inactiveReason }
+                    : {}),
+                definitionHash: definition.definitionHash,
+                runCount: Number(definition.runCount ?? 0),
+                completedCount: completedByScheduleId.get(definition.id) ?? 0,
+                ...(definition.nextRunAt
+                    ? { nextRunAt: dateValue(definition.nextRunAt) }
+                    : {}),
+                ...(definition.lastRunAt
+                    ? { lastRunAt: dateValue(definition.lastRunAt) }
+                    : {}),
+                scheduleStatus: enabled && definition.lifecycleState === 'active'
+                    ? 'active'
+                    : 'paused',
+            };
+        });
+    }
+    async setEnabled(id, enabled) {
+        const definition = await this.database
+            .query()
+            .selectFrom('schedule_definitions')
+            .selectAll()
+            .where('id', '=', id)
+            .where('appName', '=', this.appName)
+            .executeTakeFirst();
+        if (!definition)
+            throw new ScheduleNotFoundError(id);
+        if (!enabled) {
+            // The handler stays registered, so another instance that enables the
+            // schedule again finds this instance able to run it.
+            await this.executor.removeJob(id);
+            await this.updateDefinition(id, { enabled: false, nextRunAt: null });
+            return;
+        }
+        const spec = specOfRow(definition);
+        const limit = nullableNumber(definition.runLimit);
+        // Re-adding a rule restarts BullMQ's count, so it carries what is left.
+        const appliedLimit = limit === null ? null : limit - Number(definition.runCount ?? 0);
+        const nextRunAt = definition.lifecycleState === 'active'
+            ? await this.applyRule(spec, appliedLimit, true)
+            : null;
+        await this.updateDefinition(id, { enabled: true, appliedLimit, nextRunAt });
+    }
+    /**
+     * Counts occurrences that reached the `succeeded` terminal state, per schedule.
+     * Only successful outcomes count as completed: `failed`, `timed_out`,
+     * `cancelled`, `triggered` (result unknown) and `skipped` (never executed) are
+     * deliberately excluded. The result is keyed by schedule id for the schedules
+     * passed in, so occurrences orphaned from an app's definitions never appear.
+     */
+    async countCompleted(scheduleIds) {
+        const completed = new Map();
+        if (scheduleIds.length === 0)
+            return completed;
+        const rows = await this.database
+            .query()
+            .selectFrom('schedule_occurrences')
+            .select(({ fn }) => ['scheduleId', fn.countAll().as('completedCount')])
+            .where('scheduleId', 'in', [...scheduleIds])
+            .where('status', '=', 'succeeded')
+            .groupBy('scheduleId')
+            .execute();
+        for (const row of rows) {
+            completed.set(String(row.scheduleId), Number(row.completedCount ?? 0));
+        }
+        return completed;
+    }
+    async listTargets() {
+        const rows = await this.database
+            .query()
+            .selectFrom('schedule_definitions')
+            .selectAll()
+            .where('appName', '=', this.appName)
+            .execute();
+        return rows.map((row) => ({
+            id: row.id,
+            type: row.targetType,
+            config: jsonObject(row.targetConfig),
+        }));
+    }
+    async listOccurrences(scheduleId, range = {}) {
+        const owned = await this.database
+            .query()
+            .selectFrom('schedule_definitions')
+            .select('id')
+            .where('id', '=', scheduleId)
+            .where('appName', '=', this.appName)
+            .exists();
+        if (!owned)
+            return [];
+        const rows = await this.database
+            .query()
+            .selectFrom('schedule_occurrences')
+            .selectAll()
+            .where('scheduleId', '=', scheduleId)
+            .orderBy('startedAt', 'desc')
+            .orderBy('id', 'desc')
+            .limit(range.limit ?? 100)
+            .offset(range.offset ?? 0)
+            .execute();
+        return rows.map((row) => ({
+            id: String(row.id),
+            scheduleId: String(row.scheduleId),
+            status: row.status,
+            ...(typeof row.reason === 'string' ? { reason: row.reason } : {}),
+            executionCount: Number(row.executionCount),
+            startedAt: dateValue(row.startedAt) ?? '',
+            ...(row.acceptedAt
+                ? { acceptedAt: dateValue(row.acceptedAt) }
+                : {}),
+            ...(row.finishedAt
+                ? { finishedAt: dateValue(row.finishedAt) }
+                : {}),
+            ...(row.targetReceipt
+                ? {
+                    targetReceipt: jsonObject(row.targetReceipt),
+                }
+                : {}),
+            ...(row.resultSummary
+                ? {
+                    resultSummary: jsonObject(row.resultSummary),
+                }
+                : {}),
+            target: {
+                type: String(row.targetType),
+                ...(typeof row.targetReferenceType === 'string' &&
+                    typeof row.targetReferenceId === 'string'
+                    ? {
+                        reference: {
+                            type: row.targetReferenceType,
+                            id: row.targetReferenceId,
+                        },
+                    }
+                    : {}),
+            },
+        }));
+    }
+    async upsertDefinition(query, id, entry) {
+        const existing = await query
+            .selectFrom('schedule_definitions')
+            .selectAll()
+            .where('id', '=', id)
+            .executeTakeFirst();
+        const now = this.now();
+        const definition = entry.definition;
+        const spec = specOfDefinition(definition, id);
+        if (!existing) {
+            await query
+                .insertInto('schedule_definitions')
+                .values({
+                id,
+                appName: this.appName,
+                key: definition.key,
+                sourceType: 'code',
+                title: definition.title,
+                description: definition.description ?? null,
+                definitionHash: definition.definitionHash,
+                cron: definition.schedule.cron,
+                timezone: definition.schedule.timezone,
+                fromDate: definition.schedule.from ?? null,
+                toDate: definition.schedule.to ?? null,
+                runLimit: definition.schedule.limit ?? null,
+                enabled: true,
+                targetType: definition.target.type,
+                targetConfig: JSON.stringify(definition.target.config),
+                lifecycleState: 'active',
+                inactiveReason: null,
+                deactivatedAt: null,
+                syncStatus: 'pending',
+                syncError: null,
+                lastSeenManifest: definition.definitionHash,
+                nextRunAt: null,
+                lastRunAt: null,
+                runCount: 0,
+                appliedLimit: null,
+                lastOccurrenceId: null,
+                createdAt: now,
+                updatedAt: now,
+            })
+                .execute();
+            return {
+                spec,
+                ...limitOf(definition),
+                rewrite: true,
+                enabled: true,
+                runCount: 0,
+                appliedLimit: null,
+            };
+        }
+        // The stored rule carries the definition hash, so any change to the
+        // definition changes the rule and restarts BullMQ's limit count: the
+        // applied limit is recomputed whenever that happens.
+        const rewrite = existing.lifecycleState === 'inactive' ||
+            existing.definitionHash !== definition.definitionHash;
+        await query
+            .updateTable('schedule_definitions')
+            .set({
+            title: definition.title,
+            description: definition.description ?? null,
+            definitionHash: definition.definitionHash,
+            cron: definition.schedule.cron,
+            timezone: definition.schedule.timezone,
+            fromDate: definition.schedule.from ?? null,
+            toDate: definition.schedule.to ?? null,
+            runLimit: definition.schedule.limit ?? null,
+            targetType: definition.target.type,
+            targetConfig: JSON.stringify(definition.target.config),
+            lifecycleState: 'active',
+            inactiveReason: null,
+            deactivatedAt: null,
+            syncStatus: 'pending',
+            syncError: null,
+            lastSeenManifest: definition.definitionHash,
+            updatedAt: now,
+        })
+            .where('id', '=', id)
+            .execute();
+        return {
+            spec,
+            ...limitOf(definition),
+            rewrite,
+            enabled: Boolean(existing.enabled),
+            runCount: Number(existing.runCount ?? 0),
+            appliedLimit: nullableNumber(existing.appliedLimit),
+        };
+    }
+    async materialize(plan) {
+        const { spec, limit, rewrite, enabled, runCount } = plan;
+        // Without a rewrite the stored applied limit is passed again, so the rule
+        // compares as unchanged and the executor leaves it alone.
+        const appliedLimit = limit === undefined
+            ? null
+            : rewrite || plan.appliedLimit === null
+                ? limit - runCount
+                : plan.appliedLimit;
+        if (appliedLimit !== plan.appliedLimit) {
+            await this.updateDefinition(spec.id, { appliedLimit });
+        }
+        if (!enabled) {
+            await this.executor.addJob(this.createJob(spec, positive(appliedLimit)), true);
+            // Disabling removed the rule; remove it again in case that was lost.
+            await this.removeStaleRule(spec.id);
+            return;
+        }
+        const nextRunAt = await this.applyRule(spec, appliedLimit, rewrite);
+        if (this.active)
+            await this.updateDefinition(spec.id, { nextRunAt });
+    }
+    /**
+     * Adds the rule of an enabled schedule and returns its planned firing. A
+     * schedule whose limit is spent only registers its handler, and a rule it
+     * still had is removed.
+     */
+    async applyRule(spec, appliedLimit, rewrite) {
+        const job = this.createJob(spec, positive(appliedLimit));
+        if (appliedLimit !== null && appliedLimit <= 0) {
+            await this.executor.addJob(job, true);
+            if (rewrite)
+                await this.removeRule(spec.id);
+            return null;
+        }
+        const receipt = await this.executor.addJob(job);
+        return receipt.scheduledAt ?? null;
+    }
+    async removeRule(id) {
+        if (this.active)
+            await this.executor.removeJob(id);
+        else
+            this.awaitingRemoval.add(id);
+    }
+    /** Removes a rule the definition should no longer have, once the executor is set up. */
+    async removeStaleRule(id) {
+        if (this.active)
+            await this.removeRuleIfOff(id);
+        else
+            this.awaitingStaleRemoval.add(id);
+    }
+    /**
+     * Reads the definition again first: another instance may have enabled it
+     * after this sync read it as disabled, and written the rule since.
+     */
+    async removeRuleIfOff(id) {
+        const row = await this.database
+            .query()
+            .selectFrom('schedule_definitions')
+            .select(['enabled', 'lifecycleState'])
+            .where('id', '=', id)
+            .where('appName', '=', this.appName)
+            .executeTakeFirst();
+        if (row && Boolean(row.enabled) && row.lifecycleState === 'active')
+            return;
+        await this.executor.removeJob(id);
+    }
+    async updateDefinition(id, values) {
+        await this.database
+            .query()
+            .updateTable('schedule_definitions')
+            .set({ ...values, updatedAt: this.now() })
+            .where('id', '=', id)
+            .where('appName', '=', this.appName)
+            .execute();
+    }
+    async findMissing(query, seen) {
+        const rows = await query
+            .selectFrom('schedule_definitions')
+            .selectAll()
+            .where('appName', '=', this.appName)
+            .where('sourceType', '=', 'code')
+            .where('lifecycleState', '=', 'active')
+            .execute();
+        return rows.filter((row) => !seen.has(row.id)).map((row) => row.id);
+    }
+    /** Definitions `--finalize` already deactivated, other than those the manifest brings back. */
+    async findInactive(query, seen) {
+        const rows = await query
+            .selectFrom('schedule_definitions')
+            .select('id')
+            .where('appName', '=', this.appName)
+            .where('lifecycleState', '=', 'inactive')
+            .execute();
+        return rows.map((row) => row.id).filter((id) => !seen.has(id));
+    }
+    async deactivate(id) {
+        const now = this.now();
+        await this.database
+            .query()
+            .updateTable('schedule_definitions')
+            .set({
+            lifecycleState: 'inactive',
+            inactiveReason: 'definition_removed',
+            deactivatedAt: now,
+            nextRunAt: null,
+            updatedAt: now,
+        })
+            .where('id', '=', id)
+            .where('appName', '=', this.appName)
+            .execute();
+    }
+    async recordSyncResult(id, status, error) {
+        await this.database
+            .query()
+            .updateTable('schedule_definitions')
+            .set({
+            syncStatus: status,
+            syncError: error ?? null,
+            updatedAt: this.now(),
+        })
+            .where('id', '=', id)
+            .where('appName', '=', this.appName)
+            .execute();
+    }
+    async lockManifestOwners(connection) {
+        const now = this.now();
+        // Repository upserts lock existing rows and recover concurrent inserts in a
+        // savepoint across dialects. The lock is held by the reconciliation transaction.
+        await connection.repository('scheduleSyncLocks').upsertOne({
+            filter: { appName: this.appName },
+            create: { appName: this.appName, createdAt: now, updatedAt: now },
+            update: { updatedAt: now },
+        });
+    }
+}
+export function scheduleId(appName, key) {
+    return createHash('sha256').update(`${appName}\0${key}`).digest('hex');
+}
+function dateValue(value) {
+    if (!value)
+        return undefined;
+    const normalized = typeof value === 'string' && /^\d+(?:\.0+)?$/u.test(value)
+        ? Number(value)
+        : value;
+    return new Date(normalized).toISOString();
+}
+function jsonObject(value) {
+    return typeof value === 'string'
+        ? JSON.parse(value)
+        : value;
+}
+function specOfDefinition(definition, id) {
+    return {
+        id,
+        cron: definition.schedule.cron,
+        timezone: definition.schedule.timezone,
+        ...(definition.schedule.from ? { from: definition.schedule.from } : {}),
+        ...(definition.schedule.to ? { to: definition.schedule.to } : {}),
+        target: definition.target,
+        definitionHash: definition.definitionHash,
+    };
+}
+/** The same spec as the definition gave, rebuilt from the row it was stored in. */
+function specOfRow(row) {
+    const from = dateValue(row.fromDate);
+    const to = dateValue(row.toDate);
+    return {
+        id: row.id,
+        cron: row.cron,
+        timezone: row.timezone,
+        ...(from ? { from: new Date(from) } : {}),
+        ...(to ? { to: new Date(to) } : {}),
+        target: { type: row.targetType, config: jsonObject(row.targetConfig) },
+        definitionHash: row.definitionHash,
+    };
+}
+function limitOf(definition) {
+    return definition.schedule.limit !== undefined
+        ? { limit: definition.schedule.limit }
+        : {};
+}
+function nullableNumber(value) {
+    return value === null || value === undefined ? null : Number(value);
+}
+/** The limit handed to the executor, which only accepts a positive one. */
+function positive(appliedLimit) {
+    return appliedLimit === null ? undefined : Math.max(appliedLimit, 1);
+}
+//# sourceMappingURL=store.js.map

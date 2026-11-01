@@ -1,0 +1,11 @@
+import { type DatabaseManager } from '@nocobase/db';
+import { type MailOutboxRecord } from '../contracts/persistence.js';
+export declare class MailOutboxStore {
+    private readonly database;
+    constructor(database: DatabaseManager);
+    claimOutbox(now: string, leaseToken: string, leaseExpiresAt: string, limit: number): Promise<readonly MailOutboxRecord[]>;
+    markOutboxPublished(outboxId: string, leaseToken: string, publishedAt: string): Promise<boolean>;
+    deletePublishedOutboxBefore(before: string): Promise<number>;
+    releaseOutbox(outboxId: string, leaseToken: string, availableAt: string): Promise<boolean>;
+}
+//# sourceMappingURL=outbox.d.ts.map

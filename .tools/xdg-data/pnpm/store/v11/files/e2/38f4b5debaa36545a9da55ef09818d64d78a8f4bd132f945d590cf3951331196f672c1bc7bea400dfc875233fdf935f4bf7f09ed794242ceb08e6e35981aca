@@ -1,0 +1,24 @@
+import type { RepositoryMutationListeners, RepositoryMutationSubscriptionOptions } from '../../events/types.js';
+export interface RepositoryMutationSubscription {
+    readonly id: string | undefined;
+    /** Registration order; listeners of one phase run in this order. */
+    readonly sequence: number;
+    readonly collections: ReadonlySet<string>;
+    readonly keys: boolean;
+    readonly values: boolean;
+    readonly listeners: RepositoryMutationListeners;
+}
+/**
+ * The subscriptions of one root connection. Its transaction connections share
+ * it, so a subscription registered anywhere observes the whole connection.
+ */
+export declare class RepositoryMutationRegistry {
+    private subscriptions;
+    private sequence;
+    /** Checked before anything else, so a connection nobody observes pays nothing. */
+    get empty(): boolean;
+    subscribe(options: RepositoryMutationSubscriptionOptions, listeners: RepositoryMutationListeners): () => void;
+    /** Subscriptions observing any of `collections`, in registration order. */
+    matching(collections: ReadonlySet<string>): readonly RepositoryMutationSubscription[];
+}
+export declare function matchesAny(subscription: RepositoryMutationSubscription, collections: ReadonlySet<string>): boolean;

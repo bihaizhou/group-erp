@@ -1,0 +1,8 @@
+import type { MailSignature } from '../mail-client.js';
+export interface MailSignatureContent {
+    readonly text: string;
+    readonly html: string;
+}
+/** Replaces the managed signature suffix without touching the user's message body. */
+export declare function replaceMailSignatureContent(content: MailSignatureContent, signatures: readonly MailSignature[], signatureId: string): MailSignatureContent;
+//# sourceMappingURL=mail-signature.d.ts.map

@@ -1,0 +1,13 @@
+import { type AppRootRouteContribution } from '../router/index.js';
+import { type AppConfigAccessor } from '../config/index.js';
+export interface SpaRoutesApplication {
+    readonly config: AppConfigAccessor;
+    readonly mode: 'standalone' | 'embedded';
+    readonly publicBasePath: string;
+    /** Where the application's `package.json` is, read for the name and version the page shows. */
+    readonly paths: {
+        readonly rootDir: string;
+    };
+}
+export declare const spaRootRoutes: AppRootRouteContribution<SpaRoutesApplication>;
+//# sourceMappingURL=provider.d.ts.map

@@ -1,0 +1,8 @@
+import type { MigrationConnection } from '../../migration/types.js';
+import { type TaskLockOptions } from '../../migration/internal/lock.js';
+export declare const DEFAULT_SEED_LOCK_TABLE = "__nocobase_seed_lock";
+/**
+ * Seeds take the same lock as migrations, with their own table: one
+ * implementation so contention behaves and reports identically for both.
+ */
+export declare function withSeedLock<T>(connection: MigrationConnection, options: TaskLockOptions, fn: () => Promise<T>): Promise<T>;

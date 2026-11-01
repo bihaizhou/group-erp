@@ -1,0 +1,20 @@
+export class CollectionMetadataValidationError extends Error {
+    issues;
+    code = 'COLLECTION_METADATA_INVALID';
+    constructor(issues) {
+        super(formatCollectionMetadataIssues(issues));
+        this.issues = issues;
+        this.name = 'CollectionMetadataValidationError';
+    }
+}
+function formatCollectionMetadataIssues(issues) {
+    if (issues.length === 0) {
+        return 'Collection metadata is invalid.';
+    }
+    return `Collection metadata is invalid: ${issues
+        .map((issue) => `${formatIssuePath(issue.path)}: ${issue.message}`)
+        .join('; ')}`;
+}
+function formatIssuePath(path) {
+    return path.length === 0 ? '$' : `$.${path.join('.')}`;
+}

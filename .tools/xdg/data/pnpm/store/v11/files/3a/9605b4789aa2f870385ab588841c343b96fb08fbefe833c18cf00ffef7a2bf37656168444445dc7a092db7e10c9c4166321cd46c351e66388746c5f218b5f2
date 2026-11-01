@@ -1,0 +1,23 @@
+/**
+ * `package.json` plus what a package manager writes while installing. Any of
+ * them changing restarts the server, and any of them changing again resets the
+ * wait, so one install produces one restart.
+ */
+export function resolveDependencyWatch(rootDir: any): {
+    directory: any;
+    filenames: Set<string>;
+}[];
+/**
+ * How long the dependency files have to stay unchanged before the server
+ * restarts.
+ *
+ * An install writes `package.json` early and then keeps writing — the
+ * lockfile, the store state — for as long as fetching and linking take, so
+ * restarting on the first write lands in the middle of it: the server comes
+ * back up against a half-installed `node_modules`, and the next write arrives
+ * while it is still shutting down, which is where tsx escalates SIGTERM to
+ * SIGKILL. Waiting for quiet costs a few seconds after an install and avoids
+ * both.
+ */
+export const DEPENDENCY_SETTLE_MS: 3000;
+//# sourceMappingURL=dependency-watch.d.mts.map

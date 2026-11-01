@@ -1,0 +1,64 @@
+import type { ReactElement } from 'react';
+import type { MailLabel, MailMessage } from '../mail-client.js';
+export interface MailConversationViewLabels {
+    readonly attachmentCount: (count: number) => string;
+    readonly conversation: (count: number) => string;
+    readonly loadMore: string;
+    readonly noSubject: string;
+    readonly selectMessage: string;
+    readonly unknownSender: string;
+    readonly labels: string;
+    readonly addLabel?: string;
+    readonly note: string;
+    readonly editNote?: string;
+    readonly notePlaceholder: string;
+    readonly saveNote: string;
+    readonly todo: string;
+    readonly markTodo?: string;
+    readonly cancelTodo?: string;
+    readonly completeTodo?: string;
+    readonly more?: string;
+    readonly close?: string;
+    readonly collapseMessage?: string;
+    readonly expandMessage?: string;
+}
+export interface MailConversationViewProps {
+    readonly labels: MailConversationViewLabels;
+    readonly loading?: boolean;
+    readonly messages: readonly MailMessage[];
+    readonly nextCursor?: string;
+    readonly onLoadMore: () => void;
+    readonly subject?: string;
+    readonly availableLabels?: readonly MailLabel[];
+    readonly actions?: {
+        readonly archive?: (message: MailMessage) => void;
+        readonly delete: (message: MailMessage) => void;
+        readonly canDelete?: (message: MailMessage) => boolean;
+        readonly downloadAttachment?: (message: MailMessage, attachment: MailMessage['attachments'][number]) => void;
+        readonly reply?: (message: MailMessage) => void;
+        readonly forward?: (message: MailMessage) => void;
+        readonly editDraft?: (message: MailMessage) => void;
+        readonly cancelScheduled?: (message: MailMessage) => void;
+        readonly toggleRead: (message: MailMessage) => void;
+        readonly toggleStarred: (message: MailMessage) => void;
+        readonly toggleTodo?: (message: MailMessage) => void;
+        readonly saveNote?: (message: MailMessage, note: string) => void;
+        readonly toggleLabel?: (message: MailMessage, labelId: string, assigned: boolean) => void;
+    };
+    readonly actionLabels?: {
+        readonly archive: string;
+        readonly delete: string;
+        readonly download: string;
+        readonly reply: string;
+        readonly forward: string;
+        readonly editDraft?: string;
+        readonly markRead: string;
+        readonly markUnread: string;
+        readonly star: string;
+        readonly unstar: string;
+        readonly collapseMessage?: string;
+        readonly expandMessage?: string;
+    };
+}
+export declare function MailConversationView({ labels, loading, messages, nextCursor, onLoadMore, subject, actions, actionLabels, availableLabels, }: MailConversationViewProps): ReactElement;
+//# sourceMappingURL=mail-conversation-view.d.ts.map

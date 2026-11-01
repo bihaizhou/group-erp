@@ -1,0 +1,3 @@
+import type { ConfigParser } from '../types.js';
+export declare function yamlParser(): ConfigParser;
+//# sourceMappingURL=yaml.d.ts.map

@@ -1,0 +1,25 @@
+import type { ReactElement } from 'react';
+import type { MailLabel, MailMessageSummary } from '../mail-client.js';
+export interface MailMessageListLabels {
+    readonly empty: string;
+    readonly loading?: string;
+    readonly messages?: string;
+    readonly loadMore: string;
+    readonly noSubject: string;
+    readonly subjectCount?: (count: number) => string;
+    readonly unknownSender: string;
+}
+export interface MailMessageListProps {
+    readonly accountNames?: ReadonlyMap<string, string>;
+    readonly availableLabels?: readonly MailLabel[];
+    readonly labels: MailMessageListLabels;
+    readonly loading?: boolean;
+    readonly messages: readonly MailMessageSummary[];
+    readonly nextCursor?: string;
+    readonly onLoadMore: () => void;
+    readonly onSelect: (message: MailMessageSummary) => void;
+    readonly selectedMessageId?: string;
+    readonly showAccount?: boolean;
+}
+export declare function MailMessageList({ availableLabels, labels, loading, messages, nextCursor, onLoadMore, onSelect, selectedMessageId, }: MailMessageListProps): ReactElement;
+//# sourceMappingURL=mail-message-list.d.ts.map

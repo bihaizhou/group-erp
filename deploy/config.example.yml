@@ -1,0 +1,56 @@
+app:
+  publicOrigin: http://192.168.5.189:13010
+client:
+  app:
+    title: 集团 ERP
+i18n:
+  defaultLocale: zh-CN
+users:
+  initialAdmin:
+    username: admin
+    email: admin@group-erp.local
+    password: supplied-by-environment
+secrets:
+  keys:
+    - version: 1
+      key: supplied-by-environment
+auth:
+  emailAndPassword:
+    enabled: true
+    autoSignIn: false
+    disableSignUp: true
+  session:
+    storeSessionInDatabase: true
+database:
+  default: main
+  connections:
+    main:
+      dialect: postgres
+      host: db
+      port: 5432
+      database: group_erp
+      username: group_erp
+      password: supplied-by-environment
+      schemaManagement: managed
+      migrations:
+        autoRun: true
+      seeds:
+        autoRun: true
+jobs:
+  default: memory
+queue:
+  default: memory
+notification:
+  channels:
+    inbox:
+      provider: in-app
+mail:
+  providers: {}
+api:
+  bodyLimit: 256kb
+logging:
+  level: info
+  file:
+    enabled: true
+    retentionDays: 7
+    maxTotalSizeMB: 200

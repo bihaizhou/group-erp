@@ -1,0 +1,33 @@
+import { mailAccountInactive, mailAccountNotFound, mailAccountRemoving, mailMessageNotFound, } from './errors.js';
+export async function requireOwnedAccount(store, context, accountId) {
+    const account = await store.getAccount(accountId);
+    if (!account || account.userId !== context.actorId) {
+        throw mailAccountNotFound();
+    }
+    if (account.status === 'removing')
+        throw mailAccountRemoving();
+}
+export async function requireOwnedMessage(store, context, accountId, messageId) {
+    const account = await store.getAccount(accountId);
+    if (!account || account.userId !== context.actorId) {
+        throw mailAccountNotFound();
+    }
+    if (account.status !== 'active') {
+        throw mailAccountInactive();
+    }
+    const message = await store.getMessage(context.actorId, accountId, messageId);
+    if (!message)
+        throw mailMessageNotFound();
+    return { account, message };
+}
+export async function requireActiveAccount(store, context, accountId) {
+    const account = await store.getAccount(accountId);
+    if (!account || account.userId !== context.actorId) {
+        throw mailAccountNotFound();
+    }
+    if (account.status !== 'active') {
+        throw mailAccountInactive();
+    }
+    return account;
+}
+//# sourceMappingURL=access.js.map

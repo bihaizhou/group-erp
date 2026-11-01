@@ -1,0 +1,94 @@
+import { bindPolicies, } from './policy-bound-connection.js';
+/**
+ * The transaction connection an `inTransaction` listener receives. It is the
+ * transaction connection of the call that emitted the event, except that the
+ * Repositories it hands out, directly, through `withPolicies` or in a
+ * savepoint, report that call as the parent of their own events. That is how
+ * `parentOperationId` and the recursion limit follow a chain of listener
+ * writes without ambient state.
+ */
+export class RepositoryListenerConnection {
+    inner;
+    parent;
+    constructor(inner, parent) {
+        this.inner = inner;
+        this.parent = parent;
+    }
+    get name() {
+        return this.inner.name;
+    }
+    get driver() {
+        return this.inner.driver;
+    }
+    get dialect() {
+        return this.inner.dialect;
+    }
+    get schemaManagement() {
+        return this.inner.schemaManagement;
+    }
+    get capabilities() {
+        return this.inner.capabilities;
+    }
+    get runtime() {
+        return this.inner.runtime;
+    }
+    get builder() {
+        return this.inner.builder;
+    }
+    get collections() {
+        return this.inner.collections;
+    }
+    get collectionMetadata() {
+        return this.inner.collectionMetadata;
+    }
+    get query() {
+        return this.inner.query;
+    }
+    get schema() {
+        return this.inner.schema;
+    }
+    get schemaInspector() {
+        return this.inner.schemaInspector;
+    }
+    repository(collection) {
+        return this.createRepository(collection, undefined);
+    }
+    createRepository(collection, policy) {
+        return this.inner.createRepository(collection, policy, { parent: this.parent });
+    }
+    withPolicies(policies, principal) {
+        return bindPolicies(this, policies, principal);
+    }
+    async client() {
+        return this.inner.client();
+    }
+    async connect() {
+        await this.inner.connect();
+        return this;
+    }
+    async disconnect() {
+        return this.inner.disconnect();
+    }
+    async reconnect() {
+        await this.inner.reconnect();
+        return this;
+    }
+    async resetManagedSchema() {
+        return this.inner.resetManagedSchema();
+    }
+    async transaction(fn) {
+        return this.inner.transaction((connection) => fn(new RepositoryListenerConnection(connection, this.parent)));
+    }
+    afterCommit(callback) {
+        this.inner.afterCommit(callback);
+    }
+    afterRollback(callback) {
+        this.inner.afterRollback(callback);
+    }
+    onRepositoryMutation(options, listeners) {
+        return this.inner.onRepositoryMutation(options, listeners);
+    }
+    explainRepositoryEvents(options) {
+        return this.inner.explainRepositoryEvents(options);
+    }
+}

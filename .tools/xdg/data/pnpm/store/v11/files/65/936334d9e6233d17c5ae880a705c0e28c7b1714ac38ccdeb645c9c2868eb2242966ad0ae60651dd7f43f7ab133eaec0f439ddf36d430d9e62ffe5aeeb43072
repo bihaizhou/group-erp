@@ -1,0 +1,3 @@
+import type { ConfigParser } from '../types.js';
+export declare function jsonParser(): ConfigParser;
+//# sourceMappingURL=json.d.ts.map

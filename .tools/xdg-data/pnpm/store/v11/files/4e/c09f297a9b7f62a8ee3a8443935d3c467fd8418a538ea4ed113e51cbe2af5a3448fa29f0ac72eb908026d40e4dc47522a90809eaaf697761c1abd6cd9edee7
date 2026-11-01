@@ -1,0 +1,6 @@
+import type { AppSessionConfig, NocoBaseSessionManager, ResolvedSessionConfig, SessionData } from './types.js';
+export declare function createSessionManager<Data extends SessionData = SessionData>(config: AppSessionConfig): NocoBaseSessionManager<Data>;
+export declare function createNullSessionConfig(): AppSessionConfig;
+export declare function assertDefaultSessionStore(config: AppSessionConfig): void;
+export declare function resolveSessionConfig(config: AppSessionConfig): ResolvedSessionConfig;
+//# sourceMappingURL=manager.d.ts.map

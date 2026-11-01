@@ -1,0 +1,15 @@
+import type { AppCommandContext } from './context.ts';
+export interface AppCommandContextOptions {
+    readonly rootDir: string;
+    /**
+     * The configuration file the application loads instead of its default, handed to the application the way
+     * `APP_CONFIG_FILE` is; the application resolves a relative path against its root. Tests use it to point a command at
+     * a configuration of their own, such as one naming a test database.
+     */
+    readonly configPath?: string;
+    readonly loadRuntime?: AppCommandContext['loadRuntime'];
+    readonly createApp?: AppCommandContext['createApp'];
+}
+/** Load by convention only when a command actually needs the application. */
+export declare function createDefaultCommandContext(options: AppCommandContextOptions): AppCommandContext;
+//# sourceMappingURL=default-context.d.ts.map

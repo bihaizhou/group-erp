@@ -1,0 +1,62 @@
+import { CollectionResolver } from '../resolver/resolver.js';
+import { CollectionResolutionError } from '../resolver/errors.js';
+import { DefaultNamingStrategy } from '../../naming/default-strategy.js';
+import { CollectionNamingIndex } from './naming-index.js';
+import { CollectionRelationValidator } from './relation-validator.js';
+export class RegistryMetadataDocumentValidator {
+    options;
+    resolver;
+    constructor(options) {
+        this.options = options;
+        this.resolver = options.resolver ?? new CollectionResolver();
+    }
+    async validate(document, _context) {
+        const naming = effectiveNaming(this.options.naming, document.naming);
+        const tableName = new DefaultNamingStrategy(naming).collectionToTableName(document.name);
+        const physical = await this.options.inspector.getPhysicalCollection({
+            tableName,
+        });
+        if (!physical) {
+            throw new CollectionResolutionError([
+                {
+                    code: 'COLLECTION_SCHEMA_DRIFT',
+                    path: ['metadata', document.name],
+                    message: `Physical Collection "${tableName}" for metadata "${document.name}" does not exist.`,
+                },
+            ]);
+        }
+        const index = await CollectionNamingIndex.create(this.options.metadataStore, this.options.naming, [
+            {
+                name: document.name,
+                revision: 'pending',
+                naming: document.naming,
+                title: document.title,
+                description: document.description,
+            },
+        ]);
+        const resolved = this.resolver.resolve({
+            physical,
+            metadata: document,
+            naming: this.options.naming,
+            context: index,
+        }).collection;
+        if (this.options.deferRelationValidation)
+            return;
+        const relationValidator = new CollectionRelationValidator({
+            get: (name) => name === document.name
+                ? Promise.resolve(resolved)
+                : this.options.collections.get(name),
+            scan: () => oneCollection(resolved),
+        });
+        await relationValidator.validateCollection(resolved);
+    }
+}
+async function* oneCollection(collection) {
+    yield collection;
+}
+function effectiveNaming(connection = {}, collection = {}) {
+    return {
+        underscored: collection.underscored ?? connection.underscored ?? true,
+        tablePrefix: collection.tablePrefix ?? connection.tablePrefix ?? '',
+    };
+}

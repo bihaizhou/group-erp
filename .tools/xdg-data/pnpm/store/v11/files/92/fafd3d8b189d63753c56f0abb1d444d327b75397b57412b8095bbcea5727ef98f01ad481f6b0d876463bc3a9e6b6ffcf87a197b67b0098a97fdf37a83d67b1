@@ -1,0 +1,86 @@
+import type { DatabaseConnection } from '@nocobase/db';
+import type { RealtimeService } from '@nocobase/app-server/realtime';
+import type { Auth, UserKind } from './auth.js';
+export interface AdministratedUser {
+    readonly id: string;
+    readonly name: string;
+    readonly username?: string;
+    readonly email: string;
+    readonly emailVerified: boolean;
+    readonly disabledAt: Date | null;
+    /** `person`, or `service` for a service account. */
+    readonly kind: UserKind;
+    /** What a service account is for; null for people. */
+    readonly description: string | null;
+    readonly createdAt: Date;
+    readonly updatedAt: Date;
+}
+export interface ListAdministratedUsersInput {
+    readonly page?: number;
+    readonly pageSize?: number;
+    readonly search?: string;
+    readonly status?: 'enabled' | 'disabled';
+    readonly userIds?: readonly string[];
+    /** Which accounts to list: people (the default), service accounts, or both. */
+    readonly kind?: UserKind | 'all';
+}
+export interface CreateServiceAccountInput {
+    readonly name: string;
+    readonly description?: string | null;
+}
+export interface UpdateServiceAccountInput {
+    readonly name?: string;
+    readonly description?: string | null;
+}
+/** The domain of a service account's address: reserved (RFC 2606), so nothing is ever delivered to it. */
+export declare const SERVICE_ACCOUNT_EMAIL_DOMAIN = "service.invalid";
+export interface AdministratedUserPage {
+    readonly items: readonly AdministratedUser[];
+    readonly total: number;
+    readonly page: number;
+    readonly pageSize: number;
+}
+export interface CreateAdministratedUserInput {
+    readonly name: string;
+    readonly username?: string;
+    readonly email: string;
+    readonly password: string;
+}
+export interface UpdateAdministratedUserInput {
+    readonly name?: string;
+    readonly username?: string | null;
+    readonly email?: string;
+}
+export interface UserAdministrationService {
+    withConnection(connection: DatabaseConnection): UserAdministrationService;
+    /** People by default; `kind` lists service accounts instead, or both. */
+    list(input?: ListAdministratedUsersInput): Promise<AdministratedUserPage>;
+    get(userId: string): Promise<AdministratedUser | undefined>;
+    create(input: CreateAdministratedUserInput): Promise<AdministratedUser>;
+    /**
+     * Creates a service account: a user of kind `service` with no password and an unroutable address. It can never sign
+     * in; it acts only through API keys issued to it, with the roles it is given.
+     */
+    createServiceAccount(input: CreateServiceAccountInput): Promise<AdministratedUser>;
+    /** Renames a service account or changes its description; 404 `USER_NOT_FOUND` for anyone else. */
+    updateServiceAccount(userId: string, input: UpdateServiceAccountInput): Promise<AdministratedUser>;
+    update(userId: string, input: UpdateAdministratedUserInput): Promise<AdministratedUser>;
+    disable(userId: string): Promise<AdministratedUser>;
+    enable(userId: string): Promise<AdministratedUser>;
+    resetPassword(userId: string, password: string): Promise<void>;
+    revokeSessions(userId: string): Promise<void>;
+    remove(userId: string, actorId: string): Promise<void>;
+}
+export declare class UserAdministrationError extends Error {
+    readonly code: 'USER_NOT_FOUND' | 'USER_EMAIL_CONFLICT' | 'USER_USERNAME_CONFLICT' | 'USER_IDENTITY_CONFLICT' | 'PASSWORD_TOO_SHORT' | 'PASSWORD_TOO_LONG' | 'SERVICE_ACCOUNT_NO_PASSWORD';
+    constructor(code: 'USER_NOT_FOUND' | 'USER_EMAIL_CONFLICT' | 'USER_USERNAME_CONFLICT' | 'USER_IDENTITY_CONFLICT' | 'PASSWORD_TOO_SHORT' | 'PASSWORD_TOO_LONG' | 'SERVICE_ACCOUNT_NO_PASSWORD', message: string);
+}
+export interface CreateUserAdministrationServiceOptions {
+    readonly auth: Auth;
+    readonly connection: DatabaseConnection;
+    readonly realtime?: RealtimeService;
+}
+export declare function createUserAdministrationService(options: CreateUserAdministrationServiceOptions): UserAdministrationService;
+/** Serialize account deletion with creation of resources owned by that account. Use inside a transaction. */
+export declare function lockUserForAdministration(connection: DatabaseConnection, userId: string): Promise<void>;
+//# sourceMappingURL=user-administration.d.ts.map

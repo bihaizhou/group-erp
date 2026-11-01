@@ -1,0 +1,8 @@
+const serviceTokenType = Symbol('service-token-type');
+export function createServiceToken(name) {
+    if (!name.trim()) {
+        throw new Error('Service token name must not be empty.');
+    }
+    return Object.freeze({ name });
+}
+//# sourceMappingURL=token.js.map

@@ -1,0 +1,13 @@
+import type { AuthorizationRouteHandler } from '@nocobase/authorization/core';
+import type { RestrictionRulesApi } from '@nocobase/authorization/restriction-rules';
+import { type AuthorizationExtensionHost } from '@nocobase/app-plugin-authorization/server/extension';
+/** The settings item suffix, and the rule name stored grants refer to. */
+export declare const RESTRICTION_RULES_RULE = "restriction-rules";
+export declare const RESTRICTION_RULES_SETTINGS: string;
+/** The route prefix under `/api/authorization`. */
+export declare const RESTRICTION_RULES_PATH = "/restrictionRules";
+type RestrictionRulesAdministrationApi = Omit<RestrictionRulesApi, 'withTransaction'>;
+/** Every `/restrictionRules` route, gated by `settings:authorization.restriction-rules`. */
+export declare function createRestrictionRulesHandler(authz: AuthorizationExtensionHost, api: RestrictionRulesAdministrationApi): AuthorizationRouteHandler;
+export {};
+//# sourceMappingURL=handler.d.ts.map

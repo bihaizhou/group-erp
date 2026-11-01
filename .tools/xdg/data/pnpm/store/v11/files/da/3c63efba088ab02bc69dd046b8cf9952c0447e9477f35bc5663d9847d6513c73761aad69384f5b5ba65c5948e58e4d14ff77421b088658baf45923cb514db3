@@ -1,0 +1,29 @@
+export interface RunCommandOptions {
+    cwd?: string;
+    timeoutMs?: number;
+    env?: NodeJS.ProcessEnv;
+}
+export interface RunCommandResult {
+    stdout: string;
+    stderr: string;
+}
+export declare class CommandFailedError extends Error {
+    readonly command: string;
+    readonly exitCode: number | null;
+    readonly stderr: string;
+    constructor(command: string, exitCode: number | null, stderr: string);
+}
+/**
+ * Runs a child process and collects its output. `npm` resolves through the shell on Windows, where it is a `.cmd`
+ * shim rather than an executable, so the command name is passed to a shell there instead of being executed directly.
+ */
+export declare function runCommand(command: string, args: string[], options?: RunCommandOptions): Promise<RunCommandResult>;
+/**
+ * Runs a child process with the terminal attached, for long-running work such as a dev server. Output goes straight to
+ * the user rather than being collected, and Ctrl+C reaches the child because it shares the terminal.
+ *
+ * Resolves with the exit code instead of throwing, since a dev server exiting non-zero is the command's result rather
+ * than an error in the CLI.
+ */
+export declare function runAttached(command: string, args: string[], options?: RunCommandOptions): Promise<number>;
+//# sourceMappingURL=run-command.d.ts.map

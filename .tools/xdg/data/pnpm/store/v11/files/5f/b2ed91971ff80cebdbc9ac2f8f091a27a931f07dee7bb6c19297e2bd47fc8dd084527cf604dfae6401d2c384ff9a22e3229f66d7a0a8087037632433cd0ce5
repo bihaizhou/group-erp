@@ -1,0 +1,12 @@
+import type { ValuesBuilder, MutationVariable, MutationLiteral, RepositoryMutationScalarValue, NumericMutationBuilder, NumericMutationOperandInput, NumericMutationJsonInput } from './types.js';
+export declare class DefaultValuesBuilder implements ValuesBuilder {
+    variable(path: string): MutationVariable;
+    literal<T extends RepositoryMutationScalarValue>(value: T): MutationLiteral<T>;
+}
+export declare class DefaultNumericMutationBuilder implements NumericMutationBuilder {
+    increment(value: NumericMutationOperandInput): NumericMutationJsonInput;
+    decrement(value: NumericMutationOperandInput): NumericMutationJsonInput;
+    multiply(value: NumericMutationOperandInput): NumericMutationJsonInput;
+    divide(value: NumericMutationOperandInput): NumericMutationJsonInput;
+}
+//# sourceMappingURL=value-builders.d.ts.map

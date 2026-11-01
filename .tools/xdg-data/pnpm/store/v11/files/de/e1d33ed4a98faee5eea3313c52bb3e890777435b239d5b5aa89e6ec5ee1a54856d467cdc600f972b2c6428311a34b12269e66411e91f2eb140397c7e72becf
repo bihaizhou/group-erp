@@ -1,0 +1,92 @@
+import { createKeyv } from '@cacheable/memory';
+import { KeyedLock } from './internal/keyed-lock.js';
+import { assertNamespace, assertTtl } from './internal/validation.js';
+export class MemoryCache {
+    namespace;
+    store;
+    lock = new KeyedLock();
+    pending = new Map();
+    constructor(options) {
+        assertNamespace(options.namespace);
+        assertTtl(options.defaultTtl);
+        this.namespace = options.namespace;
+        this.store = createKeyv({
+            namespace: options.namespace,
+            ttl: options.defaultTtl,
+            maxTtl: options.maxTtl,
+            lruSize: options.maxSize,
+            checkInterval: options.checkInterval,
+            useClone: options.useClone ?? true,
+        });
+    }
+    get(key) {
+        return this.lock.run(key, () => this.store.get(key));
+    }
+    getMany(keys) {
+        return Promise.all(keys.map((key) => this.get(key)));
+    }
+    has(key) {
+        return this.lock.run(key, () => this.store.has(key));
+    }
+    async set(key, value, ttl) {
+        assertTtl(ttl);
+        await this.lock.run(key, async () => {
+            await this.store.set(key, value, ttl);
+        });
+    }
+    async setMany(entries) {
+        await Promise.all(entries.map((entry) => this.set(entry.key, entry.value, entry.ttl)));
+    }
+    delete(key) {
+        return this.lock.run(key, async () => {
+            const existed = await this.store.has(key);
+            if (existed) {
+                await this.store.delete(key);
+            }
+            return existed;
+        });
+    }
+    async deleteMany(keys) {
+        const results = await Promise.all(keys.map((key) => this.delete(key)));
+        return results.filter(Boolean).length;
+    }
+    take(key) {
+        return this.lock.run(key, async () => {
+            const value = await this.store.get(key);
+            if (value !== undefined) {
+                await this.store.delete(key);
+            }
+            return value;
+        });
+    }
+    async wrap(key, loader, ttl) {
+        assertTtl(ttl);
+        const cached = await this.get(key);
+        if (cached !== undefined) {
+            return cached;
+        }
+        const active = this.pending.get(key);
+        if (active) {
+            return active;
+        }
+        const loading = Promise.resolve()
+            .then(loader)
+            .then(async (value) => {
+            if (value !== undefined) {
+                await this.set(key, value, ttl);
+            }
+            return value;
+        })
+            .finally(() => {
+            if (this.pending.get(key) === loading) {
+                this.pending.delete(key);
+            }
+        });
+        this.pending.set(key, loading);
+        return loading;
+    }
+    async disconnect() {
+        await this.store.disconnect();
+    }
+}
+//# sourceMappingURL=memory-cache.js.map

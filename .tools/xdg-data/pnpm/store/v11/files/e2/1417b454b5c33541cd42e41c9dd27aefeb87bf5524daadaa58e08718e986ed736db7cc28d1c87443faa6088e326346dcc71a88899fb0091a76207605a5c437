@@ -1,0 +1,26 @@
+import { type Command } from '@oclif/core';
+import type { Interfaces } from '@oclif/core';
+import { AppCommand } from '../../context.ts';
+import { type ConfigInitResult } from '../../lib/config-init.ts';
+/**
+ * What `config init` reports: everything but whether it wrote the file, which is the envelope's `status` — `success`
+ * when it did, `success-noop` when the application was already configured.
+ */
+export type AppConfigInitResult = Omit<ConfigInitResult, 'status'>;
+export default class AppConfigInit extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static flags: {
+        dialect: Interfaces.OptionFlag<string | undefined>;
+        config: Interfaces.OptionFlag<string | undefined>;
+        force: Interfaces.BooleanFlag<boolean>;
+    };
+    run(): Promise<AppConfigInitResult>;
+    /**
+     * The dialect the existing configuration uses, read through the application rather than from the file, so a dialect
+     * that only its code defaults set is seen too. Unknown when the configuration does not load.
+     */
+    private readConfiguredDialect;
+}
+//# sourceMappingURL=init.d.ts.map

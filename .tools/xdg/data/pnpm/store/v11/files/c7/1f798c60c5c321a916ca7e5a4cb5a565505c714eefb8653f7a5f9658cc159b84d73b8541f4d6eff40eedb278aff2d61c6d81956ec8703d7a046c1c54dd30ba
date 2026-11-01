@@ -1,0 +1,13 @@
+import type { ScheduleJob, ScheduleJobOption } from './types.js';
+/** BullMQ 6 treats an id shaped like `name:id:endDate:tz:pattern` as a legacy repeatable key. */
+export declare function assertValidJobName(name: string): void;
+/** The rule a job stores, without the creation-only `immediately` flag. */
+export type ScheduleRule = Omit<ScheduleJobOption, 'immediately'>;
+export interface NormalizedScheduleJob {
+    readonly name: string;
+    readonly options: ScheduleRule;
+    /** Whether to fire on creation; only ever true for a cron rule. */
+    readonly immediately: boolean;
+}
+export declare function normalizeScheduleJob(job: ScheduleJob): NormalizedScheduleJob;
+//# sourceMappingURL=validation.d.ts.map

@@ -1,0 +1,16 @@
+export function assertNamespace(namespace) {
+    if (!namespace.trim()) {
+        throw new Error('Cache namespace must not be empty.');
+    }
+}
+export function assertMaxSize(maxSize) {
+    if (!Number.isSafeInteger(maxSize) || maxSize < 1) {
+        throw new Error('Cache maxSize must be a positive integer.');
+    }
+}
+export function assertTtl(ttl) {
+    if (ttl !== undefined && (!Number.isFinite(ttl) || ttl <= 0)) {
+        throw new Error('Cache TTL must be a positive number of milliseconds.');
+    }
+}
+//# sourceMappingURL=validation.js.map

@@ -1,0 +1,21 @@
+export interface PluginUpdatePlan {
+    readonly packageNames: readonly string[];
+    readonly packageManager: string;
+    readonly args: readonly string[];
+}
+/**
+ * Expands what the user typed into full package names. A short name is the
+ * common case (`audit-log`), but a full package name has to keep working
+ * because that is what the registry and error messages show.
+ */
+export declare function normalizePluginPackageNames(plugins: readonly string[]): string[];
+/**
+ * Decides which packages to upgrade and how to invoke the package manager.
+ * Without an explicit list every registered plugin is upgraded, which is what
+ * "update my plugins" means when no plugin is named.
+ */
+export declare function planPluginUpdate({ appRoot, plugins, }: {
+    appRoot: string;
+    plugins?: readonly string[];
+}): Promise<PluginUpdatePlan>;
+//# sourceMappingURL=plugin-update.d.ts.map

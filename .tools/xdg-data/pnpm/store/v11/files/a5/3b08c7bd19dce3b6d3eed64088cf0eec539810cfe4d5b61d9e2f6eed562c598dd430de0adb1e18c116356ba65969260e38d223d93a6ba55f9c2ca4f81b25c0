@@ -1,0 +1,78 @@
+import { type CliApplication } from './cli-brand.ts';
+/** The targets a build packs when it names none. Windows is not supported. */
+export declare const CLI_TARGETS: readonly string[];
+/**
+ * The target of the platform-independent tarball: no bundled Node, run by the machine's Node.js 24 or newer. The same
+ * name as `UNIVERSAL_TARGET` of `@nocobase/agent-protocol`, which this package does not depend on.
+ */
+export declare const UNIVERSAL_TARGET = "universal";
+/** The runner's product and command (`RUNNER_PRODUCT` of `@nocobase/agent-protocol`). */
+export declare const RUNNER_COMMAND = "nocobase-runner";
+export interface CliPackOptions {
+    readonly application: CliApplication;
+    /** The runner instead of the application's CLI. */
+    readonly runner: boolean;
+    /** Where the channels go: `<out>/<channel>/<product>/…`. */
+    readonly out: string;
+    readonly channel: string;
+    /** Platforms such as `linux-x64`, and `UNIVERSAL_TARGET` for the tarball without a Node. */
+    readonly targets: readonly string[];
+    /** The packed version; the CLI's or the runner's own otherwise. */
+    readonly version?: string;
+    /** The Node.js version the tarballs carry; this process's by default. */
+    readonly nodeVersion: string;
+    /** Use this machine's Node.js binary for its own target instead of downloading one. */
+    readonly hostNode: boolean;
+    /** Do not build the vendored workspace packages first. */
+    readonly skipBuild: boolean;
+    /** Keep the staging directory, and say where it is. */
+    readonly keepStaging: boolean;
+    /** Progress, on stderr. */
+    readonly log: (line: string) => void;
+}
+/** One tarball, as the product's manifest records it. */
+export interface PackedTarget {
+    /** Relative to the product's directory: `<version>/<file>`. */
+    readonly file: string;
+    readonly sha256: string;
+    readonly size: number;
+}
+export interface CliPackResult {
+    readonly product: string;
+    readonly version: string;
+    readonly channel: string;
+    /** The Node.js version the standalone tarballs carry; `system` when only the universal one was packed. */
+    readonly node: string;
+    /** The product's directory, `<out>/<channel>/<product>`. */
+    readonly dir: string;
+    readonly manifest: string;
+    readonly targets: Readonly<Record<string, PackedTarget>>;
+}
+/** Runs a command, its output on stderr; rejects when it fails. */
+export declare function runCommand(command: string, args: readonly string[], options: {
+    cwd: string;
+    env?: Record<string, string>;
+    log: (line: string) => void;
+}): Promise<void>;
+/** The directory of package `name` as Node resolves it from `fromDir`, or undefined. */
+export declare function findPackageDir(fromDir: string, name: string): string | undefined;
+/** Copies each skill directory `entries` name (or each one inside it) into `skillsDir`; returns the slugs. */
+export declare function copySkills(root: string, entries: readonly string[], skillsDir: string): Promise<string[]>;
+/** The launcher a tarball starts its command with: `bin/run.js` under the Node.js the tarball carries. */
+export declare function launcherScript(bin: string): string;
+/**
+ * The launcher of the universal tarball, which carries no Node: `bin/run.js` under the first Node.js 24 or newer of
+ * `NOCOBASE_NODE`; `<prefix>/node`, which the install script and an update link to the Node they ran with; `node` on
+ * PATH; and the Node a standalone version of the same installation still carries (`<prefix>/versions/<v>/bin/node`).
+ * The installation's own Node comes before PATH because a user service (launchd, systemd) runs without the shell's
+ * PATH, and the last one is what a runner that updated itself from a standalone version to this one starts on. Each is
+ * asked for its version, so an older Node on PATH is passed over rather than run.
+ */
+export declare function universalLauncherScript(bin: string): string;
+/** What `--targets` and `--universal` ask for: the named platforms (all by default), plus or else the universal one. */
+export declare function packTargets(targets: string | undefined, universal: boolean): string[];
+/** Checks what was asked before anything is built. */
+export declare function checkPackOptions(options: Pick<CliPackOptions, 'channel' | 'targets' | 'version' | 'nodeVersion'>): void;
+/** Packs the application's CLI, or with `runner` the runner. */
+export declare function packCli(options: CliPackOptions): Promise<CliPackResult>;
+//# sourceMappingURL=cli-pack.d.ts.map

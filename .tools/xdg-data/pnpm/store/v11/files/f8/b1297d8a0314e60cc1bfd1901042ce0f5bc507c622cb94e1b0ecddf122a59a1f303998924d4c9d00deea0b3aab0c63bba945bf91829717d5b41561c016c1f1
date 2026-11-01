@@ -1,0 +1,12 @@
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+import { type AppApiRouteContribution } from '@nocobase/app-server/router';
+/**
+ * The language endpoints: what is available, and which one this session wants.
+ *
+ * The browser keeps its own copy in storage and is the source of truth for what it renders; this only tells the server
+ * which language to answer in, so an error message or a mail body comes back in the language the visitor is reading.
+ */
+export declare const i18nApiRoutes: AppApiRouteContribution<AppPluginApplication>;
+declare const routes: readonly AppApiRouteContribution<AppPluginApplication>[];
+export default routes;
+//# sourceMappingURL=routes.d.ts.map

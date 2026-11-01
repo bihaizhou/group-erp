@@ -1,0 +1,4 @@
+import { type AppCliPlugin } from '@nocobase/app-cli';
+declare const cliPlugin: AppCliPlugin;
+export default cliPlugin;
+//# sourceMappingURL=index.d.ts.map

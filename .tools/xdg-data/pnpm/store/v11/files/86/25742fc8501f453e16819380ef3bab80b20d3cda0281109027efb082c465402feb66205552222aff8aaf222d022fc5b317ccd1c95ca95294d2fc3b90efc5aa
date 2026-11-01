@@ -1,0 +1,30 @@
+import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { OpenAPIV3_1 } from 'openapi-types';
+type SchemaOrRef = OpenAPIV3_1.SchemaObject | OpenAPIV3_1.ReferenceObject;
+/** Whether a schema documents what a client sends (`input`) or what the server answers (`output`). */
+export type ApiSchemaDirection = 'input' | 'output';
+/** A schema converted for the API document: the schema itself and the components it refers to. */
+export interface ConvertedApiSchema {
+    readonly schema: SchemaOrRef;
+    readonly components: OpenAPIV3_1.ComponentsObject | undefined;
+}
+/**
+ * Convert a Standard Schema for the API document. A zod schema is converted with zod itself under the document's
+ * conventions (see `ApiMetadataRegistry` and the open response objects above); any other vendor goes through
+ * hono-openapi's converter. Either way the result's definitions are hoisted into `components.schemas` under stable
+ * names and every reference points there.
+ */
+export declare function convertApiSchema(schema: StandardSchemaV1, direction: ApiSchemaDirection): Promise<ConvertedApiSchema>;
+/**
+ * Every place in a document that refers to a schema it cannot resolve or names a component in a way that breaks the
+ * document: a local `$ref` whose target does not exist (such as `#/$defs/...`, which means nothing in an OpenAPI
+ * document), a component named by a converter (`__schema0`) rather than by its declaration, and a component name the
+ * OpenAPI specification does not allow. An empty list means the schemas are sound.
+ *
+ * ```ts
+ * expect(findApiDocumentSchemaProblems(await generateApiDocument(app, options))).toEqual([]);
+ * ```
+ */
+export declare function findApiDocumentSchemaProblems(document: OpenAPIV3_1.Document): string[];
+export {};
+//# sourceMappingURL=schema.d.ts.map

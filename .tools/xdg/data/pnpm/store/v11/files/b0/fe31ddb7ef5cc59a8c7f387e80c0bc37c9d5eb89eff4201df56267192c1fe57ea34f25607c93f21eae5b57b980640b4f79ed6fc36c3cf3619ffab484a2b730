@@ -1,0 +1,10 @@
+import type { DatabaseConnection } from '@nocobase/db';
+import type { AuthorizationPlugin } from '@nocobase/authorization/core';
+import { type SharingRulesAuthorizationApi, type SharingRuleStore } from '@nocobase/authorization/sharing-rules';
+import { type DatabaseAuthorizationApi, type SettingsAuthorizationApi, type UiAuthorizationApi } from '@nocobase/app-plugin-authorization/server';
+export interface SharingRulesOptions {
+    store?: SharingRuleStore<DatabaseConnection>;
+}
+/** The configuration factory: sharing rules with their settings item and routes. */
+export declare function sharingRules(options?: SharingRulesOptions): AuthorizationPlugin<SharingRulesAuthorizationApi<DatabaseConnection>, DatabaseConnection, SettingsAuthorizationApi & DatabaseAuthorizationApi & UiAuthorizationApi>;
+//# sourceMappingURL=authorization.d.ts.map

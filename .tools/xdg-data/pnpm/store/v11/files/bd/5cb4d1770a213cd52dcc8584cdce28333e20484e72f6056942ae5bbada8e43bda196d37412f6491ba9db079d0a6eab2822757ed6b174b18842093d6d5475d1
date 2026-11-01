@@ -1,0 +1,55 @@
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
+export function createSessionMiddleware(manager) {
+    return async (context, next) => {
+        if (!manager.config.enabled) {
+            await next();
+            return;
+        }
+        const requestSession = manager.createRequestSession({
+            cookieValue: getCookie(context, manager.config.cookie.name),
+        });
+        context.set('session', requestSession);
+        try {
+            await next();
+        }
+        finally {
+            applyPersistResult(context, manager, await requestSession.persist());
+            await maybeSweepExpiredSessions(manager);
+        }
+    };
+}
+function applyPersistResult(context, manager, result) {
+    if (result.action === 'none') {
+        return;
+    }
+    const cookieOptions = createCookieOptions(manager, result.maxAge);
+    if (result.action === 'delete-cookie') {
+        deleteCookie(context, manager.config.cookie.name, cookieOptions);
+        return;
+    }
+    if (result.cookieValue) {
+        setCookie(context, manager.config.cookie.name, result.cookieValue, cookieOptions);
+    }
+}
+function createCookieOptions(manager, maxAge) {
+    const cookie = manager.config.cookie;
+    return {
+        path: cookie.path,
+        domain: cookie.domain,
+        secure: cookie.secure,
+        httpOnly: cookie.httpOnly,
+        sameSite: cookie.sameSite,
+        partitioned: cookie.partitioned,
+        maxAge,
+    };
+}
+async function maybeSweepExpiredSessions(manager) {
+    const [hits, total] = manager.config.gcLottery;
+    if (total <= 0 || hits <= 0) {
+        return;
+    }
+    if (Math.floor(Math.random() * total) < hits) {
+        await manager.sweepExpiredSessions();
+    }
+}
+//# sourceMappingURL=hono.js.map

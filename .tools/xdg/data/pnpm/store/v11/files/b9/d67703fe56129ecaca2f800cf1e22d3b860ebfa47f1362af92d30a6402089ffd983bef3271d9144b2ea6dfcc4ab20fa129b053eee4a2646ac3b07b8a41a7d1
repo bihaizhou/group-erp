@@ -1,0 +1,10 @@
+import type { MailProviderDefinition } from '../../contracts/provider.js';
+export declare const DEFAULT_SCOPES: readonly ["openid", "profile", "email", "offline_access", "https://graph.microsoft.com/User.Read", "https://graph.microsoft.com/Mail.ReadWrite", "https://graph.microsoft.com/Mail.Send"];
+export declare const MESSAGE_SELECT: string;
+export declare const SIMPLE_ATTACHMENT_LIMIT: number;
+export declare const UPLOAD_CHUNK_SIZE: number;
+export declare const HTTP_TIMEOUT_MS: number;
+export declare const MESSAGE_NORMALIZATION_CONCURRENCY: number;
+export declare const MAX_PROVIDER_JSON_BYTES: number;
+export declare const MICROSOFT_CAPABILITIES: MailProviderDefinition['capabilities'];
+//# sourceMappingURL=constants.d.ts.map

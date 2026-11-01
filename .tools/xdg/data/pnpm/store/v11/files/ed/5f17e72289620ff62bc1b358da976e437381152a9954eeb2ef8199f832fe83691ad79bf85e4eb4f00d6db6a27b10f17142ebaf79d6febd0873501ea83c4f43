@@ -1,0 +1,23 @@
+export class DefaultValuesBuilder {
+    variable(path) {
+        return { kind: 'variable', path };
+    }
+    literal(value) {
+        return { kind: 'literal', value };
+    }
+}
+export class DefaultNumericMutationBuilder {
+    increment(value) {
+        return { increment: value };
+    }
+    decrement(value) {
+        return { decrement: value };
+    }
+    multiply(value) {
+        return { multiply: value };
+    }
+    divide(value) {
+        return { divide: value };
+    }
+}
+//# sourceMappingURL=value-builders.js.map

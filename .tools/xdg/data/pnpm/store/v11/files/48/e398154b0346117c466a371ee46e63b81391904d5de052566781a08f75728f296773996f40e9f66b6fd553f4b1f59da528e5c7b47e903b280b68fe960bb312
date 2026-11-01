@@ -1,0 +1,8 @@
+export interface ProxyRequestOptions {
+    headers?: Headers;
+    unavailableMessage: string;
+}
+export declare function proxyRequest(request: Request, targetUrl: URL, options: ProxyRequestOptions): Promise<Response>;
+export declare function createProxyResponseHeaders(headers: Headers): Headers;
+export declare function removeHopByHopHeaders(headers: Headers): void;
+//# sourceMappingURL=http-proxy.d.ts.map

@@ -1,0 +1,3 @@
+import type { ConnectionConfig, DatabaseDriverDefinition, DatabaseDriverRegistration } from './config.js';
+/** Validate explicitly supplied drivers without loading packages. */
+export declare function resolveDatabaseDriver(connection: ConnectionConfig, drivers?: Record<string, DatabaseDriverRegistration>, name?: string): DatabaseDriverDefinition | undefined;

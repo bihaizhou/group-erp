@@ -1,0 +1,1 @@
+{"version":3,"file":"mail-address.d.ts","sourceRoot":"","sources":["../../../client/lib/mail-address.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,WAAW,EAAE,MAAM,sBAAsB,CAAC;AAExD,wBAAgB,eAAe,CAAC,KAAK,CAAC,EAAE,WAAW,GAAG,MAAM,CAI3D;AAED,wBAAgB,iBAAiB,CAAC,KAAK,EAAE,WAAW,GAAG,MAAM,CAI5D;AAED,wBAAgB,mBAAmB,CAAC,MAAM,EAAE,SAAS,WAAW,EAAE,GAAG,MAAM,CAE1E"}

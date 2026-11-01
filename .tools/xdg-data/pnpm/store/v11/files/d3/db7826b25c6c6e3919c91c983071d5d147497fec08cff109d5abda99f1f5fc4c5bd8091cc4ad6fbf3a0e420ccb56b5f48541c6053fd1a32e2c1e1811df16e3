@@ -1,0 +1,47 @@
+const invitations = (connection) => connection.repository('userInvitations');
+export function findInvitation(connection, filter) {
+    return invitations(connection).findOne({ filter });
+}
+/** Pending invitations, newest first: all of them, one inviter's, or one address's. */
+export async function listPending(connection, by = {}) {
+    return await invitations(connection).findMany({
+        filter: { status: 'pending', ...by },
+        sort: (sort) => [sort.field('createdAt').desc(), sort.field('id').desc()],
+    });
+}
+export async function insertInvitation(connection, values) {
+    await invitations(connection).createOne({ values });
+}
+export async function updateInvitation(connection, id, values) {
+    await invitations(connection).updateOne({
+        filter: { id },
+        values: { ...values, updatedAt: new Date().toISOString() },
+    });
+}
+/** A delayed send must never overwrite the outcome of a rotated or closed invitation. */
+export async function recordInvitationDelivery(connection, row, error) {
+    const now = new Date().toISOString();
+    await invitations(connection).updateMany({
+        filter: { id: row.id, status: 'pending', tokenHash: row.tokenHash },
+        values: {
+            sentAt: error ? null : now,
+            sendError: error?.slice(0, 1000) ?? null,
+            updatedAt: now,
+        },
+    });
+}
+/** Marks a pending invitation accepted; false when it no longer is pending. */
+export async function claimInvitation(connection, id, userId, tokenHash) {
+    const now = new Date().toISOString();
+    const { updatedCount } = await invitations(connection).updateMany({
+        filter: { id, status: 'pending', tokenHash },
+        values: {
+            status: 'accepted',
+            acceptedUserId: userId,
+            acceptedAt: now,
+            updatedAt: now,
+        },
+    });
+    return updatedCount > 0;
+}
+//# sourceMappingURL=store.js.map

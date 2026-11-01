@@ -1,0 +1,3 @@
+import type { Knex } from 'knex';
+import type { FilterConditionNode } from '@nocobase/db';
+export declare function compilePostgresJsonCondition(client: Knex, column: string, node: FilterConditionNode): Knex.Raw;

@@ -1,0 +1,38 @@
+import type { I18nRuntime, Locale, Namespace } from '../core/index.js';
+export interface AppI18nErrorOptions {
+    readonly ns: Namespace;
+    readonly key: string;
+    readonly params?: Record<string, unknown>;
+    readonly status?: number;
+    readonly cause?: unknown;
+}
+export interface SerializedI18nError {
+    readonly code: string;
+    readonly message: string;
+    readonly ns: Namespace;
+    readonly key: string;
+    readonly params?: Record<string, unknown>;
+}
+/**
+ * An error that carries what it needs to be translated, rather than a message translated when it was thrown.
+ *
+ * Translation happens at serialization, where the request's locale is known. The same error therefore renders in
+ * whatever language the caller asked for, and constructing one never requires knowing the locale.
+ */
+export declare class AppI18nError extends Error {
+    readonly code: string;
+    readonly ns: Namespace;
+    readonly key: string;
+    readonly params: Record<string, unknown> | undefined;
+    readonly status: number;
+    constructor(code: string, options: AppI18nErrorOptions);
+}
+export declare function isAppI18nError(error: unknown): error is AppI18nError;
+/**
+ * Renders an error for a response body.
+ *
+ * `message` is translated into the request's locale so an API-only application needs nothing else, while `ns`, `key`,
+ * and `params` let a frontend re-render it in whatever language its interface is currently showing.
+ */
+export declare function serializeI18nError(runtime: I18nRuntime, error: AppI18nError, locale?: Locale): SerializedI18nError;
+//# sourceMappingURL=errors.d.ts.map

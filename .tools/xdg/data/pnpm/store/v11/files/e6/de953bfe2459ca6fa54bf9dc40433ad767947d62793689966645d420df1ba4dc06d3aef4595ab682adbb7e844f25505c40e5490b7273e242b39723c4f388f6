@@ -1,0 +1,35 @@
+import { ResourceItems, type AuthorizationTitle } from '@nocobase/authorization/core';
+/**
+ * A collection an application declared part of the permission model. Intent
+ * only: fields, primary key and relations are read from db at check time.
+ */
+export interface DatabaseCollectionDefinition {
+    readonly name: string;
+    readonly title: AuthorizationTitle;
+    readonly description?: AuthorizationTitle;
+    /** Defaults to `read`, `create`, `update` and `delete`. */
+    readonly actions?: readonly string[];
+}
+export interface DatabaseCollections {
+    /**
+     * Re-adding a collection with the same actions is a no-op. A different
+     * title or description keeps the first registration and is reported by
+     * `warnings()`; different actions throw.
+     */
+    add(definition: DatabaseCollectionDefinition): void;
+    has(name: string): boolean;
+    list(): readonly DatabaseCollectionDefinition[];
+    /** Re-registrations that differed only in display data, one message each. */
+    warnings(): readonly string[];
+}
+/** The `database.collection` items. Registration is the opt-in. */
+export declare class DatabaseCollectionRegistry implements DatabaseCollections {
+    readonly items: ResourceItems;
+    private readonly definitions;
+    private readonly reported;
+    add(definition: DatabaseCollectionDefinition): void;
+    has(name: string): boolean;
+    list(): readonly DatabaseCollectionDefinition[];
+    warnings(): readonly string[];
+}
+//# sourceMappingURL=collection-registry.d.ts.map

@@ -1,0 +1,7 @@
+import type { Authorization } from '@nocobase/authorization/core';
+import type { PermissionSetsAuthorizationApi } from '@nocobase/authorization/permission-sets';
+import type { AuthorizationExtensionHost } from '../host.js';
+import type { SettingsAuthorizationApi } from '../settings.js';
+/** The Permission Set and inspector settings items and their routes. */
+export declare function installAuthorizationAdministration(authz: Authorization & AuthorizationExtensionHost & SettingsAuthorizationApi & PermissionSetsAuthorizationApi): void;
+//# sourceMappingURL=administration.d.ts.map

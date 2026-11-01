@@ -1,0 +1,7 @@
+import type { DatabaseConnection } from '@nocobase/db';
+import type { DBAdapterInstance } from 'better-auth';
+export interface DatabaseAdapterOptions {
+    debugLogs?: boolean;
+}
+export declare function databaseAdapter(connection: DatabaseConnection, options?: DatabaseAdapterOptions): DBAdapterInstance;
+//# sourceMappingURL=database-adapter.d.ts.map

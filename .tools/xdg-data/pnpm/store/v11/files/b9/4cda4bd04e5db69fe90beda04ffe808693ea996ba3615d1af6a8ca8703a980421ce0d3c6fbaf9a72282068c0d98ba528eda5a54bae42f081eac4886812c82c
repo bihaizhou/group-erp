@@ -1,0 +1,4 @@
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { AuthorizationClient } from './authorization-client.js';
+export declare const authorizationClientToken: ServiceToken<AuthorizationClient>;
+//# sourceMappingURL=tokens.d.ts.map

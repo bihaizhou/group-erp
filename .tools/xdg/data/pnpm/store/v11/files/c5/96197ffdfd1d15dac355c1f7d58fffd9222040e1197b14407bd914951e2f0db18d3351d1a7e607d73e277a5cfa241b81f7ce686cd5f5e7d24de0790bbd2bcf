@@ -1,0 +1,9 @@
+import { type MailComposerRequest } from './contracts/composer.js';
+import type { MailClient, MailMessage } from './mail-client.js';
+/**
+ * Prepare a browser-side reply request, loading incomplete content and copying
+ * referenced CID images into owned uploads. Does not open, save or send mail.
+ * Preparation rejects if the original body or a referenced image cannot be copied.
+ */
+export declare function prepareMailReply(mail: Pick<MailClient, 'retryMessageContent' | 'downloadAttachment' | 'uploadAttachment'>, message: MailMessage): Promise<MailComposerRequest>;
+//# sourceMappingURL=prepare-mail-reply.d.ts.map

@@ -1,0 +1,22 @@
+import type { Knex } from 'knex';
+import { BaseSchemaInspector, PhysicalTypeNormalizationStrategy, NumericCapabilityStrategy } from '@nocobase/db';
+import type { DecodedPhysicalCollectionCursor, NormalizedPhysicalCollectionListOptions, PhysicalCollectionIdentifier, PhysicalCollectionSchema, PhysicalCollectionSummary, PhysicalSchemaInfo } from '@nocobase/db';
+export declare const postgresTypes: PhysicalTypeNormalizationStrategy;
+export declare const postgresNumeric: NumericCapabilityStrategy;
+export interface PostgresSchemaInspectorOptions {
+    readonly connectionName: string;
+    readonly searchPath?: readonly string[];
+    resolveClient(): Promise<Knex>;
+}
+export declare class PostgresSchemaInspector extends BaseSchemaInspector {
+    private readonly options;
+    constructor(options: PostgresSchemaInspectorOptions);
+    protected inspectSchemas(): Promise<PhysicalSchemaInfo[]>;
+    protected inspectCollection(identifier: PhysicalCollectionIdentifier): Promise<PhysicalCollectionSchema | undefined>;
+    protected inspectCollectionSummaries(options: NormalizedPhysicalCollectionListOptions, after: DecodedPhysicalCollectionCursor['after'] | undefined, fetchLimit: number): Promise<PhysicalCollectionSummary[]>;
+    private defaultSchemas;
+    private assertSchema;
+    private findCollection;
+    private readConstraints;
+    private readIndexes;
+}

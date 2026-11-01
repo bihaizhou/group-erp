@@ -1,0 +1,94 @@
+import { createCompositeRepositoryAuthorization, } from '../authorize-repository.js';
+import { UNRESTRICTED_ACCESS } from './authorizer.js';
+import { DatabaseCollectionRegistry, } from './collection-registry.js';
+const hosts = new WeakMap();
+/** Package-internal: the setup-time host of an installed database API. */
+export function databaseHost(api) {
+    return hosts.get(api);
+}
+export class DatabaseAuthorizationService {
+    collections = new DatabaseCollectionRegistry();
+    attach(host) {
+        hosts.set(this, host);
+    }
+    authorizeRepository(options) {
+        const host = hosts.get(this);
+        if (!host)
+            throw new Error('The database plugin is not installed in an Authorization');
+        return createCompositeRepositoryAuthorization(host, options);
+    }
+    async policyFor(collection, context, operation) {
+        const resource = { type: 'database.collection', id: collection };
+        const decide = async (action) => foldDecision(action, await context.authorize({
+            resource,
+            action,
+            params: operation ? { operation } : {},
+        }));
+        const [read, create, update, remove] = await Promise.all([
+            decide('read'),
+            decide('create'),
+            decide('update'),
+            decide('delete'),
+        ]);
+        return { read, create, update, delete: remove };
+    }
+}
+/** Translate resolved checks only; this never runs authorization again. */
+export function composeDatabasePolicies(checks) {
+    const policies = Object.create(null);
+    for (const check of checks) {
+        if (check.resource.type !== 'database.collection')
+            continue;
+        const policy = (policies[check.resource.id] ??= {
+            read: false,
+            create: false,
+            update: false,
+            delete: false,
+        });
+        switch (check.action) {
+            case 'read':
+                policy.read = foldDecision('read', check.decision);
+                break;
+            case 'create':
+                policy.create = foldDecision('create', check.decision);
+                break;
+            case 'update':
+                policy.update = foldDecision('update', check.decision);
+                break;
+            case 'delete':
+                policy.delete = foldDecision('delete', check.decision);
+                break;
+        }
+    }
+    return policies;
+}
+function foldDecision(action, decision) {
+    if (decision.effect === 'deny')
+        return false;
+    if (decision.effect === 'permit')
+        return true;
+    const conditions = decision.conditions;
+    if (!isDatabaseConditions(conditions) || conditions.action !== action) {
+        return false;
+    }
+    // An unrestricted identity bypassed every grant, so the allowlist the
+    // handler reported is the whole Collection and says nothing a node should.
+    if (decision.reasons.some((reason) => reason.code === UNRESTRICTED_ACCESS)) {
+        return true;
+    }
+    // The authorizer resolves the action-specific relation tree. Keep the only
+    // structural conversion at this DB adapter boundary.
+    return action === 'delete'
+        ? { scope: conditions.scope }
+        : {
+            scope: action === 'create' ? true : conditions.scope,
+            fields: conditions.fields,
+            relations: conditions.relations ?? false,
+        };
+}
+function isDatabaseConditions(value) {
+    return (value !== null &&
+        typeof value === 'object' &&
+        Reflect.get(value, 'type') === 'database');
+}
+//# sourceMappingURL=api.js.map

@@ -1,0 +1,24 @@
+import type { SchemaOperation } from '../collection/types.js';
+import type { SchemaAdapter } from '../schema/adapter.js';
+import type { SchemaManagementMode } from './config.js';
+export interface SchemaManagementGuardOptions {
+    connectionName: string;
+    mode: SchemaManagementMode;
+}
+export declare class SchemaManagementNotAllowedError extends Error {
+    readonly connection: string;
+    readonly operation: string;
+    readonly code: "SCHEMA_MANAGEMENT_NOT_ALLOWED";
+    constructor(connection: string, operation: string);
+}
+export declare class SchemaManagementSchemaAdapter implements SchemaAdapter {
+    private readonly adapter;
+    private readonly options;
+    readonly dialect: string | undefined;
+    readonly capabilities: SchemaAdapter['capabilities'];
+    constructor(adapter: SchemaAdapter, options: SchemaManagementGuardOptions);
+    assertExecutable(operations: SchemaOperation[]): void;
+    execute(operations: SchemaOperation[]): Promise<void>;
+    compile(operations: SchemaOperation[]): Promise<string[]>;
+}
+export declare function assertManagedSchema(options: SchemaManagementGuardOptions, operation: string): void;

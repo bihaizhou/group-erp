@@ -1,0 +1,50 @@
+import { isDeepStrictEqual } from 'node:util';
+import { ResourceItems, } from '@nocobase/authorization/core';
+class SettingsService {
+    items = new ResourceItems();
+    definitions = new Map();
+    add(item) {
+        const existing = this.definitions.get(item.id);
+        if (existing) {
+            if (isDeepStrictEqual(existing, structuredClone({ ...item })))
+                return;
+            throw new Error(`Settings item already registered: ${item.id}`);
+        }
+        this.definitions.set(item.id, structuredClone({ ...item }));
+        this.items.add({
+            id: item.id,
+            title: item.title,
+            actions: item.actions,
+        });
+    }
+    grant(id, actions) {
+        const item = this.items.get(id);
+        if (!item)
+            throw new TypeError(`Unknown settings item: ${id}`);
+        for (const action of actions)
+            if (!item.actions.some((entry) => entry.name === action))
+                throw new TypeError(`Settings item ${id} has no action ${action}`);
+        return {
+            resource: { type: 'settings', id },
+            actions: actions.map((action) => ({ action })),
+        };
+    }
+}
+/**
+ * Registers the `settings` catalog type and `authz.settings`. Where an item is
+ * listed is `authz.ui.place`'s concern.
+ */
+export function settingsPlugin() {
+    const service = new SettingsService();
+    return {
+        id: 'settings',
+        authorizationApi: { settings: service },
+        setup(authz) {
+            authz.resourceTypes.add({
+                type: 'settings',
+                items: service.items,
+            });
+        },
+    };
+}
+//# sourceMappingURL=settings.js.map

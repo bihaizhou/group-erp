@@ -1,0 +1,29 @@
+import type { AppDisposer, AppLifecycle } from './types.js';
+export interface AppDisposerRegistry extends AppLifecycle {
+    disposeAll(): Promise<void>;
+}
+export interface AppScopeLifecycleOptions {
+    readonly abortReason?: unknown;
+}
+/**
+ * Owns cancellation and resource disposal for a host-provided application
+ * scope. Concrete scopes add identity, paths, environment, and configuration.
+ */
+export declare class AppScopeLifecycle implements AppLifecycle {
+    readonly signal: AbortSignal;
+    private readonly abortController;
+    private readonly beforeDestroyHandlers;
+    private readonly disposers;
+    private readonly abortReason;
+    private readonly destroyOnce;
+    private destroying;
+    constructor(options?: AppScopeLifecycleOptions);
+    registerDisposer(name: string, dispose: AppDisposer): void;
+    onBeforeDestroy(handler: AppDisposer): () => void;
+    destroy(): Promise<void>;
+    private assertActive;
+    private destroyResources;
+}
+export declare function createAppDisposerRegistry(): AppDisposerRegistry;
+export declare function onceAsync(operation: AppDisposer): () => Promise<void>;
+//# sourceMappingURL=lifecycle.d.ts.map

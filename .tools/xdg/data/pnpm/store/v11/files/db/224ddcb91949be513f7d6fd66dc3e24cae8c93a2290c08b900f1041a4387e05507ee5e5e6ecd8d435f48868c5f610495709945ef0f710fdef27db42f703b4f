@@ -1,0 +1,15 @@
+import { apiClientToken } from '@nocobase/app-client';
+import { ServiceProvider } from '@nocobase/service-provider';
+import { configureNotificationClient } from './runtime.js';
+export class NotificationServiceProvider extends ServiceProvider {
+    name = '@nocobase/app-plugin-notification/client';
+    boot() {
+        configureNotificationClient(this.app.container.resolve(apiClientToken));
+        return Promise.resolve();
+    }
+}
+const serviceProviders = [
+    NotificationServiceProvider,
+];
+export default serviceProviders;
+//# sourceMappingURL=service-provider.js.map

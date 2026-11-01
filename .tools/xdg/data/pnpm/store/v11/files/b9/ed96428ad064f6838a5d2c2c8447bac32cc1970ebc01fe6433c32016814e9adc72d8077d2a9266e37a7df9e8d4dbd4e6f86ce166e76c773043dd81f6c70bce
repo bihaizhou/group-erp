@@ -1,0 +1,5 @@
+import type { MailComposerProps } from '../contracts/composer.js';
+export declare function reportComposerCompletionError(handler: MailComposerProps['onCompletionError'], error: unknown): void;
+/** Notify once without awaiting application work or letting it enter the send error boundary. */
+export declare function notifyComposerCompletion(callback: MailComposerProps['onComplete'], handler: MailComposerProps['onCompletionError'], ...args: Parameters<MailComposerProps['onComplete']>): void;
+//# sourceMappingURL=mail-composer-completion.d.ts.map

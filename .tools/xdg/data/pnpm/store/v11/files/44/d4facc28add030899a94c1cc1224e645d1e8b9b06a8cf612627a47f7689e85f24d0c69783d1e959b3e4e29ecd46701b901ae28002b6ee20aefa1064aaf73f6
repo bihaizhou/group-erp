@@ -1,0 +1,43 @@
+import { ServiceProvider, type ServiceContainer } from '@nocobase/service-provider';
+import type { AppConfigAccessor, AppPaths } from '../config/index.js';
+import type { AppDatabaseTaskContributions } from './types.js';
+export interface DatabaseProviderApplication {
+    readonly config: AppConfigAccessor;
+    readonly container: ServiceContainer;
+    readonly paths: AppPaths;
+    readonly databaseTaskContributions: AppDatabaseTaskContributions;
+}
+/**
+ * Set by `nocobase dev` on the server process it starts, to that
+ * application's root. Naming the root rather than switching the behavior on
+ * matters for a host: applications it runs in the same process see the same
+ * environment, and their directories are deployed revisions a cache must not
+ * be written into.
+ */
+export declare const COLLECTIONS_REFRESH_ENV = "NOCOBASE_COLLECTIONS_REFRESH";
+export declare class DatabaseProvider extends ServiceProvider<DatabaseProviderApplication> {
+    readonly name: string;
+    register(): void;
+    boot(): Promise<void>;
+    /**
+     * Tells the sample data service where samples are recorded — the default connection's seed history — and whether
+     * this start installed that connection with `app.sampleData` set. Without a seeds run on the default connection,
+     * nothing is prepared and no sample is built or recorded.
+     */
+    private prepareSampleData;
+    /**
+     * Startup migrations make `database/<connection>/collections/` stale just
+     * as `db apply` does, and under `nocobase dev` they are the usual cause. So
+     * the development server refreshes the cache of every connection they
+     * changed. Nothing else does: production never sets the variable.
+     */
+    private refreshCollections;
+    /**
+     * Automatic startup tasks have no console to report to, so drift tolerated by
+     * the `warn` policy is only visible if it reaches the application log.
+     */
+    private reportChecksumWarnings;
+    shutdown(): Promise<void>;
+    private getDatabaseConfig;
+}
+//# sourceMappingURL=provider.d.ts.map

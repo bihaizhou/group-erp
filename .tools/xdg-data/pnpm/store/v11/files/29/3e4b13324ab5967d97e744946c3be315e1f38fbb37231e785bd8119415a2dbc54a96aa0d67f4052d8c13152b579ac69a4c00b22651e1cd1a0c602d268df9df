@@ -1,0 +1,2 @@
+import type { CollectionMetadataDocument } from './document.js';
+export declare function defineCollectionMetadata<T extends CollectionMetadataDocument>(document: T): T;

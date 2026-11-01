@@ -1,0 +1,2 @@
+export { default } from '../../locales/zh-CN.js';
+//# sourceMappingURL=zh-CN.js.map

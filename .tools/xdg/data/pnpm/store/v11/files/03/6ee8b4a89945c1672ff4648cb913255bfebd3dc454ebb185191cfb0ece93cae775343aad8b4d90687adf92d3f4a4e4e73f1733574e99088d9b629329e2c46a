@@ -1,0 +1,104 @@
+import type { ServiceResolver } from '@nocobase/service-provider';
+import type { DatabaseTaskConfig } from '@nocobase/db';
+import { type AppDatabaseTaskPlanOptions, type AppDatabaseTask, type AppDatabaseTaskKind } from './plan.js';
+import { type ChecksumMismatch, type DatabaseDriverRegistration, type DatabaseManager, type MigrationHistoryRecord, type TaskLockState } from '@nocobase/db';
+import type { AppPaths } from '../config/index.js';
+import { type AppMigrationRunResult } from './migrator.js';
+import { type AppSeedRunResult } from './seeder.js';
+import type { AppDatabaseConfig } from './types.js';
+/**
+ * `repair` realigns recorded checksums; it executes no migration or seed.
+ * `rollback` runs the latest migration batch's `down`, and applies to
+ * migrations alone: seeds have no inverse. `sample` runs the sample seeds a
+ * run recorded as skipped, and applies to seeds alone.
+ */
+export type AppDatabaseTaskOperation = 'run' | 'repair' | 'rollback' | 'unlock' | 'sample';
+export interface AppDatabaseTaskResult {
+    connection: string;
+    kind: AppDatabaseTaskKind;
+    status: 'completed' | 'skipped' | 'failed' | 'not-run';
+    reason?: string;
+    error?: string;
+    batch?: number;
+    executed?: string[];
+    skipped?: string[];
+    /** Sample seeds a run recorded as skipped without running them. */
+    skippedSamples?: string[];
+    /**
+     * Seeds only: whether this run installed the connection — it held no
+     * migration or seed history before the run, or a fresh run rebuilt it. Sample
+     * data loads only then, and only with `app.sampleData` set.
+     */
+    freshInstall?: boolean;
+    fresh?: boolean;
+    /** Migrations a rollback undid, or that a dry run would undo. */
+    rolledBack?: string[];
+    /** The rolled back batch's history records, in the order they roll back. */
+    records?: MigrationHistoryRecord[];
+    /** The task lock as it stood when an unlock ran. */
+    lock?: TaskLockState;
+    /** Whether an unlock deleted the lock row, and why it did not. */
+    released?: boolean;
+    lockReason?: 'not-held' | 'active';
+    /** Checksum drift tolerated by the `warn` policy during a run. */
+    warnings?: ChecksumMismatch[];
+    /** Records a repair rewrote, or that a dry run would rewrite. */
+    repaired?: ChecksumMismatch[];
+    /** Migrations or seeds a run would execute, as a dry run reports them. */
+    pending?: string[];
+    dryRun?: boolean;
+}
+export interface AppDatabaseTasksResult {
+    ok: boolean;
+    status: 'completed' | 'failed' | 'not-configured';
+    results: AppDatabaseTaskResult[];
+}
+export declare class AppDatabaseTaskError extends Error {
+    readonly result: AppDatabaseTasksResult;
+    constructor(result: AppDatabaseTasksResult, cause: unknown);
+}
+export interface AppDatabasePlanExecutionOptions {
+    readonly runtimeConfig?: DatabaseTaskConfig;
+    readonly container?: ServiceResolver;
+    readonly paths?: AppPaths;
+    readonly drivers?: Record<string, DatabaseDriverRegistration>;
+    readonly fresh?: boolean;
+    /** Unlock only: release a lock that is still sending heartbeats. */
+    readonly force?: boolean;
+    readonly operation?: AppDatabaseTaskOperation;
+    /**
+     * Report what the operation would do without doing it. A run lists its
+     * pending tasks, reading history without taking the lock; a rollback reports
+     * the batch it would undo and a repair the records it would rewrite. Not
+     * supported by unlock.
+     */
+    readonly dryRun?: boolean;
+}
+/** Manual commands and startup share the same resolved, connection-bound plan. */
+export declare function executeAppDatabasePlan(database: DatabaseManager, config: AppDatabaseConfig, plan: readonly AppDatabaseTask[], { paths, drivers, fresh, force, operation, dryRun, runtimeConfig, container, }?: AppDatabasePlanExecutionOptions): Promise<AppDatabaseTasksResult>;
+export interface AppDatabaseTaskRunOptions extends AppDatabaseTaskPlanOptions {
+    /** The configuration reader migrations and seeds receive as `config`. */
+    readonly runtimeConfig?: DatabaseTaskConfig;
+    /** Borrow a database manager; its owner remains responsible for disposal. */
+    readonly database?: () => DatabaseManager;
+    readonly container?: ServiceResolver;
+    /**
+     * One task kind, or several planned together. Several kinds share one plan
+     * so their order is the plan's, which is what lets `fresh` rebuild a
+     * connection's schema before that connection's seeds run.
+     */
+    readonly kind: AppDatabaseTaskKind | readonly AppDatabaseTaskKind[];
+    readonly operation?: AppDatabaseTaskOperation;
+    /**
+     * Report what the operation would do without doing it; see
+     * {@link AppDatabasePlanExecutionOptions.dryRun}. A fresh dry run confirms
+     * nothing, because it drops nothing.
+     */
+    readonly dryRun?: boolean;
+    /** Unlock only: release a lock that is still sending heartbeats. */
+    readonly force?: boolean;
+}
+export declare function runAppDatabaseTasks(config: AppDatabaseConfig, options: AppDatabaseTaskRunOptions): Promise<AppDatabaseTasksResult>;
+export declare function runAppMigrations(config: AppDatabaseConfig, options: Omit<AppDatabaseTaskRunOptions, 'kind'>): Promise<AppMigrationRunResult | undefined>;
+export declare function runAppSeeds(config: AppDatabaseConfig, options: Omit<AppDatabaseTaskRunOptions, 'kind'>): Promise<AppSeedRunResult | undefined>;
+//# sourceMappingURL=tasks.d.ts.map

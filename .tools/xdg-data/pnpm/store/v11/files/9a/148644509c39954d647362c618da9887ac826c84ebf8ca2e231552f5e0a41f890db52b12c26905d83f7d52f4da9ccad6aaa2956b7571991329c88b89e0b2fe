@@ -1,0 +1,43 @@
+/**
+ * Every refusal the lifecycle makes, with a stable code a route can map to an
+ * HTTP status. A refused transition changes nothing. A guard refusal carries
+ * its blockers and an input refusal its problems, so a page can say why.
+ */
+export class LifecycleError extends Error {
+    code;
+    blockers;
+    problems;
+    constructor(code, message, details = {}) {
+        super(message);
+        this.name = 'LifecycleError';
+        this.code = code;
+        this.blockers = details.blockers ?? [];
+        this.problems = details.problems ?? [];
+    }
+}
+/**
+ * What an effect throws when it knows why it failed, so the transition that
+ * continues from the failure can branch on `code` rather than on the wording
+ * of a message. `onFailure` receives `{ error: message, errorCode: code,
+ * details }`; any other error reaches it as `{ error: message }`.
+ *
+ * ```ts
+ * if (response.status === 'PAYEE_FROZEN')
+ *   throw new EffectFailure('payeeFrozen', 'The payee account is frozen.', {
+ *     details: { payeeId: record.payeeId },
+ *   });
+ * ```
+ */
+export class EffectFailure extends Error {
+    code;
+    details;
+    retry;
+    constructor(code, message, options = {}) {
+        super(message);
+        this.name = 'EffectFailure';
+        this.code = code;
+        this.details = options.details ?? {};
+        this.retry = options.retry === true;
+    }
+}
+//# sourceMappingURL=errors.js.map

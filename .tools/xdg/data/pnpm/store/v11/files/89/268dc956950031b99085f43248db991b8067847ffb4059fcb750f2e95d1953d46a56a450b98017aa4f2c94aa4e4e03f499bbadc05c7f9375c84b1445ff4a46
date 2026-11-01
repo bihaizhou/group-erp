@@ -1,0 +1,15 @@
+import { type SecretKeyEntry } from '@nocobase/secrets';
+import type { EnvironmentMapping, EnvironmentMetadata } from '@nocobase/config/providers/env';
+import { type AppConfigDefinition, type AppConfigFactory, type ConfigValidator } from '../config/define-app-config.js';
+export type { SecretKeyEntry } from '@nocobase/secrets';
+/** The `secrets` section: the master keys stored secrets are encrypted with, the current one first. */
+export interface SecretsConfig {
+    readonly keys?: readonly SecretKeyEntry[];
+}
+/** `SECRETS_KEYS=2:<key>,1:<key>`, the current key first. */
+export declare function envSecretKeys(path: string, metadata?: EnvironmentMetadata): EnvironmentMapping;
+/** Rejects weak, placeholder and duplicate keys. A missing list is reported by `config check`, not here. */
+export declare const validateSecretsConfig: ConfigValidator<SecretsConfig>;
+/** Declares the `secrets` section with its validation and the `SECRETS_KEYS` variable. */
+export declare function defineSecretsConfig(definition?: Partial<AppConfigDefinition<SecretsConfig>>): AppConfigFactory<SecretsConfig>;
+//# sourceMappingURL=config.d.ts.map

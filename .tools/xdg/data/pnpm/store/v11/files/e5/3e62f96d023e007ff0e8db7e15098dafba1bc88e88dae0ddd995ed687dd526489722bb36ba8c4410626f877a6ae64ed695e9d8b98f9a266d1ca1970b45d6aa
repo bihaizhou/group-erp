@@ -1,0 +1,6 @@
+import type { ServiceResolver } from '@nocobase/service-provider';
+import { type DatabaseTaskConfig } from '../../task-config.js';
+import type { DatabaseConnection } from '../../database/connection.js';
+import type { SeedContext, SeedConnection } from '../types.js';
+export declare function createSeedContext(connection: DatabaseConnection, config?: DatabaseTaskConfig, container?: ServiceResolver): SeedContext;
+export declare function createSeedConnection(connection: DatabaseConnection): SeedConnection;

@@ -1,0 +1,23 @@
+import { ServiceProvider } from '@nocobase/service-provider';
+import type { AppPluginApplication } from '../plugins/index.js';
+export interface JobExecutorServiceProviderOptions {
+    /** The application's `NODE_ENV`; the memory fallback is only reported outside development. */
+    readonly nodeEnv?: string;
+}
+/**
+ * Composes ordinary and schedule executors from the `jobs` section, filling in
+ * what only the application knows: its name as the default namespace and its
+ * storage directory for the built-in memory configuration. Executors belong
+ * to the consumers that ask for them, which set them up and shut them down;
+ * this provider shuts down whatever they left running.
+ */
+export declare class JobExecutorServiceProvider extends ServiceProvider<AppPluginApplication> {
+    private readonly options;
+    readonly name: string;
+    private service;
+    constructor(app: AppPluginApplication, options?: JobExecutorServiceProviderOptions);
+    register(): void;
+    shutdown(): Promise<void>;
+    private create;
+}
+//# sourceMappingURL=provider.d.ts.map

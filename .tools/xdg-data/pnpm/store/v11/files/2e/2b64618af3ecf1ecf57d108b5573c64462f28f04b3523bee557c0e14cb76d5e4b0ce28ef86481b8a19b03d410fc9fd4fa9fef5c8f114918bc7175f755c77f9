@@ -1,0 +1,24 @@
+import type { DatabaseManager } from '@nocobase/db';
+import type { MailCredentialVault } from './contracts/provider.js';
+export declare class DatabaseMailCredentialVault implements MailCredentialVault {
+    private readonly database;
+    private readonly refreshLeaseMs;
+    private readonly refreshPollMs;
+    private readonly refreshTimeoutMs;
+    private readonly refreshes;
+    constructor(database: DatabaseManager, refreshLeaseMs?: number, refreshPollMs?: number, refreshTimeoutMs?: number);
+    put(value: unknown, options?: {
+        readonly purpose?: 'account' | 'authorization';
+        readonly expiresAt?: string;
+    }): Promise<string>;
+    get<T>(reference: string): Promise<T>;
+    replace(reference: string, value: unknown): Promise<void>;
+    getOrRefresh<T>(reference: string, isFresh: (value: T) => boolean, refresh: (value: T, signal?: AbortSignal) => Promise<T>, signal?: AbortSignal): Promise<T>;
+    private refreshWithLease;
+    private maintainRefreshLease;
+    private releaseRefreshLease;
+    delete(reference: string): Promise<void>;
+    deleteExpired(now: string): Promise<number>;
+}
+export declare function createDatabaseMailCredentialVault(database: DatabaseManager): DatabaseMailCredentialVault;
+//# sourceMappingURL=credentials.d.ts.map

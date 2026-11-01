@@ -1,0 +1,1 @@
+{"version":3,"file":"composer.js","sourceRoot":"","sources":["../../../client/contracts/composer.ts"],"names":[],"mappings":"AAgDA,uCAAuC;AACvC,MAAM,CAAC,MAAM,mBAAmB,GAAsB,MAAM,CAAC,MAAM,CAAC;IAClE,IAAI,EAAE,KAAK;IACX,EAAE,EAAE,EAAE;IACN,EAAE,EAAE,EAAE;IACN,GAAG,EAAE,EAAE;IACP,OAAO,EAAE,EAAE;IACX,IAAI,EAAE,EAAE;IACR,IAAI,EAAE,EAAE;IACR,WAAW,EAAE,EAAE;CAChB,CAAC,CAAC"}

@@ -1,0 +1,21 @@
+const sources = new WeakMap();
+/** Internal opt-in: custom stores retain their existing list semantics. */
+export function registerMetadataNamingSnapshot(store, source) {
+    sources.set(store, source);
+}
+export async function listMetadataNamingSnapshot(store) {
+    const summaries = [];
+    let cursor;
+    do {
+        const page = await store.list({ limit: 1000, cursor });
+        summaries.push(...page.items);
+        cursor = page.nextCursor;
+    } while (cursor);
+    return summaries;
+}
+export function readMetadataNamingSnapshot(store) {
+    return sources.get(store)?.read() ?? listMetadataNamingSnapshot(store);
+}
+export function invalidateMetadataNamingSnapshot(store) {
+    sources.get(store)?.invalidate();
+}

@@ -1,0 +1,7 @@
+import { ServiceProvider } from '@nocobase/service-provider';
+import type { AppPluginApplication } from '../plugins/index.js';
+export declare class SecretsProvider extends ServiceProvider<AppPluginApplication> {
+    readonly name: string;
+    register(): void;
+}
+//# sourceMappingURL=provider.d.ts.map

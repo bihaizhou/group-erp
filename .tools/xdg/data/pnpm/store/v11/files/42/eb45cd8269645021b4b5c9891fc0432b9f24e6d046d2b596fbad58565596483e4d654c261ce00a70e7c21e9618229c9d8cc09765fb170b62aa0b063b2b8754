@@ -1,0 +1,9 @@
+import { ImapFlow } from 'imapflow';
+import { type Transporter } from 'nodemailer';
+import type { ImapSmtpEndpointConfig, ImapSmtpMailProviderConfig } from './config.js';
+import type { ImapSmtpCredential } from './types.js';
+export declare function validateConfig(config: ImapSmtpMailProviderConfig): void;
+export declare function verifyConnections(config: ImapSmtpMailProviderConfig, credential: ImapSmtpCredential): Promise<void>;
+export declare function createImapClient(endpoint: ImapSmtpEndpointConfig, credential: ImapSmtpCredential): ImapFlow;
+export declare function createSmtpTransport(endpoint: ImapSmtpEndpointConfig, credential: ImapSmtpCredential): Transporter;
+//# sourceMappingURL=connection.d.ts.map

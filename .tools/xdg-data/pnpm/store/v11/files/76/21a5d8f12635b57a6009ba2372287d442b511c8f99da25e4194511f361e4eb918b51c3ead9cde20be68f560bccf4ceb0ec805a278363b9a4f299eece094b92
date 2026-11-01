@@ -1,0 +1,11 @@
+import { type NotificationProviderDefinition } from '@nocobase/app-plugin-notification';
+import type { PreparedImMessage } from '../channel.js';
+export interface FeishuWebhookProviderConfig {
+    readonly provider: 'feishu-webhook';
+    readonly enabled?: boolean;
+    readonly webhookUrl: string;
+    readonly secret?: string;
+}
+export declare function defineFeishuWebhookProviderConfig(input: Omit<FeishuWebhookProviderConfig, 'provider'>): FeishuWebhookProviderConfig;
+export declare function createFeishuWebhookProviderDefinition(): NotificationProviderDefinition<FeishuWebhookProviderConfig, PreparedImMessage>;
+//# sourceMappingURL=feishu.d.ts.map

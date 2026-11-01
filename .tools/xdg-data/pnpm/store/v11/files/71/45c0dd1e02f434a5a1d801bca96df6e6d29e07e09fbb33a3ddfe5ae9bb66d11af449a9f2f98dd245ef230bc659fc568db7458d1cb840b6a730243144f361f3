@@ -1,0 +1,13 @@
+import type { BloomFilter, Cache, CachingConfig, Counter, GetCacheOptions, GetCapabilityOptions } from './types.js';
+export declare class Caching {
+    private readonly config;
+    private readonly providers;
+    constructor(config?: CachingConfig);
+    getCache(options: GetCacheOptions): Cache;
+    getCounter(options: GetCapabilityOptions): Counter;
+    getBloomFilter(options: GetCapabilityOptions): BloomFilter;
+    dispose(): Promise<void>;
+    private getOrCreateProvider;
+}
+export declare function createCaching(config?: CachingConfig): Caching;
+//# sourceMappingURL=caching.d.ts.map

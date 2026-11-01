@@ -1,0 +1,25 @@
+export function createDefaultDatabaseDriverRuntime(context) {
+    return {
+        dialect: context.dialect,
+        capabilities: context.capabilities,
+    };
+}
+const runtimeByClient = new WeakMap();
+export function attachDatabaseDriverRuntime(client, runtime) {
+    runtimeByClient.set(client, runtime);
+    // Knex query builders expose their internal Client instance as
+    // `query.client`, while the public database handle is the callable Knex
+    // function.  Keep both identities associated with the dialect runtime so
+    // value binding strategies also apply inside `where()` callbacks and
+    // unique-selector reloads.
+    const internalClient = client.client;
+    if (internalClient) {
+        runtimeByClient.set(internalClient, runtime);
+        const config = internalClient.config;
+        if (config)
+            runtimeByClient.set(config, runtime);
+    }
+}
+export function getDatabaseDriverRuntime(client) {
+    return runtimeByClient.get(client);
+}

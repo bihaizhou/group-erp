@@ -1,0 +1,5 @@
+import type { FieldDefinition } from './types.js';
+/** V1 domains are bounded independently from physical character capacity. */
+export declare function validateEnumMembers(values: unknown): asserts values is readonly string[];
+export declare function validateEnumDefinition(field: FieldDefinition): void;
+export declare function assertEnumExpansion(previous: readonly string[] | undefined, next: readonly string[]): void;

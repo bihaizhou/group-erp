@@ -1,0 +1,3 @@
+import type { ConfigProvider } from '../types.js';
+export declare function rawBytesProvider(value: Uint8Array, name?: string): ConfigProvider;
+//# sourceMappingURL=raw.d.ts.map

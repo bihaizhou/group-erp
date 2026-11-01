@@ -1,0 +1,17 @@
+import { type CompositeResourceActions, type CompositeResourceReference } from '../../core/composite.js';
+import type { RecordSelection } from '../../core/selection.js';
+import type { AuthorizationTitle } from '../../core/titles.js';
+import type { AuthorizationSubject } from '../../core/types.js';
+import type { RestrictionRule } from './model.js';
+export declare class RestrictionRuleBuilder<A extends CompositeResourceActions> {
+    private readonly resource;
+    private readonly definition;
+    constructor(resource: CompositeResourceReference<A>, definition: RestrictionRule);
+    scope<N extends keyof A & string>(action: N, scopeKey: keyof A[N] & string, selection: RecordSelection): RestrictionRuleBuilder<A>;
+    title(title: AuthorizationTitle): RestrictionRuleBuilder<A>;
+    subjects(...subjects: readonly AuthorizationSubject[]): RestrictionRuleBuilder<A>;
+    reason(reason: string): RestrictionRuleBuilder<A>;
+    build(): RestrictionRule;
+}
+export declare function defineRestrictionRule<A extends CompositeResourceActions>(key: string, resource: CompositeResourceReference<A>): RestrictionRuleBuilder<A>;
+//# sourceMappingURL=builder.d.ts.map

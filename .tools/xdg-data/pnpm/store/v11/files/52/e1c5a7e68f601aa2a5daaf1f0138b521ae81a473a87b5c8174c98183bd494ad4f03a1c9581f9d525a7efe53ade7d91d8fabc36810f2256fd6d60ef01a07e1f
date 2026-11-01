@@ -1,0 +1,12 @@
+import type { FieldDefinition } from '../collection/types.js';
+import { type RepositoryErrorCode } from './errors.js';
+export interface BooleanStorageCodec {
+    encode(value: boolean | null): boolean | number | null;
+    decode(field: FieldDefinition, value: unknown): boolean | null;
+}
+export declare const nativeBooleanCodec: BooleanStorageCodec;
+export declare const numericBooleanCodec: BooleanStorageCodec;
+export declare function resolveBooleanStorageCodec(kind: 'native' | 'numeric', _field: FieldDefinition): BooleanStorageCodec;
+export declare function normalizeBooleanValue(field: FieldDefinition, value: unknown, code?: RepositoryErrorCode, path?: readonly (string | number)[]): boolean | null;
+export declare function decodeBooleanValue(field: FieldDefinition, value: unknown): boolean | null;
+export declare function booleanStorageValue(kind: 'native' | 'numeric', field: FieldDefinition, value: unknown): boolean | number | null;

@@ -1,0 +1,5 @@
+import type { CollectionDefinition, PrimaryConstraintDefinition, UniqueConstraintDefinition } from '../../collection/types.js';
+import type { RepositoryRecord, UniqueSelector } from '../types.js';
+export declare function identityConstraints(collection: CollectionDefinition): Array<PrimaryConstraintDefinition | UniqueConstraintDefinition>;
+export declare function recordSelector(collection: CollectionDefinition, record: RepositoryRecord): UniqueSelector;
+export declare function createdRecordSelector(collection: CollectionDefinition, values: RepositoryRecord, returned: unknown): UniqueSelector;

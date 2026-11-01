@@ -1,0 +1,101 @@
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { Context, Hono } from 'hono';
+import type { OpenAPIV3_1 } from 'openapi-types';
+import { type ApiDocument, type ApiDocumentFragment, type ApiDocumentInfo, type ApiForwardedRouter, type ApiForwardedRoutes, type ApiRouterSource, type ApiUndeclaredRoute } from './document.js';
+/**
+ * Decides whether a request may read the API document and its Swagger UI. It answers `true` to allow; `false` leaves
+ * the decision to the other checks. It may also throw an `ApiError` to answer with a status of its own.
+ */
+export type ApiDocsAccessCheck = (context: Context) => boolean | Promise<boolean>;
+export interface ApiDocsAccess {
+    /** Who contributes the check, such as a plugin's package name. */
+    readonly name: string;
+    readonly check: ApiDocsAccessCheck;
+}
+/**
+ * Changes the generated document in place, after the declared routes and the fragments are in: for what only the
+ * assembled document can say, such as which credentials the command manifest takes.
+ */
+export type ApiDocumentTransform = (document: ApiDocument) => void | Promise<void>;
+/** A fragment, or a function that builds one each time the document is generated. */
+export type ApiDocumentFragmentSource = ApiDocumentFragment | (() => ApiDocumentFragment | Promise<ApiDocumentFragment>);
+export interface ApiDocsDescription {
+    readonly info: ApiDocumentInfo;
+    readonly servers?: readonly OpenAPIV3_1.ServerObject[];
+}
+/** What the application hands the service once its `/api` router is assembled. */
+export interface ApiDocsTarget {
+    readonly api: Hono;
+    /** The document's `info` and `servers`, read when the document is generated. */
+    readonly describe: () => ApiDocsDescription | Promise<ApiDocsDescription>;
+    readonly onWarning?: (message: string) => void;
+}
+/**
+ * The application's API documentation: who may read it, what plugins add to it, and the cached document itself.
+ *
+ * - Access: `GET /api/swagger` and `GET /api/swagger/docs` are served only once at least one access check is
+ *   registered, and only to a request one of them allows. With none registered the routes answer `404
+ *   ROUTE_NOT_FOUND`, exactly like a path that does not exist: an application that has no way to tell who is asking
+ *   does not publish its API. With checks registered and none allowing, they answer `401 UNAUTHENTICATED`.
+ * - Forwarded routes: a plugin that serves routes through a runtime dispatcher — one catch-all on `/api` that hands
+ *   each request to a router at request time — registers each router with `addApiRouter()`, and each forwarded
+ *   target it cannot see into with `addUndeclaredApiRoute()`. The document and `inspectApiRoutes(app)` treat the
+ *   routers' routes exactly like routes mounted on `/api`; an undeclared route is reported and never documented.
+ * - Fragments: paths, components, tags and security schemes a plugin documents itself, merged after the declared
+ *   routes.
+ * - Cache: the document is generated on the first request and kept until `invalidate()`, which anything that changes
+ *   what the document describes calls — a Collection's metadata changing changes its data endpoints' schemas.
+ */
+export declare class ApiDocsService implements ApiRouterSource {
+    private readonly accessChecks;
+    private readonly fragments;
+    private readonly transforms;
+    private readonly forwardedRouters;
+    private readonly undeclaredRoutes;
+    private target;
+    private cached;
+    /** Allow the requests `access.check` accepts to read the documentation. Returns a function that removes it. */
+    addAccess(access: ApiDocsAccess): () => void;
+    /** Merge `fragment` into the document. Returns a function that removes it. */
+    addFragment(fragment: ApiDocumentFragmentSource): () => void;
+    /** Apply `transform` to every generated document, in the order added. Returns a function that removes it. */
+    addTransform(transform: ApiDocumentTransform): () => void;
+    /**
+     * Requests under `prefix` are forwarded to `router` at request time, by a dispatcher the `/api` router sees only as a
+     * catch-all. Its routes are documented and inspected at `prefix` followed by the router's own paths, exactly like
+     * routes mounted on `/api`: each declares `describeRoute({...})` or `describeRoute({ hide: true })`. With `scope`,
+     * only routes at `prefix` + `scope` or below it are documented; one outside it is never reached, is left out of the
+     * document and the duplicate-route check, and is reported as undeclared. Registered
+     * before the application registers its routes, they also take part in the duplicate-route check at start. Returns a
+     * function that removes the registration.
+     */
+    addApiRouter(registration: ApiForwardedRouter): () => void;
+    /**
+     * A forwarded target the framework cannot see into, such as a plain function a dispatcher calls: it always counts as
+     * undeclared in `findUndeclaredApiRoutes(app)`, so the API document check fails, and it never appears in the
+     * document. Returns a function that removes the registration.
+     */
+    addUndeclaredApiRoute(route: ApiUndeclaredRoute): () => void;
+    /** What the registered dispatchers forward to, as `inspectApiRoutes()` and the document read it. */
+    get forwardedApiRoutes(): ApiForwardedRoutes;
+    private track;
+    /** Whether any access check is registered, which decides whether the documentation is served at all. */
+    hasAccessChecks(): boolean;
+    /** Whether one of the registered checks allows `context` to read the documentation. */
+    canRead(context: Context): Promise<boolean>;
+    /** Called by the application once its `/api` router is assembled. */
+    attach(target: ApiDocsTarget): void;
+    /** The `/api` router the document is generated from, once the application has registered its routes. */
+    get apiRouter(): Hono | undefined;
+    /** The document, generated on first use and cached until `invalidate()`. */
+    getDocument(): Promise<ApiDocument>;
+    /** Drop the cached document; the next read generates it again. */
+    invalidate(): void;
+    private generate;
+}
+/**
+ * The application's `ApiDocsService`. A plugin resolves it in its service provider's `register()` or `boot()` to add
+ * an access check or a fragment, or to invalidate the cached document.
+ */
+export declare const apiDocsToken: ServiceToken<ApiDocsService>;
+//# sourceMappingURL=service.d.ts.map

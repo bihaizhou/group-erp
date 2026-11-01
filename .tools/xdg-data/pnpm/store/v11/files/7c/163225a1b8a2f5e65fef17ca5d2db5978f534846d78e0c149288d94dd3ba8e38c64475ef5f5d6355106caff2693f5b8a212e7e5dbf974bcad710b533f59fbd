@@ -1,0 +1,53 @@
+import type { LocaleResource } from '@nocobase/i18n';
+/**
+ * Display vocabulary shared by the client and server locale catalogues.
+ */
+declare const enUS: {
+    sections: {
+        pages: string;
+        page: string;
+        business: string;
+        administration: string;
+        other: string;
+    };
+    options: {
+        defaultAndSharing: string;
+        actions: {
+            assign: string;
+            configure: string;
+            inspect: string;
+            read: string;
+            create: string;
+            update: string;
+            delete: string;
+            access: string;
+        };
+        settingsModules: {
+            authorization: string;
+        };
+        pages: {
+            all: string;
+            allDescription: string;
+        };
+        settings: {
+            inspector: string;
+            'permission-sets': string;
+        };
+        subjectTypes: {
+            authenticated: string;
+            authenticatedDescription: string;
+            user: string;
+        };
+        recordAccessPolicies: {
+            allRecords: string;
+            recordsIOwn: string;
+            recordsICreated: string;
+            customFilter: string;
+            customFilterHint: string;
+        };
+    };
+};
+/** English is the source of truth for this catalogue's shape. */
+export type AuthorizationServerResource = LocaleResource<typeof enUS>;
+export default enUS;
+//# sourceMappingURL=en-US.d.ts.map

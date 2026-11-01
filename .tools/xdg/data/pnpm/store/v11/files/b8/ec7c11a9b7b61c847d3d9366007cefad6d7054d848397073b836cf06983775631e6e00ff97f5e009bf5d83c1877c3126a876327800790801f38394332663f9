@@ -1,0 +1,20 @@
+declare module '@nocobase/app-client' {
+    /** The `auth` fields `defineAuthConfig` publishes; keep in step with `AUTH_PUBLIC_PATHS` on the server. */
+    interface PublicAppConfig {
+        auth: {
+            emailAndPassword?: {
+                enabled?: boolean;
+                disableSignUp?: boolean;
+            };
+        };
+    }
+}
+/**
+ * Whether the server accepts password sign-up, from the `auth` fields it publishes.
+ *
+ * Both have to allow it: password authentication enabled and sign-up not disabled. A field the server does not publish
+ * reads as Better Auth's default, which allows sign-up, so an application that has not declared its `auth` section
+ * with `defineAuthConfig` keeps showing registration.
+ */
+export declare function useSignUpAvailable(): boolean;
+//# sourceMappingURL=sign-up.d.ts.map

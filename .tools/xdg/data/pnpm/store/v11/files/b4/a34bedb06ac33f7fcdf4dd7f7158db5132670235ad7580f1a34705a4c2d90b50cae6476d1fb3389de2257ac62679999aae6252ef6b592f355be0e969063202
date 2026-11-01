@@ -1,0 +1,6 @@
+import type { AppDriveConfig } from './types.js';
+export interface PrepareDriveStorageResult {
+    directories: string[];
+}
+export declare function prepareDriveStorage(config: AppDriveConfig): Promise<PrepareDriveStorageResult>;
+//# sourceMappingURL=prepare.d.ts.map

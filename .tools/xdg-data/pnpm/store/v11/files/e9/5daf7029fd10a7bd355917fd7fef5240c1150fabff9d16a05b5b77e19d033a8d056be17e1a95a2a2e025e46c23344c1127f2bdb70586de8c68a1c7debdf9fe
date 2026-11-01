@@ -1,0 +1,57 @@
+import { createQueueService, } from '@nocobase/queue';
+import { ServiceProvider, } from '@nocobase/service-provider';
+import { loggingToken } from '../logging/index.js';
+import { queueServiceToken } from './token.js';
+const DEVELOPMENT_ENVIRONMENTS = new Set([
+    'develop',
+    'development',
+]);
+const FALLBACK_WARNING = 'Queues run on the built-in memory configuration: jobs live in this process and reach storage only when it shuts down. Set queue.default to a redis configuration to run more than one instance.';
+/**
+ * Creates the application's queue service from the `queue` section, filling
+ * in what only the application knows: its name as the default namespace, its
+ * storage directory for memory state files, and its logger. Register it
+ * before the plugin providers that resolve `queueServiceToken`: `start()`
+ * sets the service up once every provider has booted and registered its
+ * handlers, and `shutdown()` releases it after they have shut down.
+ */
+export class QueueServiceProvider extends ServiceProvider {
+    options;
+    name = '@nocobase/app-server/queue';
+    constructor(app, options = {}) {
+        super(app);
+        this.options = options;
+    }
+    register() {
+        this.app.container.singleton(queueServiceToken, (container) => this.create(container));
+    }
+    async start() {
+        await this.app.container.resolve(queueServiceToken).setup();
+    }
+    async shutdown() {
+        await this.app.container.resolveIfCreated(queueServiceToken)?.shutdown();
+    }
+    create(container) {
+        const logger = container.has(loggingToken)
+            ? container
+                .resolve(loggingToken)
+                .getLogger('queue')
+                .child({ module: 'queue' })
+            : undefined;
+        const reportFallback = !DEVELOPMENT_ENVIRONMENTS.has(this.options.nodeEnv ?? '');
+        return createQueueService(this.app.config.get('queue'), {
+            appName: this.app.appName,
+            storagePath: this.app.paths.storage('queue'),
+            ...(logger ? { logger } : {}),
+            onFallback: () => {
+                if (!reportFallback)
+                    return;
+                if (logger)
+                    logger.warn({}, FALLBACK_WARNING);
+                else
+                    console.warn(FALLBACK_WARNING);
+            },
+        });
+    }
+}
+//# sourceMappingURL=provider.js.map

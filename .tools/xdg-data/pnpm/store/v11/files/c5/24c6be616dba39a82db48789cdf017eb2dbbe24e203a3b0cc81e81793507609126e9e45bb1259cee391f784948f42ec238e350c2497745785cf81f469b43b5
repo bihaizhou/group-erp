@@ -1,0 +1,21 @@
+import type { I18nRuntime, Locale, LocaleDefinition } from '../core/index.js';
+export interface UseLocaleResult {
+    readonly locale: Locale;
+    readonly locales: readonly LocaleDefinition[];
+    readonly setLocale: (locale: Locale) => Promise<void>;
+    /** True while resources for the requested locale are still loading. */
+    readonly switching: boolean;
+    readonly error: Error | undefined;
+}
+/**
+ * The current locale, the ones available, and a way to change it.
+ *
+ * The switch is atomic: every namespace's resources for the new locale load before i18next changes language, so no
+ * frame is ever rendered half-translated.
+ */
+export declare function useLocale(): UseLocaleResult;
+/**
+ * Applies the locale to the document element, so the page reports its language and lays out in the right direction.
+ */
+export declare function applyDocumentLocale(runtime: I18nRuntime): void;
+//# sourceMappingURL=locale.d.ts.map

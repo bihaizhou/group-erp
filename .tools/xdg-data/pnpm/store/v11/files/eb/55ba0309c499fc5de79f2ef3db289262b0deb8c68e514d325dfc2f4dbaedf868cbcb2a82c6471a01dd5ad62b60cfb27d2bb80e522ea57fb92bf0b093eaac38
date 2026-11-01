@@ -1,0 +1,122 @@
+import { ReadPermissionBuilder, WritePermissionBuilder, } from './permission-builders.js';
+/** The permission-set grant of one collection. */
+export function databaseGrant(collection, definition) {
+    return {
+        resource: { type: 'database.collection', id: collection },
+        actions: Object.entries(definition).map(([action, config]) => ({
+            action,
+            policy: { type: 'database', ...config },
+        })),
+    };
+}
+function applies(reference, collection) {
+    return reference.collections.some((name) => name === '*' || name === collection);
+}
+/**
+ * A collection's fields and relations per operation. Binding it to a key makes
+ * it a data scope of a composite action.
+ */
+export class DatabasePermissionBuilder {
+    name;
+    operations;
+    label;
+    choices;
+    constructor(name, operations = {}, label = undefined, choices = {}) {
+        this.name = name;
+        if (!name)
+            throw new TypeError('A collection name is required');
+        this.operations = structuredClone(operations);
+        this.label = structuredClone(label);
+        this.choices = structuredClone(choices);
+    }
+    title(title) {
+        return new DatabasePermissionBuilder(this.name, this.operations, title, this.choices);
+    }
+    /** The record access a grant may choose for the bound data scope. */
+    options(...options) {
+        if (!options.length ||
+            options.some((option) => !applies(option, this.name)))
+            throw new TypeError(`Record access does not apply to ${this.name}`);
+        const keys = options.map((option) => option.key);
+        if (new Set(keys).size !== keys.length ||
+            (this.choices.defaultValue && !keys.includes(this.choices.defaultValue)))
+            throw new TypeError('Invalid record access options');
+        return new DatabasePermissionBuilder(this.name, this.operations, this.label, {
+            ...this.choices,
+            options: keys,
+        });
+    }
+    /** The record access used when a grant chooses nothing. */
+    default(option) {
+        if (!applies(option, this.name) ||
+            (this.choices.options && !this.choices.options.includes(option.key)))
+            throw new TypeError('Invalid default record access');
+        return new DatabasePermissionBuilder(this.name, this.operations, this.label, {
+            ...this.choices,
+            defaultValue: option.key,
+        });
+    }
+    read(fields) {
+        return this.operation('read', typeof fields === 'function'
+            ? fields(new ReadPermissionBuilder()).build()
+            : { fields });
+    }
+    create(fields) {
+        return this.operation('create', typeof fields === 'function'
+            ? fields(new WritePermissionBuilder({}, true)).build()
+            : { fields });
+    }
+    update(fields) {
+        return this.operation('update', typeof fields === 'function'
+            ? fields(new WritePermissionBuilder({}, false)).build()
+            : { fields });
+    }
+    delete() {
+        return this.operation('delete', {});
+    }
+    operation(action, policy) {
+        if (Object.hasOwn(this.operations, action))
+            throw new TypeError(`Duplicate database action: ${action}`);
+        return new DatabasePermissionBuilder(this.name, { ...this.operations, [action]: policy }, this.label, this.choices);
+    }
+    /** The collection grant a Permission Set stores. */
+    build() {
+        if (!Object.keys(this.operations).length)
+            throw new TypeError('A database permission needs at least one action');
+        return structuredClone(databaseGrant(this.name, this.operations));
+    }
+    bind(key, metadata) {
+        if (!key)
+            throw new TypeError('A data scope needs a key');
+        const grant = this.build();
+        const scope = {
+            key,
+            title: metadata?.title ?? this.label ?? this.name,
+            ...this.choices,
+        };
+        const contribution = {
+            grants: [
+                {
+                    resource: grant.resource,
+                    actions: grant.actions.map((action) => ({
+                        ...action,
+                        scopeKey: key,
+                    })),
+                },
+            ],
+            dataScopes: [scope],
+        };
+        return { build: () => structuredClone(contribution) };
+    }
+}
+export class DatabasePermissionDefinitionBuilder {
+    collection(name) {
+        return new DatabasePermissionBuilder(name);
+    }
+}
+export function defineDatabasePermission(configure) {
+    const permission = configure(new DatabasePermissionDefinitionBuilder());
+    permission.build();
+    return permission;
+}
+//# sourceMappingURL=builders.js.map

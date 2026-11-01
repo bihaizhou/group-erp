@@ -1,0 +1,5 @@
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+import { type AppRootRouteContribution } from '@nocobase/app-server/router';
+/** Public OAuth callback secured by a short-lived, one-time state transaction. */
+export declare const mailOAuthCallbackRoutes: AppRootRouteContribution<AppPluginApplication>;
+//# sourceMappingURL=oauth-callback.d.ts.map

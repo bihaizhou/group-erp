@@ -1,0 +1,11 @@
+import { Command, Help, type Interfaces } from '@oclif/core';
+export declare function isTopicIndexCommand(commandId: string, topics: Array<Pick<Interfaces.Topic, 'name'>>): boolean;
+/**
+ * A topic such as `app` is listed under TOPICS already, so its bare index command would show up a second time under
+ * COMMANDS without adding anything.
+ */
+export default class RuntimeHelp extends Help {
+    protected get sortedCommands(): Command.Loadable[];
+    protected get sortedTopics(): Interfaces.Topic[];
+}
+//# sourceMappingURL=runtime-help.d.ts.map

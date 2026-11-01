@@ -1,0 +1,40 @@
+import type { QueueBackoffOptions, QueueRetentionPolicy } from '../types.js';
+/** An unfinished job as the state file records it. */
+export interface MemoryJobState {
+    readonly jobId: string;
+    readonly channel: string;
+    /** The message as JSON text. */
+    readonly message: string;
+    readonly priority: number;
+    readonly attempts: number;
+    readonly backoff?: QueueBackoffOptions;
+    readonly removeOnComplete: QueueRetentionPolicy;
+    readonly removeOnFail: QueueRetentionPolicy;
+    readonly started: number;
+    readonly failures: number;
+    /** Epoch milliseconds a delayed job becomes due. */
+    readonly delayedUntil?: number;
+}
+export interface MemoryStateIdentity {
+    readonly persistencePath: string;
+    readonly namespace: string;
+    readonly queue: string;
+}
+/**
+ * Named by namespace and queue only, so renaming the configuration key or
+ * pointing `default` elsewhere keeps reading the same pending jobs.
+ */
+export declare function memoryStateFilePath(identity: MemoryStateIdentity): string;
+/**
+ * Read once when the queue opens and written once when it closes. Not
+ * locked: one file belongs to one process.
+ */
+export declare class MemoryStateFile {
+    private readonly identity;
+    readonly filePath: string;
+    constructor(identity: MemoryStateIdentity);
+    read(): Promise<MemoryJobState[]>;
+    /** Replaces the file through a synced temporary file, never leaving half of one. */
+    write(jobs: readonly MemoryJobState[]): Promise<void>;
+}
+//# sourceMappingURL=state-file.d.ts.map

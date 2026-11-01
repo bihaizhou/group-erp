@@ -1,0 +1,23 @@
+export function parseAuthorizationTitle(value) {
+    if (value == null)
+        return undefined;
+    if (typeof value === 'string')
+        return value;
+    if (typeof value === 'object' &&
+        !Array.isArray(value) &&
+        'key' in value &&
+        'ns' in value &&
+        typeof value.key === 'string' &&
+        value.key.trim() &&
+        typeof value.ns === 'string' &&
+        value.ns.trim())
+        return { key: value.key, ns: value.ns };
+    throw new TypeError('Title must be a string or a translation descriptor with key and ns');
+}
+export function encodeAuthorizationTitle(value) {
+    return value === undefined ? null : JSON.stringify(value);
+}
+export function decodeAuthorizationTitle(value) {
+    return parseAuthorizationTitle(typeof value === 'string' ? JSON.parse(value) : value);
+}
+//# sourceMappingURL=titles.js.map

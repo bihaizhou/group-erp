@@ -1,0 +1,14 @@
+/** The participant index accepts ASCII dot-atom mailboxes and DNS domains. */
+export interface NormalizedMailParticipantAddress {
+    readonly address: string;
+    readonly domain: string;
+}
+export interface MailParticipantFilter {
+    readonly field: 'address' | 'domain';
+    readonly value: string;
+}
+/** Trim and lowercase without alias folding, truncation, or display-name parsing. */
+export declare function normalizeMailParticipantAddress(value: unknown): NormalizedMailParticipantAddress | undefined;
+/** An omitted filter is distinct from an explicitly empty or malformed one. */
+export declare function parseMailParticipant(value: string): MailParticipantFilter | undefined;
+//# sourceMappingURL=participant.d.ts.map

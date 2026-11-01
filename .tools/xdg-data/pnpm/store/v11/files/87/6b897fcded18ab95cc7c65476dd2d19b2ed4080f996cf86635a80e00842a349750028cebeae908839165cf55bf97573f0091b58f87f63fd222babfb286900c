@@ -1,0 +1,6 @@
+import { Collapsible as CollapsiblePrimitive } from '@base-ui/react/collapsible';
+import type { ReactElement } from 'react';
+export declare function Collapsible(props: CollapsiblePrimitive.Root.Props): ReactElement;
+export declare function CollapsibleTrigger(props: CollapsiblePrimitive.Trigger.Props): ReactElement;
+export declare function CollapsibleContent(props: CollapsiblePrimitive.Panel.Props): ReactElement;
+//# sourceMappingURL=collapsible.d.ts.map

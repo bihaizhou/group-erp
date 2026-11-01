@@ -1,0 +1,10 @@
+import type { AppPluginApplication } from '@nocobase/app-server/plugins';
+import { type AppApiRouteContribution, type AppRouteContribution } from '@nocobase/app-server/router';
+/**
+ * `/api/apiKeys`: a person's own keys, with or without a scope. Self-service: every endpoint acts on the caller's
+ * keys only, and only from a sign-in: a request made with any API key is refused (`requireSignInSession`).
+ */
+export declare const apiRoutes: AppApiRouteContribution<AppPluginApplication>;
+declare const routes: readonly AppRouteContribution<AppPluginApplication>[];
+export default routes;
+//# sourceMappingURL=index.d.ts.map

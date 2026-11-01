@@ -1,0 +1,36 @@
+export interface JournalEntry {
+    time: string;
+    level: string | number;
+    msg: string;
+    [key: string]: unknown;
+}
+export interface JournalPolicy {
+    enabled?: boolean;
+    retentionDays?: number;
+    maxSizeMB?: number;
+}
+export interface JournalQuery {
+    cursor?: string;
+    level?: string;
+    source?: string;
+    search?: string;
+    since?: string;
+    until?: string;
+    fromStart?: boolean;
+}
+export interface JournalPage {
+    entries: JournalEntry[];
+    cursor: string;
+    hasMore: boolean;
+    available: boolean;
+    reset: boolean;
+}
+/** Sanitize at the persistence boundary, including nested errors and free text. */
+export declare function sanitizeLog(value: unknown, depth?: number): unknown;
+export declare function validateJournalPolicy(policy: JournalPolicy): void;
+/** One complete append per entry. No file descriptor survives a write or rotation. */
+export declare function appendJournal(file: string, entry: JournalEntry, maxSizeMB?: number): void;
+export declare function pruneJournals(directory: string, policy: JournalPolicy, protectedFile?: string): Promise<void>;
+/** Merge source streams chronologically with bounded scans and short, scoped cursors. */
+export declare function readJournal(directory: string, query?: JournalQuery, filename?: string): Promise<JournalPage>;
+//# sourceMappingURL=journal.d.ts.map

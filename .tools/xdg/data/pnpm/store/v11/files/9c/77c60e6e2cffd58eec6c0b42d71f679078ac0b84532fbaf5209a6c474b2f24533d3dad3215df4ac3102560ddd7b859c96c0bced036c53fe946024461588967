@@ -1,0 +1,4 @@
+import { type ServiceToken } from '@nocobase/service-provider';
+import type { IdGeneratorService } from '@nocobase/snowflake';
+export declare const idGeneratorToken: ServiceToken<IdGeneratorService>;
+//# sourceMappingURL=token.d.ts.map

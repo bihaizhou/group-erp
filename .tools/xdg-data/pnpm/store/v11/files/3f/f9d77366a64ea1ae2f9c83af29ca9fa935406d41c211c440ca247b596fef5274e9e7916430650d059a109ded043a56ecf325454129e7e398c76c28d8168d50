@@ -1,0 +1,17 @@
+import { defineMigration, } from '@nocobase/db';
+const migration = defineMigration({
+    name: '202609260001_add_mail_sync_retry_attempts',
+    async up({ builder }) {
+        await builder.alterCollection('mailSyncRuns', (collection) => {
+            collection.integer('retryAttempts', { nullable: false, defaultValue: 0 });
+        });
+    },
+    async down({ builder }) {
+        await builder.alterCollection('mailSyncRuns', (collection) => {
+            collection.dropField('retryAttempts');
+        });
+    },
+});
+export default migration;
+//# sourceMappingURL=202609260001_add_mail_sync_retry_attempts.js.map
+// @nocobase/task-manifest v1

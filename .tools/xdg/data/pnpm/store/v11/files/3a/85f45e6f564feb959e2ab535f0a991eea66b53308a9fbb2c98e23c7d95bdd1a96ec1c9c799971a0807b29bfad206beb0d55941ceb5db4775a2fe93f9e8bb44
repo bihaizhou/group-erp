@@ -1,0 +1,14 @@
+import type { DatabaseConnection } from '@nocobase/db';
+import type { DatabaseConnectionSource } from '@nocobase/app-plugin-authorization/server/extension';
+import type { DefaultAccessRule, DefaultAccessStore } from '@nocobase/authorization/default-access';
+export declare class DatabaseDefaultAccessStore implements DefaultAccessStore<DatabaseConnection> {
+    private readonly connection;
+    constructor(connection: DatabaseConnectionSource);
+    withTransaction(connection: DatabaseConnection): DefaultAccessStore<DatabaseConnection>;
+    list(): Promise<readonly DefaultAccessRule[]>;
+    get(key: string): Promise<DefaultAccessRule | undefined>;
+    create(rule: DefaultAccessRule): Promise<DefaultAccessRule>;
+    update(key: string, rule: DefaultAccessRule): Promise<DefaultAccessRule>;
+    delete(key: string): Promise<void>;
+}
+//# sourceMappingURL=default-access.d.ts.map

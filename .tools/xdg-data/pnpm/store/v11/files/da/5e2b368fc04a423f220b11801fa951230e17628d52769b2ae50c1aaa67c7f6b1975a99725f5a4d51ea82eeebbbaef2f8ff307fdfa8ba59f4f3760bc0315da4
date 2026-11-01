@@ -1,0 +1,4 @@
+export function defineMailProviderDefinition(definition) {
+    return definition;
+}
+//# sourceMappingURL=provider.js.map

@@ -1,0 +1,92 @@
+import type { Locale, LocaleLoaders, LocaleModule, LocalesModule, Namespace, TranslationOverrides, TranslationResource } from './types.js';
+/** The namespace holding the terms the base package ships: save, cancel, confirm, and the like. */
+export declare const BASE_NAMESPACE: Namespace;
+/**
+ * The language every package is expected to ship, and so the last resort of any fallback.
+ *
+ * It is where a lookup lands when neither the current language nor the application's default turned up a translation —
+ * an application defaulting to Chinese that adds Spanish leaves a plugin translated in neither, and English is the one
+ * language that plugin almost certainly has.
+ */
+export declare const BASE_LOCALE: Locale;
+/**
+ * Stands for whichever namespace belongs to the application, resolved when a translation runs.
+ *
+ * A plugin cannot name the application's namespace directly: it is the user's own package name, chosen long after the
+ * plugin was published. Writing `t('save', { ns: APP_NS })` asks for the application's wording without knowing it.
+ */
+export declare const APP_NS: Namespace;
+export interface LoadedNamespaceResource {
+    readonly namespace: Namespace;
+    readonly locale: Locale;
+    readonly resource: TranslationResource;
+}
+export interface LoadLocaleResult {
+    readonly locale: Locale;
+    readonly resources: readonly LoadedNamespaceResource[];
+    /** Overrides declared by the application's locale file, applied after every namespace is registered. */
+    readonly overrides: TranslationOverrides;
+}
+/**
+ * Holds which namespaces exist, which locales each can produce, and which of those have been loaded.
+ *
+ * The registry deliberately knows nothing about i18next: it resolves loaders and hands back plain resources, leaving
+ * the client and server entry points to feed them into an instance. That keeps the loading rules — one import per
+ * namespace and locale, shared between concurrent callers, never repeated — in one place and testable on their own.
+ */
+export declare class I18nRegistry {
+    private readonly namespaces;
+    private applicationNamespace;
+    /**
+     * Registers a namespace's loaders. Registering the same namespace again merges the loaders, so a package can declare
+     * additional locales after the initial registration.
+     */
+    register(namespace: Namespace, loaders: LocaleLoaders): void;
+    /** Registers a namespace from a `locales/index.ts` module, accepting either a default export or the object itself. */
+    registerModule(namespace: Namespace, module: LocalesModule): void;
+    /**
+     * Marks which namespace belongs to the application, so the fallback chain can point at it and `APP_NS` can resolve.
+     */
+    setApplicationNamespace(namespace: Namespace): void;
+    getApplicationNamespace(): Namespace | undefined;
+    getNamespaces(): readonly Namespace[];
+    hasNamespace(namespace: Namespace): boolean;
+    /**
+     * The locales one namespace declares loaders for, in declaration order.
+     *
+     * This is what lets the runtime offer exactly the languages the application's own locale files provide, rather than
+     * every language some installed plugin happens to translate. An unregistered namespace declares nothing.
+     */
+    getNamespaceLocales(namespace: Namespace): readonly Locale[];
+    /**
+     * The fallback chain for a namespace: its own keys, then the application's, then the base package's.
+     *
+     * A plugin that writes `t('save')` without naming a namespace therefore reuses the application's wording, and only
+     * falls through to the built-in term when the application has not defined one.
+     */
+    getFallbackNamespaces(namespace: Namespace): readonly Namespace[];
+    /**
+     * Turns `APP_NS` into the application's actual package name, and leaves any other namespace as it is.
+     *
+     * With no application registered the sentinel has nothing to stand for, so it resolves to the base namespace and the
+     * lookup still finds the built-in terms instead of failing.
+     */
+    resolveNamespace(namespace: Namespace): Namespace;
+    /** Every locale any registered namespace can produce. */
+    getAvailableLocales(): readonly Locale[];
+    isLoaded(namespace: Namespace, locale: Locale): boolean;
+    /**
+     * Loads one namespace's resource for a locale, or resolves to `undefined` when that namespace does not translate it.
+     *
+     * Concurrent callers share one import, and a resolved locale is never imported twice.
+     */
+    loadNamespace(namespace: Namespace, locale: Locale): Promise<LocaleModule | undefined>;
+    /**
+     * Loads a locale across every registered namespace in parallel.
+     *
+     * Loading is per locale rather than per namespace: the navigation renders labels owned by every plugin, so their
+     * namespaces have to be present from the first frame anyway.
+     */
+    loadLocale(locale: Locale): Promise<LoadLocaleResult>;
+}
+//# sourceMappingURL=registry.d.ts.map

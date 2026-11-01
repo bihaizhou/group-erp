@@ -1,0 +1,1 @@
+{"version":3,"file":"mount.d.ts","sourceRoot":"","sources":["../../src/runtime/mount.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,YAAY,CAAC;AAE5C,wBAAgB,2BAA2B,CACzC,GAAG,EAAE,SAAS,EACd,cAAc,EAAE,MAAM,GACrB,SAAS,CAsBX;AAED,wBAAgB,8BAA8B,CAC5C,OAAO,EAAE,OAAO,EAChB,cAAc,EAAE,MAAM,GACrB,OAAO,GAAG,IAAI,CAkBhB"}

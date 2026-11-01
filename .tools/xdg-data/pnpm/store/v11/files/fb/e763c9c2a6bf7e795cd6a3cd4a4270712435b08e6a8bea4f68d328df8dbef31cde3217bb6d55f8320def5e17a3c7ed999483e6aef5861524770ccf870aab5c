@@ -1,0 +1,41 @@
+import type { FilterAst, FilterLiteral, FilterNode, FilterOperator } from '@nocobase/db';
+/**
+ * A scope before it is attached to a Collection: `true` is every row, `false`
+ * is none, and a node is a condition on this Collection's own columns.
+ *
+ * The two constants exist because an empty `or` and an empty `and` are not
+ * expressible as groups — `{ logic: 'or', items: [] }` reads as a filter that
+ * matches everything in most engines — so emptiness is carried out of band and
+ * decided at the node level: `false` selects no row, `true` binds no filter.
+ */
+export type DatabaseScope = boolean | FilterNode;
+/**
+ * Conditions are built literally rather than through `FilterBuilder`, which
+ * picks `string()` or `number()` from a field's type. The Collection registry
+ * records field names only.
+ */
+export declare function condition(field: string, operator: FilterOperator, value?: FilterLiteral): FilterNode;
+/**
+ * A scope that matches no row, for a permitted action whose scope resolved to
+ * `false`. A value cannot be both empty and not empty, in any dialect.
+ */
+export declare function noRowsScope(primaryKey: string): FilterNode;
+export declare function anyScope(scopes: readonly DatabaseScope[]): DatabaseScope;
+export declare function allScopes(scopes: readonly DatabaseScope[]): DatabaseScope;
+/**
+ * Membership expands to one `$eq` per identifier because `FilterOperator` has
+ * no `$in` — `$includes` is a substring test. A negated list would expand the
+ * same way, as an `and` of `$ne`. Both collapse once db grows the operator.
+ */
+export declare function idsScope(field: string, ids: readonly string[]): DatabaseScope;
+/** Attach a scope to its Collection. `true` and `false` are decided by the caller. */
+export declare function scopeAst(collection: string, scope: FilterNode): FilterAst;
+/**
+ * A Record Access policy may be configured rather than written, so what it
+ * returns is checked against the same rule db applies to a Policy scope: this
+ * Collection's own registered columns, no relation traversal, no JSON
+ * operator. The check runs here so a bad rule is a denial with a reason, not a
+ * Repository error at query time.
+ */
+export declare function assertDatabaseScope(value: unknown, fields: readonly string[]): asserts value is DatabaseScope;
+//# sourceMappingURL=scope.d.ts.map

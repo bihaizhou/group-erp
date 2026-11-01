@@ -1,0 +1,8 @@
+import { type AppClientPluginFactory } from '@nocobase/app-client/plugins';
+/**
+ * Registers the plugin with the client application. It contributes no pages: an application that wants to browse its
+ * schema builds a page on `DatabaseExplorerClient` and declares it among its own routes.
+ */
+declare const databaseExplorer: AppClientPluginFactory;
+export default databaseExplorer;
+//# sourceMappingURL=plugin.d.ts.map

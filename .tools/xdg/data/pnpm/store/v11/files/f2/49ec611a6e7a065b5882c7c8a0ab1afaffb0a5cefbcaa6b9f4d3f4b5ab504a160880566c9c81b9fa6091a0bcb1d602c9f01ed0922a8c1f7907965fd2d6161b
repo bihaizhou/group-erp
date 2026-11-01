@@ -1,0 +1,3 @@
+import type { MailRichTextEditorLabels } from '../components/mail-rich-text-editor.js';
+export declare function mailEditorLabels(t: (key: string, options?: Record<string, unknown>) => string): Required<MailRichTextEditorLabels>;
+//# sourceMappingURL=mail-editor-labels.d.ts.map

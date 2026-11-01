@@ -1,0 +1,7 @@
+import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
+import type { ReactElement } from 'react';
+export declare function TooltipProvider({ delay, ...props }: TooltipPrimitive.Provider.Props): ReactElement;
+export declare function Tooltip(props: TooltipPrimitive.Root.Props): ReactElement;
+export declare function TooltipTrigger(props: TooltipPrimitive.Trigger.Props): ReactElement;
+export declare function TooltipContent({ className, side, sideOffset, align, alignOffset, children, ...props }: TooltipPrimitive.Popup.Props & Pick<TooltipPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'>): ReactElement;
+//# sourceMappingURL=tooltip.d.ts.map

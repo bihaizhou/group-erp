@@ -1,0 +1,83 @@
+/**
+ * Key scopes as data: what a plugin declares it offers (permission groups and presets), what a key's scope holds, and
+ * how a scope is stored in Better Auth's `permissions` column. Nothing here imports another plugin, so a plugin that
+ * contributes a group writes a literal of the same shape without depending on this package.
+ *
+ * A scope only ever narrows: a key's effective permission is its owner's current permission intersected with the
+ * scope. A key without a scope (`permissions = null`) is its owner, exactly as before scopes existed.
+ */
+export const KEY_SCOPE_LEVELS = [
+    'read',
+    'write',
+    'admin',
+];
+/** The storage format's version, kept under `$v`. */
+export const KEY_SCOPE_FORMAT_VERSION = '1';
+/** The records a group grant is limited to; undefined when it reaches every record. */
+export function pickedObjects(grant) {
+    return grant.objects === undefined || grant.objects === 'all'
+        ? undefined
+        : grant.objects;
+}
+/** The levels up to and including `level`. */
+export function levelsUpTo(level) {
+    return KEY_SCOPE_LEVELS.slice(0, KEY_SCOPE_LEVELS.indexOf(level) + 1);
+}
+/**
+ * A scope as Better Auth's `permissions` column holds it: each group's levels expanded (`"releases.apps":
+ * ["read","write"]`), picked records under `"<group>@"`, and the format version under `$v`. Better Auth treats
+ * `permissions` as server-only on create and update, so a key's holder cannot widen it through `/api-key/update`.
+ */
+export function encodeKeyScope(scope) {
+    const encoded = {
+        $v: [KEY_SCOPE_FORMAT_VERSION],
+    };
+    for (const [id, grant] of Object.entries(scope.groups)) {
+        encoded[id] = levelsUpTo(grant.level);
+        const picked = pickedObjects(grant);
+        if (picked)
+            encoded[`${id}@`] = [...picked];
+    }
+    return encoded;
+}
+/** The scope a `permissions` value holds; null for a key without one. A value in an unknown format grants nothing. */
+export function decodeKeyScope(permissions) {
+    const value = typeof permissions === 'string' ? safeParse(permissions) : permissions;
+    if (value === null || value === undefined)
+        return null;
+    if (typeof value !== 'object' || Array.isArray(value))
+        return { groups: {} };
+    const record = value;
+    const version = record.$v;
+    if (!Array.isArray(version) || version[0] !== KEY_SCOPE_FORMAT_VERSION)
+        return { groups: {} };
+    const groups = {};
+    for (const [id, levels] of Object.entries(record)) {
+        if (id === '$v' || id.endsWith('@') || !Array.isArray(levels))
+            continue;
+        const level = [...KEY_SCOPE_LEVELS]
+            .reverse()
+            .find((candidate) => levels.includes(candidate));
+        if (!level)
+            continue;
+        const objects = record[`${id}@`];
+        groups[id] = {
+            level,
+            ...(Array.isArray(objects)
+                ? {
+                    objects: objects.filter((item) => typeof item === 'string'),
+                }
+                : {}),
+        };
+    }
+    return { groups };
+}
+function safeParse(text) {
+    try {
+        return JSON.parse(text);
+    }
+    catch {
+        return {};
+    }
+}
+//# sourceMappingURL=scopes.js.map

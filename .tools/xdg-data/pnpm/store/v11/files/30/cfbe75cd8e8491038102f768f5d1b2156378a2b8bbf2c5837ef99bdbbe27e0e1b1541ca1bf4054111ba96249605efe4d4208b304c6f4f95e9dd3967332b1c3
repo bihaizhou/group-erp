@@ -1,0 +1,4 @@
+import type { LoggerLevel } from './types.js';
+export declare const loggerLevels: readonly LoggerLevel[];
+export declare function isLoggerLevel(value: unknown): value is LoggerLevel;
+//# sourceMappingURL=levels.d.ts.map

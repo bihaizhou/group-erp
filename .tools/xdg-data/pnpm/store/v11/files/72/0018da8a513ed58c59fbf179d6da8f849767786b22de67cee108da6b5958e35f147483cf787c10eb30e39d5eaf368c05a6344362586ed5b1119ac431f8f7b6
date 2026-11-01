@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "files": {
+    "202608190001_create_notification_tables.js": {
+      "sourceChecksum": "b0bd9ce9e33a3f65380f1f90c9f1ca817b44fd1dba43305335646c7f4f3286b8",
+      "artifactChecksum": "0379aa370bbb9529bff164956d3435de3074dd83de24d5a9faf944b00182e352"
+    },
+    "202609080001_create_notification_idempotency.js": {
+      "sourceChecksum": "1aabe0dcd34b3e9c738fad628acf364a7608b33792841e7aa118ca241f7e6d51",
+      "artifactChecksum": "7b867a4523b17e3ad30f498f59cc59e77a36cf8609b1b4f6d267f59064ec9d3f"
+    },
+    "202609130001_notification_instant_columns.js": {
+      "sourceChecksum": "87c941c73aafe0018188f99dafa9003e8d5a370cbad972f2f57428b81e369be7",
+      "artifactChecksum": "20b2de109e40811198af50a36ba59b885587b17cbf6b795ae853309801acc27b"
+    },
+    "202609200001_notification_channel_names.js": {
+      "sourceChecksum": "549eaa84f5425e7c1db74539ad71bec3b4b817e093a2cb5ba83a00393d921d7c",
+      "artifactChecksum": "ea33a8d71b34ecf06c59cfcd08f6f0f11f0aa179d56ec6c24b84b82b0eb7aec3"
+    },
+    "202609200003_notification_single_provider.js": {
+      "sourceChecksum": "3eda32445a1dc9fb416f0a396b88b626f9d594339222db6f142ca74281e389d9",
+      "artifactChecksum": "4fe93635c618e04b0106d2330f7a8fe51724a659820a46d7aebe024e2a687f6d"
+    }
+  }
+}

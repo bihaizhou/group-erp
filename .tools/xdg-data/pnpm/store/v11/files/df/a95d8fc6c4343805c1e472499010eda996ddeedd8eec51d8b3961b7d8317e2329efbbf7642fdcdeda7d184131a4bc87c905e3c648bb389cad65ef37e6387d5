@@ -1,0 +1,9 @@
+export type SecretsErrorCode = 'SECRETS_NOT_CONFIGURED' | 'SECRETS_KEY_UNKNOWN' | 'SECRETS_MALFORMED' | 'SECRETS_AUTH_FAILED';
+/** A secret could not be sealed or opened. `code` says why; the message never contains key material or plaintext. */
+export declare class SecretsError extends Error {
+    readonly code: SecretsErrorCode;
+    constructor(code: SecretsErrorCode, message: string, options?: ErrorOptions);
+}
+/** Recognised by `name` as well as by class, so a second copy of this package is still recognised. */
+export declare function isSecretsError(error: unknown): error is SecretsError;
+//# sourceMappingURL=errors.d.ts.map

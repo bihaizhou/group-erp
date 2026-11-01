@@ -1,0 +1,18 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { RefreshCw } from 'lucide-react';
+import { MailStatusBadge } from './mail-status-badge.js';
+import { Button } from './ui/button.js';
+import { Card } from './ui/card.js';
+export function MailAccountCard({ account, canSync = true, providerLabel, syncLabel, statusLabel, ownerLabel, syncing = false, onSync, }) {
+    return (_jsx(Card, { className: 'p-5 shadow-sm', children: _jsxs("div", { className: 'flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between', children: [_jsxs("div", { className: 'min-w-0', children: [_jsxs("div", { className: 'flex flex-wrap items-center gap-2', children: [_jsx("h3", { className: 'truncate font-semibold', children: account.address }), _jsx(MailStatusBadge, { label: statusLabel, tone: accountStatusTone(account.status) })] }), _jsxs("p", { className: 'mt-1 text-sm text-muted-foreground', children: [account.displayName ? `${account.displayName} · ` : '', providerLabel] }), ownerLabel ? (_jsx("p", { className: 'mt-1 text-xs text-muted-foreground', children: ownerLabel })) : null] }), canSync && onSync && syncLabel ? (_jsxs(Button, { disabled: syncing || account.status !== 'active', onClick: () => onSync(account), type: 'button', children: [_jsx(RefreshCw, { "aria-hidden": 'true', className: `size-4 ${syncing ? 'animate-spin' : ''}` }), syncLabel] })) : null] }) }));
+}
+function accountStatusTone(status) {
+    if (status === 'active')
+        return 'success';
+    if (status === 'connecting')
+        return 'info';
+    if (status === 'reauthorizationRequired')
+        return 'warning';
+    return 'danger';
+}
+//# sourceMappingURL=mail-account-card.js.map

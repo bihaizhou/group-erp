@@ -1,0 +1,20 @@
+export type CollectionArtifactNameErrorCode = 'COLLECTION_ARTIFACT_NAME_INVALID' | 'COLLECTION_ARTIFACT_NAME_CONFLICT';
+export declare class CollectionArtifactNameError extends Error {
+    readonly code: CollectionArtifactNameErrorCode;
+    readonly names: readonly string[];
+    constructor(code: CollectionArtifactNameErrorCode, message: string, names: readonly string[]);
+}
+/**
+ * A logical Collection name has to survive as a directory name on every
+ * platform a repository is checked out on. `@nocobase/db` only requires the
+ * name to be non-empty without surrounding whitespace, so the artifact layer
+ * adds what file systems demand.
+ */
+export declare function validateCollectionArtifactDirectoryName(name: string): void;
+/**
+ * Two names that differ only by case land in one directory on the default
+ * file systems of macOS and Windows. Report every such group at once so the
+ * caller can fix them together rather than one per run.
+ */
+export declare function findCollectionArtifactNameConflicts(names: readonly string[]): string[][];
+export declare function assertCollectionArtifactDirectoryNames(names: readonly string[]): void;

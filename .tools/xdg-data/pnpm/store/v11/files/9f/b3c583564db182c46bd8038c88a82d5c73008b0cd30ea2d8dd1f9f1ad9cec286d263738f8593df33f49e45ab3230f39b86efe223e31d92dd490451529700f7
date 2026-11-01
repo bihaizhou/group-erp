@@ -1,0 +1,13 @@
+import type { LifecycleDescription } from './definition.js';
+export interface MermaidOptions {
+    /** Label states and transitions by their titles (the default) or their names. */
+    readonly labels?: 'title' | 'name';
+}
+/**
+ * The lifecycle as a Mermaid state diagram, for documentation or an admin
+ * page. Initial states start from `[*]` and final states end there; a
+ * transition a trigger fires says which, one an effect continues with
+ * names the effect, and one only server code fires is marked ⚙.
+ */
+export declare function toMermaid(description: LifecycleDescription, options?: MermaidOptions): string;
+//# sourceMappingURL=mermaid.d.ts.map

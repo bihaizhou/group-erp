@@ -1,0 +1,214 @@
+import { symbols } from 'pino';
+import { createDefaultLoggingConfig } from './config.js';
+import { createLogOutput, reportLoggingFailure, } from './output.js';
+import { createLogger } from './logger.js';
+export class Logging {
+    outputs;
+    defaultLogger;
+    defaultConfig;
+    loggerConfigs;
+    loggers = new Map();
+    transportLoggers = new Set();
+    transportStreams = new Set();
+    destinations = new Map();
+    closePromise;
+    constructor(config = createDefaultLoggingConfig()) {
+        const { default: defaultLogger = 'system', pretty, file, console: consoleOutput, loggers = {}, ...defaultConfig } = config;
+        if (config.default !== undefined)
+            reportLoggingFailure('logging.default is deprecated; use getLogger(name) explicitly');
+        if (pretty !== undefined)
+            reportLoggingFailure('logging.pretty is deprecated; use console.pretty');
+        this.outputs = {
+            file,
+            console: consoleOutput ??
+                (pretty === undefined ? undefined : { enabled: pretty, pretty }),
+        };
+        this.defaultLogger = defaultLogger;
+        this.defaultConfig = defaultConfig;
+        this.loggerConfigs = loggers;
+    }
+    getLogger(name = this.defaultLogger) {
+        const existing = this.loggers.get(name);
+        if (existing) {
+            return existing;
+        }
+        const { file: fileOverride, ...override } = this.loggerConfigs[name] ?? {};
+        const config = resolveLoggerConfig(this.defaultConfig, override, name);
+        let destination;
+        if (config.transport && (this.outputs.file || this.outputs.console))
+            reportLoggingFailure('Explicit logging transport owns output; file and console settings are ignored');
+        if (!config.transport && (this.outputs.file || this.outputs.console)) {
+            const file = {
+                ...this.outputs.file,
+                ...(fileOverride?.directory === undefined
+                    ? {}
+                    : { directory: fileOverride.directory }),
+                ...(fileOverride?.name === undefined
+                    ? {}
+                    : { name: fileOverride.name }),
+                enabled: this.outputs.file?.enabled !== false &&
+                    fileOverride?.enabled !== false,
+            };
+            const key = JSON.stringify([file, this.outputs.console]);
+            destination = this.destinations.get(key);
+            if (!destination) {
+                destination = createLogOutput({ ...this.outputs, file });
+                this.destinations.set(key, destination);
+            }
+        }
+        const logger = createLogger(config, destination).child({ logger: name });
+        if (destination) {
+            this.transportLoggers.add(logger);
+            this.transportStreams.add(destination);
+        }
+        if (config.transport) {
+            this.transportLoggers.add(logger);
+            this.transportStreams.add(resolveClosableStream(logger));
+        }
+        this.loggers.set(name, logger);
+        return logger;
+    }
+    async flush() {
+        await Promise.all([...this.loggers.values()].map((logger) => this.flushLogger(logger)));
+    }
+    close() {
+        this.closePromise ??= this.closeLoggers();
+        return this.closePromise;
+    }
+    async closeLoggers() {
+        await Promise.all([
+            ...[...this.loggers.values()]
+                .filter((logger) => !this.transportLoggers.has(logger))
+                .map((logger) => this.flushLogger(logger)),
+            ...[...this.transportStreams].map(closeTransportStream),
+        ]);
+        this.transportLoggers.clear();
+        this.transportStreams.clear();
+    }
+    flushLogger(logger) {
+        return new Promise((resolve, reject) => {
+            logger.flush((error) => {
+                if (error) {
+                    reject(error);
+                    return;
+                }
+                resolve();
+            });
+        });
+    }
+}
+function resolveClosableStream(logger) {
+    const stream = logger[symbols.streamSym];
+    if (typeof stream.end !== 'function' ||
+        typeof stream.once !== 'function') {
+        throw new Error('Configured logging transport is not closable.');
+    }
+    return stream;
+}
+function closeTransportStream(stream) {
+    if (stream.closed || stream.destroyed) {
+        return Promise.resolve();
+    }
+    return new Promise((resolve, reject) => {
+        const cleanup = () => {
+            stream.off('close', handleClose);
+            stream.off('error', handleError);
+            stream.off('finish', handleFinish);
+        };
+        const handleDone = () => {
+            cleanup();
+            resolve();
+        };
+        const handleClose = handleDone;
+        const handleFinish = handleDone;
+        const handleError = (error) => {
+            cleanup();
+            reject(error);
+        };
+        stream.once('close', handleClose);
+        stream.once('error', handleError);
+        stream.once('finish', handleFinish);
+        try {
+            stream.end();
+        }
+        catch (error) {
+            cleanup();
+            reject(error instanceof Error ? error : new Error(String(error)));
+        }
+    });
+}
+export function createLogging(config = createDefaultLoggingConfig()) {
+    return new Logging(config);
+}
+function resolveLoggerConfig(defaultConfig, override, loggerName) {
+    const config = mergeLoggerConfig(defaultConfig, override);
+    return {
+        ...config,
+        transport: resolveTransportTemplate(config.transport, loggerName),
+    };
+}
+function mergeLoggerConfig(defaultConfig, override) {
+    if (!override) {
+        return { ...defaultConfig };
+    }
+    return {
+        ...defaultConfig,
+        ...override,
+        base: mergeObjectConfig(defaultConfig.base, override.base),
+        transport: mergeTransportConfig(defaultConfig.transport, override.transport),
+    };
+}
+function mergeObjectConfig(base, override) {
+    if (override === undefined) {
+        return base;
+    }
+    if (!isRecord(base) || !isRecord(override)) {
+        return override;
+    }
+    return {
+        ...base,
+        ...override,
+    };
+}
+function mergeTransportConfig(base, override) {
+    if (override === undefined) {
+        return base;
+    }
+    if (!isRecord(base) || !isRecord(override)) {
+        return override;
+    }
+    return {
+        ...base,
+        ...override,
+        options: mergeObjectConfig(base.options, override.options),
+    };
+}
+function resolveTransportTemplate(transport, loggerName) {
+    if (!isRecord(transport) || !isRecord(transport.options)) {
+        return transport;
+    }
+    const options = replaceLoggerTemplate(transport.options, loggerName);
+    if (options === transport.options) {
+        return transport;
+    }
+    return {
+        ...transport,
+        options,
+    };
+}
+function replaceLoggerTemplate(options, loggerName) {
+    const templatedKeys = ['destination', 'file'];
+    const replacements = Object.fromEntries(templatedKeys.flatMap((key) => {
+        const value = options[key];
+        return typeof value === 'string' && value.includes('{logger}')
+            ? [[key, value.replaceAll('{logger}', loggerName)]]
+            : [];
+    }));
+    return Object.keys(replacements).length
+        ? { ...options, ...replacements }
+        : options;
+}
+function isRecord(value) {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+//# sourceMappingURL=logging.js.map

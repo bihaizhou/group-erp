@@ -1,0 +1,1 @@
+{"version":3,"file":"define.d.ts","sourceRoot":"","sources":["../../src/plugins/define.ts"],"names":[],"mappings":"AAEA,OAAO,KAAK,EACV,eAAe,EACf,yBAAyB,EACzB,gBAAgB,EACjB,MAAM,YAAY,CAAC;AAIpB,wBAAgB,kBAAkB,CAAC,OAAO,GAAG,MAAM,EACjD,UAAU,EAAE,yBAAyB,CAAC,OAAO,CAAC,GAC7C,eAAe,CAAC,OAAO,CAAC,CA8B1B;AAED,wBAAgB,mBAAmB,CACjC,OAAO,EAAE,SAAS,eAAe,EAAE,GAClC,gBAAgB,CAYlB"}

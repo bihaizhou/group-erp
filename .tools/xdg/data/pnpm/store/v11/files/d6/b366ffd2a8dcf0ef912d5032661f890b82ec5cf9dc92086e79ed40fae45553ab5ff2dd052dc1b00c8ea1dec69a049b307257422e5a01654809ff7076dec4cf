@@ -1,0 +1,6 @@
+import type { QueryAdapter } from '@nocobase/db';
+/** Call while holding the account write lock so schedule and edits serialize. */
+export declare function assertDraftEditable(query: QueryAdapter, accountId: string, messageId: string): Promise<void>;
+/** Only the worker that completed this exact delivery may remove the locked draft. */
+export declare function assertDraftDeletable(query: QueryAdapter, accountId: string, messageId: string, acceptedSubmissionId?: string): Promise<void>;
+//# sourceMappingURL=scheduled-drafts.d.ts.map

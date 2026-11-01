@@ -1,0 +1,16 @@
+import type { ScheduleRule } from './validation.js';
+/**
+ * Serializes JSON-compatible data with object keys sorted, so two values that
+ * differ only in key order compare equal. It follows `JSON.stringify` for
+ * everything else: `toJSON` is honoured, `undefined` and functions are dropped
+ * from objects and become `null` in arrays.
+ */
+export declare function stableStringify(value: unknown): string | undefined;
+/** Compares two rules field by field; dates compare by millisecond. */
+export declare function sameRule(left: ScheduleRule, right: ScheduleRule): boolean;
+/**
+ * A cron rule without a time zone runs in UTC, which is how both adapters
+ * write it; an interval rule has no use for one.
+ */
+export declare function effectiveTimeZone(rule: ScheduleRule): string | undefined;
+//# sourceMappingURL=rules.d.ts.map

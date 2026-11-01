@@ -1,0 +1,40 @@
+import type { Application } from '@nocobase/app-server';
+import { type SecretsService, type SecretsStoreStatus } from '@nocobase/app-server/secrets';
+/** How many rows a store reads and rewrites at a time unless `--batch-size` says otherwise. */
+export declare const DEFAULT_SECRETS_BATCH_SIZE = 200;
+export interface SecretsStoreReport extends SecretsStoreStatus {
+    readonly name: string;
+}
+export interface SecretsStatusResult {
+    readonly currentVersion: number;
+    readonly stores: readonly SecretsStoreReport[];
+    /** Values across every store not sealed with the current key. */
+    readonly needsReseal: number;
+}
+export interface SecretsRotateStoreReport {
+    readonly name: string;
+    readonly resealed: number;
+    readonly failed: number;
+    /** What still needs resealing after this run; equal to before under `--dry-run`. */
+    readonly needsReseal: number;
+}
+export interface SecretsRotateResult {
+    readonly dryRun: boolean;
+    readonly currentVersion: number;
+    readonly stores: readonly SecretsRotateStoreReport[];
+    readonly resealed: number;
+    readonly failed: number;
+}
+/** The ready secrets service of an application whose providers are registered, or the error that says what to set. */
+export declare function requireSecretsService(app: Application): SecretsService;
+export declare function collectSecretsStatus(secrets: SecretsService, batchSize: number): Promise<SecretsStatusResult>;
+/**
+ * Reseals every store under the current key. Each store skips what is already current, so a run that stops part-way
+ * is finished by running it again.
+ */
+export declare function rotateSecrets(secrets: SecretsService, options: {
+    readonly batchSize: number;
+    readonly dryRun: boolean;
+}, onStore?: (report: SecretsRotateStoreReport) => void): Promise<SecretsRotateResult>;
+export declare function formatVersions(byVersion: Readonly<Record<string, number>>): string;
+//# sourceMappingURL=secrets-command.d.ts.map

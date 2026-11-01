@@ -1,0 +1,23 @@
+import type { NormalizedMailMessage } from '../contracts/provider.js';
+import { type DatabaseManager } from '@nocobase/db';
+import { type MailComposeInput, type MailOffsetPage, type MailProviderError, type MailSubmission } from '../../shared/mail.js';
+import { type MailScheduledSubmission, type MailStore, type MailStoredSubmission } from '../contracts/persistence.js';
+export declare class MailSubmissionsStore {
+    private readonly database;
+    private readonly accounts;
+    constructor(database: DatabaseManager, accounts: Pick<MailStore, 'listAccounts' | 'getAccount'>);
+    getSubmissionByIdempotencyKey(accountId: string, idempotencyKey: string): Promise<MailStoredSubmission | undefined>;
+    countSubmissions(userId: string, bulkOnly?: boolean, groupByBatch?: boolean): Promise<number>;
+    listSubmissions(userId: string, bulkOnly?: boolean, offset?: number, groupByBatch?: boolean, limit?: number): Promise<readonly MailStoredSubmission[]>;
+    listAllSubmissions(offset: number, limit: number): Promise<MailOffsetPage<MailStoredSubmission>>;
+    createSubmission(submission: MailSubmission, idempotencyKey: string, requestFingerprint: string, actorId?: string, input?: MailComposeInput): Promise<MailStoredSubmission>;
+    createScheduledSubmission(submission: MailSubmission, idempotencyKey: string, requestFingerprint: string, actorId: string, input: MailComposeInput, draftSnapshot?: NormalizedMailMessage): Promise<MailStoredSubmission>;
+    getScheduledSubmission(submissionId: string): Promise<MailScheduledSubmission | undefined>;
+    clearScheduledSubmission(submissionId: string): Promise<void>;
+    failScheduledSubmission(submissionId: string, error: MailProviderError): Promise<void>;
+    transitionSubmission(submissionId: string, action: 'retry' | 'cancel'): Promise<MailStoredSubmission>;
+    claimSubmission(submissionId: string, leaseToken: string, leaseExpiresAt: string): Promise<boolean>;
+    recoverExpiredSubmissions(now: string): Promise<number>;
+    finishSubmission(submission: MailSubmission, leaseToken: string): Promise<MailSubmission>;
+}
+//# sourceMappingURL=submissions.d.ts.map

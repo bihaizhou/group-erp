@@ -1,0 +1,18 @@
+import { z } from 'zod';
+export declare const ConnectionParams: z.ZodObject<{
+    connection: z.ZodString;
+}, z.core.$strip>;
+export declare const CollectionParams: z.ZodObject<{
+    connection: z.ZodString;
+    collection: z.ZodString;
+}, z.core.$strip>;
+export declare const ListCollectionsQuery: z.ZodObject<{
+    pageSize: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
+    pageToken: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
+export type ListCollectionsQueryInput = z.infer<typeof ListCollectionsQuery>;
+export declare const ConnectionSummarySchema: z.ZodType;
+export declare const CollectionEntrySchema: z.ZodType;
+export declare const CollectionDetailSchema: z.ZodType;
+export declare const PhysicalCollectionDetailSchema: z.ZodType;
+//# sourceMappingURL=schemas.d.ts.map

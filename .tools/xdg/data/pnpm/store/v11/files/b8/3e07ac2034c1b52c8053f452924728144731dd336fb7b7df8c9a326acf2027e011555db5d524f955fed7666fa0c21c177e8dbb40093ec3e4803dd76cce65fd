@@ -1,0 +1,9 @@
+import { createServiceToken, } from '@nocobase/service-provider';
+export const mailServiceToken = createServiceToken('@nocobase/app-plugin-mail/service');
+export const mailStoreToken = createServiceToken('@nocobase/app-plugin-mail/store');
+export const mailCredentialVaultToken = createServiceToken('@nocobase/app-plugin-mail/credential-vault');
+export const mailProviderRegistryToken = createServiceToken('@nocobase/app-plugin-mail/provider-registry');
+export const mailProviderAdapterResolverToken = createServiceToken('@nocobase/app-plugin-mail/provider-adapter-resolver');
+export const mailRuntimeToken = createServiceToken('@nocobase/app-plugin-mail/runtime');
+export const mailOutboundAttachmentStorageToken = createServiceToken('@nocobase/app-plugin-mail/outbound-attachment-storage');
+//# sourceMappingURL=tokens.js.map

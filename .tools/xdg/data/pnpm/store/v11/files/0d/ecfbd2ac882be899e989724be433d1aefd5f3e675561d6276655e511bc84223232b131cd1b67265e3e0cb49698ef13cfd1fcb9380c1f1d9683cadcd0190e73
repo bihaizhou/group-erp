@@ -1,0 +1,11 @@
+import { SnowflakeIdGenerator } from '@nocobase/snowflake';
+import { ServiceProvider } from '@nocobase/service-provider';
+import { idGeneratorToken } from './token.js';
+export class IdGeneratorProvider extends ServiceProvider {
+    name = '@nocobase/app-server/id-generator';
+    register() {
+        const config = this.app.config.get('snowflake');
+        this.app.container.singleton(idGeneratorToken, () => new SnowflakeIdGenerator(config));
+    }
+}
+//# sourceMappingURL=provider.js.map

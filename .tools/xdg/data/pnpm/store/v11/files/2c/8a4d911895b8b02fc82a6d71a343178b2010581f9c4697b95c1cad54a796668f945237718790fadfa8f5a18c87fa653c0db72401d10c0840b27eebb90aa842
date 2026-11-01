@@ -1,0 +1,79 @@
+const RULES = 'authorizationDefaultAccessRules';
+const COLUMNS = ['key', 'resourceType', 'resourceId', 'actions'];
+export class DatabaseDefaultAccessStore {
+    connection;
+    constructor(connection) {
+        this.connection = connection;
+    }
+    withTransaction(connection) {
+        return new DatabaseDefaultAccessStore(() => connection);
+    }
+    async list() {
+        const rows = await this.connection()
+            .query.selectFrom(RULES)
+            .select([...COLUMNS])
+            .orderBy('key', 'asc')
+            .execute();
+        return rows.map((row) => fromRow(row));
+    }
+    async get(key) {
+        const row = await this.connection()
+            .query.selectFrom(RULES)
+            .select([...COLUMNS])
+            .where('key', '=', key)
+            .executeTakeFirst();
+        return row && fromRow(row);
+    }
+    async create(rule) {
+        const now = new Date();
+        await this.connection()
+            .query.insertInto(RULES)
+            .values({
+            id: crypto.randomUUID(),
+            ...toValues(rule),
+            createdAt: now,
+            updatedAt: now,
+        })
+            .execute();
+        return rule;
+    }
+    async update(key, rule) {
+        await this.connection()
+            .query.updateTable(RULES)
+            .set({ ...toValues(rule), updatedAt: new Date() })
+            .where('key', '=', key)
+            .execute();
+        return rule;
+    }
+    async delete(key) {
+        await this.connection()
+            .query.deleteFrom(RULES)
+            .where('key', '=', key)
+            .execute();
+    }
+}
+function toValues(rule) {
+    return {
+        key: rule.key,
+        resourceType: rule.resource.type,
+        resourceId: rule.resource.id,
+        actions: JSON.stringify(rule.actions),
+    };
+}
+function fromRow(row) {
+    const value = row;
+    return {
+        key: String(value.key),
+        resource: {
+            type: String(value.resourceType),
+            id: String(value.resourceId),
+        },
+        actions: parseJson(value.actions, []),
+    };
+}
+function parseJson(value, fallback) {
+    if (value == null)
+        return fallback;
+    return typeof value === 'string' ? JSON.parse(value) : value;
+}
+//# sourceMappingURL=default-access.js.map

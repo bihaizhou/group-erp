@@ -1,0 +1,49 @@
+import { CollectionMetadataConflictError } from './document-store-errors.js';
+import { cloneStoredCollectionMetadata, paginateCollectionMetadata, validateCollectionMetadataStoreName, validateDeleteCollectionMetadataOptions, validatePutCollectionMetadataOptions, } from './document-store-helpers.js';
+import { validateCollectionMetadataDocument } from './validation.js';
+export class InMemoryCollectionMetadataStore {
+    capabilities = Object.freeze({
+        writable: true,
+        optimisticConcurrency: true,
+    });
+    documents = new Map();
+    revision = 0;
+    async initialize() { }
+    async get(name) {
+        validateCollectionMetadataStoreName(name);
+        const stored = this.documents.get(name);
+        return stored ? cloneStoredCollectionMetadata(stored) : undefined;
+    }
+    async list(options = {}) {
+        return paginateCollectionMetadata([...this.documents.values()], options);
+    }
+    async put(input, options) {
+        validatePutCollectionMetadataOptions(options);
+        const document = validateCollectionMetadataDocument(input);
+        const current = this.documents.get(document.name);
+        const actualRevision = current?.revision ?? null;
+        if (actualRevision !== options.expectedRevision) {
+            throw new CollectionMetadataConflictError(document.name, options.expectedRevision, actualRevision);
+        }
+        const stored = {
+            document,
+            revision: this.nextRevision(),
+        };
+        this.documents.set(document.name, stored);
+        return cloneStoredCollectionMetadata(stored);
+    }
+    async delete(name, options) {
+        validateCollectionMetadataStoreName(name);
+        validateDeleteCollectionMetadataOptions(options);
+        const current = this.documents.get(name);
+        const actualRevision = current?.revision ?? null;
+        if (actualRevision !== options.expectedRevision) {
+            throw new CollectionMetadataConflictError(name, options.expectedRevision, actualRevision);
+        }
+        this.documents.delete(name);
+    }
+    nextRevision() {
+        this.revision += 1;
+        return this.revision;
+    }
+}

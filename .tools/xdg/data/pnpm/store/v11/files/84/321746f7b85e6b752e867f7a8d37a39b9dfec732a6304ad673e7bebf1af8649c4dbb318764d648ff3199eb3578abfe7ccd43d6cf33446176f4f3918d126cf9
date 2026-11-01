@@ -1,0 +1,15 @@
+export class DefaultConnectionFactory {
+    adapters;
+    defaultAdapter;
+    constructor(adapters, defaultAdapter = 'knex') {
+        this.adapters = adapters;
+        this.defaultAdapter = defaultAdapter;
+    }
+    create(context) {
+        const adapter = this.adapters[this.defaultAdapter];
+        if (!adapter) {
+            throw new Error(`Database adapter "${this.defaultAdapter}" is not registered.`);
+        }
+        return adapter.createConnection(context);
+    }
+}

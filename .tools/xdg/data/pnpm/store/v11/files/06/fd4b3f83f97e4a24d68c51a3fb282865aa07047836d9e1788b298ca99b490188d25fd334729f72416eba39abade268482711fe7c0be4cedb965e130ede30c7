@@ -1,0 +1,10 @@
+export const APP_BUILD_HOOK_STAGES = Object.freeze([
+    'beforeBuild',
+    'afterClientBuild',
+    'afterServerBuild',
+    'afterBuild',
+]);
+export const APP_DEV_HOOK_STAGES = Object.freeze([
+    'beforeDev',
+]);
+//# sourceMappingURL=types.js.map

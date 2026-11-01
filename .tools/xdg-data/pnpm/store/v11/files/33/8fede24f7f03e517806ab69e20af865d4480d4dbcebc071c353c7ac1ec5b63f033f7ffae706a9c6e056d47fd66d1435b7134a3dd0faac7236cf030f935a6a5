@@ -1,0 +1,15 @@
+import type { Context } from 'hono';
+import { type RepositoryPolicy } from '@nocobase/db';
+import type { RepositoryApiAction } from './repository-routes.js';
+/** Trusted middleware may only narrow the policy of the matching endpoint. */
+export interface RepositoryRequestConstraint {
+    readonly repository: string;
+    readonly action: RepositoryApiAction;
+    readonly collection: string;
+    readonly connection?: string;
+    readonly policy: RepositoryPolicy;
+}
+export declare function addRepositoryRequestConstraint(context: Context, constraint: RepositoryRequestConstraint): void;
+/** Server-owned request state, never populated from a request body. */
+export declare function getRepositoryRequestConstraints(context: Context): readonly RepositoryRequestConstraint[];
+//# sourceMappingURL=repository-constraints.d.ts.map

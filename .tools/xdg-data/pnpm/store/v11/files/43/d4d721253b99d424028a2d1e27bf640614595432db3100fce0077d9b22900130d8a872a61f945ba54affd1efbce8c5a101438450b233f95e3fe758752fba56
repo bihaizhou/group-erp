@@ -1,0 +1,23 @@
+import { DatabaseExplorerError } from './types.js';
+/**
+ * True for an error raised by the Schema Inspector.
+ *
+ * Matching on shape rather than identity is deliberate: the error class is
+ * internal to `@nocobase/db` and absent from the public entry its own package
+ * guards with a public-API check, so `instanceof` is not available here.
+ */
+export declare function isSchemaInspectorError(error: unknown): error is Error & {
+    readonly code: string;
+};
+/**
+ * Converts a failure raised while reading a connection into one this plugin is
+ * willing to return.
+ *
+ * The original message never survives. A driver's connection error routinely
+ * quotes the host, port, database, and account it failed to reach, and an
+ * inspector error carries that driver error as its `cause`; keeping those out
+ * of responses is most of what this endpoint does. The caller logs the
+ * original.
+ */
+export declare function toExplorerError(connectionName: string, error: unknown): DatabaseExplorerError;
+//# sourceMappingURL=errors.d.ts.map

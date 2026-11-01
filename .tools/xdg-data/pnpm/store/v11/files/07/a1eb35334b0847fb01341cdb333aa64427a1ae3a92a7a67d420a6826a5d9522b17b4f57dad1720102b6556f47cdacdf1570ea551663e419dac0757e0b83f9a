@@ -1,0 +1,61 @@
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { buildVariablesManifest, } from '@nocobase/app-server/config';
+import { parse } from 'yaml';
+/**
+ * Builds the variables manifest: every environment variable the application reads, with what each sets and whether a
+ * deployment must supply it. A variable is required when the code defaults and `config.example.yml` give its path no
+ * value, an example placeholder such as `admin123` counting as none, and nothing can generate one. Values from the
+ * environment and `config.yml` play no part, so the manifest is the same on every machine.
+ */
+export async function runConfigVariables(options) {
+    const runtime = await options.loadRuntime();
+    let manifest;
+    try {
+        const { paths } = runtime;
+        manifest = buildVariablesManifest({
+            app: await readAppIdentity(paths.rootDir),
+            variables: runtime.config.environmentVariableMappings(),
+            defaults: runtime.config.layers().defaults,
+            example: await readConfigExample(paths.deploymentRootDir),
+        });
+    }
+    finally {
+        await runtime.scope.destroy();
+    }
+    if (!options.out)
+        return { manifest };
+    const file = path.resolve(options.out);
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, `${JSON.stringify(manifest, null, 2)}\n`);
+    return { manifest, file };
+}
+async function readAppIdentity(rootDir) {
+    try {
+        const parsed = JSON.parse(await readFile(path.join(rootDir, 'package.json'), 'utf8'));
+        const name = typeof parsed.name === 'string' ? parsed.name : path.basename(rootDir);
+        return typeof parsed.version === 'string'
+            ? { name, version: parsed.version }
+            : { name };
+    }
+    catch {
+        return { name: path.basename(rootDir) };
+    }
+}
+/** `config.example.yml` beside the deployment root, parsed, or nothing when the application ships none. */
+export async function readConfigExample(deploymentRootDir) {
+    let content;
+    try {
+        content = await readFile(path.join(deploymentRootDir, 'config.example.yml'), 'utf8');
+    }
+    catch (error) {
+        if (error.code === 'ENOENT')
+            return undefined;
+        throw error;
+    }
+    const parsed = parse(content);
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+        ? parsed
+        : undefined;
+}
+//# sourceMappingURL=config-variables.js.map

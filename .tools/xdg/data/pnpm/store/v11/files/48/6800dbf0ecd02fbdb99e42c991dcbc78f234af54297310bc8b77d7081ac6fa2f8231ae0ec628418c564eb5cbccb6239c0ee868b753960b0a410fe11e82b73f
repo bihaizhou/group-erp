@@ -1,0 +1,15 @@
+import { RuleService } from '../internal/rules.js';
+import { requireStore } from '../internal/store.js';
+export function sharingRulesPlugin(options) {
+    const service = new RuleService({ id: 'sharing-rules', effect: 'expand', bySubject: true, allowAll: false }, requireStore(options.store, 'Sharing Rules'));
+    return {
+        id: 'sharing-rules',
+        authorizationApi: {
+            sharingRules: service,
+        },
+        setup(authz) {
+            authz.constraints.add(service);
+        },
+    };
+}
+//# sourceMappingURL=plugin.js.map

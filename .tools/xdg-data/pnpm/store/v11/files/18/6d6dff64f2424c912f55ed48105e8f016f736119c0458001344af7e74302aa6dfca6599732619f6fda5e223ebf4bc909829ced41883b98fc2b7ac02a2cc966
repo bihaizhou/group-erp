@@ -1,0 +1,3 @@
+import type { GmailMailProviderConfig } from './types.js';
+export declare function waitForGmailQuota(config: GmailMailProviderConfig, userAddress: string, units: number, signal?: AbortSignal): Promise<void>;
+//# sourceMappingURL=quota.d.ts.map

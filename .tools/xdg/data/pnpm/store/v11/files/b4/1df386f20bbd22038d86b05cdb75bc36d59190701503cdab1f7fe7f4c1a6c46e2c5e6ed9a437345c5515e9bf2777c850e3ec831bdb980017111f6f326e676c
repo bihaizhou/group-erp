@@ -1,0 +1,4 @@
+import type { ComponentProps, ReactElement } from 'react';
+export type PageContainerProps = ComponentProps<'section'>;
+export declare function PageContainer({ className, ...props }: PageContainerProps): ReactElement;
+//# sourceMappingURL=page-container.d.ts.map

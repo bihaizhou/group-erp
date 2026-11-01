@@ -1,0 +1,8 @@
+declare const serviceTokenType: unique symbol;
+export interface ServiceToken<T> {
+    readonly name: string;
+    readonly [serviceTokenType]?: T;
+}
+export declare function createServiceToken<T>(name: string): ServiceToken<T>;
+export {};
+//# sourceMappingURL=token.d.ts.map

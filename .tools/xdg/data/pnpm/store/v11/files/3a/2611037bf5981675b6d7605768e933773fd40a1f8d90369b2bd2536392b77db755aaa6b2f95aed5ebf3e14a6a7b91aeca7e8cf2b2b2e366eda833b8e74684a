@@ -1,0 +1,133 @@
+import { MailMessageMutations } from '../operations/message-mutations.js';
+import { toMailAccountView, toSubmissionLogView, toSyncRunView, } from '../views.js';
+import { mailAccountNotFound, toManagementActionError } from './errors.js';
+/** Trusted management entry: callers must authorize mail.management access. */
+export class MailManagementService {
+    dependencies;
+    mutations;
+    constructor(dependencies) {
+        this.dependencies = dependencies;
+        this.mutations = new MailMessageMutations(dependencies);
+    }
+    async listManagedAccounts(context) {
+        const accounts = await this.dependencies.store.listAllAccounts();
+        const ownerNames = new Map();
+        if (this.dependencies.users) {
+            const userIds = [...new Set(accounts.map((account) => account.userId))];
+            for (let offset = 0; offset < userIds.length; offset += 100) {
+                const { items } = await this.dependencies.users.list({
+                    userIds: userIds.slice(offset, offset + 100),
+                    pageSize: 100,
+                });
+                for (const user of items) {
+                    ownerNames.set(user.id, user.username?.trim() || user.name);
+                }
+            }
+        }
+        return accounts.map((account) => ({
+            ...toMailAccountView(account),
+            ownerName: ownerNames.get(account.userId),
+            canSync: account.userId === context.actorId,
+            canMoveMessages: this.dependencies.registry?.definition(account.provider.type)
+                ?.capabilities.moveMessage ?? false,
+        }));
+    }
+    async listManagedSyncRunsPage(context, offset, limit) {
+        const page = await this.dependencies.store.listAllSyncRuns(offset, limit);
+        const owners = new Map();
+        for (const accountId of new Set(page.items.map((run) => run.accountId))) {
+            owners.set(accountId, (await this.dependencies.store.getAccount(accountId))?.userId);
+        }
+        return {
+            items: page.items.map((run) => ({
+                ...toSyncRunView(run),
+                canManage: owners.get(run.accountId) === context.actorId,
+            })),
+            total: page.total,
+        };
+    }
+    async listManagedSubmissionsPage(_context, offset, limit) {
+        const page = await this.dependencies.store.listAllSubmissions(offset, limit);
+        return { items: page.items.map(toSubmissionLogView), total: page.total };
+    }
+    async listManagedFolders(_context, accountId) {
+        if (!(await this.dependencies.store.getAccount(accountId))) {
+            throw mailAccountNotFound();
+        }
+        return this.dependencies.store.listFolders(accountId);
+    }
+    listManagedMessages(_context, input) {
+        return this.dependencies.store.listAllMessages(input);
+    }
+    getManagedMessage(_context, accountId, messageId) {
+        return this.dependencies.store.getMessageForAccount(accountId, messageId);
+    }
+    async manageMessages(context, input) {
+        const items = [];
+        for (const target of input.items) {
+            try {
+                await this.executeManagedMessageAction(context, target, input);
+                items.push({ ...target, status: 'succeeded' });
+            }
+            catch (cause) {
+                items.push({
+                    ...target,
+                    status: 'failed',
+                    error: toManagementActionError(cause),
+                });
+            }
+        }
+        return {
+            items,
+            succeeded: items.filter((item) => item.status === 'succeeded').length,
+            failed: items.filter((item) => item.status === 'failed').length,
+        };
+    }
+    async executeManagedMessageAction(context, target, input) {
+        const account = await this.dependencies.store.getAccount(target.accountId);
+        if (!account)
+            throw new Error('Mail account was not found.');
+        if (account.status !== 'active') {
+            throw new Error('Mail account is not active.');
+        }
+        const message = await this.dependencies.store.getMessageForAccount(account.id, target.messageId);
+        if (!message)
+            throw new Error('Mail message was not found.');
+        const targetInput = { accountId: account.id, messageId: message.id };
+        switch (input.action) {
+            case 'markRead':
+            case 'markUnread':
+                await this.mutations.updateMessage(context, account, message, {
+                    ...targetInput,
+                    read: input.action === 'markRead',
+                });
+                return;
+            case 'star':
+            case 'unstar':
+                await this.mutations.updateMessage(context, account, message, {
+                    ...targetInput,
+                    starred: input.action === 'star',
+                });
+                return;
+            case 'archive':
+            case 'move': {
+                const destination = (await this.dependencies.store.listFolders(account.id)).find((folder) => input.action === 'archive'
+                    ? folder.type === 'archive'
+                    : folder.providerFolderId === input.providerFolderId);
+                if (!destination)
+                    throw new Error('Mail destination folder was not found.');
+                await this.mutations.moveMessage(context, account, message, {
+                    ...targetInput,
+                    providerFolderId: destination.providerFolderId,
+                });
+                return;
+            }
+            case 'delete':
+                await this.mutations.deleteMessage(context, account, message, {
+                    ...targetInput,
+                    permanently: input.permanently,
+                });
+        }
+    }
+}
+//# sourceMappingURL=management.js.map

@@ -1,0 +1,1 @@
+{"version":3,"file":"task-config.d.ts","sourceRoot":"","sources":["../../src/database/task-config.ts"],"names":[],"mappings":"AAAA,OAAO,EAAc,KAAK,SAAS,EAAE,MAAM,kBAAkB,CAAC;AAC9D,OAAO,KAAK,EAAE,kBAAkB,EAAE,MAAM,cAAc,CAAC;AAEvD,0FAA0F;AAC1F,wBAAgB,0BAA0B,CACxC,MAAM,CAAC,EAAE,kBAAkB,GAAG;IAAE,GAAG,CAAC,IAAI,SAAS,CAAA;CAAE,GAClD,kBAAkB,CAepB"}

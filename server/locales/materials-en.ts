@@ -1,0 +1,26 @@
+export const materials = {
+  title: 'Material governance',
+  kinds: {
+    skus: 'Material center',
+    names: 'Standard names',
+    templates: 'Attribute templates',
+    units: 'Units of measure',
+    unitRules: 'Packaging and conversions',
+    references: 'Aliases and legacy codes',
+    tags: 'Tags',
+    tagLinks: 'Tag assignments',
+    requests: 'Material requests',
+    subjectSettings: 'Company material settings',
+    warehouses: 'Warehouse settings',
+  },
+  actions: {
+    read: 'Read',
+    update: 'Maintain',
+    review: 'Review',
+  },
+  catalog: 'Material catalog',
+  history: 'Governance history',
+  scopeOwn: 'Own requests',
+  scopeCompany: 'Own company',
+  scopeCompanies: 'Selected companies',
+};

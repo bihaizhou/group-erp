@@ -1,0 +1,1 @@
+{"version":3,"file":"notification-mailer.d.ts","sourceRoot":"","sources":["../../../server/invitations/notification-mailer.ts"],"names":[],"mappings":"AAUA,OAAO,KAAK,EAAE,oBAAoB,EAAE,MAAM,8BAA8B,CAAC;AAGzE,OAAO,EAAsB,KAAK,gBAAgB,EAAE,MAAM,WAAW,CAAC;AAItE,wBAAgB,wBAAwB,CACtC,GAAG,EAAE,oBAAoB,GACxB,gBAAgB,CAqClB"}

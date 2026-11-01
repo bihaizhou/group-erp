@@ -1,0 +1,18 @@
+import type { CollectionMetadataStore, CollectionMetadataPage, CollectionMetadataStoreCapabilities, DeleteCollectionMetadataOptions, ListCollectionMetadataOptions, PutCollectionMetadataOptions } from './document-store.js';
+import type { CollectionMetadataDocument, StoredCollectionMetadata } from './document.js';
+export interface ModuleCollectionMetadataStoreOptions {
+    readonly documents: readonly unknown[];
+    readonly source?: string;
+}
+export declare class ModuleCollectionMetadataStore implements CollectionMetadataStore {
+    private readonly options;
+    readonly capabilities: CollectionMetadataStoreCapabilities;
+    private readonly documents;
+    private initialized;
+    constructor(options: ModuleCollectionMetadataStoreOptions);
+    initialize(): Promise<void>;
+    get(name: string): Promise<StoredCollectionMetadata | undefined>;
+    list(options?: ListCollectionMetadataOptions): Promise<CollectionMetadataPage>;
+    put(_document: CollectionMetadataDocument, _options: PutCollectionMetadataOptions): Promise<StoredCollectionMetadata>;
+    delete(_name: string, _options: DeleteCollectionMetadataOptions): Promise<void>;
+}

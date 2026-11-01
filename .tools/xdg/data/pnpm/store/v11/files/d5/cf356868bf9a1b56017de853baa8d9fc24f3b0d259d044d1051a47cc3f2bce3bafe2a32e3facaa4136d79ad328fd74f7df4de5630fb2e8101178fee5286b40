@@ -1,0 +1,8 @@
+import type { MailRuntimeOptions } from '../runtime.js';
+/** The independent removal table is the durable work queue; each tick commits one batch. */
+export declare class MailAccountRemovals {
+    private readonly options;
+    constructor(options: Pick<MailRuntimeOptions, 'store' | 'adapters' | 'credentials' | 'logger' | 'messageChangeNotifier'>);
+    runBatch(): Promise<void>;
+}
+//# sourceMappingURL=account-removals.d.ts.map

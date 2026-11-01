@@ -1,0 +1,69 @@
+import { z } from 'zod';
+import { ReferenceInput, TitleInput } from '../extension/schemas.js';
+type Strict<T extends z.core.$ZodLooseShape> = z.ZodObject<T, z.core.$strict>;
+type Stripped<T extends z.core.$ZodLooseShape> = z.ZodObject<T, z.core.$strip>;
+export declare const PermissionGrantActionInput: Strict<{
+    action: z.ZodString;
+    policy: z.ZodOptional<z.ZodObject<{
+        type: z.ZodString;
+    }, z.core.$loose>>;
+}>;
+export declare const PermissionGrantInput: Strict<{
+    resource: Strict<{
+        type: z.ZodString;
+        id: z.ZodString;
+    }>;
+    actions: z.ZodArray<typeof PermissionGrantActionInput>;
+}>;
+export declare const CreatePermissionSetBody: Strict<{
+    key: z.ZodString;
+    title: z.ZodOptional<z.ZodNullable<typeof TitleInput>>;
+    grants: z.ZodArray<typeof PermissionGrantInput>;
+}>;
+/** Only the fields that change; `key` renames the set and `title: null` clears its title. */
+export declare const UpdatePermissionSetBody: Strict<{
+    key: z.ZodOptional<z.ZodString>;
+    title: z.ZodOptional<z.ZodNullable<typeof TitleInput>>;
+    grants: z.ZodOptional<z.ZodArray<typeof PermissionGrantInput>>;
+}>;
+export declare const PermissionSetParams: Stripped<{
+    key: z.ZodString;
+}>;
+export declare const AssignmentParams: Stripped<{
+    key: z.ZodString;
+    assignmentId: z.ZodString;
+}>;
+/** Narrows the list to the sets one subject holds, including the default sets every subject holds. */
+export declare const ListPermissionSetsQuery: Stripped<{
+    subjectType: z.ZodOptional<z.ZodString>;
+    subjectId: z.ZodOptional<z.ZodString>;
+}>;
+export declare const AssignPermissionSetBody: Strict<{
+    id: z.ZodOptional<z.ZodString>;
+    subject: typeof ReferenceInput;
+}>;
+export declare const DecideBody: Strict<{
+    subject: typeof ReferenceInput;
+    resource: typeof ReferenceInput;
+    action: z.ZodString;
+}>;
+export declare const BatchDecideBody: Strict<{
+    subject: typeof ReferenceInput;
+    checks: z.ZodArray<Strict<{
+        resource: typeof ReferenceInput;
+        action: z.ZodString;
+    }>>;
+}>;
+export declare const ConfiguredAccessQuery: Stripped<{
+    subjectType: z.ZodString;
+    subjectId: z.ZodString;
+}>;
+export declare const PermissionGrantSchema: z.ZodType;
+export declare const PermissionSetSchema: z.ZodType;
+export declare const PermissionSetAssignmentSchema: z.ZodType;
+export declare const AuthorizationDecisionSchema: z.ZodType;
+export declare const BatchDecisionSchema: z.ZodType;
+export declare const ConfiguredAccessSchema: z.ZodType;
+export declare const AuthorizationSnapshotSchema: z.ZodType;
+export {};
+//# sourceMappingURL=schemas.d.ts.map

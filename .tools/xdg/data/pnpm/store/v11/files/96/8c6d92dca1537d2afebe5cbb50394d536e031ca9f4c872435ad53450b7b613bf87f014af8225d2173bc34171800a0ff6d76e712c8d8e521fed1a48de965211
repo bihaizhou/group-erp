@@ -1,0 +1,8 @@
+/**
+ * A scope names a BullMQ queue and a state file, so it may contain neither `:`
+ * nor whitespace nor a path separator. The one `/` allowed is the separator of
+ * an npm scoped package name, which is what consumers pass by convention; the
+ * memory adapter encodes it before building a file name.
+ */
+export declare function assertValidScope(scope: string): void;
+//# sourceMappingURL=validation.d.ts.map

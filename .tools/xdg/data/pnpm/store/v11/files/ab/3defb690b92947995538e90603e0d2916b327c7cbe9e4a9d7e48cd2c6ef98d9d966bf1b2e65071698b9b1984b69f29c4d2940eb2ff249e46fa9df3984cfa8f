@@ -1,0 +1,33 @@
+import { Flags } from '@oclif/core';
+import { AppCommand } from "../../context.js";
+import { collectSecretsStatus, DEFAULT_SECRETS_BATCH_SIZE, formatVersions, requireSecretsService, } from "../../lib/secrets-command.js";
+export default class SecretsStatus extends AppCommand {
+    static summary = 'Report which key sealed the secrets each store holds, and how many need resealing.';
+    static description = 'Loads the application without starting it and asks every registered secrets store how many values it holds under each key version of secrets.keys, and how many are not sealed with the current key. Nothing is written. Run secrets rotate to reseal what this reports.';
+    static examples = [
+        '<%= config.bin %> <%= command.id %> --json',
+        '<%= config.bin %> <%= command.id %>',
+    ];
+    static flags = {
+        'batch-size': Flags.integer({
+            default: DEFAULT_SECRETS_BATCH_SIZE,
+            min: 1,
+            description: 'Rows read at a time.',
+        }),
+    };
+    async run() {
+        const { flags } = await this.parse(SecretsStatus);
+        const result = await this.withApp(async ({ app }) => {
+            app.registerProviders();
+            return collectSecretsStatus(requireSecretsService(app), flags['batch-size']);
+        });
+        this.log(`Current key version: ${result.currentVersion}`);
+        if (result.stores.length === 0)
+            this.log('No secrets stores are registered.');
+        for (const store of result.stores) {
+            this.log(`${store.name}: ${store.total} sealed (${formatVersions(store.byVersion)}), ${store.needsReseal} to reseal`);
+        }
+        return result;
+    }
+}
+//# sourceMappingURL=status.js.map

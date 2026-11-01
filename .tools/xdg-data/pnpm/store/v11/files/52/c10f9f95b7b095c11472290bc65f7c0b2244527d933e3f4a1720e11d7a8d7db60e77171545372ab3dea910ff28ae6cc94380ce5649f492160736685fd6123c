@@ -1,0 +1,14 @@
+import type { AppCliCommand, AppCliPlugins } from '../plugins/types.ts';
+import type { AppLocation } from './location.ts';
+/**
+ * Registers the application's `tsx` in this process, so its TypeScript can be imported.
+ *
+ * Returns whether a loader is in place. `tsx` is an optional peer that a source application provides; when it is
+ * missing this does nothing, and the import that needed it fails with Node's own error naming the file.
+ */
+export declare function registerTypeScriptLoader(location: AppLocation): Promise<boolean>;
+/** The plugin contributions `cli/plugins` exports, or none when the application has no such file. */
+export declare function loadAppPlugins(location: AppLocation): Promise<AppCliPlugins | undefined>;
+/** The application's own commands under `cli/commands/`, keyed by the id they answer to below the `app` topic. */
+export declare function loadAppCommands(location: AppLocation): Promise<Record<string, AppCliCommand>>;
+//# sourceMappingURL=application.d.ts.map

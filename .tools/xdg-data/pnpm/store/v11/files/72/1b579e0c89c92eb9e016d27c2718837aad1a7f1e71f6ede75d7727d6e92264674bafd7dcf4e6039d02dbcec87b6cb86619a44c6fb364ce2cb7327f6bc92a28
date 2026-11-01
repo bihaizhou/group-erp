@@ -1,0 +1,65 @@
+import type { DatabaseManager, Repository, RepositoryPolicy } from '@nocobase/db';
+import type { driveManagerToken } from '@nocobase/app-server/drive';
+import type { ServiceToken } from '@nocobase/service-provider';
+import type { FileRecord, UploadOneInput, UploadManyInput, UploadOneResult, UploadManyResult } from '../shared/types.js';
+type AppDriveManager = typeof driveManagerToken extends ServiceToken<infer T> ? T : never;
+export interface FileRepositoryOptions {
+    readonly connection?: string;
+    readonly disk: string;
+    readonly accessPath: string;
+    /**
+     * The exposure's Policy, already resolved for this request's principal. The
+     * Repository is bound to what {@link uploadPolicy} derives from it.
+     */
+    readonly policy: RepositoryPolicy;
+}
+export interface FileOperations {
+    validateCollection(): Promise<void>;
+    uploadOne(input: UploadOneInput): Promise<UploadOneResult>;
+    uploadMany(input: UploadManyInput): Promise<UploadManyResult>;
+    getUrl(record: Pick<FileRecord, 'id' | 'ext'>): string;
+    getStorageUrl(record: Pick<FileRecord, 'disk' | 'key'>): Promise<string>;
+}
+export type ServerFileRepository = Repository<FileRecord> & FileOperations;
+/**
+ * The columns a file Collection must provide, which are also the columns
+ * `store()` composes for every upload.
+ *
+ * Exported so application code that selects or validates file records can
+ * reference the contract instead of repeating it. A migration must still spell
+ * its columns out: it is a historical record, and importing this list would let
+ * a later release silently change what an already applied migration declares.
+ */
+export declare const FILE_COLUMNS: readonly ["id", "disk", "key", "filename", "ext", "mimeType", "size", "createdAt", "updatedAt"];
+/** One of the {@link FILE_COLUMNS} a file Collection must provide. */
+export type FileColumn = (typeof FILE_COLUMNS)[number];
+/**
+ * The Policy the upload path binds, derived from the exposure's own.
+ *
+ * It is derived rather than used as it stands because an upload supplies no
+ * caller fields at all — `store()` composes every value — so a field allowlist
+ * has nothing to constrain here and the plugin substitutes its own columns.
+ * What is inherited is exactly the two dimensions that do not describe caller
+ * input: which rows this principal may produce (`scope`), and what the server
+ * stamps onto them (`defaults`). A `create` that is `false` stays `false`, so
+ * an exposure that forbids creating rows forbids uploading them too.
+ *
+ * This is the only place a Policy is widened, and the reason is specific to
+ * this path. It licenses nothing elsewhere.
+ */
+export declare function uploadPolicy(base: RepositoryPolicy): RepositoryPolicy;
+export declare class FileRepositoryError extends Error {
+    readonly code: string;
+    constructor(code: string, message: string, options?: ErrorOptions);
+}
+export declare function normalizeAccessPath(value: string): string;
+export declare class ServerFileRepositoryManager {
+    private readonly database;
+    private readonly drive;
+    constructor(database: DatabaseManager, drive: AppDriveManager);
+    repository(collection: string, options: FileRepositoryOptions): ServerFileRepository;
+}
+export declare function normalizeFileRecord<T extends object>(record: T): T;
+export declare function validMime(value: string): string;
+export {};
+//# sourceMappingURL=repository.d.ts.map

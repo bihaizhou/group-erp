@@ -1,0 +1,13 @@
+import type { Context, MiddlewareHandler } from 'hono';
+import type { Logger } from '@nocobase/logging';
+import type { AppPluginApplication } from '../plugins/index.js';
+import { type AppHttpMiddleware } from '../router/index.js';
+export interface RequestLoggerOptions {
+    logger: Logger;
+    app?: string;
+    skip?: (context: Context) => boolean;
+    requestHeaders?: readonly string[];
+}
+export declare function requestLogger(options: RequestLoggerOptions): MiddlewareHandler;
+export declare const requestLoggingMiddleware: AppHttpMiddleware<AppPluginApplication>;
+//# sourceMappingURL=middleware.d.ts.map

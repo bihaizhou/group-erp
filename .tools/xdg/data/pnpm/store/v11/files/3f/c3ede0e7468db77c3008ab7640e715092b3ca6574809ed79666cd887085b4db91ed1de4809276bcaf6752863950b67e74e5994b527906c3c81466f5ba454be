@@ -1,0 +1,38 @@
+import { CacheableMemory } from '@cacheable/memory';
+import { assertNamespace, assertTtl } from './internal/validation.js';
+export class MemoryCounter {
+    namespace;
+    store;
+    constructor(options) {
+        assertNamespace(options.namespace);
+        this.namespace = options.namespace;
+        this.store = new CacheableMemory({
+            lruSize: options.maxSize,
+            useClone: false,
+        });
+    }
+    async get(key) {
+        return this.store.get(key)?.value ?? 0;
+    }
+    async increment(key, amount = 1, ttl) {
+        if (!Number.isFinite(amount)) {
+            throw new Error('Counter amount must be a finite number.');
+        }
+        assertTtl(ttl);
+        const current = this.store.get(key);
+        if (current) {
+            current.value += amount;
+            return current.value;
+        }
+        const entry = { value: amount };
+        this.store.set(key, entry, ttl);
+        return entry.value;
+    }
+    async reset(key) {
+        this.store.delete(key);
+    }
+    clear() {
+        this.store.clear();
+    }
+}
+//# sourceMappingURL=memory-counter.js.map

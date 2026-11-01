@@ -1,0 +1,186 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+import { ApiClientError, useApiClient, useToaster } from '@nocobase/app-client';
+import { Spinner } from '../components/ui/spinner.js';
+import { useAuthentication } from '@nocobase/app-plugin-authentication/client';
+import { usePasswordLogin } from '@nocobase/app-plugin-authentication/client/actions';
+import { useTranslation } from '@nocobase/i18n/client';
+import { useEffect, useEffectEvent, useMemo, useState, } from 'react';
+import { Link, useNavigate, useParams } from 'react-router';
+import { Button } from '../components/ui/button.js';
+import { Input } from '../components/ui/input.js';
+import { Label } from '../components/ui/label.js';
+import { UsersClient } from '../user-client.js';
+const NS = '@nocobase/app-plugin-users';
+const MIN_PASSWORD = 8;
+/** The `accept.errors.*` key for a lookup or acceptance refusal. */
+function errorKey(error) {
+    if (error instanceof ApiClientError) {
+        if (error.reason === 'INVITATION_NOT_FOUND')
+            return 'notFound';
+        if (error.reason === 'INVITATION_EXPIRED')
+            return 'expired';
+        if (error.reason === 'INVITATION_ACCEPTED')
+            return 'accepted';
+        if (error.reason === 'INVITATION_REVOKED')
+            return 'revoked';
+        if (error.reason?.startsWith('PASSWORD_'))
+            return 'password';
+        if (error.reason?.endsWith('_CONFLICT'))
+            return 'accountConflict';
+    }
+    return 'failed';
+}
+/**
+ * The link just accepted. Signing in briefly unmounts the page while the session loads, so this lives in the tab's
+ * session storage rather than in component state; storage that cannot be used only costs the redirect.
+ */
+const JOINED_KEY = 'nocobase:invitation-joined';
+function joinedToken() {
+    try {
+        return window.sessionStorage.getItem(JOINED_KEY);
+    }
+    catch {
+        return null;
+    }
+}
+function rememberJoined(token) {
+    try {
+        if (token)
+            window.sessionStorage.setItem(JOINED_KEY, token);
+        else
+            window.sessionStorage.removeItem(JOINED_KEY);
+    }
+    catch {
+        // The redirect after signing in is a convenience.
+    }
+}
+/**
+ * `/invite/:token`, the page an invitation email links to. It shows who invited the visitor, takes a name and a
+ * password, creates the account and signs in. Existing accounts accept only from their matching session; visitors
+ * signed in as another account must sign out first. Applications may replace it (`INVITE_ROUTE_ID`) to match their
+ * own sign-in pages.
+ */
+export default function AcceptInvitationPage() {
+    const { t } = useTranslation(NS);
+    const api = useApiClient();
+    const users = useMemo(() => new UsersClient(api), [api]);
+    const { token = '' } = useParams();
+    const navigate = useNavigate();
+    const { session } = useAuthentication();
+    const [lookup, setLookup] = useState({ state: 'loading' });
+    const [joined, setJoined] = useState(() => joinedToken() === token);
+    // Signing in replaces the API client; the invitation is looked up once per link all the same, and not at all once
+    // accepted, since a lookup would then report that instead of letting the new member in.
+    const lookUp = useEffectEvent((value) => users.lookupInvitation(value));
+    useEffect(() => {
+        if (joined)
+            return;
+        let active = true;
+        lookUp(token).then((invitation) => active && setLookup({ state: 'open', invitation }), (error) => active && setLookup({ state: 'failed', error: errorKey(error) }));
+        return () => {
+            active = false;
+        };
+    }, [token, joined]);
+    // Once the new account's session arrives, go in.
+    useEffect(() => {
+        if (!joined || !session)
+            return;
+        rememberJoined(null);
+        void navigate('/', { replace: true });
+    }, [joined, session, navigate]);
+    let body;
+    if (joined)
+        body = (_jsxs("p", { role: 'status', className: 'flex items-center gap-2 text-sm text-muted-foreground', children: [_jsx(Spinner, { "aria-hidden": 'true' }), t('accept.submitting')] }));
+    else if (lookup.state === 'loading')
+        body = (_jsxs("p", { role: 'status', className: 'flex items-center gap-2 text-sm text-muted-foreground', children: [_jsx(Spinner, { "aria-hidden": 'true' }), t('accept.loading')] }));
+    else if (lookup.state === 'failed')
+        body = (_jsxs("div", { className: 'space-y-5', children: [_jsx(Problem, { children: t(`accept.errors.${lookup.error}`) }), lookup.error === 'accepted' ? _jsx(LoginLink, {}) : null] }));
+    else
+        body = (_jsx(AcceptForm, { token: token, users: users, invitation: lookup.invitation, onJoined: () => {
+                rememberJoined(token);
+                setJoined(true);
+            } }));
+    return (_jsx("main", { className: 'flex min-h-svh items-center justify-center p-4', children: _jsxs("div", { className: 'w-full max-w-sm space-y-6 rounded-xl border bg-card p-6 text-card-foreground shadow-sm', children: [_jsxs("header", { className: 'space-y-2', children: [_jsx("h1", { className: 'text-xl font-semibold', children: t('accept.title') }), lookup.state === 'open' ? (_jsxs(_Fragment, { children: [_jsx("p", { className: 'text-sm text-muted-foreground', children: t('accept.description', {
+                                        inviter: lookup.invitation.inviterName,
+                                    }) }), lookup.invitation.summary.length ? (_jsx("p", { className: 'text-sm text-muted-foreground', children: t('accept.summary', {
+                                        items: lookup.invitation.summary.join(', '),
+                                    }) })) : null] })) : null] }), body] }) }));
+}
+function Problem({ children }) {
+    return (_jsx("p", { role: 'alert', className: 'rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive', children: children }));
+}
+function LoginLink({ redirect }) {
+    const { t } = useTranslation(NS);
+    return (_jsx(Button, { className: 'w-full', nativeButton: false, render: _jsx(Link, { to: redirect
+                ? `/login?redirect=${encodeURIComponent(redirect)}`
+                : '/login' }), children: t('accept.goToLogin') }));
+}
+function AcceptForm({ token, users, invitation, onJoined, }) {
+    const { t } = useTranslation(NS);
+    const toaster = useToaster();
+    const { session, client, refresh } = useAuthentication();
+    const login = usePasswordLogin();
+    const [name, setName] = useState('');
+    const [password, setPassword] = useState('');
+    const [problem, setProblem] = useState();
+    const [saving, setSaving] = useState(false);
+    const [done, setDone] = useState();
+    const invitedSession = session?.user.email.toLowerCase() === invitation.email.toLowerCase();
+    if (session && !invitedSession && !done) {
+        const signOut = async () => {
+            // Better Auth reports failures as data rather than throwing.
+            const result = await client.signOut().catch(() => ({ error: true }));
+            if (result.error) {
+                toaster.show({ type: 'error', title: t('accept.signOutFailed') });
+                return;
+            }
+            await refresh();
+        };
+        return (_jsxs("div", { className: 'space-y-5', children: [_jsx("p", { className: 'text-sm', children: t('accept.signedIn', {
+                        name: session.user.name || session.user.email,
+                    }) }), _jsx(Button, { className: 'w-full', variant: 'outline', onClick: () => {
+                        signOut().catch(() => {
+                            toaster.show({ type: 'error', title: t('accept.signOutFailed') });
+                        });
+                    }, children: t('accept.signOut') })] }));
+    }
+    if (done === 'existing')
+        return (_jsxs("div", { className: 'space-y-5', children: [_jsx("p", { className: 'text-sm', children: t('accept.existingAccount') }), _jsx(LoginLink, { redirect: `/invite/${encodeURIComponent(token)}` })] }));
+    const submit = async (event) => {
+        event.preventDefault();
+        if (!invitedSession && !name.trim())
+            return setProblem(t('accept.nameRequired'));
+        if (!invitedSession && password.length < MIN_PASSWORD)
+            return setProblem(t('accept.passwordTooShort', { min: MIN_PASSWORD }));
+        setProblem(undefined);
+        setSaving(true);
+        try {
+            const accepted = await users.acceptInvitation({
+                token,
+                name: invitedSession
+                    ? session?.user.name || invitation.email
+                    : name.trim(),
+                password: invitedSession ? '' : password,
+            });
+            setDone('signedUp');
+            onJoined();
+            if (!accepted.existingAccount)
+                await login.submit({ identifier: accepted.email, password });
+        }
+        finally {
+            setSaving(false);
+        }
+    };
+    return (_jsxs("form", { className: 'space-y-5', onSubmit: (event) => {
+            submit(event).catch((error) => {
+                if (error instanceof ApiClientError &&
+                    error.reason === 'INVITATION_SIGN_IN_REQUIRED')
+                    setDone('existing');
+                else
+                    setProblem(t(`accept.errors.${errorKey(error)}`));
+            });
+        }, children: [_jsxs("div", { className: 'space-y-2', children: [_jsx(Label, { htmlFor: 'invite-email', children: t('accept.email') }), _jsx(Input, { id: 'invite-email', readOnly: true, value: invitation.email })] }), !invitedSession ? (_jsxs(_Fragment, { children: [_jsxs("div", { className: 'space-y-2', children: [_jsx(Label, { htmlFor: 'invite-name', children: t('accept.name') }), _jsx(Input, { id: 'invite-name', autoComplete: 'name', autoFocus: true, maxLength: 100, value: name, onChange: (event) => setName(event.target.value) })] }), _jsxs("div", { className: 'space-y-2', children: [_jsx(Label, { htmlFor: 'invite-password', children: t('accept.password') }), _jsx(Input, { id: 'invite-password', type: 'password', autoComplete: 'new-password', maxLength: 128, value: password, onChange: (event) => setPassword(event.target.value) })] })] })) : null, !session ? (_jsx(LoginLink, { redirect: `/invite/${encodeURIComponent(token)}` })) : null, problem ? _jsx(Problem, { children: problem }) : null, done === 'signedUp' && login.error ? (_jsxs(_Fragment, { children: [_jsx(Problem, { children: login.error.message }), _jsx(LoginLink, {})] })) : null, _jsxs(Button, { className: 'w-full', type: 'submit', disabled: saving || login.isPending || done === 'signedUp', children: [saving || login.isPending ? (_jsx(Spinner, { "data-icon": 'inline-start', "aria-label": t('page.loading') })) : null, saving || login.isPending
+                        ? t('accept.submitting')
+                        : t(invitedSession ? 'accept.join' : 'accept.submit')] })] }));
+}
+//# sourceMappingURL=accept-invitation-page.js.map

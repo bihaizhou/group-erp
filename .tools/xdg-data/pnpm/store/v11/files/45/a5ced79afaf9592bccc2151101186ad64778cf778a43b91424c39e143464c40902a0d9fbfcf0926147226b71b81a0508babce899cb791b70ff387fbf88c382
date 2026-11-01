@@ -1,0 +1,10 @@
+import { type DatabaseManager } from '@nocobase/db';
+import { type MailAuthorizationTransaction } from '../contracts/persistence.js';
+export declare class MailAuthorizationStore {
+    private readonly database;
+    constructor(database: DatabaseManager);
+    createAuthorizationTransaction(transaction: MailAuthorizationTransaction): Promise<void>;
+    consumeAuthorizationTransaction(stateHash: string, now: string): Promise<MailAuthorizationTransaction | undefined>;
+    deleteExpiredAuthorizationTransactions(now: string): Promise<number>;
+}
+//# sourceMappingURL=authorization.d.ts.map

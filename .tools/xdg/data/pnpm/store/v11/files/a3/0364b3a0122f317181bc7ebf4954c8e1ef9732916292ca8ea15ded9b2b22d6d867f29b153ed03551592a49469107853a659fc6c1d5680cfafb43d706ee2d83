@@ -1,0 +1,12 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { cn } from '../lib/utils.js';
+import { getMailLabelColorStyles } from '../lib/mail-label.js';
+export function MailLabelTag({ label, className, size = 'sm', }) {
+    const styles = getMailLabelColorStyles(label.color);
+    return (_jsxs("span", { className: cn('inline-flex max-w-full items-center gap-1.5 rounded-full border font-medium', styles.tag, size === 'md' ? 'px-2.5 py-1 text-xs' : 'px-2 py-0.5 text-[11px]', className), title: label.name, children: [_jsx("span", { "aria-hidden": 'true', className: cn('size-1.5 shrink-0 rounded-full', styles.dot) }), _jsx("span", { className: 'min-w-0 truncate', children: label.name })] }));
+}
+export function MailLabelColorDot({ color, className, size = 'sm', }) {
+    const styles = getMailLabelColorStyles(color);
+    return (_jsx("span", { "aria-hidden": 'true', className: cn('shrink-0 rounded-full', size === 'md' ? 'size-2.5' : 'size-2', styles.dot, className) }));
+}
+//# sourceMappingURL=mail-label-tag.js.map

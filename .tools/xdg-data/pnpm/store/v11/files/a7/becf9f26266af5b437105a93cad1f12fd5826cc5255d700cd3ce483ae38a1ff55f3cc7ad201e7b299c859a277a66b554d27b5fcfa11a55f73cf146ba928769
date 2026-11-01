@@ -1,0 +1,34 @@
+import type { Context, MiddlewareHandler } from 'hono';
+import { type I18nRuntime, type Locale, type Namespace, type Translator } from '../core/index.js';
+/** Context keys the middleware sets, so a handler can read them off `c.get()`. */
+export declare const LOCALE_CONTEXT_KEY = "locale";
+export declare const TRANSLATOR_CONTEXT_KEY = "t";
+/** Session key the chosen locale is stored under. */
+export declare const LOCALE_SESSION_KEY = "locale";
+export interface I18nMiddlewareOptions {
+    /** Namespace the request translator binds to. Defaults to the application's. */
+    readonly namespace?: Namespace;
+    /** Session key holding the chosen locale. */
+    readonly sessionKey?: string;
+}
+/**
+ * Resolves the locale for a request: the session's stored choice, then `Accept-Language`, then the default.
+ */
+export declare function resolveRequestLocale(runtime: I18nRuntime, context: Context, options?: I18nMiddlewareOptions): Promise<Locale>;
+/**
+ * Puts the request's locale and a translator bound to it on the context.
+ *
+ * Mount it after the session middleware, which it reads the stored locale from. It awaits the locale's resources, so a
+ * handler can translate synchronously without risking a silent fallback to the key.
+ */
+export declare function createI18nMiddleware(runtime: I18nRuntime, options?: I18nMiddlewareOptions): MiddlewareHandler;
+export declare function getRequestLocale(context: Context): Locale | undefined;
+/**
+ * Returns the translator installed for the current request, optionally bound to a namespace.
+ *
+ * The i18n middleware loads the request locale before installing this translator. A missing translator therefore
+ * means the middleware did not run before the route, which is an application wiring error rather than an optional
+ * request state.
+ */
+export declare function getRequestTranslator(context: Context, namespace?: Namespace): Translator;
+//# sourceMappingURL=middleware.d.ts.map

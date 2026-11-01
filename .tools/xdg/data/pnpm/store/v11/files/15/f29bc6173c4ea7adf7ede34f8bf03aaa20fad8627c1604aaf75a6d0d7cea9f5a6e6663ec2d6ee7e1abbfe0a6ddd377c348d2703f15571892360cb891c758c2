@@ -1,0 +1,95 @@
+import type { ManualClientPluginEdit } from './client-plugins.ts';
+import { type ManualCliPluginEdit } from './cli-plugins.ts';
+import { type ManualServerPluginEdit } from './server-plugins.ts';
+export interface PluginRegistrationPlan {
+    /** Whether anything would change; a re-registration of an unchanged plugin is a no-op. */
+    readonly changed: boolean;
+    readonly cliPluginsChanged: boolean;
+    readonly cliPluginsPath: string;
+    /** The updated `cli/plugins.ts`, absent when that file needs no change. */
+    readonly cliPluginsText?: string;
+    readonly clientPluginsChanged: boolean;
+    readonly clientPluginsPath: string;
+    /** The updated `client/plugins.ts`, absent when that file needs no change. */
+    readonly clientPluginsText?: string;
+    readonly enabled: boolean;
+    readonly manifestChanged: boolean;
+    readonly manifestPath: string;
+    /** The updated `package.json`, absent when the manifest needs no change. */
+    readonly manifestText?: string;
+    /**
+     * Set when the client entry could not be written automatically because the application has no TypeScript. The
+     * registration still stands; these are the lines left for a person or an agent to add.
+     */
+    readonly manualClientEdit?: ManualClientPluginEdit;
+    /** Manual fallback when TypeScript is unavailable for the server composition root. */
+    readonly manualServerEdit?: ManualServerPluginEdit;
+    /** Manual fallback when TypeScript is unavailable for the CLI composition root. */
+    readonly manualCliEdit?: ManualCliPluginEdit;
+    readonly packageName: string;
+    /** Why the client entry was skipped, for commands that report it. */
+    readonly skippedClientEntry?: 'disabled' | 'no-client-entry' | 'no-typescript';
+    readonly serverPluginsChanged: boolean;
+    readonly serverPluginsPath: string;
+    /** The updated `server/plugins.ts`, absent when that file needs no change. */
+    readonly serverPluginsText?: string;
+    /** Why the server entry was skipped, for commands that report it. */
+    readonly skippedServerEntry?: 'disabled' | 'no-server-entry' | 'no-typescript';
+    /** Why the CLI entry was skipped, for commands that report it. */
+    readonly skippedCliEntry?: 'disabled' | 'no-cli-entry' | 'no-typescript';
+}
+export interface PluginUnregistrationPlan {
+    readonly changed: boolean;
+    readonly cliPluginsChanged: boolean;
+    readonly cliPluginsPath: string;
+    readonly cliPluginsText?: string;
+    readonly clientPluginsChanged: boolean;
+    readonly clientPluginsPath: string;
+    readonly clientPluginsText?: string;
+    readonly manifestChanged: boolean;
+    readonly manifestPath: string;
+    readonly manifestText?: string;
+    /** Set when client/plugins.ts still holds the entry because the app has no TypeScript to edit it with. */
+    readonly manualClientEdit?: ManualClientPluginEdit;
+    readonly manualServerEdit?: ManualServerPluginEdit;
+    readonly manualCliEdit?: ManualCliPluginEdit;
+    readonly packageName: string;
+    /** Which parts of the application the plugin was removed from, for reporting. */
+    readonly removedFrom: readonly string[];
+    readonly serverPluginsChanged: boolean;
+    readonly serverPluginsPath: string;
+    readonly serverPluginsText?: string;
+}
+/**
+ * Expands what a user typed into a full package name. Short names are the common case, but a full name has to keep
+ * working because that is what the manifest and every error message show.
+ */
+export declare function pluginPackageName(name: string): string;
+/** The short name a package name carries, for messages and directory lookups. */
+export declare function pluginShortName(packageName: string): string;
+export declare function hasClientPluginEntry(pluginDirectory: string): Promise<boolean>;
+export declare function hasServerPluginEntry(pluginDirectory: string): Promise<boolean>;
+export declare function hasCliPluginEntry(pluginDirectory: string): Promise<boolean>;
+/**
+ * Computes the registration without writing it. `pluginDirectory` is where the plugin package can be read from, which
+ * is a workspace directory in this repository and an installed dependency in a generated application.
+ */
+export declare function planPluginRegistration({ appRoot, dependencyRange, enabled, packageName, pluginDirectory, }: {
+    appRoot: string;
+    dependencyRange: string;
+    enabled?: boolean;
+    packageName: string;
+    pluginDirectory: string;
+}): Promise<PluginRegistrationPlan>;
+/** Computes the removal of a registration without writing it. */
+export declare function planPluginUnregistration({ appRoot, packageName, }: {
+    appRoot: string;
+    packageName: string;
+}): Promise<PluginUnregistrationPlan>;
+/** Writes a plan produced by either planner. */
+export declare function applyPluginRegistration(appRoot: string, plan: PluginRegistrationPlan | PluginUnregistrationPlan): Promise<void>;
+/** Deletes a plugin's synchronized skill directories and ownership records. */
+export declare function removePluginSkills(appRoot: string, packageName: string): Promise<string[]>;
+/** Lists synchronized Skill directories an unregistration would remove. */
+export declare function planPluginSkillRemovals(appRoot: string, packageName: string): Promise<string[]>;
+//# sourceMappingURL=plugin-registration.d.ts.map

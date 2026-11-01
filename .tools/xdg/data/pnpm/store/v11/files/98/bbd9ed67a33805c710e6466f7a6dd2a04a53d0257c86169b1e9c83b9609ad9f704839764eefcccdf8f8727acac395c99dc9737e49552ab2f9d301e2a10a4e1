@@ -1,0 +1,8 @@
+import type { MailProviderResult } from '../../../shared/mail.js';
+import type { GmailMessageResource } from './types.js';
+export interface GmailBatchItemResult {
+    readonly id: string;
+    readonly result: MailProviderResult<GmailMessageResource>;
+}
+export declare function parseGmailBatchResponse(response: Response, ids: readonly string[]): Promise<MailProviderResult<readonly GmailBatchItemResult[]>>;
+//# sourceMappingURL=batch.d.ts.map

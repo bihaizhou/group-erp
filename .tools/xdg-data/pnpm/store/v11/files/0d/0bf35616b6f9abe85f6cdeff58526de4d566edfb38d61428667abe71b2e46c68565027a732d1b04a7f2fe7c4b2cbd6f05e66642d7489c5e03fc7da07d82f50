@@ -1,0 +1,3 @@
+import type { CachingConfig } from './types.js';
+export declare function createDefaultCachingConfig(): CachingConfig;
+//# sourceMappingURL=config.d.ts.map

@@ -1,0 +1,8 @@
+import { type MessageRow } from './rows.js';
+export interface MessageCursor {
+    readonly sortAt: string;
+    readonly id: string;
+}
+export declare function encodeMessageCursor(row: MessageRow): string;
+export declare function parseMessageCursor(cursor: string | undefined): MessageCursor | undefined;
+//# sourceMappingURL=message-cursor.d.ts.map

@@ -1,0 +1,115 @@
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { dotenvParser } from '@nocobase/config/parsers/dotenv';
+import { DEFAULT_APP_BASE_PATH, normalizeBasePath, resolveAppNameFromBasePath, } from '../support/index.js';
+import { AppScopeLifecycle } from '../runtime/lifecycle.js';
+export function loadStandaloneAppEnv(options) {
+    const baseEnv = options.baseEnv ?? process.env;
+    const files = options.files ?? [
+        path.join(options.rootDir, '.env'),
+        path.join(options.rootDir, '.env.local'),
+    ];
+    return {
+        ...readDotenvFiles(files, baseEnv),
+        ...baseEnv,
+        ...options.overrides,
+    };
+}
+export class StandaloneAppScope extends AppScopeLifecycle {
+    mode = 'standalone';
+    id;
+    appName;
+    basePath;
+    paths;
+    rootDir;
+    dataDir;
+    clientDir;
+    configPath;
+    env;
+    consoleLogStream;
+    constructor(options) {
+        super({ abortReason: options.abortReason });
+        this.id = options.id ?? options.appName;
+        this.appName = options.appName;
+        this.basePath = options.basePath;
+        this.paths = options.paths;
+        this.rootDir = options.paths.rootDir;
+        this.dataDir = options.paths.storageDir;
+        this.clientDir = options.paths.clientDir;
+        this.configPath = options.configPath;
+        this.env = options.env;
+        this.consoleLogStream = options.consoleLogStream;
+    }
+}
+export function createStandaloneScope(options) {
+    const paths = resolveStandaloneAppPaths(options);
+    const deploymentRootDir = path.resolve(paths.rootDir, paths.deploymentRootDir ?? '.');
+    const env = loadStandaloneAppEnv({
+        rootDir: deploymentRootDir,
+        files: [
+            ...(path.resolve(paths.rootDir) === deploymentRootDir
+                ? []
+                : [path.join(paths.rootDir, '.env')]),
+            path.join(deploymentRootDir, '.env'),
+            path.join(deploymentRootDir, '.env.local'),
+        ],
+        overrides: options.env,
+    });
+    const defaultAppName = 'main';
+    const basePath = normalizeBasePath(options.basePath ?? env.APP_BASE_PATH ?? DEFAULT_APP_BASE_PATH);
+    const appName = options.appName ?? resolveAppNameFromBasePath(basePath, defaultAppName);
+    return new StandaloneAppScope({
+        appName,
+        basePath,
+        paths,
+        configPath: options.configPath,
+        env,
+        abortReason: options.abortReason ?? new Error('Standalone application closed.'),
+        consoleLogStream: options.consoleLogStream,
+    });
+}
+function readDotenvFiles(files, baseEnv) {
+    const parser = dotenvParser();
+    const environment = {};
+    for (const filePath of files) {
+        if (!existsSync(filePath))
+            continue;
+        const parsed = parser.parse(readFileSync(filePath));
+        for (const [key, value] of Object.entries(parsed)) {
+            if (typeof value === 'string')
+                environment[key] = value;
+        }
+    }
+    const expansionEnvironment = { ...baseEnv, ...environment };
+    for (const [key, value] of Object.entries(environment)) {
+        environment[key] = expandEnvironmentValue(value, expansionEnvironment);
+        expansionEnvironment[key] = environment[key];
+    }
+    return environment;
+}
+function expandEnvironmentValue(value, env) {
+    return value.replace(/\\?\${?([A-Za-z_][A-Za-z0-9_]*)}?/g, (match, key) => {
+        if (match.startsWith('\\'))
+            return match.slice(1);
+        return env[key] ?? '';
+    });
+}
+export function resolveStandaloneAppPaths(options) {
+    if (options.paths) {
+        return options.paths;
+    }
+    if (!options.rootDir) {
+        throw new Error('Standalone scope requires options.rootDir or options.paths.');
+    }
+    const rootDir = path.resolve(options.rootDir);
+    const deploymentRootDir = path.resolve(rootDir, options.deploymentRootDir ?? '.');
+    const built = rootDir !== deploymentRootDir;
+    return {
+        rootDir,
+        serverDir: path.join(rootDir, 'server'),
+        databaseDir: path.join(rootDir, 'database'),
+        clientDir: path.join(rootDir, built ? 'client' : 'dist/client'),
+        deploymentRootDir,
+    };
+}
+//# sourceMappingURL=scope.js.map

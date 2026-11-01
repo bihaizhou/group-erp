@@ -1,0 +1,9 @@
+import type { CollectionDefinition, FieldDefinition } from '../collection/types.js';
+import type { NumericMutationOperand, RepositoryContext, NumericMutationOperation, RepositoryMutationScalarValue } from './types.js';
+export type NumericMutationNode = Readonly<{
+    kind: 'numericMutation';
+    operation: NumericMutationOperation;
+    value: NumericMutationOperand;
+}>;
+export declare function isNumericMutation(value: unknown): value is NumericMutationNode;
+export declare function normalizeNumericMutation(collection: CollectionDefinition, field: FieldDefinition, input: unknown, updating: boolean, context?: RepositoryContext, path?: readonly (string | number)[]): RepositoryMutationScalarValue;

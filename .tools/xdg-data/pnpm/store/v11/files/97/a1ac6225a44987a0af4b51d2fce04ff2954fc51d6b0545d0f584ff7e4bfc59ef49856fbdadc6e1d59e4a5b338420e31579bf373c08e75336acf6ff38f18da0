@@ -1,0 +1,4 @@
+import type { MigrationDefinition } from '../types.js';
+export declare const MIGRATION_DEFINITION_SYMBOL: symbol;
+export declare function markMigrationDefinition<T extends MigrationDefinition>(definition: T): T;
+export declare function isDefinedMigration(value: unknown): value is MigrationDefinition;

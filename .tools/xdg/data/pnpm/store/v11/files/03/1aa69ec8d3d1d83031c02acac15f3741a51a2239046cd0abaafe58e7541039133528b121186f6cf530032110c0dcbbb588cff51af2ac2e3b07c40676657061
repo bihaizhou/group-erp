@@ -1,0 +1,7 @@
+import type { MailProviderDefinition } from '../../contracts/provider.js';
+export declare const DEFAULT_SCOPES: readonly ["https://www.googleapis.com/auth/gmail.modify", "https://www.googleapis.com/auth/gmail.settings.basic"];
+export declare const HTTP_TIMEOUT_MS: number;
+export declare const MAX_PROVIDER_JSON_BYTES: number;
+export declare const MESSAGE_FETCH_CONCURRENCY: number;
+export declare const GMAIL_CAPABILITIES: MailProviderDefinition['capabilities'];
+//# sourceMappingURL=constants.d.ts.map

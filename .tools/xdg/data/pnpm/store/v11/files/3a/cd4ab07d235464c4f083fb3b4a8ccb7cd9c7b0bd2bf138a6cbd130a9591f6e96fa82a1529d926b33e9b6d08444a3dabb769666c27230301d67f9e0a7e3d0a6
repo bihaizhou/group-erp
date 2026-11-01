@@ -1,0 +1,110 @@
+import { CompositeResourceReference, type AuthorizationPlugin, type AuthorizationTitle, type CompositeResourceActions, type CompositeResourceApi, type ResourceRef, type ResourceTypeRegistry } from '@nocobase/authorization/core';
+/** A left-side workspace heading, or a subsection of one when `parent` is set. */
+export interface AuthorizationUiSection {
+    readonly name: string;
+    readonly title: AuthorizationTitle;
+    /** Required on a top-level section; optional on a subsection. */
+    readonly order?: number;
+    /** The top-level section a subsection sits in. */
+    readonly parent?: string;
+}
+/** What `ui.sections.add` takes. */
+export interface AuthorizationUiSectionDefinition extends AuthorizationUiSection {
+    /**
+     * Subsections only: extend a subsection another plugin owns, the way a
+     * client settings group is extended. Does nothing when the subsection
+     * exists, creates it otherwise, and yields to the owner's later add.
+     */
+    readonly extend?: boolean;
+}
+/** A top-level section with its subsections, in order. */
+export interface AuthorizationUiSectionNode extends AuthorizationUiSection {
+    readonly order: number;
+    readonly subsections: readonly AuthorizationUiSection[];
+}
+/** A right-side heading resources are listed under, nested to any depth. */
+export interface AuthorizationUiGroup {
+    readonly name: string;
+    readonly title: AuthorizationTitle;
+    readonly parent?: string;
+    readonly order?: number;
+}
+/** Where one resource is listed: a subsection, and optionally a group. */
+export interface AuthorizationUiPlacement {
+    readonly section: string;
+    readonly group?: string;
+    /** Position within its subsection; unordered resources follow in registration order. */
+    readonly order?: number;
+}
+/** A resource to place: a ref, or the reference `composites.define` returns. */
+export type AuthorizationUiTarget = ResourceRef | CompositeResourceReference<CompositeResourceActions>;
+/** `ui.sections`. */
+export interface AuthorizationUiSections {
+    add(definition: AuthorizationUiSectionDefinition): void;
+    has(name: string): boolean;
+    /** Whether `name` is a subsection, the only kind a resource is placed in. */
+    isSubsection(name: string): boolean;
+    get(name: string): AuthorizationUiSection | undefined;
+    /** The "Other" subsection of a top-level section, created on first use. */
+    other(parent: string): string;
+    /** Top-level sections by `order`, each with its subsections by `order`, unordered ones last. */
+    tree(): readonly AuthorizationUiSectionNode[];
+}
+/** `ui.groups`. */
+export interface AuthorizationUiGroups {
+    add(group: AuthorizationUiGroup): void;
+    has(name: string): boolean;
+    get(name: string): AuthorizationUiGroup | undefined;
+    list(): readonly AuthorizationUiGroup[];
+}
+/** What startup validation found: errors fail a development boot, warnings never do. */
+export interface AuthorizationUiReport {
+    readonly errors: readonly string[];
+    readonly warnings: readonly string[];
+}
+/** `authz.ui`: where the permission workspace lists each resource. Never read by a check. */
+export interface AuthorizationUiApi {
+    readonly sections: AuthorizationUiSections;
+    readonly groups: AuthorizationUiGroups;
+    /**
+     * Lists a resource under a subsection and, optionally, a group. The
+     * subsection, group and resource may be registered later; startup
+     * validation reports any that never are.
+     */
+    place(target: AuthorizationUiTarget, placement: AuthorizationUiPlacement): void;
+    /** Lists unplaced resources of `type` under `<section>.other`. */
+    defaultSection(type: string, section: string): void;
+    /** The top-level section unplaced resources of `type` land in, if any. */
+    defaultSectionOf(type: string): string | undefined;
+    /** The explicit placement of a resource, if any. */
+    placementOf(resource: ResourceRef): AuthorizationUiPlacement | undefined;
+    /** Checks every placement against the registered types, items and composites. */
+    validate(host: {
+        readonly resourceTypes: ResourceTypeRegistry;
+        readonly compositeResources?: CompositeResourceApi;
+    }): AuthorizationUiReport;
+}
+export interface UiAuthorizationApi {
+    ui: AuthorizationUiApi;
+}
+export type UiPlugin = AuthorizationPlugin<UiAuthorizationApi>;
+/** The subsection every authorization settings item is listed under. */
+export declare const AUTHORIZATION_SETTINGS_SECTION = "authorization";
+/**
+ * Registers `authz.ui` with the built-in sections `pages`, `business` and
+ * `administration`, the `authorization` subsection, and the default sections
+ * of `composite` and `settings`. `pagesPlugin` adds the `pages.page`
+ * subsection itself.
+ */
+export declare function uiPlugin(): UiPlugin;
+export interface AuthorizationUiReportOptions {
+    /** Production warns about errors instead of throwing. */
+    readonly production: boolean;
+    warn(message: string): void;
+}
+/**
+ * Reports a validation result: every warning is logged; errors throw in
+ * development and are logged in production.
+ */
+export declare function reportAuthorizationUi(report: AuthorizationUiReport, options: AuthorizationUiReportOptions): void;
+//# sourceMappingURL=ui.d.ts.map

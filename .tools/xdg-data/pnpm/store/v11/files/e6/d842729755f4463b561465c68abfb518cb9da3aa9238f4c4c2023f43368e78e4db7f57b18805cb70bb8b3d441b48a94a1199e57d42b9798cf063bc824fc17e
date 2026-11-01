@@ -1,0 +1,12 @@
+import { type CompositeResourceActions, type CompositeResourceReference } from '../../core/composite.js';
+import type { RecordSelection } from '../../core/selection.js';
+import type { DefaultAccessRule } from './model.js';
+export declare class DefaultAccessRuleBuilder<A extends CompositeResourceActions> {
+    private readonly resource;
+    private readonly definition;
+    constructor(resource: CompositeResourceReference<A>, definition: DefaultAccessRule);
+    scope<N extends keyof A & string>(action: N, scopeKey: keyof A[N] & string, selection: RecordSelection): DefaultAccessRuleBuilder<A>;
+    build(): DefaultAccessRule;
+}
+export declare function defineDefaultAccessRule<A extends CompositeResourceActions>(key: string, resource: CompositeResourceReference<A>): DefaultAccessRuleBuilder<A>;
+//# sourceMappingURL=builder.d.ts.map

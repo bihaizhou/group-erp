@@ -1,0 +1,52 @@
+import { MailExecutions, type EmailMessage } from '@nocobase/mailer';
+import type { Mailer } from '@nocobase/app-server/mailer';
+import type { DatabaseConnection } from '@nocobase/db';
+import { type AuthContext, type BetterAuthOptions, type BetterAuthPlugin } from 'better-auth';
+type ResetSender = NonNullable<NonNullable<BetterAuthOptions['emailAndPassword']>['sendResetPassword']>;
+type ResetData = Parameters<ResetSender>[0];
+export interface PasswordResetConfig {
+    readonly enabled?: boolean;
+    readonly emailChannel?: string;
+    readonly template?: (data: ResetData, appName: string) => EmailMessage;
+}
+export interface PasswordResetServices {
+    readonly mailer?: Mailer;
+    readonly increment?: (key: string) => Promise<number>;
+    readonly report?: (category: string) => void;
+    readonly executions?: MailExecutions;
+}
+export declare class PasswordResetPolicy {
+    private readonly options;
+    private readonly connection;
+    private readonly services;
+    readonly available: boolean;
+    readonly automatic: boolean;
+    private readonly sender;
+    private readonly executions;
+    private readonly buckets;
+    private readonly resetWrites;
+    private readonly requestAddress;
+    constructor(config: PasswordResetConfig, options: BetterAuthOptions, connection: DatabaseConnection, services: PasswordResetServices);
+    eligible(userId: string): Promise<boolean>;
+    /** Return immediately; only original completion releases the reserved slot. */
+    send: ResetSender;
+    prepareRequest(ctx: {
+        readonly path?: string;
+        readonly request?: Request;
+        readonly context: {
+            logger: AuthContext['logger'];
+        };
+    }): Promise<void>;
+    plugin(): BetterAuthPlugin;
+    private increment;
+    close(): Promise<void>;
+    runRequest<T>(address: string | undefined, handler: () => T): T;
+    private clientAddress;
+    guardWrite(context: {
+        path?: string;
+        context: object;
+    } | null | undefined): Promise<void>;
+}
+export declare function defaultPasswordResetEmail(data: ResetData, appName: string): EmailMessage;
+export {};
+//# sourceMappingURL=password-reset.d.ts.map

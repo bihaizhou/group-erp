@@ -1,0 +1,15 @@
+/** The values that can be sent in a Repository JSON request. */
+export type JsonValue = string | number | boolean | null | readonly JsonValue[] | {
+    readonly [key: string]: JsonValue;
+};
+/** Dates and bigint values use the same wire representation as Repository responses. */
+export type JsonValueOf<T> = T extends (...args: never[]) => unknown ? never : T extends Date | bigint ? string : T extends readonly unknown[] ? {
+    readonly [K in keyof T]: JsonValueOf<T[K]>;
+} : T extends object ? {
+    readonly [K in keyof T]: JsonValueOf<T[K]>;
+} : unknown extends T ? JsonValue : T;
+export declare function inputError(path: readonly (string | number)[], message: string): never;
+export declare function isRecord(value: unknown): value is Record<string, unknown>;
+/** Does not call arbitrary toJSON methods or silently drop functions. */
+export declare function snapshotJson<T>(value: T): T;
+//# sourceMappingURL=json.d.ts.map

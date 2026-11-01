@@ -1,0 +1,164 @@
+import type { PermissionGrant } from '../../core/grants.js';
+import type { AuthorizationPlugin } from '../../core/plugin.js';
+import type { AuthorizationTitle } from '../../core/titles.js';
+import type { AuthorizationSubject, Principal } from '../../core/types.js';
+import type { PermissionSet, PermissionSetAssignment, PermissionSetSubject } from './model.js';
+import type { PermissionSetStore } from './store.js';
+export interface CreatePermissionSetInput {
+    key: string;
+    title?: AuthorizationTitle;
+    grants: readonly PermissionGrant[];
+}
+export interface AssignPermissionSetInput {
+    id?: string;
+    subject: PermissionSetSubject;
+    permissionSet: string;
+}
+export interface ReplaceSubjectAssignmentsInput {
+    subject: PermissionSetSubject;
+    /** The Permission Sets this replacement owns; others are left alone. */
+    managedPermissionSets: readonly string[];
+    permissionSets: readonly string[];
+}
+export interface PermissionSetsApi<TTransaction = unknown> {
+    create(input: CreatePermissionSetInput): Promise<PermissionSet>;
+    update(key: string, input: CreatePermissionSetInput): Promise<PermissionSet>;
+    delete(key: string): Promise<void>;
+    get(key: string): Promise<PermissionSet | undefined>;
+    list(): Promise<readonly PermissionSet[]>;
+    assign(input: AssignPermissionSetInput): Promise<PermissionSetAssignment>;
+    /** Uses the store's transaction runner unless already bound with withTransaction. */
+    revoke(id: string): Promise<void>;
+    listAssignments(permissionSet?: string): Promise<readonly PermissionSetAssignment[]>;
+    replaceSubjectAssignments(input: ReplaceSubjectAssignmentsInput): Promise<readonly PermissionSetAssignment[]>;
+    /** Announces a change through `authz.onGrantsChanged`. */
+    notifyAssignmentsChanged(subject: PermissionSetSubject): Promise<void>;
+    /**
+     * Throws when removing this subject would leave a Permission Set that
+     * requires an active assignment without one. Bind this check and the actual
+     * subject mutation to the same caller-owned transaction.
+     */
+    assertSubjectRemovable(subject: PermissionSetSubject): Promise<void>;
+    /**
+     * Returns an API bound to the caller's transaction. The caller owns the
+     * transaction and publishes assignment changes after it commits, so the
+     * bound API notifies no subscriber.
+     */
+    withTransaction(transaction: TTransaction): PermissionSetsApi<TTransaction>;
+    /**
+     * Marks Permission Sets as owned by code. The generic management surface
+     * (the HTTP handler) refuses to change them; the owner's own code still can.
+     * Returns a function that lifts the protection again.
+     */
+    protect(protection: PermissionSetProtection): () => void;
+    protection(key: string): PermissionSetProtectionInfo | undefined;
+    /** Throws PermissionSetProtectedError when the operation is not allowed on a protected Permission Set. */
+    assertWritable(key: string, operation: PermissionSetWriteOperation): void;
+    getEffective(input: {
+        principal: Principal;
+        subjects?: readonly AuthorizationSubject[];
+    }): Promise<readonly PermissionSet[]>;
+}
+export type PermissionSetWriteOperation = 'create' | 'update' | 'delete' | 'assign' | 'revoke';
+/** Owner of a protection the library declares on its own behalf. */
+export declare const PERMISSION_SETS_PROTECTION_OWNER: string;
+export interface PermissionSetProtection {
+    /** Who registers the protection, usually a plugin package name. */
+    owner: string;
+    keys: readonly string[];
+    /** Operations the generic management surface may still perform. */
+    allow?: readonly PermissionSetWriteOperation[];
+    /**
+     * The set must always keep at least one assignment that can still act, so
+     * an installation cannot revoke or disable its way out of the access the
+     * set is the only source of. Independent of unrestricted access.
+     */
+    requireActiveAssignment?: boolean;
+    /**
+     * Holding the set grants unrestricted access: authorization is skipped
+     * entirely, including Sharing and Restriction Rules. It is declared here
+     * rather than on its own, so a set that confers it is always protected as
+     * well: an unprotected superuser set should not exist.
+     */
+    unrestricted?: boolean;
+    /** Subject types this set may be assigned to. Absent means any. */
+    assignableTo?: readonly string[];
+    /**
+     * The set is its owner's implementation detail — the grants of one API key's
+     * hidden identity, say — so the generic management surface leaves it out of
+     * its lists. It does not change what holding the set allows.
+     */
+    hidden?: boolean;
+}
+export interface PermissionSetProtectionInfo {
+    owner: string;
+    allow: readonly PermissionSetWriteOperation[];
+    /** Present only when the set requires an active assignment. */
+    requireActiveAssignment?: boolean;
+    /** Present only when holding the set grants unrestricted access. */
+    unrestricted?: boolean;
+    /** Subject types this set may be assigned to. Absent means any. */
+    assignableTo?: readonly string[];
+    /** Present only when the generic management surface leaves the set out of its lists. */
+    hidden?: boolean;
+}
+export declare class PermissionSetProtectedError extends Error {
+    readonly key: string;
+    readonly owner: string;
+    readonly operation: PermissionSetWriteOperation;
+    constructor(key: string, owner: string, operation: PermissionSetWriteOperation);
+}
+export declare class PermissionSetSubjectNotAllowedError extends Error {
+    readonly key: string;
+    readonly subjectType: string;
+    constructor(key: string, subjectType: string);
+}
+export declare class PermissionSetLastAssignmentError extends Error {
+    readonly key: string;
+    constructor(key: string);
+}
+export interface PermissionSetRootSet {
+    key: string;
+    /** `false` lets the set stay empty between break-glass uses. */
+    requireActiveAssignment?: boolean;
+    /**
+     * Subject types the set may be assigned to. The library declares no default:
+     * which types are accounts rather than audiences is the host's convention.
+     */
+    assignableTo?: readonly string[];
+}
+export interface PermissionSetsOptions<TTransaction = unknown> {
+    /** Where Permission Sets and their assignments are read and written. */
+    store: PermissionSetStore<TTransaction>;
+    /**
+     * The Permission Set that confers unrestricted access. Declaring it here
+     * protects it as the library's own: it may be assigned and revoked but not
+     * edited or deleted, and it keeps an active assignment unless the
+     * application says otherwise.
+     */
+    rootSet?: string | PermissionSetRootSet;
+    /**
+     * The Permission Set an installation keeps as its ordinary one: its grants
+     * stay editable, while the set itself and its assignments do not.
+     *
+     * This names a set and its protection. It does not mean "these grants apply
+     * to every identity without an assignment": that meaning lives in the
+     * assignment row binding the set to an audience subject, and in the host
+     * middleware that adds that subject to a request. It must stay there,
+     * because the library's "every identity" would include the anonymous ones
+     * in a host that has them.
+     */
+    defaultSet?: string;
+}
+export declare class PermissionSetNotFoundError extends Error {
+    constructor(key: string);
+}
+export declare class PermissionSetConflictError extends Error {
+    constructor(message: string);
+}
+export interface PermissionSetsAuthorizationApi<TTransaction = unknown> {
+    permissionSets: PermissionSetsApi<TTransaction>;
+}
+export type PermissionSetsPlugin<TTransaction = unknown> = AuthorizationPlugin<PermissionSetsAuthorizationApi<TTransaction>>;
+export declare function permissionSetsPlugin<TTransaction = unknown>(options: PermissionSetsOptions<TTransaction>): PermissionSetsPlugin<TTransaction>;
+//# sourceMappingURL=plugin.d.ts.map

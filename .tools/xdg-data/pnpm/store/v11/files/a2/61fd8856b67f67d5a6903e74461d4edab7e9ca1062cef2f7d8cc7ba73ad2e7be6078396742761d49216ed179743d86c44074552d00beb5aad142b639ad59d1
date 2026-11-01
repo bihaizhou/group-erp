@@ -1,0 +1,82 @@
+import { resolveDatabaseConfig } from '../database/resolve-config.js';
+import { createConfigContext, createAppPaths, } from '../config/index.js';
+import { resolveAppServerPlugins, } from '../plugins/index.js';
+import { resolveAppScopeRuntime, } from './scope.js';
+export function defineAppRuntime(definition) {
+    return Object.freeze({
+        ...definition,
+        serviceProviders: Object.freeze([...definition.serviceProviders]),
+        routes: Object.freeze([...definition.routes]),
+    });
+}
+export async function resolveAppRuntime(definition, scope) {
+    const resolved = withStandaloneStorageDir(resolveAppScopeRuntime(scope));
+    const base = definition.resolvePaths
+        ? { ...resolved, paths: definition.resolvePaths(resolved) }
+        : resolved;
+    const context = createAppRuntimeConfigContext(definition, scope, base);
+    const appConfig = definition.createAppConfig(context);
+    await appConfig.loadAll();
+    const runtime = {
+        ...base,
+        scope,
+        paths: context.paths,
+        plugins: context.plugins,
+        serviceProviders: definition.serviceProviders,
+        routes: definition.routes,
+        config: appConfig,
+        locales: definition.locales,
+    };
+    if (definition.defaultConfigs) {
+        runtime.config.mergeDefaults(definition.defaultConfigs(runtime));
+        if (definition.defaultConfigs.sections) {
+            runtime.config.defineSections(definition.defaultConfigs.sections);
+            await runtime.config.loadSectionEnvironment(context.environment);
+        }
+    }
+    const database = runtime.config.get('database');
+    if (database && database.default !== 'none') {
+        const resolvedDatabase = await resolveDatabaseConfig(database);
+        runtime.config.mergeDefaults({
+            database: {
+                drivers: resolvedDatabase.drivers,
+                connections: Object.fromEntries(Object.entries(resolvedDatabase.connections)
+                    .filter(([name, connection]) => connection.databaseDriver &&
+                    !database.connections[name].databaseDriver)
+                    .map(([name, connection]) => [
+                    name,
+                    { databaseDriver: connection.databaseDriver },
+                ])),
+            },
+        });
+    }
+    return runtime;
+}
+/**
+ * A standalone deployment keeps its data under `APP_STORAGE_DIR` when it is set, so a deployment whose code root is
+ * replaced on every release (one release directory per version) keeps one storage directory across them. A relative
+ * value resolves from the deployment root, as the default `storage` does. Explicit paths win, and embedded
+ * applications always use the volume their host provides.
+ */
+function withStandaloneStorageDir(runtime) {
+    if (runtime.mode !== 'standalone' || runtime.paths.storageDir !== undefined) {
+        return runtime;
+    }
+    const storageDir = runtime.env.APP_STORAGE_DIR?.trim();
+    return storageDir
+        ? { ...runtime, paths: { ...runtime.paths, storageDir } }
+        : runtime;
+}
+function createAppRuntimeConfigContext(definition, scope, runtime) {
+    const paths = createAppPaths(runtime.paths);
+    const plugins = resolveAppServerPlugins(paths.rootDir, definition.plugins);
+    return {
+        ...createConfigContext({ env: runtime.env, paths }),
+        mode: runtime.mode,
+        routing: runtime.routing,
+        plugins,
+        appPackageName: plugins.appPackageName,
+        configPath: scope.configPath,
+    };
+}
+//# sourceMappingURL=definition.js.map

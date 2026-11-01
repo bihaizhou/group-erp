@@ -1,0 +1,59 @@
+import type { NamingOptions, OptimisticLockDefinition } from '../collection/types.js';
+import type { CollectionMetadataStore } from './document-store.js';
+import type { CollectionMetadataStoreCapabilities } from './document-store.js';
+import type { CollectionMetadataDocument, FieldMetadata, RelationMetadata, StoredCollectionMetadata } from './document.js';
+export interface CollectionMetadataPropertiesPatch {
+    readonly naming?: NamingOptions | null;
+    readonly title?: string | null;
+    readonly description?: string | null;
+    readonly optimisticLock?: OptimisticLockDefinition | null;
+}
+export interface CollectionFieldMetadataPatch {
+    readonly type?: FieldMetadata['type'] | null;
+    readonly values?: readonly string[] | null;
+    readonly title?: string | null;
+    readonly description?: string | null;
+}
+export interface UpdateCollectionMetadataOptions {
+    readonly expectedRevision?: string | number | null;
+}
+export interface CollectionMetadataValidationContext {
+    readonly previous?: CollectionMetadataDocument;
+    readonly operation: 'updateCollection' | 'updateField' | 'setRelation' | 'removeRelation' | 'replaceDocument' | 'removeField';
+}
+export interface CollectionMetadataDocumentValidator {
+    validate(document: CollectionMetadataDocument, context: CollectionMetadataValidationContext): Promise<void>;
+}
+export interface CollectionMetadataInvalidation {
+    readonly collections: readonly string[];
+    readonly namingIndex: boolean;
+}
+export interface CollectionMetadataInvalidator {
+    invalidate(change: CollectionMetadataInvalidation): void;
+    invalidateAll(): void;
+}
+export interface CollectionMetadataServiceOptions {
+    readonly store: CollectionMetadataStore;
+    readonly validator: CollectionMetadataDocumentValidator;
+    readonly invalidator: CollectionMetadataInvalidator;
+    readonly onInvalidationError: (error: unknown) => void;
+}
+export declare class CollectionMetadataService {
+    private readonly options;
+    private initializationPromise?;
+    constructor(options: CollectionMetadataServiceOptions);
+    get capabilities(): CollectionMetadataStoreCapabilities;
+    get(name: string): Promise<StoredCollectionMetadata | undefined>;
+    replaceDocument(input: CollectionMetadataDocument, options?: UpdateCollectionMetadataOptions): Promise<StoredCollectionMetadata | undefined>;
+    removeDocument(name: string, options?: UpdateCollectionMetadataOptions): Promise<void>;
+    updateCollection(name: string, patch: CollectionMetadataPropertiesPatch, options?: UpdateCollectionMetadataOptions): Promise<StoredCollectionMetadata | undefined>;
+    updateField(collection: string, field: string, patch: CollectionFieldMetadataPatch, options?: UpdateCollectionMetadataOptions): Promise<StoredCollectionMetadata | undefined>;
+    setRelation(collection: string, name: string, relation: RelationMetadata, options?: UpdateCollectionMetadataOptions): Promise<StoredCollectionMetadata>;
+    removeRelation(collection: string, name: string, options?: UpdateCollectionMetadataOptions): Promise<StoredCollectionMetadata | undefined>;
+    removeField(collection: string, field: string, options?: UpdateCollectionMetadataOptions): Promise<StoredCollectionMetadata | undefined>;
+    private mutate;
+    private mutateCurrent;
+    private readCurrent;
+    private invalidate;
+    private initialize;
+}

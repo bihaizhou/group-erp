@@ -1,0 +1,42 @@
+export class AccessConstraintRegistry {
+    resolvers = new Map();
+    add(resolver) {
+        if (this.resolvers.has(resolver.id)) {
+            throw new Error(`Authorization constraint resolver already registered: ${resolver.id}`);
+        }
+        this.resolvers.set(resolver.id, resolver);
+    }
+    async resolve(input) {
+        const resolved = await Promise.all([...this.resolvers.values()].map((resolver) => resolver.resolve(input)));
+        return resolved.flat();
+    }
+    list() {
+        return [...this.resolvers.keys()].sort();
+    }
+    /** Caches each answer for the lifetime of one identity's context. */
+    for(identity) {
+        const cache = new Map();
+        const resolvers = [...this.resolvers.values()].map((resolver) => resolver.for?.(identity) ?? resolver);
+        return {
+            resolve: (input) => {
+                const key = JSON.stringify([
+                    input.resource.type,
+                    input.resource.id,
+                    input.action,
+                    input.scopeKey ?? null,
+                ]);
+                let result = cache.get(key);
+                if (!result) {
+                    result = Promise.all(resolvers.map((resolver) => resolver.resolve({
+                        ...input,
+                        principal: identity.principal,
+                        subjects: identity.subjects,
+                    }))).then((results) => results.flat());
+                    cache.set(key, result);
+                }
+                return result;
+            },
+        };
+    }
+}
+//# sourceMappingURL=constraints.js.map

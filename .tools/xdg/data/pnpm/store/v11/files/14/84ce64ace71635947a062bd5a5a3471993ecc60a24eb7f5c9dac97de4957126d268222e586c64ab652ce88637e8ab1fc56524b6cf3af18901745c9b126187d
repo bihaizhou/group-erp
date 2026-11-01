@@ -1,0 +1,15 @@
+import type { MailStore } from '../contracts/persistence.js';
+import type { MailLogger } from '../logging.js';
+import type { MailProviderAdapterResolver } from '../contracts/provider.js';
+export declare class MailPushSubscriptions {
+    private readonly options;
+    constructor(options: {
+        readonly store: Pick<MailStore, 'claimPushSubscriptionMaintenance' | 'getAccount' | 'getPushSubscription' | 'markPushSubscriptionReplacementNeeded' | 'releasePushSubscriptionMaintenance' | 'renewPushSubscriptionMaintenance' | 'savePushSubscription'>;
+        readonly logger?: MailLogger;
+        readonly adapters: MailProviderAdapterResolver;
+        readonly pushWebhookUrl?: string;
+        readonly pushWebhookSecret?: string;
+    });
+    maintain(account: import('../../shared/mail.js').MailAccount): Promise<void>;
+}
+//# sourceMappingURL=push-subscriptions.d.ts.map

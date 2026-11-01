@@ -1,0 +1,8 @@
+import { defineClientPlugin, } from '@nocobase/app-client/plugins';
+import locales from './locales/index.js';
+const i18n = defineClientPlugin({
+    packageName: '@nocobase/app-plugin-i18n',
+    locales,
+});
+export default i18n;
+//# sourceMappingURL=plugin.js.map

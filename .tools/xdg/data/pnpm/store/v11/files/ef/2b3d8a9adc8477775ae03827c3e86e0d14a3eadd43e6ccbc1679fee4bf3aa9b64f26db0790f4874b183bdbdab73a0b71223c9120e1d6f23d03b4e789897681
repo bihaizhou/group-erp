@@ -1,0 +1,49 @@
+export class ScheduleTargetRegistry {
+    targets = new Map();
+    register(target) {
+        if (this.targets.has(target.type))
+            throw new Error(`Schedule target type already registered: ${target.type}`);
+        // The registry is heterogeneous: each target parses its own config out of
+        // the JSON a definition declared, which `validate()` is there to check.
+        this.targets.set(target.type, target);
+    }
+    get(type) {
+        return this.targets.get(type);
+    }
+    validate(definition) {
+        const target = this.get(definition.target.type);
+        return target
+            ? target.validate(definition.target.config)
+            : { valid: false, reason: 'target-not-found' };
+    }
+    async describe(type, config) {
+        const target = this.get(type);
+        if (!target)
+            return { targetLabel: type, state: 'missing' };
+        return target.describe
+            ? target.describe(config)
+            : { targetLabel: target.title, state: 'ready' };
+    }
+    async start(type, config, context) {
+        const target = this.get(type);
+        if (!target)
+            return { state: 'failed', reason: 'target-not-found' };
+        const validation = target.validate(config);
+        if (!validation.valid)
+            return {
+                state: 'failed',
+                reason: validation.reason ?? 'invalid-config',
+            };
+        return target.start(config, context);
+    }
+    inspect(targetType, reference) {
+        const target = this.get(targetType);
+        return target?.inspect
+            ? target.inspect(reference)
+            : Promise.resolve({ state: 'unknown', reason: 'observer-unavailable' });
+    }
+    referenceHref(targetType, reference) {
+        return this.get(targetType)?.referenceHref?.(reference);
+    }
+}
+//# sourceMappingURL=registry.js.map

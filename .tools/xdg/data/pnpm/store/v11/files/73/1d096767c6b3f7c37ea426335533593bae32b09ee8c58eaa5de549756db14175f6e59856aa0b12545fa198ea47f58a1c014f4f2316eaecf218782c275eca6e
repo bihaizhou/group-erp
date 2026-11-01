@@ -1,0 +1,17 @@
+import type { AppLocation } from '../runtime/location.ts';
+/** An executable and its arguments, as a suggestion's `run` carries them. */
+export interface CliInvocation {
+    readonly command: string;
+    readonly args: readonly string[];
+}
+/**
+ * The executable and leading arguments that run this command line, for `location` or, without one, for the application
+ * the runner located. Outside a run, as in a test that binds a command directly, it is `pnpm nocobase`.
+ */
+export declare function cliInvocation(location?: Pick<AppLocation, 'kind' | 'root'>): CliInvocation;
+/** `cliInvocation()` followed by `args`, such as `['db', 'unlock']`. */
+export declare function nocobaseCommand(args: readonly string[], location?: Pick<AppLocation, 'kind' | 'root'>): {
+    command: string;
+    args: string[];
+};
+//# sourceMappingURL=invocation.d.ts.map

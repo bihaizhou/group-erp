@@ -1,0 +1,66 @@
+// Reads and edits an application's explicit `cli/plugins.ts` composition root.
+//
+// Same narrow text splices as the client and server roots: the shared source editor locates the import group and the
+// `defineCliPlugins([...])` array and splices into the original text, so application-authored comments, ordering, and
+// formatting survive byte for byte.
+import { existsSync, statSync } from 'node:fs';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { createPluginSourceEditor, formatPluginsFile, localNameFor, } from "./client-plugins.js";
+const CLI_SOURCE_DEFINITION = {
+    entryKind: 'value',
+    entrySpecifierSuffix: '/cli',
+    entrySuffixes: ['/cli'],
+    fileLabel: 'cli/plugins.ts',
+    registerCallName: 'defineCliPlugins',
+};
+const EMPTY_FILE = `import {
+  defineCliPlugins,
+  type AppCliPlugins,
+} from '@nocobase/app-cli';
+
+// Array order is command registration order. A plugin contributes its commands
+// by appearing in this list; removing its entry and import removes them.
+const cliPlugins: AppCliPlugins = defineCliPlugins([]);
+
+export default cliPlugins;
+`;
+export function cliPluginsPath(appRoot) {
+    return path.join(appRoot, 'cli', 'plugins.ts');
+}
+export function cliPluginEntrySpecifier(packageName) {
+    return `${packageName}/cli`;
+}
+export async function readCliPlugins(appRoot) {
+    const filePath = cliPluginsPath(appRoot);
+    if (!existsSync(filePath) || !statSync(filePath).isFile()) {
+        return { exists: false, filePath, sourceText: EMPTY_FILE };
+    }
+    return {
+        exists: true,
+        filePath,
+        sourceText: await readFile(filePath, 'utf8'),
+    };
+}
+export async function writeCliPlugins(appRoot, sourceText) {
+    const filePath = cliPluginsPath(appRoot);
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, sourceText);
+    return filePath;
+}
+export function describeCliPluginEdit(appRoot, packageName) {
+    const localName = localNameFor(packageName);
+    return {
+        entry: `${localName},`,
+        filePath: cliPluginsPath(appRoot),
+        importStatement: `import ${localName} from '${cliPluginEntrySpecifier(packageName)}';`,
+        localName,
+    };
+}
+export async function createCliPluginsEditor(appRoot) {
+    return createPluginSourceEditor(appRoot, CLI_SOURCE_DEFINITION);
+}
+export async function formatCliPlugins(appRoot, sourceText, filePath) {
+    return formatPluginsFile(appRoot, sourceText, filePath);
+}
+//# sourceMappingURL=cli-plugins.js.map

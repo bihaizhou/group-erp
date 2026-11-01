@@ -1,0 +1,77 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { MailScheduledStatus } from './mail-scheduled-status.js';
+import { CheckSquare2, Paperclip, Star, StickyNote } from 'lucide-react';
+import { useTranslation } from '@nocobase/i18n/client';
+import { MAIL_PLUGIN_NS } from '../namespace.js';
+import { cn } from '../lib/utils.js';
+import { mailAddressName, formatMailAddress, formatMailAddresses, } from '../lib/mail-address.js';
+import { Button } from './ui/button.js';
+import { MailLabelTag } from './mail-label-tag.js';
+export function MailMessageList({ availableLabels = [], labels, loading = false, messages, nextCursor, onLoadMore, onSelect, selectedMessageId, }) {
+    const { t, i18n } = useTranslation(MAIL_PLUGIN_NS);
+    const groupedMessages = groupMessagesByConversation(messages);
+    const labelsById = new Map(availableLabels.map((label) => [label.id, label]));
+    return (_jsxs("section", { "aria-busy": loading, "aria-label": labels.messages ?? 'Messages', className: 'h-full min-h-0 overflow-y-auto', children: [loading && groupedMessages.length === 0 ? (_jsxs("div", { role: 'status', className: 'space-y-4 p-4', children: [_jsx("span", { className: 'sr-only', children: labels.loading ?? 'Loading messages…' }), [0, 1, 2, 3].map((row) => (_jsxs("div", { "aria-hidden": 'true', className: 'space-y-2 motion-safe:animate-pulse', children: [_jsx("div", { className: 'h-4 w-2/3 rounded bg-muted' }), _jsx("div", { className: 'h-3 w-full rounded bg-muted' }), _jsx("div", { className: 'h-3 w-4/5 rounded bg-muted' })] }, row)))] })) : null, groupedMessages.length === 0 && !loading ? (_jsx("p", { className: 'p-8 text-center text-sm text-muted-foreground', children: labels.empty })) : null, _jsx("div", { className: 'divide-y', children: groupedMessages.map(({ message, subjectCount }) => {
+                    const sender = mailAddressName(message.from);
+                    const recipients = message.to
+                        .map(mailAddressName)
+                        .filter(Boolean)
+                        .join(', ');
+                    const messageLabels = message.labelIds
+                        .map((labelId) => labelsById.get(labelId))
+                        .filter((label) => Boolean(label));
+                    return (_jsxs(Button, { "aria-current": selectedMessageId === message.id ? 'true' : undefined, className: cn('block h-auto w-full border-0 px-4 py-3 text-left font-normal whitespace-normal hover:bg-muted/60', selectedMessageId === message.id && 'bg-primary/5', !message.read && 'bg-muted/30'), onClick: () => onSelect(message), type: 'button', variant: 'ghost', children: [_jsxs("div", { className: 'flex items-center gap-2', children: [_jsx("span", { "aria-label": t('workspace.senderLabel', {
+                                            defaultValue: 'From',
+                                        }), title: message.from ? formatMailAddress(message.from) : undefined, className: cn('min-w-0 flex-1 truncate text-sm', !message.read && 'font-semibold'), children: sender || labels.unknownSender }), message.starred ? (_jsx(Star, { "aria-label": 'Starred', className: 'size-3.5 fill-amber-400 text-amber-500' })) : null, _jsx("time", { className: 'shrink-0 text-xs text-muted-foreground', children: formatMessageDate(message.receivedAt ?? message.sentAt, i18n.language) })] }), recipients ? (_jsx("p", { "aria-label": t('workspace.to', { defaultValue: 'To' }), title: formatMailAddresses(message.to), className: 'mt-1 truncate text-xs text-muted-foreground', children: recipients })) : null, _jsxs("div", { className: 'mt-1 flex items-center gap-2', children: [_jsx("span", { className: cn('min-w-0 flex-1 truncate text-sm', !message.read && 'font-medium'), children: message.subject || labels.noSubject }), subjectCount > 1 ? (_jsx("span", { "aria-label": labels.subjectCount?.(subjectCount) ??
+                                            `${subjectCount} messages in this conversation`, className: 'shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary', children: subjectCount })) : null, message.hasAttachments ? (_jsx(Paperclip, { "aria-label": 'Has attachments', className: 'size-3.5 text-muted-foreground' })) : null, message.note ? (_jsx(StickyNote, { "aria-label": 'Has note', className: 'size-3.5 text-muted-foreground' })) : null, message.todo ? (_jsx(CheckSquare2, { "aria-label": 'To do', className: 'size-3.5 text-primary' })) : null] }), messageLabels.length > 0 ? (_jsx("div", { className: 'mt-2 flex min-w-0 flex-wrap gap-1.5', children: messageLabels.map((label) => (_jsx(MailLabelTag, { label: label }, label.id))) })) : null, _jsx(MailScheduledStatus, { message: message }), message.preview ? (_jsx("p", { className: 'mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground', children: message.preview })) : null] }, message.id));
+                }) }), nextCursor ? (_jsx("div", { className: 'p-3', children: _jsx(Button, { className: 'w-full', disabled: loading, onClick: onLoadMore, variant: 'outline', children: labels.loadMore }) })) : null] }));
+}
+function groupMessagesByConversation(messages) {
+    const groups = new Map();
+    for (const message of messages) {
+        const key = messageGroupKey(message);
+        const existing = groups.get(key);
+        if (!existing) {
+            groups.set(key, {
+                message,
+                loadedCount: 1,
+                subjectCount: Math.max(1, message.subjectCount ?? 1),
+            });
+            continue;
+        }
+        groups.set(key, {
+            message: mergeGroupedMessage(existing.message, message),
+            loadedCount: existing.loadedCount + 1,
+            subjectCount: Math.max(existing.subjectCount, existing.loadedCount + 1, message.subjectCount ?? 1),
+        });
+    }
+    return [...groups.values()];
+}
+function messageGroupKey(message) {
+    if (!message.draft && message.conversationId)
+        return `${message.accountId}:conversation:${message.conversationId}`;
+    return `${message.accountId}:message:${message.id}`;
+}
+function mergeGroupedMessage(representative, message) {
+    return {
+        ...representative,
+        hasAttachments: representative.hasAttachments || message.hasAttachments,
+        note: representative.note ?? message.note,
+        read: representative.read && message.read,
+        starred: representative.starred || message.starred,
+        todo: representative.todo || message.todo,
+        labelIds: [...new Set([...representative.labelIds, ...message.labelIds])],
+    };
+}
+function formatMessageDate(value, locale) {
+    if (!value)
+        return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime()))
+        return '';
+    return new Intl.DateTimeFormat(locale, {
+        month: 'short',
+        day: 'numeric',
+    }).format(date);
+}
+//# sourceMappingURL=mail-message-list.js.map

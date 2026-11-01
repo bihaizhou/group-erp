@@ -1,0 +1,52 @@
+import { apiKey as betterAuthApiKey, type ApiKeyConfigurationOptions } from '@better-auth/api-key';
+import { createAuthEndpoint } from 'better-auth/api';
+import type { ApiKey } from '@better-auth/api-key';
+type ServerEndpoint<Options extends Parameters<typeof createAuthEndpoint.serverOnly>[0], Result> = ReturnType<typeof createAuthEndpoint.serverOnly<string, Options, Result>>;
+type UpstreamPlugin = ReturnType<typeof betterAuthApiKey>;
+type ManagedQuery = ReturnType<UpstreamPlugin['endpoints']['getApiKey']['options']['query']['partial']>;
+type ManagedBody = UpstreamPlugin['endpoints']['deleteApiKey']['options']['body'];
+/** The configurations the plugin was created with, after this package's defaults are applied. */
+export interface ApiKeysPluginOptions {
+    readonly configurations: readonly ApiKeyConfigurationOptions[];
+}
+export type ApiKeysPlugin = Omit<UpstreamPlugin, 'endpoints'> & {
+    /** Read by this package's server, for instance to find the key a request carries; Better Auth ignores it. */
+    options: ApiKeysPluginOptions;
+    endpoints: UpstreamPlugin['endpoints'] & {
+        getServerApiKey: ServerEndpoint<{
+            method: 'GET';
+            query: ManagedQuery;
+        }, Omit<ApiKey, 'key'> | null>;
+        deleteServerApiKey: ServerEndpoint<{
+            method: 'POST';
+            body: ManagedBody;
+        }, {
+            success: boolean;
+        }>;
+    };
+};
+/**
+ * Where the plugin's provider puts the application's own-key policy (`ScopedApiKeys.setOwnKeyPolicy`), so the hook on
+ * Better Auth's own `/api-key/create` asks the same question `/api/apiKeys` does.
+ */
+export declare const OWN_KEY_POLICY_SLOT: unique symbol;
+export interface OwnKeyPolicySlot {
+    current: ((userId: string) => Promise<boolean>) | null;
+}
+/** The slot of a plugin `apiKey()` made, or undefined for any other plugin. */
+export declare function ownKeyPolicySlotOf(plugin: unknown): OwnKeyPolicySlot | undefined;
+/**
+ * The API key a request carries, read the way the plugin reads it to authenticate a request: from the header each
+ * configuration that turns keys into sessions names, `x-api-key` unless configured. A configuration with a
+ * `customAPIKeyGetter` is skipped, because that getter needs a Better Auth endpoint context this caller does not have.
+ */
+export declare function findRequestApiKey(plugin: Pick<ApiKeysPlugin, 'options'>, headers: Headers): string | undefined;
+/**
+ * The headers a request may carry its API key in, in the order `findRequestApiKey` reads them: those of each
+ * configuration that turns keys into sessions, `x-api-key` unless configured, without one that has a
+ * `customAPIKeyGetter`.
+ */
+export declare function requestApiKeyHeaders(plugin: Pick<ApiKeysPlugin, 'options'>): string[];
+export declare function apiKey(options?: ApiKeyConfigurationOptions | ApiKeyConfigurationOptions[]): ApiKeysPlugin;
+export {};
+//# sourceMappingURL=api-keys.d.ts.map

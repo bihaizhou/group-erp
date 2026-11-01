@@ -1,0 +1,13 @@
+import type { CollectionMetadataStore, CollectionMetadataPage, CollectionMetadataStoreCapabilities, DeleteCollectionMetadataOptions, ListCollectionMetadataOptions, PutCollectionMetadataOptions } from './document-store.js';
+import type { CollectionMetadataDocument, StoredCollectionMetadata } from './document.js';
+export declare class InMemoryCollectionMetadataStore implements CollectionMetadataStore {
+    readonly capabilities: CollectionMetadataStoreCapabilities;
+    private readonly documents;
+    private revision;
+    initialize(): Promise<void>;
+    get(name: string): Promise<StoredCollectionMetadata | undefined>;
+    list(options?: ListCollectionMetadataOptions): Promise<CollectionMetadataPage>;
+    put(input: CollectionMetadataDocument, options: PutCollectionMetadataOptions): Promise<StoredCollectionMetadata>;
+    delete(name: string, options: DeleteCollectionMetadataOptions): Promise<void>;
+    private nextRevision;
+}

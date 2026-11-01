@@ -1,0 +1,34 @@
+import { COMPOSITE_RESOURCE_TYPE, } from '../../core/composite.js';
+import { appendRuleAction } from '../internal/rules.js';
+export class DefaultAccessRuleBuilder {
+    resource;
+    definition;
+    constructor(resource, definition) {
+        this.resource = resource;
+        this.definition = definition;
+    }
+    scope(action, scopeKey, selection) {
+        this.resource.scope(action, scopeKey);
+        return new DefaultAccessRuleBuilder(this.resource, {
+            ...this.definition,
+            actions: appendRuleAction(this.definition.actions, {
+                action,
+                scopeKey,
+                selection,
+            }),
+        });
+    }
+    build() {
+        return structuredClone(this.definition);
+    }
+}
+export function defineDefaultAccessRule(key, resource) {
+    if (!key)
+        throw new TypeError('A rule needs a key');
+    return new DefaultAccessRuleBuilder(resource, {
+        key,
+        resource: { type: COMPOSITE_RESOURCE_TYPE, id: resource.name },
+        actions: [],
+    });
+}
+//# sourceMappingURL=builder.js.map

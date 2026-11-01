@@ -1,0 +1,11 @@
+import type { MailProviderDefinition } from '../../contracts/provider.js';
+import type { ImapLocationPersistence } from './types.js';
+import type { ImapSmtpMailProviderConfig } from './config.js';
+/**
+ * Mail registers this definition with persistence bound to each account, so
+ * every adapter instance reads and commits only its own account's copies.
+ */
+export declare function createImapSmtpMailProviderDefinition(locations?: (accountId: string) => ImapLocationPersistence): MailProviderDefinition<ImapSmtpMailProviderConfig>;
+/** Protocol-only definition without location persistence. */
+export declare const imapSmtpMailProviderDefinition: MailProviderDefinition<ImapSmtpMailProviderConfig>;
+//# sourceMappingURL=definition.d.ts.map

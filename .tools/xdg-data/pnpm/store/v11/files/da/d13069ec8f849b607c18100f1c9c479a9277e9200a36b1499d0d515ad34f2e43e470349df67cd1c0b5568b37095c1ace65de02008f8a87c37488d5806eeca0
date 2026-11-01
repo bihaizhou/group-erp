@@ -1,0 +1,4 @@
+import { type AppServerPlugin } from '@nocobase/app-server/plugins';
+declare const mailPlugin: AppServerPlugin;
+export default mailPlugin;
+//# sourceMappingURL=plugin.d.ts.map

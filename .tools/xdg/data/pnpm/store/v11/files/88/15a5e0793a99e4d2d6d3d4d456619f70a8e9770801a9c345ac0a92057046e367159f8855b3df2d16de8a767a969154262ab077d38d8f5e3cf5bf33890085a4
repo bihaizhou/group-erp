@@ -1,0 +1,90 @@
+import { type RepositoryPolicy } from '@nocobase/db';
+import type { ServiceContainer } from '@nocobase/service-provider';
+import { type Context } from 'hono';
+import { type AppApiRouteContribution } from './routes.js';
+import type { ApiSchema } from './openapi/describe.js';
+export type RepositoryApiAction = 'findMany' | 'findOne' | 'count' | 'aggregate' | 'groupBy' | 'exists' | 'createOne' | 'updateOne' | 'deleteOne';
+/**
+ * Options an action accepts. An action decides whether an endpoint exists;
+ * what it may do is the exposure's Policy, which every action shares.
+ */
+export type RepositoryApiActionOptions = Readonly<Record<string, never>>;
+export type RepositoryApiEmptyActionOptions = RepositoryApiActionOptions;
+export interface RepositoryApiFindManyOptions {
+    /** Default and maximum limit. Defaults to 100. */
+    readonly maxLimit?: number;
+}
+export interface RepositoryApiActions {
+    readonly findMany?: RepositoryApiFindManyOptions;
+    readonly findOne?: RepositoryApiEmptyActionOptions;
+    readonly count?: RepositoryApiEmptyActionOptions;
+    readonly exists?: RepositoryApiEmptyActionOptions;
+    readonly aggregate?: RepositoryApiEmptyActionOptions;
+    readonly groupBy?: RepositoryApiEmptyActionOptions;
+    readonly createOne?: RepositoryApiEmptyActionOptions;
+    readonly updateOne?: RepositoryApiEmptyActionOptions;
+    readonly deleteOne?: RepositoryApiEmptyActionOptions;
+}
+export interface RepositoryApiExposure<P = unknown> {
+    /**
+     * The name passed to api.repository(name), and the first segment of every
+     * endpoint, `POST /api/{name}/{action}`. camelCase, such as `salesOrders`.
+     */
+    readonly name: string;
+    /** Logical Collection name; defaults to name. */
+    readonly collection?: string;
+    /** Database connection name; defaults to the application's default connection. */
+    readonly connection?: string;
+    /**
+     * The Policy every action of this exposure runs under. Required: an exposure
+     * without one would accept anything, and a missing declaration is the one
+     * mistake that reads exactly like a deliberate one.
+     *
+     * A function receives the principal resolved for the request, which is what
+     * lets a scope name the caller. It is server-owned either way — a request
+     * body naming `policy` or `scope` is refused, because the per-action
+     * allowlist below enumerates what an action reads from the body and neither
+     * is on it.
+     */
+    readonly policy: RepositoryPolicy | ((principal: P) => RepositoryPolicy);
+    readonly actions: RepositoryApiActions;
+    /**
+     * Fields the exposure adds to every record it returns that are not fields of the Collection, such as a URL derived
+     * from a record's columns, each described by a Standard Schema (such as a zod schema) or an OpenAPI schema.
+     *
+     * Documentation only: the router does not compute them. Whatever adds them to a response, such as a middleware on
+     * the exposure's paths, declares them here so the API document lists them, read-only, in the exposure's record
+     * schema wherever a record is returned. They never appear in `values`, `filter` or `sort`. A name that is also a
+     * field of the Collection fails when the routes are created.
+     */
+    readonly computedFields?: Readonly<Record<string, ApiSchema>>;
+}
+export interface DefineRepositoryApiRoutesOptions<P = unknown> {
+    readonly repositories: readonly RepositoryApiExposure<P>[];
+    /**
+     * Resolve the principal a Policy function receives. Required as soon as one
+     * exposure declares a Policy function, and never called otherwise.
+     *
+     * The application owns this: `app-server` does not know how a request is
+     * authenticated. Returning `undefined` or `null` refuses the request with
+     * 403 rather than binding a Policy built from a principal that is not there,
+     * which is why the return type admits both.
+     */
+    readonly principal?: (context: Context) => P | undefined | null | Promise<P | undefined | null>;
+}
+export interface RepositoryApiRoutesApplication {
+    readonly container: ServiceContainer;
+}
+/**
+ * Exposes only configured Repository endpoints using `POST /{name}/{action}`,
+ * mounted under `/api`. Every path is literal — a name and an action, no
+ * parameters — so the endpoints of one exposure cannot shadow each other. An
+ * exposure name shares the first segment with plugin namespaces, so it must not
+ * equal one: name an exposure after its Collection, such as `salesOrders`,
+ * rather than after a plugin.
+ *
+ * This basic adapter does not install authentication or authorization. Database
+ * services are resolved only when the application creates the router.
+ */
+export declare function defineRepositoryApiRoutes<P = unknown>(options: DefineRepositoryApiRoutesOptions<P>): AppApiRouteContribution<RepositoryApiRoutesApplication>;
+//# sourceMappingURL=repository-routes.d.ts.map

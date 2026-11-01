@@ -1,0 +1,22 @@
+import type { Command, Interfaces } from '@oclif/core';
+import { AppCommand } from '../../context.ts';
+import { type SkillsSyncPlan } from '../../lib/skills-sync.ts';
+/** The Skills copied and removed, or with `dryRun` the ones that would be. */
+export interface SkillsSyncResult extends SkillsSyncPlan {
+    readonly dryRun: boolean;
+}
+export default class SkillsSync extends AppCommand {
+    static summary: string;
+    static description: string;
+    static examples: Command.Example[];
+    static flags: {
+        dir: Interfaces.OptionFlag<string | undefined>;
+        app: Interfaces.OptionFlag<string | undefined>;
+        'workspace-root': Interfaces.OptionFlag<string | undefined>;
+        package: Interfaces.OptionFlag<string | undefined>;
+        plugin: Interfaces.OptionFlag<string | undefined>;
+        'dry-run': Interfaces.BooleanFlag<boolean>;
+    };
+    run(): Promise<SkillsSyncResult>;
+}
+//# sourceMappingURL=sync.d.ts.map

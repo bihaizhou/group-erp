@@ -1,0 +1,32 @@
+import { type QueueJobDefaults, type ResolvedJobOptions } from './options.js';
+import type { Channel, PublishEntry, PublishOptions } from './types.js';
+/** A job ready to be written: every check and every ID is already done. */
+export interface PreparedJob {
+    /** `undefined` lets the backend assign its default ID. */
+    readonly jobId: string | undefined;
+    readonly channel: Channel;
+    /** The message as JSON text, serialized once. */
+    readonly text: string;
+    readonly options: ResolvedJobOptions;
+}
+/** What BullMQ stores in `job.data`; the message itself is opaque JSON text. */
+export interface QueueMessageEnvelope {
+    readonly version: 1;
+    readonly payload: string;
+}
+export declare function assertChannel(value: unknown): asserts value is Channel;
+/**
+ * Serializes with BullMQ's JSON rule: a top-level `undefined` becomes `{}`,
+ * cycles and BigInt throw, and a root that produces no JSON text is rejected.
+ */
+export declare function serializeMessage(message: unknown): string;
+export declare function encodeEnvelope(text: string): QueueMessageEnvelope;
+/** Accepts only the envelope this package writes. */
+export declare function decodeEnvelope(data: unknown): string;
+export declare function parseMessage(text: string): unknown;
+/**
+ * Prepares every entry before anything is written, so a failure in any of
+ * them — serialization, options or ID generation — writes nothing.
+ */
+export declare function prepareJobs(queue: string, entries: readonly PublishEntry[], defaults: QueueJobDefaults, options: PublishOptions | undefined): PreparedJob[];
+//# sourceMappingURL=message.d.ts.map

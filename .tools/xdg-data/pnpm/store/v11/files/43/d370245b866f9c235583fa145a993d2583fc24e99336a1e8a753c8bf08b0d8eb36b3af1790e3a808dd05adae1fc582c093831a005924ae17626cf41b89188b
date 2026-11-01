@@ -1,0 +1,184 @@
+/**
+ * The signed-in person's preferences in the browser: `/api/users/me/preferences` with a local cache.
+ *
+ * The server is the source of truth, so a choice follows the person to every browser. The cache in `localStorage`
+ * exists only so the first frame paints with the last known values instead of the defaults; once the server answers,
+ * its values replace the cache. A value a page kept in `localStorage` before preferences existed can be handed to
+ * `useUserPreference` as `legacy`: if the server holds nothing for the key, it is written there once.
+ */
+import { useApiClient } from '@nocobase/app-client';
+import { useAuthentication } from '@nocobase/app-plugin-authentication/client';
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+const PATH = 'users/me/preferences';
+const CACHE_PREFIX = 'nocobase:user-preferences:';
+/** The HTTP API of the signed-in person's preferences; responses are unwrapped from `{ data }`. */
+export class UserPreferencesClient {
+    api;
+    constructor(api) {
+        this.api = api;
+    }
+    async list() {
+        const { data } = await this.api.request({ path: PATH });
+        return data;
+    }
+    async set(key, value) {
+        await this.api.request({
+            path: `${PATH}/${encodeURIComponent(key)}`,
+            method: 'PUT',
+            json: { value },
+        });
+    }
+    async setMany(values) {
+        await this.api.request({ path: PATH, method: 'PATCH', json: values });
+    }
+    async remove(key) {
+        await this.api.request({
+            path: `${PATH}/${encodeURIComponent(key)}`,
+            method: 'DELETE',
+        });
+    }
+}
+function readCache(userId) {
+    try {
+        const text = globalThis.localStorage?.getItem(CACHE_PREFIX + userId);
+        const value = text ? JSON.parse(text) : {};
+        return typeof value === 'object' && value !== null && !Array.isArray(value)
+            ? { ...value }
+            : {};
+    }
+    catch {
+        return {};
+    }
+}
+function writeCache(userId, values) {
+    try {
+        globalThis.localStorage?.setItem(CACHE_PREFIX + userId, JSON.stringify(values));
+    }
+    catch {
+        // Storage refused (private mode): the server still keeps the values.
+    }
+}
+/**
+ * One person's preferences: the cached values at once, the server's once loaded. Writes apply locally at once and
+ * are sent to the server; a failed write is reported to `onError` and the server's value is read back.
+ */
+export class UserPreferenceStore {
+    client;
+    userId;
+    onError;
+    values;
+    serverKeys = new Set();
+    loading = null;
+    loadedFlag = false;
+    listeners = new Set();
+    version = 0;
+    constructor(client, userId, onError = () => undefined) {
+        this.client = client;
+        this.userId = userId;
+        this.onError = onError;
+        this.values = readCache(userId);
+    }
+    get loaded() {
+        return this.loadedFlag;
+    }
+    /** A number that changes with every change, for `useSyncExternalStore`. */
+    snapshot = () => this.version;
+    subscribe = (listener) => {
+        this.listeners.add(listener);
+        return () => this.listeners.delete(listener);
+    };
+    get(key) {
+        return this.values[key];
+    }
+    /** Whether the server holds a value for the key; false until loaded. */
+    stored(key) {
+        return this.serverKeys.has(key);
+    }
+    /** Reads the server's values once; later calls wait for the same read. */
+    load() {
+        this.loading ??= this.client.list().then((values) => {
+            // An answer that is not an object of values is no answer: keep the cache, and read again next time.
+            if (typeof values !== 'object' ||
+                values === null ||
+                Array.isArray(values)) {
+                this.loading = null;
+                return;
+            }
+            this.replace(values);
+        }, (error) => {
+            // Keep the cache; the next mount tries again.
+            this.loading = null;
+            this.onError(error);
+        });
+        return this.loading;
+    }
+    async set(key, value) {
+        this.values = { ...this.values, [key]: value };
+        this.serverKeys.add(key);
+        this.changed();
+        try {
+            await this.client.set(key, value);
+        }
+        catch (error) {
+            this.onError(error);
+            this.loading = null;
+            await this.load();
+        }
+    }
+    replace(values) {
+        this.values = { ...values };
+        this.serverKeys = new Set(Object.keys(values));
+        this.loadedFlag = true;
+        this.changed();
+    }
+    changed() {
+        this.version += 1;
+        writeCache(this.userId, this.values);
+        for (const listener of this.listeners)
+            listener();
+    }
+}
+const stores = new Map();
+/** The store of whoever is signed in; null while nobody is. One store per person and page, shared by every hook. */
+export function useUserPreferenceStore() {
+    const api = useApiClient();
+    const userId = useAuthentication().session?.user.id ?? null;
+    const store = useMemo(() => {
+        if (!userId)
+            return null;
+        let existing = stores.get(userId);
+        if (!existing) {
+            existing = new UserPreferenceStore(new UserPreferencesClient(api), userId);
+            stores.set(userId, existing);
+        }
+        return existing;
+    }, [api, userId]);
+    useEffect(() => {
+        void store?.load();
+    }, [store]);
+    return store;
+}
+/** One preference of the signed-in person: its value, a setter, and whether the server has answered. */
+export function useUserPreference(key, options) {
+    const store = useUserPreferenceStore();
+    const subscribe = useCallback((listener) => store?.subscribe(listener) ?? (() => undefined), [store]);
+    useSyncExternalStore(subscribe, () => store?.snapshot() ?? 0, () => 0);
+    const { defaultValue, parse, legacy } = options;
+    const raw = store?.get(key);
+    const parsed = raw === undefined ? undefined : parse ? parse(raw) : raw;
+    const value = parsed === undefined ? defaultValue : parsed;
+    const loaded = store?.loaded ?? false;
+    const stored = store?.stored(key) ?? false;
+    useEffect(() => {
+        if (!store || !loaded || stored || !legacy)
+            return;
+        const previous = legacy();
+        if (previous !== undefined)
+            void store.set(key, previous);
+    }, [store, loaded, stored, legacy, key]);
+    const set = useCallback((next) => {
+        void store?.set(key, next);
+    }, [store, key]);
+    return [value, set, { loaded, stored }];
+}
+//# sourceMappingURL=preferences.js.map

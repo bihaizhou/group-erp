@@ -1,0 +1,6 @@
+import type { Knex } from 'knex';
+import type { FilterConditionNode, FilterOperator } from './types.js';
+export declare const jsonOperators: readonly FilterOperator[];
+export declare function validateJsonCondition(node: FilterConditionNode, path: readonly (string | number)[]): void;
+/** JSON equality is structural, with ordered arrays and unordered object keys. */
+export declare function compileJsonCondition(client: Knex, column: string, node: FilterConditionNode): Knex.Raw;

@@ -1,0 +1,11 @@
+/** Preserve the database's decimal representation without rounding or reformatting. */
+export declare function decimalString(value: unknown): string | null;
+/** Decimal text utilities: never round through a JavaScript number. */
+export declare function decimalParts(value: unknown): {
+    coefficient: bigint;
+    scale: number;
+};
+export declare function decimalText(coefficient: bigint, scale: number): string;
+export declare function normalizeDecimal(value: unknown): string | null;
+/** A lexicographically sortable key for SQLite's exact decimal aggregates. */
+export declare function decimalSortKey(value: unknown): string | null;

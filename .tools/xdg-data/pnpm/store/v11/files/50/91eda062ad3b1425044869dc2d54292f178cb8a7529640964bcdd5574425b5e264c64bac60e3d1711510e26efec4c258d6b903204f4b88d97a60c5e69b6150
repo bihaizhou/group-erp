@@ -1,0 +1,15 @@
+import type { RepositoryQuery } from './types.js';
+/** One lazy execution, with a single choice of consumption mode. */
+export declare class DefaultRepositoryQuery<T> implements RepositoryQuery<T> {
+    private readonly execute;
+    private readonly iterate;
+    private mode?;
+    private promise?;
+    constructor(execute: () => Promise<T[]>, iterate: () => AsyncIterator<T>);
+    then<TResult1 = T[], TResult2 = never>(onfulfilled?: ((value: T[]) => TResult1 | PromiseLike<TResult1>) | null, onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null): Promise<TResult1 | TResult2>;
+    catch<TResult = never>(onrejected?: ((reason: unknown) => TResult | PromiseLike<TResult>) | null): Promise<T[] | TResult>;
+    finally(onfinally?: (() => void) | null): Promise<T[]>;
+    [Symbol.asyncIterator](): AsyncIterator<T>;
+    private collect;
+    private run;
+}

@@ -1,0 +1,77 @@
+import type ts from 'typescript';
+export interface ClientPluginsFile {
+    readonly exists: boolean;
+    readonly filePath: string;
+    readonly sourceText: string;
+}
+export interface PluginSourceEntry {
+    readonly localName: string;
+    readonly packageName: string;
+}
+export type ClientPluginEntry = PluginSourceEntry;
+export interface PluginSourceEdit {
+    readonly changed: boolean;
+    readonly localName?: string;
+    readonly sourceText: string;
+}
+export type ClientPluginsEdit = PluginSourceEdit;
+export interface PluginSourceDefinition {
+    readonly entryKind: 'call' | 'value';
+    readonly entrySpecifierSuffix: string;
+    readonly entrySuffixes: readonly string[];
+    readonly fileLabel: string;
+    readonly registerCallName: string;
+}
+export declare function clientPluginsPath(appRoot: string): string;
+/** `@nocobase/app-plugin-audit-log` -> `auditLog`. */
+export declare function localNameFor(packageName: string): string;
+export declare function clientPluginEntrySpecifier(packageName: string): string;
+export declare function readClientPlugins(appRoot: string): Promise<ClientPluginsFile>;
+export declare function writeClientPlugins(appRoot: string, sourceText: string): Promise<string>;
+/**
+ * Raised when the application has no TypeScript to parse `client/plugins.ts` with. It is a distinct type because
+ * callers treat it as a reason to degrade to printed instructions rather than as a failure: everything else about a
+ * registration works without a compiler, and losing the install over a formatting tool would be a poor trade.
+ */
+export declare class MissingTypeScriptError extends Error {
+    constructor(message: string, options?: {
+        cause?: unknown;
+    });
+}
+/** The exact lines a person or agent has to write when the automatic edit is unavailable. */
+export interface ManualClientPluginEdit {
+    readonly entry: string;
+    readonly filePath: string;
+    readonly importStatement: string;
+    readonly localName: string;
+}
+/**
+ * Describes the edit without parsing anything, so the instructions survive the absence of the compiler that would
+ * normally apply them.
+ */
+export declare function describeClientPluginEdit(appRoot: string, packageName: string): ManualClientPluginEdit;
+export declare function listPluginSourceEntries(typescript: typeof ts, sourceText: string, definition: PluginSourceDefinition): PluginSourceEntry[];
+export declare function addPluginSourceEntry(typescript: typeof ts, sourceText: string, packageName: string, definition: PluginSourceDefinition): PluginSourceEdit;
+export declare function removePluginSourceEntry(typescript: typeof ts, sourceText: string, packageName: string, definition: PluginSourceDefinition): PluginSourceEdit;
+/**
+ * Formats with the application's own Prettier and configuration. An app without Prettier keeps the unformatted splice,
+ * which is still valid TypeScript, rather than failing the registration over formatting.
+ */
+export declare function formatPluginsFile(appRoot: string, sourceText: string, filePath: string): Promise<string>;
+export declare function listClientPlugins(typescript: typeof ts, sourceText: string): ClientPluginEntry[];
+export declare function addClientPlugin(typescript: typeof ts, sourceText: string, packageName: string): ClientPluginsEdit;
+export declare function removeClientPlugin(typescript: typeof ts, sourceText: string, packageName: string): ClientPluginsEdit;
+export declare function formatClientPlugins(appRoot: string, sourceText: string, filePath: string): Promise<string>;
+export interface PluginSourceEditor {
+    readonly add: (sourceText: string, packageName: string) => ClientPluginsEdit;
+    readonly list: (sourceText: string) => ClientPluginEntry[];
+    readonly remove: (sourceText: string, packageName: string) => ClientPluginsEdit;
+}
+export type ClientPluginsEditor = PluginSourceEditor;
+/**
+ * Binds the editing functions to the application's TypeScript, so a caller performing several edits loads the compiler
+ * once and does not thread it through every call.
+ */
+export declare function createClientPluginsEditor(appRoot: string): Promise<ClientPluginsEditor>;
+export declare function createPluginSourceEditor(appRoot: string, definition: PluginSourceDefinition): Promise<PluginSourceEditor>;
+//# sourceMappingURL=client-plugins.d.ts.map

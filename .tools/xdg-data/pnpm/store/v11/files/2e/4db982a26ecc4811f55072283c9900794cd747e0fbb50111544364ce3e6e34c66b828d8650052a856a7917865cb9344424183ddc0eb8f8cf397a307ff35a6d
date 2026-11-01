@@ -1,0 +1,7 @@
+import { type AppClientPluginFactory } from '@nocobase/app-client/plugins';
+export interface MailClientOptions {
+    readonly placeholder?: never;
+}
+declare const mail: AppClientPluginFactory<MailClientOptions>;
+export default mail;
+//# sourceMappingURL=plugin.d.ts.map

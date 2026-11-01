@@ -1,0 +1,69 @@
+import type { CollectionBuilder } from '../collection/builder/builder.js';
+import type { ConnectionCollections } from '../collection/registry/types.js';
+import { type Migrator } from '../migration/migrator.js';
+import type { DatabaseMigratorOptions } from '../migration/types.js';
+import type { QueryAdapter } from '../query/types.js';
+import type { Repository, RepositoryRecord } from '../repository/types.js';
+import { type Seeder } from '../seed/seeder.js';
+import type { DatabaseSeederOptions } from '../seed/types.js';
+import type { AnyConnectionConfig, DatabaseConfig, ExtensibleDatabaseConfig } from './config.js';
+import type { ConnectionConfig } from './config.js';
+import type { DatabaseConnection } from './connection.js';
+import { type ConnectionFactory } from './factory.js';
+/**
+ * Application-level entry to every named connection.
+ *
+ * Besides `connection()`, the Manager mirrors the four Connection handles that
+ * work in logical Collection and Field names — `builder`, `query`,
+ * `repository` and `collections` — each taking the connection name as its last
+ * parameter and returning the very object the Connection holds. Nothing else is
+ * mirrored: `schema`, `schemaInspector` and `collectionMetadata` work in
+ * physical names or write supplemental metadata, and stay on the Connection.
+ */
+export interface DatabaseManager {
+    connection(name?: string): DatabaseConnection;
+    /** Collection schema and metadata builder. Uses Collection and Field logical names. */
+    builder(name?: string): CollectionBuilder;
+    /** Database-layer query builder. Does not read Collection metadata or collection table prefixes. */
+    query(name?: string): QueryAdapter;
+    /**
+     * Resolved Collections of one connection, by logical name. Same object as
+     * `connection(name).collections`, so its cache is shared with every Builder,
+     * Repository and Migration on that connection: `invalidate()` and
+     * `refresh()` affect all of them.
+     */
+    collections(name?: string): ConnectionCollections;
+    repository<TRecord extends object = RepositoryRecord, TCreate extends object = Partial<TRecord>, TUpdate extends object = Partial<TRecord>>(collection: string, connection?: string): Repository<TRecord, TCreate, TUpdate>;
+    createMigrator(options: DatabaseMigratorOptions): Migrator;
+    createSeeder(options: DatabaseSeederOptions): Seeder;
+    connect(name?: string): Promise<DatabaseConnection>;
+    transaction<T>(fn: (connection: DatabaseConnection) => Promise<T>, name?: string): Promise<T>;
+    disconnect(name?: string): Promise<void>;
+    reconnect(name?: string): Promise<DatabaseConnection>;
+    destroy(): Promise<void>;
+}
+export declare class CollectionMetadataStoreRequiredError extends Error {
+    readonly connection: string;
+    readonly code: "COLLECTION_METADATA_STORE_REQUIRED";
+    constructor(connection: string);
+}
+export declare function createDatabaseManager<TConnection extends AnyConnectionConfig = ConnectionConfig>(config: ExtensibleDatabaseConfig<TConnection>): DatabaseManager;
+export declare class DefaultDatabaseManager implements DatabaseManager {
+    private readonly config;
+    private readonly factory;
+    private readonly connections;
+    constructor(config: DatabaseConfig, factory: ConnectionFactory);
+    connection(name?: string): DatabaseConnection;
+    builder(name?: string): CollectionBuilder;
+    query(name?: string): QueryAdapter;
+    collections(name?: string): ConnectionCollections;
+    repository<TRecord extends object = RepositoryRecord, TCreate extends object = Partial<TRecord>, TUpdate extends object = Partial<TRecord>>(collection: string, connection?: string): Repository<TRecord, TCreate, TUpdate>;
+    createMigrator(options: DatabaseMigratorOptions): Migrator;
+    createSeeder(options: DatabaseSeederOptions): Seeder;
+    connect(name?: string): Promise<DatabaseConnection>;
+    transaction<T>(fn: (connection: DatabaseConnection) => Promise<T>, name?: string): Promise<T>;
+    disconnect(name?: string): Promise<void>;
+    reconnect(name?: string): Promise<DatabaseConnection>;
+    destroy(): Promise<void>;
+    private getDefaultConnectionName;
+}

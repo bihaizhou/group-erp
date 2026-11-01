@@ -1,0 +1,11 @@
+import type { OfficialDialect } from '@nocobase/app-server/database';
+/**
+ * Rewrites the main connection for `dialect`, preserving policies and every other connection.
+ *
+ * Only `database.connections.main` and `database.default` are touched. An application's other connections are its
+ * own — the Examples template's `analytics` is a second SQLite database that has nothing to do with which dialect the
+ * main one uses — and the policy keys carry decisions the example made deliberately, so they are read before the
+ * connection is replaced and written back afterwards.
+ */
+export declare function configureDatabase(contents: string, dialect: OfficialDialect, name: string): string;
+//# sourceMappingURL=database-config.d.ts.map

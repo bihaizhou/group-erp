@@ -1,0 +1,43 @@
+/**
+ * An error that carries what it needs to be translated, rather than a message translated when it was thrown.
+ *
+ * Translation happens at serialization, where the request's locale is known. The same error therefore renders in
+ * whatever language the caller asked for, and constructing one never requires knowing the locale.
+ */
+export class AppI18nError extends Error {
+    code;
+    ns;
+    key;
+    params;
+    status;
+    constructor(code, options) {
+        // The untranslated message is what logs and stack traces show; the translated one is produced on serialization.
+        super(`${code}: ${options.ns}:${options.key}`, { cause: options.cause });
+        this.name = 'AppI18nError';
+        this.code = code;
+        this.ns = options.ns;
+        this.key = options.key;
+        this.params = options.params;
+        this.status = options.status ?? 400;
+    }
+}
+export function isAppI18nError(error) {
+    return error instanceof AppI18nError;
+}
+/**
+ * Renders an error for a response body.
+ *
+ * `message` is translated into the request's locale so an API-only application needs nothing else, while `ns`, `key`,
+ * and `params` let a frontend re-render it in whatever language its interface is currently showing.
+ */
+export function serializeI18nError(runtime, error, locale) {
+    const translate = runtime.getFixedT(error.ns, locale);
+    return {
+        code: error.code,
+        message: translate(error.key, error.params),
+        ns: error.ns,
+        key: error.key,
+        ...(error.params ? { params: error.params } : {}),
+    };
+}
+//# sourceMappingURL=errors.js.map

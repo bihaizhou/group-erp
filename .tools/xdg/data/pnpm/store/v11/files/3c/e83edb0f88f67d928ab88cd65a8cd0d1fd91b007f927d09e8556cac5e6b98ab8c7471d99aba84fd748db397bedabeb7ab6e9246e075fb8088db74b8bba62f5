@@ -1,0 +1,7 @@
+export { default } from './plugin.js';
+export { AuthorizationClient, type AuthorizationCheck, type AuthorizationDecision, type AuthorizationEffect, type AuthorizationInspectInput, type AuthorizationInspection, type AuthorizationOptionsResponse, type AuthorizationPermission, type AuthorizationReason, type AuthorizationRequirement, type AuthorizationRecordOption, type AuthorizationSnapshot, type AuthorizationSubject, type ConfiguredAccess, type ConfiguredPermissionSet, type LocalizedText, type PermissionAssignmentInput, type PermissionGrant, type PermissionGrantAction, type PermissionSet, type PermissionSetAssignment, type PermissionSetInput, type PermissionSetProtection, type PermissionSetWriteOperation, type ResourceRef, type SubjectOption, type SubjectPage, } from './authorization-client.js';
+export { authorizationClientToken } from './tokens.js';
+export { useAuthorizationRevision } from './use-authorization-revision.js';
+export { useCan, type UseCanOptions, type UseCanResult } from './use-can.js';
+export { useAuthorizationClient } from './use-authorization-client.js';
+//# sourceMappingURL=index.d.ts.map

@@ -1,0 +1,53 @@
+import { type AppConfigDefinition, type AppConfigFactory, type ConfigValidator } from '@nocobase/app-server/config';
+export type AuthConfig = import('better-auth').BetterAuthOptions & {
+    readonly passwordReset?: import('./password-reset.js').PasswordResetConfig;
+};
+/**
+ * The `auth` fields the browser may read, through `config.public`. `useSignUpAvailable()` on the client combines them;
+ * keep the two in step.
+ */
+export declare const AUTH_PUBLIC_PATHS: readonly string[];
+/** The rules this plugin holds the `auth` section to, whichever application declares it. */
+export declare const validateAuthConfig: ConfigValidator<AuthConfig>;
+/**
+ * Declares the `auth` section with this plugin's validation and public fields, in place of `defineAppConfig`.
+ *
+ * An application that keeps a plain `defineAppConfig` still starts, but its `auth` settings go unchecked and the
+ * browser cannot tell whether sign-up is open, so the plugin warns about it at startup. A `validate` given here runs
+ * after the plugin's own.
+ */
+export declare function defineAuthConfig(definition: AppConfigDefinition<AuthConfig>): AppConfigFactory<AuthConfig>;
+/** The purpose Better Auth's keys are derived for from the application's secrets keys. */
+export declare const BETTER_AUTH_SECRETS_PURPOSE = "@nocobase/app-plugin-authentication/better-auth";
+/** What the secrets service offers this plugin; the subset `resolveAuthSecrets` reads. */
+export interface AuthSecretsSource {
+    readonly ready: boolean;
+    keyring(purpose: string): {
+        version: number;
+        value: string;
+    }[];
+}
+/** The keys Better Auth signs and encrypts with, as its `secret` and `secrets` options take them. */
+export interface ResolvedAuthSecrets {
+    readonly secret?: string;
+    readonly secrets?: {
+        version: number;
+        value: string;
+    }[];
+}
+/**
+ * The keys sessions and tokens are signed and encrypted with, or a refusal to start without any.
+ *
+ * `auth.secrets` set by the application is used as it is. Otherwise Better Auth's versioned `secrets` are derived from
+ * the application's secrets keys, so rotating those rotates these, and an `auth.secret` beside them is passed on as
+ * Better Auth's legacy secret, which still decrypts what was encrypted before the keys were configured. Without
+ * secrets keys, `auth.secret` alone works as it always did.
+ */
+export declare function resolveAuthSecrets(auth: Pick<AuthConfig, 'secret' | 'secrets'>, secrets: AuthSecretsSource | undefined): ResolvedAuthSecrets;
+/**
+ * `auth.secret` alone, or a refusal to start without it.
+ *
+ * @deprecated The provider reads `resolveAuthSecrets`, which also derives Better Auth's keys from `secrets.keys`.
+ */
+export declare function resolveAuthSecret(secret: string | undefined): string;
+//# sourceMappingURL=config.d.ts.map

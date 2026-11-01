@@ -1,0 +1,13 @@
+import type { Context } from 'hono';
+export type OptionText = string | {
+    readonly key: string;
+    readonly ns?: string;
+    readonly defaultValue?: string;
+};
+/** Translates one of this plugin's own strings for the current request. */
+export declare function translateAuthorization(context: Context, key: string, defaultValue: string): string;
+export declare function optionLabel(key: string, defaultValue: string): OptionText;
+export declare function optionText(value: OptionText | undefined, fallback: string): OptionText;
+/** Two registrations agree when their text is the same string, or the same key. */
+export declare function sameOptionText(left: OptionText | undefined, right: OptionText | undefined): boolean;
+//# sourceMappingURL=i18n.d.ts.map

@@ -1,0 +1,112 @@
+import { type i18n as I18nInstance, type InitOptions } from 'i18next';
+import { I18nRegistry } from './registry.js';
+import type { Locale, LocaleDefinition, LocalesModule, Namespace } from './types.js';
+/**
+ * Three things decide what language something is rendered in, and they are easy to confuse:
+ *
+ * - **`defaultLocale`** is the application's — one value from `i18n.defaultLocale` in its configuration, the same for
+ *   everyone. It decides what a visitor who has never chosen sees, and it is where a lookup falls back to when the
+ *   language in use has no translation for a key.
+ * - **The offered locales** are a list, and configuration does not state it: the application's own `locales/` files
+ *   are the list. A plugin's locale files supply translations for languages already on it and never add one, so
+ *   installing a plugin that ships Japanese does not put Japanese in the picker.
+ * - **The locale in use** is per visitor and per request, computed rather than configured — a stored choice in the
+ *   browser, or the session and `Accept-Language` on the server, each falling back to `defaultLocale`. A visitor
+ *   switching to Chinese changes this alone; the application's default is untouched.
+ *
+ * So `defaultLocale` is an input to the last of the three, never its result.
+ */
+export interface I18nRuntimeOptions {
+    /**
+     * The language to use when nothing else decides, and the first fallback for a key the language in use lacks.
+     *
+     * This is the application's default, not a visitor's current language — pass the latter to `init()` instead.
+     */
+    readonly defaultLocale: Locale;
+    /**
+     * Locales the application offers, stated outright.
+     *
+     * Omit it and the list is derived from the application namespace's own locale files instead, which is what an
+     * application does: the languages it ships translations for are the languages it offers. Pass it only where there is
+     * no application namespace to derive from, such as a test exercising a plugin's namespace on its own.
+     */
+    readonly locales?: readonly Locale[];
+    /** The application's own package name, which anchors the fallback chain. */
+    readonly applicationNamespace?: Namespace;
+    readonly initOptions?: InitOptions;
+}
+export interface I18nTranslateOptions {
+    readonly ns?: Namespace;
+    readonly locale?: Locale;
+    readonly defaultValue?: string;
+    readonly [key: string]: unknown;
+}
+export type Translator = (key: string, options?: I18nTranslateOptions) => string;
+/**
+ * The shared i18next instance plus the loading rules around it.
+ *
+ * There is one instance per process or per browser tab, with namespaces partitioning it. That is what makes a language
+ * switch reach every plugin at once: they all subscribe to the same `languageChanged` event.
+ */
+export declare class I18nRuntime {
+    private readonly options;
+    readonly registry: I18nRegistry;
+    readonly i18n: I18nInstance;
+    private readonly declaredLocales;
+    private locales;
+    private readonly defaultLocale;
+    private initialized;
+    private readonly localeLoads;
+    constructor(options: I18nRuntimeOptions);
+    /**
+     * The languages on offer: whichever the application's own locale files declare, plus the default.
+     *
+     * A plugin's locale file supplies translations, not languages — an installed plugin that happens to ship `ja-JP`
+     * must not put Japanese in the application's picker. The default is always present so a resolution has somewhere to
+     * land even before any namespace has registered, and it is appended rather than prepended so changing it does not
+     * reorder a language picker.
+     */
+    private computeLocales;
+    getDefaultLocale(): Locale;
+    getLocales(): readonly Locale[];
+    getLocaleDefinitions(): readonly LocaleDefinition[];
+    /** Resolves a requested locale to a supported one, falling back to the default when nothing matches. */
+    resolveLocale(requested: Locale | undefined): Locale;
+    /** Picks the first supported locale out of an ordered list of preferences, such as `Accept-Language`. */
+    resolvePreferredLocale(requested: readonly Locale[]): Locale;
+    registerNamespace(namespace: Namespace, module: LocalesModule): void;
+    registerApplicationNamespace(namespace: Namespace, module: LocalesModule): void;
+    /**
+     * Loads a locale across every namespace and feeds it into the instance, at most once per locale.
+     *
+     * Call this before translating into a locale that has not been used yet. Skipping it does not throw — translations
+     * silently fall back to the key or the default language, which is hard to notice, so request handling calls it
+     * automatically and code running outside a request must call it itself.
+     *
+     * The fallback languages are loaded alongside it. A namespace that has not translated the language in use is the
+     * ordinary case rather than an error, and the fallback only produces a translation if its resources are present to
+     * be read.
+     */
+    ensureLocaleLoaded(locale: Locale): Promise<void>;
+    private loadOneLocale;
+    private loadLocaleResources;
+    private addResourceBundle;
+    /**
+     * Initializes the instance for a locale, loading that locale's resources first so the first render is already
+     * translated and no loading state is needed.
+     */
+    init(locale?: Locale): Promise<I18nInstance>;
+    getLocale(): Locale;
+    /** Loads the locale's resources across every namespace, then switches, so the change lands everywhere at once. */
+    changeLanguage(locale: Locale): Promise<Locale>;
+    /**
+     * A translator bound to a namespace, and optionally to a locale.
+     *
+     * Pass `locale` explicitly for anything leaving the process — mail, notifications, queue jobs — because the language
+     * of outbound content follows its recipient, not whoever triggered the work.
+     */
+    getFixedT(namespace: Namespace, locale?: Locale): Translator;
+    /** A namespace followed by its fallbacks, with `APP_NS` resolved to the application's package name. */
+    getNamespaceChain(namespace: Namespace): readonly Namespace[];
+}
+//# sourceMappingURL=runtime.d.ts.map

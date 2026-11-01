@@ -1,0 +1,8 @@
+/** Fold only recognizable mail history; ordinary authored blockquotes stay visible. */
+export declare function foldMailQuotedContent(document: Document, label: string): void;
+/** Recognize conventional trailing plain-text replies without hiding the new response. */
+export declare function splitMailQuotedText(text: string): {
+    body: string;
+    quote?: string;
+};
+//# sourceMappingURL=mail-quoted-content.d.ts.map

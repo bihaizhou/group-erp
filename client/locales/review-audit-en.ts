@@ -1,0 +1,21 @@
+export const reviewAudit = {
+  title: 'Review history',
+  empty: 'No review rounds yet',
+  round: 'Round {{round}}',
+  version: 'Document version',
+  ruleRevision: 'Review rule version {{version}}',
+  createdAt: 'Opened',
+  decidedAt: 'Decided',
+  candidates: 'Candidates',
+  decidedBy: 'Decided by',
+  noCandidates: 'No candidates',
+  unavailable: 'Unavailable',
+  states: {
+    pending: 'Pending',
+    approved: 'Approved',
+    returned: 'Returned',
+    closed: 'Closed',
+    reassigned: 'Reassigned',
+    cancelled: 'Ended',
+  },
+};

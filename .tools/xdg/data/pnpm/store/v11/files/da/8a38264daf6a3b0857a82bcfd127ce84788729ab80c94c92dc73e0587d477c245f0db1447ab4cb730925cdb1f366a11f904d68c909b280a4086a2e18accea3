@@ -1,0 +1,52 @@
+import type { Dispatch, SetStateAction, RefObject } from 'react';
+import { useTranslation } from '@nocobase/i18n/client';
+import { type ComposerRecoverySnapshot } from '../lib/mail-composer-state.js';
+import type { ComposerState, MailComposerProps } from '../contracts/composer.js';
+import { type MailIdentity, type MailMessage, type MailOutboundAttachmentView, type MailSignature, type MailTemplate } from '../mail-client.js';
+export declare function useMailComposer({ request, allowBulkSend, senderSelection, accounts, providers, onClose, onComplete, onCompletionError, }: MailComposerProps): MailComposerController;
+export interface MailComposerController {
+    readonly restoreDraft: () => void;
+    readonly discardRecovery: () => void;
+    readonly t: ReturnType<typeof useTranslation>['t'];
+    readonly error: string | undefined;
+    readonly composer: ComposerState | undefined;
+    readonly setComposer: Dispatch<SetStateAction<ComposerState | undefined>>;
+    readonly composerAccountId: string;
+    readonly identityId: string;
+    readonly setIdentityId: (id: string) => void;
+    readonly ccVisible: boolean;
+    readonly setCcVisible: Dispatch<SetStateAction<boolean>>;
+    readonly bccVisible: boolean;
+    readonly setBccVisible: Dispatch<SetStateAction<boolean>>;
+    readonly scheduleEnabled: boolean;
+    readonly setScheduleEnabled: Dispatch<SetStateAction<boolean>>;
+    readonly signatures: readonly MailSignature[];
+    readonly signatureId: string;
+    readonly setSignatureId: Dispatch<SetStateAction<string>>;
+    readonly sending: boolean;
+    readonly autoSaving: boolean;
+    readonly draftSaveStatus: 'idle' | 'saving' | 'saved' | 'failed';
+    readonly setDraftSaveStatus: Dispatch<SetStateAction<'idle' | 'saving' | 'saved' | 'failed'>>;
+    readonly recoveryOffer: ComposerRecoverySnapshot | undefined;
+    readonly templates: readonly MailTemplate[];
+    readonly uploading: boolean;
+    readonly composeAttachments: readonly MailOutboundAttachmentView[];
+    readonly setComposeAttachments: Dispatch<SetStateAction<readonly MailOutboundAttachmentView[]>>;
+    readonly retainedAttachments: MailMessage['attachments'];
+    readonly setRetainedAttachments: Dispatch<SetStateAction<MailMessage['attachments']>>;
+    readonly attachmentInputRef: RefObject<HTMLInputElement | null>;
+    readonly sendableComposerIdentities: MailIdentity[];
+    readonly composerCanSend: boolean;
+    readonly composerCanDraft: boolean;
+    readonly closeComposer: (force?: boolean) => void;
+    readonly saveComposer: (closeAfterSave?: boolean) => void;
+    readonly sendComposer: (mode?: 'normal' | 'bulk') => void;
+    readonly uploadInlineImage: (file: File) => Promise<{
+        cid: string;
+        src: string;
+    }>;
+    readonly uploadComposerAttachments: (files: FileList | null) => void;
+    readonly composerHasRequiredContent: boolean;
+    readonly composerHasUnsavedChanges: boolean;
+}
+//# sourceMappingURL=use-mail-composer.d.ts.map

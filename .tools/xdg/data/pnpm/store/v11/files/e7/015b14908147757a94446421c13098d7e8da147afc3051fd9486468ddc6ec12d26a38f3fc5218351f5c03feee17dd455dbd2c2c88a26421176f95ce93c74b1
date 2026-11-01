@@ -1,0 +1,1 @@
+{"version":3,"file":"en-US.d.ts","sourceRoot":"","sources":["../../../client/locales/en-US.ts"],"names":[],"mappings":"AAAA,OAAO,cAAc,MAAM,wBAAwB,CAAC;AACpD,OAAO,KAAK,EAAE,cAAc,EAAE,MAAM,gBAAgB,CAAC;AAIrD,QAAA,MAAM,QAAQ;;;;;;;CAIb,CAAC;AAEF,QAAA,MAAM,IAAI,EAAE,OAAO,QAAQ,GAAG,OAAO,cAGpC,CAAC;AAEF;;GAEG;AACH,MAAM,MAAM,qBAAqB,GAAG,cAAc,CAAC,OAAO,IAAI,CAAC,CAAC;AAEhE,eAAe,IAAI,CAAC"}

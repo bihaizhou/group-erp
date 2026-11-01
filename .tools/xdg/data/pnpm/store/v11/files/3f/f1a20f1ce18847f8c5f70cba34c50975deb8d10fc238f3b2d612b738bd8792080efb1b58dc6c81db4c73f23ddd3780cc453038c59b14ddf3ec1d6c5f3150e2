@@ -1,0 +1,21 @@
+import { IN_APP_NOTIFICATION_REALTIME_TOPIC } from '../shared/realtime.js';
+export function subscribeToInboxInvalidations(realtime, target, refresh) {
+    const unsubscribeOpen = realtime.onOpen(refresh);
+    const unsubscribeTopic = realtime.subscribe(IN_APP_NOTIFICATION_REALTIME_TOPIC, (event) => {
+        if (isInboxChanged(event.payload))
+            refresh();
+    });
+    target.addEventListener('focus', refresh);
+    return () => {
+        target.removeEventListener('focus', refresh);
+        unsubscribeTopic?.();
+        unsubscribeOpen?.();
+    };
+}
+function isInboxChanged(payload) {
+    return (typeof payload === 'object' &&
+        payload !== null &&
+        'kind' in payload &&
+        payload.kind === 'inbox.changed');
+}
+//# sourceMappingURL=subscription.js.map

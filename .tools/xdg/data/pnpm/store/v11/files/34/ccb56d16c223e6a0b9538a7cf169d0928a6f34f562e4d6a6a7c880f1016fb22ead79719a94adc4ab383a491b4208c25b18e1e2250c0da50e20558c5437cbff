@@ -1,0 +1,21 @@
+import type { NamingOptions } from '../types.js';
+import { CollectionResolver } from '../resolver/resolver.js';
+import type { CollectionMetadataStore } from '../../metadata/document-store.js';
+import type { CollectionMetadataDocumentValidator, CollectionMetadataValidationContext } from '../../metadata/service.js';
+import type { CollectionMetadataDocument } from '../../metadata/document.js';
+import type { SchemaInspector } from '../../schema/inspector/types.js';
+import type { ConnectionCollections } from './types.js';
+export interface RegistryMetadataDocumentValidatorOptions {
+    readonly inspector: SchemaInspector;
+    readonly metadataStore: CollectionMetadataStore;
+    readonly collections: ConnectionCollections;
+    readonly naming?: NamingOptions;
+    readonly resolver?: CollectionResolver;
+    readonly deferRelationValidation?: boolean;
+}
+export declare class RegistryMetadataDocumentValidator implements CollectionMetadataDocumentValidator {
+    private readonly options;
+    private readonly resolver;
+    constructor(options: RegistryMetadataDocumentValidatorOptions);
+    validate(document: CollectionMetadataDocument, _context: CollectionMetadataValidationContext): Promise<void>;
+}

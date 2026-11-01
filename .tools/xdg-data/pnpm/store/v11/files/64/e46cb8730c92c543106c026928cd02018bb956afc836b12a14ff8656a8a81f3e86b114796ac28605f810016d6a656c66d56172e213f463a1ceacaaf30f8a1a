@@ -1,0 +1,33 @@
+import { MAIL_REALTIME_TOPIC } from '../shared/realtime.js';
+const FOCUS_REFRESH_INTERVAL_MS = 30_000;
+export function subscribeToMailInvalidations(realtime, target, refresh, onFocus = refresh) {
+    // Mounting already loads data. Focus recovery is a fallback, not a reload
+    // for every switch between DevTools and the composer.
+    let lastFocusRefresh = Date.now();
+    const handleFocus = () => {
+        const now = Date.now();
+        if (now - lastFocusRefresh < FOCUS_REFRESH_INTERVAL_MS)
+            return;
+        lastFocusRefresh = now;
+        onFocus();
+    };
+    const unsubscribeOpen = realtime.onOpen(refresh);
+    const unsubscribeTopic = realtime.subscribe(MAIL_REALTIME_TOPIC, (event) => {
+        if (isMailChanged(event.payload))
+            refresh();
+    });
+    target.addEventListener('focus', handleFocus);
+    return () => {
+        target.removeEventListener('focus', handleFocus);
+        unsubscribeTopic();
+        unsubscribeOpen();
+    };
+}
+function isMailChanged(payload) {
+    return (typeof payload === 'object' &&
+        payload !== null &&
+        'kind' in payload &&
+        payload.kind === 'mail.changed');
+}
+export const MAIL_UNREAD_COUNT_CHANGED_EVENT = 'nocobase:mail-unread-count-changed';
+//# sourceMappingURL=subscription.js.map
