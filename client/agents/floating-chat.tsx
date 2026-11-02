@@ -147,6 +147,10 @@ export function FloatingChat(): ReactElement | null {
 
   if (!panel.available) return null;
 
+  // The panel's own "expand" means "cover the content area": in a window of its own it has no content area to cover,
+  // so the window itself grows instead, and the panel's split layout gets a body wide enough to sit in.
+  const expanded = panel.mode === 'expanded';
+
   if (!panel.open)
     return (
       <Button
@@ -160,6 +164,27 @@ export function FloatingChat(): ReactElement | null {
       >
         <BotMessageSquareIcon className='size-5' />
       </Button>
+    );
+
+  if (expanded)
+    return (
+      <div
+        role='presentation'
+        className='fixed inset-0 z-40 hidden items-center justify-center bg-foreground/20 p-4 backdrop-blur-sm md:flex md:p-8'
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) panel.closeChat();
+        }}
+        data-testid='agent-chat-backdrop'
+      >
+        <div
+          role='dialog'
+          aria-label={assistant.title}
+          className='relative flex h-[min(52rem,100%)] w-full max-w-6xl overflow-hidden rounded-xl border bg-background shadow-2xl'
+          data-testid='agent-chat-window'
+        >
+          <ChatPanel />
+        </div>
+      </div>
     );
 
   return (
