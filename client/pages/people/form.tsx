@@ -17,7 +17,12 @@ import { PageHeader } from '#components/page-header';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { Textarea } from '#components/ui/textarea';
-import { Field, FieldLabel, FieldError } from '#components/ui/field';
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from '#components/ui/field';
 import { Alert, AlertDescription } from '#components/ui/alert';
 import { Card, CardHeader, CardTitle, CardContent } from '#components/ui/card';
 import {
@@ -207,6 +212,29 @@ function RecordForm({
     currentEmploymentRow(options.employments?.rows ?? [], personId, onDate);
   const currentPrimaryOf = (personId: string) =>
     currentPrimaryRow(options.assignments?.rows ?? [], personId, onDate);
+  // A person's current records decide which transaction can follow: nobody
+  // employed can only be onboarded, nobody regularized can still be
+  // regularized, and a secondary role can only end when one is active.
+  const allowedChangeTypes = (personId: string) => {
+    if (kind !== 'changes' || !personId) return [] as string[];
+    const employments = (options.employments?.rows ?? []).filter(
+      (r) => r.personId === personId && isCurrentRow(r, onDate),
+    );
+    const assignments = (options.assignments?.rows ?? []).filter(
+      (r) => r.personId === personId && isCurrentRow(r, onDate),
+    );
+    if (!employments.length && !assignments.length) return ['entry'];
+    if (employments.length !== 1) return [];
+    const types: string[] = [];
+    if (assignments.some((r) => textValue(r.data.type) === 'primary'))
+      types.push('transfer');
+    if (!textValue(employments[0].data.regularizedAt)) types.push('regularize');
+    types.push('partTime');
+    if (assignments.some((r) => textValue(r.data.type) === 'partTime'))
+      types.push('endPartTime');
+    types.push('exit');
+    return types;
+  };
   const change = (key: string, value: Value) => {
     onDirty(true);
     setErrors((v) => ({ ...v, [key]: '' }));
@@ -216,8 +244,15 @@ function RecordForm({
       if (kind === 'changes' && (key === 'personId' || key === 'type')) {
         // Picking a person carries their current company (and, for a transfer,
         // their current position) over so the same choice is never repeated.
-        const personId = textValue(key === 'personId' ? value : next.personId),
-          type = textValue(key === 'type' ? value : next.type);
+        const personId = textValue(key === 'personId' ? value : next.personId);
+        let type = textValue(key === 'type' ? value : next.type);
+        if (key === 'personId') {
+          const allowed = allowedChangeTypes(personId);
+          if (!allowed.includes(type)) {
+            type = allowed[0] ?? '';
+            next.type = type || null;
+          }
+        }
         if (personId && ['transfer', 'partTime'].includes(type)) {
           if (key === 'personId' || !next.targetSubjectId)
             next.targetSubjectId =
@@ -321,6 +356,12 @@ function RecordForm({
         { value: 'false', label: t('people.no') },
         { value: 'true', label: t('people.yes') },
       ];
+    if (f.key === 'type' && kind === 'changes' && choices) {
+      const allowed = allowedChangeTypes(textValue(values.personId));
+      choices = choices.filter((choice) =>
+        allowed.includes(textValue(choice.value)),
+      );
+    }
     return (
       <Field
         key={key}
@@ -335,7 +376,12 @@ function RecordForm({
           <PeopleSelect
             id={id}
             label={label}
-            disabled={pending}
+            disabled={
+              pending ||
+              (f.key === 'type' &&
+                kind === 'changes' &&
+                !textValue(values.personId))
+            }
             invalid={Boolean(errors[key])}
             value={
               f.type === 'boolean'
@@ -393,6 +439,11 @@ function RecordForm({
             }
           />
         )}
+        {f.key === 'type' &&
+        kind === 'changes' &&
+        !textValue(values.personId) ? (
+          <FieldDescription>{t('people.changeTypeHint')}</FieldDescription>
+        ) : null}
         {errors[key] ? <FieldError>{errors[key]}</FieldError> : null}
       </Field>
     );
@@ -402,8 +453,8 @@ function RecordForm({
     if (busyRef.current || uploadBusy) return;
     const invalid: Record<string, string> = {};
     for (const f of [
-      { key: 'code', required: true },
-      { key: 'name', required: true },
+      { key: 'code', required: kind !== 'changes' },
+      { key: 'name', required: kind !== 'changes' },
       ...fields[kind],
     ]) {
       const value = values[f.key];
@@ -424,6 +475,7 @@ function RecordForm({
         invalid[f.key] = t('people.invalid');
     }
     if (
+      textValue(values.code).trim() &&
       !/^[A-Z0-9][A-Z0-9_.-]{0,63}$/.test(
         textValue(values.code).trim().toUpperCase(),
       )
@@ -472,10 +524,16 @@ function RecordForm({
       data[key] = ((data[key] as Data[] | undefined) ?? []).map(
         ({ _key, ...row }) => row,
       );
-    // Null optional dates/IDs stay null, while ordinary notes are empty strings.
+    // Cleared date and reference inputs are empty strings on the wire; the
+    // API models them as nullable, so normalize before validating.
+    for (const f of fields[kind])
+      if ((f.type === 'date' || f.source) && data[f.key] === '')
+        data[f.key] = null;
+    const code = textValue(values.code).trim().toUpperCase(),
+      name = textValue(values.name).trim();
     const json = {
-      code: textValue(values.code).trim().toUpperCase(),
-      name: textValue(values.name).trim(),
+      ...(code ? { code } : {}),
+      ...(name ? { name } : {}),
       subjectId: values.subjectId,
       personId: values.personId,
       positionId: values.positionId,
@@ -520,7 +578,10 @@ function RecordForm({
           [];
         if (list.length) {
           const mapping = Object.fromEntries(
-            list.map((v) => [v.field.replace(/^data\./, ''), errorText(e)]),
+            list.map((v) => [
+              v.field.replace(/^data\./, ''),
+              t('people.fieldInvalid'),
+            ]),
           );
           setErrors(mapping);
           document
@@ -558,7 +619,11 @@ function RecordForm({
     if (key === 'targetSubjectId' || key === 'targetPositionId')
       return ['entry', 'transfer', 'partTime'].includes(changeType);
     if (key === 'changeEmployer') return changeType === 'transfer';
-    if (key === 'employmentType' || key === 'probationEnd')
+    if (
+      key === 'employmentType' ||
+      key === 'probationEnd' ||
+      key === 'contractEnd'
+    )
       return (
         changeType === 'entry' ||
         (changeType === 'transfer' &&
@@ -615,8 +680,21 @@ function RecordForm({
         </p>
       ) : null}
       <div className='grid gap-4 sm:grid-cols-2'>
-        {renderField({ key: 'code', required: true }, values, change)}
-        {renderField({ key: 'name', required: true }, values, change)}
+        {renderField(
+          { key: 'code', required: kind !== 'changes' },
+          values,
+          change,
+        )}
+        {renderField(
+          { key: 'name', required: kind !== 'changes' },
+          values,
+          change,
+        )}
+        {kind === 'changes' ? (
+          <p className='text-xs text-muted-foreground sm:col-span-2'>
+            {t('people.autoGeneratedHint')}
+          </p>
+        ) : null}
         {fields[kind]
           .filter((f) => showField(f.key))
           .map((f) => renderField(f, values, change))}

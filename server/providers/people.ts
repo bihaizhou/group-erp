@@ -19,6 +19,7 @@ import {
 } from '@nocobase/service-provider';
 import { PeopleService } from './people-service.js';
 import { peopleTables } from './people-model.js';
+import { PEOPLE_CHECKLIST_TABLE } from './people-checklist.js';
 import { recordLifecycleToken } from './record-lifecycle.js';
 import {
   peopleResources,
@@ -83,6 +84,7 @@ export default class PeopleProvider extends ServiceProvider<Application> {
       ...Object.values(peopleTables),
       'peopleAudit',
       'peopleApprovalTasks',
+      PEOPLE_CHECKLIST_TABLE,
       ...Object.values(LIFECYCLE_PARAMETER_COLLECTIONS),
       ...Object.keys(orgReadColumns),
     ])

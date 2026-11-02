@@ -38,9 +38,15 @@ export const personnelKinds: PeopleKind[] = [
   'changes',
 ];
 const note = z.string().trim().max(6000).default('');
-const optionalId = z.string().uuid().nullable().default(null);
+// Cleared reference and date inputs travel as empty strings; treat them as null.
+const blankToNull = (value: unknown) => (value === '' ? null : value);
+const optionalId = z
+  .preprocess(blankToNull, z.string().uuid().nullable())
+  .default(null);
 const date = z.iso.date();
-const optionalDate = date.nullable().default(null);
+const optionalDate = z
+  .preprocess(blankToNull, z.iso.date().nullable())
+  .default(null);
 const score = z.number().min(1).max(5).multipleOf(0.1).nullable();
 export const dimensionItem = z.strictObject({
   dimensionId: z.string().uuid(),
@@ -90,6 +96,7 @@ export const peopleDataSchemas = {
     startDate: date,
     endDate: optionalDate,
     probationEnd: optionalDate,
+    contractEnd: optionalDate,
   }),
   assignments: z.strictObject({
     type: z.enum(['primary', 'partTime']),
@@ -116,6 +123,7 @@ export const peopleDataSchemas = {
       .enum(['employee', 'contractor', 'intern', 'other'])
       .default('employee'),
     probationEnd: optionalDate,
+    contractEnd: optionalDate,
     location: note,
     explanation: z.string().trim().min(1).max(3000),
   }),

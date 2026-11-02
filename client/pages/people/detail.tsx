@@ -18,6 +18,8 @@ import { TalentCard } from './talent-card.js';
 import { CareerTimeline } from './career.js';
 import { WorkflowActions } from './workflow-action.js';
 import { ApprovalTimeline } from './approval-timeline.js';
+import { ContractEndAction } from './contract-end.js';
+import { ChangeChecklist } from './change-checklist.js';
 import {
   fields,
   kindFromPath,
@@ -73,6 +75,9 @@ export default function PeopleDetailPage({
         >
           {t('people.edit')}
         </Button>
+      ) : null}
+      {kind === 'employments' && row && canWrite && !record.isError ? (
+        <ContractEndAction row={row} onSaved={() => void record.refetch()} />
       ) : null}
       <PeopleRefresh
         busy={refreshing || record.isFetching || options.isFetching}
@@ -310,6 +315,13 @@ export default function PeopleDetailPage({
             ) : null}
           </>
         )}
+        {kind === 'changes' && row.checklist?.items.length ? (
+          <ChangeChecklist
+            changeId={row.id}
+            checklist={row.checklist}
+            canEdit={canWrite}
+          />
+        ) : null}
         {kind === 'changes' && row.approval ? (
           <ApprovalTimeline approval={row.approval} />
         ) : null}

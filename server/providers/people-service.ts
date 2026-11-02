@@ -37,6 +37,7 @@ import {
   type PeopleQuery,
   type PeopleActor,
 } from './people-model.js';
+import { PeopleChecklist } from './people-checklist.js';
 import { syncAccountPositionPermissions } from './position-permission-sync.js';
 import { peopleDependencies, orgReadColumns } from './people-resources.js';
 import {
@@ -49,6 +50,14 @@ const jsonObject = (value: unknown): JsonObject =>
   JSON.parse(JSON.stringify(value)) as JsonObject;
 const asRow = (v: unknown) => v as PeopleRow;
 type ChangeData = z.infer<typeof peopleDataSchemas.changes>;
+const changeTypeLabels: Record<ChangeData['type'], string> = {
+  entry: '入职',
+  transfer: '调动',
+  partTime: '兼职',
+  endPartTime: '结束兼职',
+  exit: '离职',
+  regularize: '转正',
+};
 type EvaluationData = z.infer<typeof peopleDataSchemas.evaluations>;
 type ProfileData = z.infer<typeof peopleDataSchemas.profiles>;
 type ModelData = z.infer<typeof peopleDataSchemas.models>;
@@ -56,6 +65,7 @@ type WorkforceData = z.infer<typeof peopleDataSchemas.workforcePlans>;
 
 export class PeopleService {
   private readonly approval: PeopleApproval;
+  private readonly checklist = new PeopleChecklist();
   constructor(
     private readonly db: DatabaseManager,
     public readonly runtime: LifecycleRuntime,
@@ -195,15 +205,20 @@ export class PeopleService {
         ).size;
       }
     const approval =
-      kind === 'changes'
-        ? await this.approval.view(this.db.connection(), id)
-        : null;
+        kind === 'changes'
+          ? await this.approval.view(this.db.connection(), id)
+          : null,
+      checklist =
+        kind === 'changes'
+          ? await this.checklist.view(this.db.connection(), id)
+          : null;
     if (workflowKinds.includes(kind) && actor) {
       const view = await this.runtime.view(peopleTables[kind], id, actor);
       return {
         ...record,
         currentStaffing,
         ...(approval ? { approval } : {}),
+        ...(checklist ? { checklist } : {}),
         workflow: {
           available: view.available,
           history: view.history.transitions,
@@ -305,13 +320,23 @@ export class PeopleService {
       } as unknown as PeopleRow;
       row.data = peopleDataSchemas[kind].parse(row.data);
       // Scope columns are derived from trusted parents, never accepted as arbitrary scope claims.
+      let person: RepositoryRecord | null = null;
       if (row.personId) {
-        const person = await this.repo(c, 'employees', policies).findOne({
-          filter: { id: row.personId },
-        });
+        person =
+          (await this.repo(c, 'employees', policies).findOne({
+            filter: { id: row.personId },
+          })) ?? null;
         if (!person || person.status !== 'active')
           return fail('PEOPLE_INVALID_REFERENCE', 'personId');
         row.subjectId = scalar(person.subjectId);
+      }
+      if (kind === 'changes') {
+        // A change names itself: CHG-<date>-<random> and "<person> · <type>".
+        if (!scalar(row.code)) row.code = await this.changeCode(c);
+        if (!scalar(row.name))
+          row.name = `${scalar(person?.name)} · ${changeTypeLabels[(row.data as ChangeData).type]}`;
+      } else if (!scalar(row.code) || !scalar(row.name)) {
+        return fail('PEOPLE_REQUIRED', !scalar(row.code) ? 'code' : 'name');
       }
       await this.validate(c, kind, row, policies, actor);
       if (kind === 'profiles') row.grade = (row.data as ProfileData).grade;
@@ -640,6 +665,12 @@ export class PeopleService {
     if (kind === 'changes') {
       const d = row.data as ChangeData;
       if (
+        !(
+          await this.changeTypeChoices(c, scalar(row.personId), d.effectiveDate)
+        ).includes(d.type)
+      )
+        return fail('PEOPLE_CHANGE_TYPE_CONFLICT', 'data.type');
+      if (
         d.type === 'entry' ||
         d.type === 'transfer' ||
         d.type === 'partTime'
@@ -669,9 +700,16 @@ export class PeopleService {
       }
       if (d.probationEnd && d.probationEnd < d.effectiveDate)
         return fail('PEOPLE_DATE_CONFLICT', 'data.probationEnd');
-      // No backdated changes can silently rewrite an established timeline.
-      if (d.effectiveDate < this.businessDate())
-        return fail('PEOPLE_BACKDATE', 'data.effectiveDate');
+      // Exit and regularization often get recorded a day or two late; other
+      // transactions must not silently rewrite an established timeline.
+      if (d.effectiveDate < this.businessDate()) {
+        const days = Math.round(
+          (Date.parse(this.businessDate()) - Date.parse(d.effectiveDate)) /
+            86_400_000,
+        );
+        if (!['exit', 'regularize'].includes(d.type) || days > 90)
+          return fail('PEOPLE_BACKDATE', 'data.effectiveDate');
+      }
     }
     if (kind === 'workforcePlans') {
       const d = row.data as WorkforceData;
@@ -894,6 +932,52 @@ export class PeopleService {
   private isCurrent(row: PeopleRow, on = this.businessDate()) {
     const d = row.data;
     return scalar(d.startDate) <= on && (!d.endDate || scalar(d.endDate) > on);
+  }
+  private async changeCode(c: DatabaseConnection) {
+    const prefix = `CHG-${this.businessDate().replaceAll('-', '')}-`;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const code = `${prefix}${randomUUID().replaceAll('-', '').slice(0, 4).toUpperCase()}`;
+      if (
+        !(await c.repository('personnelChanges').exists({ filter: { code } }))
+      )
+        return code;
+    }
+    return fail('PEOPLE_CODE_EXISTS', 'code');
+  }
+  /**
+   * The transaction types a person may start on a date, from their current
+   * records. An unemployable person can only be onboarded; a person with one
+   * active employment can transfer, regularize (until regularized), take a
+   * secondary role, end it, or leave.
+   */
+  private async changeTypeChoices(
+    c: DatabaseConnection,
+    personId: string,
+    on: string,
+  ): Promise<ChangeData['type'][]> {
+    const assignments = (
+      await c
+        .repository('personnelAssignments')
+        .findMany({ filter: { personId }, limit: 10000 })
+    ).map(asRow);
+    const employments = (
+      await c
+        .repository('personnelEmployments')
+        .findMany({ filter: { personId }, limit: 10000 })
+    ).map(asRow);
+    const current = assignments.filter((r) => this.isCurrent(r, on));
+    const employed = employments.filter((r) => this.isCurrent(r, on));
+    if (!employed.length && !current.length) return ['entry'];
+    if (employed.length !== 1) return [];
+    const types: ChangeData['type'][] = [];
+    if (current.some((r) => r.data.type === 'primary')) types.push('transfer');
+    if (!(employed[0].data as { regularizedAt?: string | null }).regularizedAt)
+      types.push('regularize');
+    types.push('partTime');
+    if (current.some((r) => r.data.type === 'partTime'))
+      types.push('endPartTime');
+    types.push('exit');
+    return types;
   }
   private async audit(
     c: DatabaseConnection,
@@ -1124,6 +1208,33 @@ export class PeopleService {
     });
     return this.get(kind, id, policies, actor);
   }
+  async updateChecklistItem(
+    id: string,
+    itemId: string,
+    input: { done: boolean; note?: string },
+    actor: PeopleActor,
+    policies: PeoplePolicies,
+  ) {
+    if (!policies[peopleTables.changes]) return fail('PEOPLE_FORBIDDEN');
+    return this.db.transaction(async (c) => {
+      await this.lock(c);
+      const row = await this.repo(c, 'changes', policies).findOne({
+        filter: { id },
+      });
+      if (!row) return fail('PEOPLE_NOT_FOUND');
+      const checklist = await this.checklist.set(c, id, itemId, input, actor);
+      await this.audit(
+        c,
+        'changes',
+        row,
+        asRow(row),
+        actor,
+        input.note ?? '',
+        'checklist',
+      );
+      return checklist;
+    });
+  }
   async approvalTodo(actor: PeopleActor, policies: PeoplePolicies) {
     return this.approval.todo(this.db.connection(), policies, actor);
   }
@@ -1136,6 +1247,104 @@ export class PeopleService {
     actor: PeopleActor,
   ) {
     return this.db.transaction((c) => this.approval.save(c, input, actor));
+  }
+  /** Records a labour-contract end date without editing the immutable employment row. */
+  async setContractEnd(
+    id: string,
+    input: {
+      contractEnd: string | null;
+      reason: string;
+      version: number;
+    },
+    actor: PeopleActor,
+    policies: PeoplePolicies,
+  ) {
+    return this.db.transaction(async (c) => {
+      await this.lock(c);
+      const row = await this.repo(c, 'employments', policies).findOne({
+        filter: { id },
+      });
+      if (!row) return fail('PEOPLE_NOT_FOUND');
+      if (Number(row.revision) !== input.version)
+        return fail('PEOPLE_VERSION_CONFLICT');
+      const reason = scalar(input.reason).trim();
+      if (!reason) return fail('PEOPLE_REQUIRED', 'reason');
+      const contractEnd = input.contractEnd || null;
+      const startDate = scalar((row.data as JsonObject).startDate);
+      if (contractEnd && startDate && contractEnd < startDate)
+        return fail('PEOPLE_DATE_CONFLICT', 'contractEnd');
+      const next = {
+        ...row,
+        data: { ...(row.data as JsonObject), contractEnd },
+        revision: Number(row.revision) + 1,
+        updatedAt: new Date(),
+      };
+      await c.repository(peopleTables.employments).updateOne({
+        filter: { id },
+        values: {
+          data: next.data,
+          revision: next.revision,
+          updatedAt: next.updatedAt,
+        },
+      });
+      await this.audit(
+        c,
+        'employments',
+        asRow(row),
+        next as unknown as PeopleRow,
+        actor,
+        reason,
+        'contract',
+      );
+      return peopleView(next);
+    });
+  }
+  /**
+   * Active employments whose contract ends within the reminder window, oldest
+   * first. Contracts without an end date (open-ended) never appear.
+   */
+  async contractExpiries(days: number, policies: PeoplePolicies) {
+    const c = this.db.connection(),
+      today = this.businessDate(),
+      horizon = new Date(`${today}T00:00:00Z`);
+    horizon.setUTCDate(horizon.getUTCDate() + days);
+    const horizonDate = horizon.toISOString().slice(0, 10),
+      day = (value: string) =>
+        Math.floor(Date.parse(`${value}T00:00:00Z`) / 86_400_000);
+    const rows = await this.repo(c, 'employments', policies).findMany({
+      limit: 5000,
+    });
+    const items = rows
+      .map((row) => asRow(row))
+      .flatMap((row) => {
+        const data = row.data as {
+            startDate?: string;
+            endDate?: string | null;
+            contractEnd?: string | null;
+          },
+          contractEnd = scalar(data.contractEnd);
+        if (!contractEnd || contractEnd > horizonDate) return [];
+        if (scalar(data.startDate) > today) return [];
+        const end = scalar(data.endDate);
+        if (end && end < today) return [];
+        return [
+          {
+            id: row.id,
+            code: row.code,
+            name: row.name,
+            subjectId: row.subjectId,
+            contractEnd,
+            daysLeft: day(contractEnd) - day(today),
+          },
+        ];
+      })
+      .sort((a, b) => a.contractEnd.localeCompare(b.contractEnd));
+    return {
+      businessDate: today,
+      days,
+      items: items.slice(0, 20),
+      total: items.length,
+    };
   }
   private async getWithin(c: DatabaseConnection, kind: PeopleKind, id: string) {
     const row = await c
@@ -1464,7 +1673,16 @@ export class PeopleService {
     kind: PeopleKind,
   ) {
     const { record, previous, entry, actor, input, tx } = context;
-    if (kind === 'changes' && entry.transition === 'submit')
+    if (kind === 'changes' && entry.transition === 'submit') {
+      const row = asRow(record),
+        d = row.data as ChangeData;
+      if (
+        !(
+          await this.changeTypeChoices(c, scalar(row.personId), d.effectiveDate)
+        ).includes(d.type)
+      )
+        return fail('PEOPLE_CHANGE_TYPE_CONFLICT', 'data.type');
+      await this.checklist.ensure(c, scalar(row.id), d.type);
       await this.approval.submit(
         c,
         asRow(record),
@@ -1472,6 +1690,7 @@ export class PeopleService {
           context.parameters.approvalChains,
         ) as unknown as ApprovalChains,
       );
+    }
     if (kind === 'changes' && entry.transition === 'approve')
       await this.approval.completeCurrent(
         c,
@@ -1771,6 +1990,7 @@ export class PeopleService {
           startDate: d.effectiveDate,
           endDate: null,
           probationEnd: d.probationEnd,
+          contractEnd: d.contractEnd,
         },
         null,
       );

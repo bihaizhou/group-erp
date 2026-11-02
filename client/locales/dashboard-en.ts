@@ -54,6 +54,7 @@ export const dashboard = {
       pendingChanges: 'Changes awaiting review',
       employments: 'Employments',
       assignments: 'Assignments',
+      contracts: 'Contracts ending',
     },
     recentEmployees: 'Recently updated employees',
     recentEmployeesDescription:
@@ -61,6 +62,13 @@ export const dashboard = {
     recentChanges: 'Recent personnel changes',
     recentChangesDescription:
       'Onboarding, transfers and exits ordered by creation time.',
+    contractExpiries: 'Labour contracts ending',
+    contractExpiriesDescription:
+      'Active contracts that end within 90 days or have already ended.',
+    contractDate: 'Contract end',
+    contractLeft: 'Time left',
+    contractDays: '{{count}} days left',
+    contractExpired: '{{count}} days overdue',
     todos: 'Common actions',
     todosDescription: 'Go straight to the personnel task you need.',
     todo: {
@@ -68,6 +76,7 @@ export const dashboard = {
       pending: 'Review pending changes',
       employments: 'Employments',
       assignments: 'Assignments',
+      contracts: 'Contracts ending',
     },
   },
   materials: {

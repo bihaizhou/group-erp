@@ -610,7 +610,7 @@ test('uses the official file repository and keeps employee photos private', asyn
   ).toBe(400);
 });
 
-test('rolls back a conflicting entry and blocks retirement of referenced positions', async ({
+test('rejects transactions the employee cannot start and rolls back a conflicting entry', async ({
   testApp,
   database,
 }) => {
@@ -643,7 +643,9 @@ test('rolls back a conflicting entry and blocks retirement of referenced positio
   );
   expect(stopped.status).toBe(400);
   expect((await stopped.json()).error.reason).toBe('ORG_PERSONNEL_DEPENDENTS');
-  const response = await send('/people/changes', {
+  // An employed person can no longer be onboarded: the type is refused when the
+  // draft is created, before it can ever reach an approver.
+  const duplicate = await send('/people/changes', {
     code: 'DUPLICATE-ENTRY',
     name: 'Duplicate entry',
     personId: person!.id,
@@ -655,30 +657,89 @@ test('rolls back a conflicting entry and blocks retirement of referenced positio
       explanation: 'Must not duplicate',
     },
   });
-  const row = (await response.json()).data;
-  expect(response.status).toBe(201);
-  const pendingResponse = await send(`/people/changes/${row.id}/fire`, {
-    transition: 'submit',
-    version: row.lifecycleVersion,
-    requestId: randomUUID(),
-    reason: 'Submit',
+  expect(duplicate.status).toBe(400);
+  expect((await duplicate.json()).error.reason).toBe(
+    'PEOPLE_CHANGE_TYPE_CONFLICT',
+  );
+  // Two drafts are legal while the employee is not onboarded; applying the
+  // second one must fail without touching the records created by the first.
+  const created = await send('/people/employees', {
+    code: 'E-002',
+    name: 'Second employee',
+    subjectId: person!.subjectId,
+    data: {},
   });
-  const pending = (await pendingResponse.json()).data;
-  const before = await database.repository('personnelAssignments').count();
-  const approve = await send(`/people/changes/${row.id}/fire`, {
-    transition: 'approve',
-    version: pending.lifecycleVersion,
-    requestId: randomUUID(),
-    reason: 'Conflict',
-  });
-  expect(approve.status).toBe(400);
+  expect(created.status).toBe(201);
+  const employee = (await created.json()).data;
+  // A dedicated position keeps the workforce baseline of the seeded job intact.
+  const unit = await (
+    await send('/organization/units', {
+      code: 'CONFLICT-UNIT',
+      name: 'Conflict unit',
+      type: 'department',
+      subjectId: person!.subjectId,
+    })
+  ).json();
+  const conflictPosition = await (
+    await send('/organization/positions', {
+      code: 'CONFLICT-JOB',
+      name: 'Conflict role',
+      unitId: unit.data.id,
+    })
+  ).json();
+  const draft = async (code: string) =>
+    (
+      await (
+        await send('/people/changes', {
+          code,
+          name: 'Entry',
+          personId: employee.id,
+          data: {
+            type: 'entry',
+            effectiveDate: businessDate(),
+            targetSubjectId: employee.subjectId,
+            targetPositionId: conflictPosition.data.id,
+            explanation: 'Once only',
+          },
+        })
+      ).json()
+    ).data;
+  const submit = async (row: { id: string; lifecycleVersion: number }) =>
+    (
+      await (
+        await send(`/people/changes/${row.id}/fire`, {
+          transition: 'submit',
+          version: row.lifecycleVersion,
+          requestId: randomUUID(),
+          reason: 'Submit',
+        })
+      ).json()
+    ).data;
+  const approve = async (row: { id: string; lifecycleVersion: number }) =>
+    send(`/people/changes/${row.id}/fire`, {
+      transition: 'approve',
+      version: row.lifecycleVersion,
+      requestId: randomUUID(),
+      reason: 'Apply once',
+    });
+  const pendingFirst = await submit(await draft('ENTRY-1'));
+  const pendingSecond = await submit(await draft('ENTRY-2'));
+  const applied = await approve(pendingFirst);
+  expect(applied.status).toBe(200);
+  const assignments = await database.repository('personnelAssignments').count();
+  const employments = await database.repository('personnelEmployments').count();
+  const conflicted = await approve(pendingSecond);
+  expect(conflicted.status).toBe(400);
   expect(await database.repository('personnelAssignments').count()).toBe(
-    before,
+    assignments,
+  );
+  expect(await database.repository('personnelEmployments').count()).toBe(
+    employments,
   );
   expect(
     (await database
       .repository('personnelChanges')
-      .findOne({ filter: { id: row.id } }))!.status,
+      .findOne({ filter: { id: pendingSecond.id } }))!.status,
   ).toBe('pending');
   expect(
     await testApp.application.container.resolve(peopleServiceToken).applyDue(),

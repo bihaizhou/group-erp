@@ -60,6 +60,21 @@ export type Row = {
       decidedAt: string | null;
     }[];
   };
+  // Present on personnel changes: the handover/onboarding checklist.
+  checklist?: {
+    total: number;
+    done: number;
+    items: {
+      id: string;
+      key: string;
+      title: string;
+      owner: string;
+      done: boolean;
+      doneBy: string | null;
+      doneAt: string | null;
+      note: string;
+    }[];
+  };
 };
 export type Options = Record<
   string,
@@ -127,6 +142,7 @@ export const fields: Record<Kind, FieldSpec[]> = {
     { key: 'startDate', type: 'date' },
     { key: 'endDate', type: 'date' },
     { key: 'probationEnd', type: 'date' },
+    { key: 'contractEnd', type: 'date' },
   ],
   assignments: [
     { key: 'personId', source: 'employees' },
@@ -154,6 +170,7 @@ export const fields: Record<Kind, FieldSpec[]> = {
     { key: 'assignmentId', source: 'assignments' },
     select('employmentType', ['employee', 'contractor', 'intern', 'other']),
     { key: 'probationEnd', type: 'date' },
+    { key: 'contractEnd', type: 'date' },
     { key: 'location' },
     text('explanation', true),
   ],

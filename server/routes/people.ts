@@ -416,8 +416,12 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
           );
           await next();
         };
+      // Personnel changes derive their code and name from the transaction;
+      // other records still require both.
       const schema = z.strictObject({
         ...peopleInputBase,
+        code: peopleInputBase.code.optional(),
+        name: peopleInputBase.name.optional(),
         data: peopleDataSchemas[kind],
       });
       router.get(
@@ -628,6 +632,43 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
           },
         );
     }
+    router.post(
+      '/people/changes/:id/checklist/:itemId',
+      async (c, next) => {
+        c.set(
+          'peoplePolicies',
+          await authorize(c.get('authz'), 'changes', 'update'),
+        );
+        await next();
+      },
+      describeRoute({
+        tags: ['People'],
+        operationId: 'peopleUpdateChecklist',
+        summary: 'Update a change checklist item',
+        responses: { '200': dataResponse(output), ...responses },
+      }),
+      apiValidator(
+        'param',
+        z.object({ id: z.string().uuid(), itemId: z.string().uuid() }),
+      ),
+      apiValidator(
+        'json',
+        z.strictObject({
+          done: z.boolean(),
+          note: z.string().trim().max(2000).optional(),
+        }),
+      ),
+      async (c) =>
+        c.json({
+          data: await service.updateChecklistItem(
+            c.req.valid('param').id,
+            c.req.valid('param').itemId,
+            c.req.valid('json'),
+            actor(c),
+            c.get('peoplePolicies'),
+          ),
+        }),
+    );
     router.get(
       '/people/employees/:id/contacts',
       async (c, next) => {
@@ -690,6 +731,78 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
             c.get('peoplePolicies'),
             c.req.valid('json'),
             actor(c),
+          ),
+        }),
+    );
+    router.get(
+      '/people/contract-expiries',
+      async (c, next) => {
+        c.set(
+          'peoplePolicies',
+          await authorize(c.get('authz'), 'employments', 'read'),
+        );
+        await next();
+      },
+      describeRoute({
+        tags: ['People'],
+        operationId: 'peopleContractExpiries',
+        summary: 'Read labour contracts nearing their end date',
+        responses: { '200': listResponse(output), ...responses },
+      }),
+      apiValidator(
+        'query',
+        z.object({
+          days: z.coerce.number().int().min(1).max(365).default(90),
+          page: z.coerce.number().int().min(1).max(100000).optional(),
+          pageSize: z.coerce.number().int().min(1).max(100).optional(),
+        }),
+      ),
+      async (c) => {
+        const result = await service.contractExpiries(
+          c.req.valid('query').days,
+          c.get('peoplePolicies'),
+        );
+        return c.json({
+          data: result.items,
+          meta: {
+            total: result.total,
+            businessDate: result.businessDate,
+            days: result.days,
+          },
+        });
+      },
+    );
+    router.post(
+      '/people/employments/:id/contract-end',
+      async (c, next) => {
+        c.set(
+          'peoplePolicies',
+          await authorize(c.get('authz'), 'employments', 'update'),
+        );
+        await next();
+      },
+      describeRoute({
+        tags: ['People'],
+        operationId: 'peopleSetContractEnd',
+        summary: 'Record a labour contract end date',
+        responses: { '200': dataResponse(output), ...responses },
+      }),
+      apiValidator('param', idParam),
+      apiValidator(
+        'json',
+        z.strictObject({
+          contractEnd: z.union([z.literal(''), z.iso.date()]).nullable(),
+          reason,
+          version: z.number().int().positive(),
+        }),
+      ),
+      async (c) =>
+        c.json({
+          data: await service.setContractEnd(
+            c.req.valid('param').id,
+            c.req.valid('json'),
+            actor(c),
+            c.get('peoplePolicies'),
           ),
         }),
     );

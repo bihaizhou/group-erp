@@ -3,6 +3,7 @@ import { useCan } from '@nocobase/app-plugin-authorization/client';
 import {
   ArrowLeftRight,
   BriefcaseBusiness,
+  CalendarClock,
   Contact,
   FileUser,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ import {
   useDashboardRefresh,
 } from '#components/module-dashboard/index';
 import { TableCell, TableRow } from '#components/ui/table';
+import { Badge } from '#components/ui/badge';
 
 type EmployeeRow = {
   id: string;
@@ -37,6 +39,15 @@ type ChangeRow = {
   name: string;
   status: string;
   data?: { type?: string; effectiveDate?: string };
+};
+
+type ContractRow = {
+  id: string;
+  code: string;
+  name: string;
+  subjectId: string | null;
+  contractEnd: string;
+  daysLeft: number;
 };
 
 export default function PersonnelOverviewPage() {
@@ -86,6 +97,20 @@ export default function PersonnelOverviewPage() {
     'people/assignments',
     {},
     assignments.can,
+  );
+  const contractExpiries = useDashboardCount(
+    'people',
+    'contractExpiries',
+    'people/contract-expiries',
+    { days: 90 },
+    employments.can,
+  );
+  const recentContracts = useDashboardList<ContractRow>(
+    'people',
+    'recentContracts',
+    'people/contract-expiries',
+    { days: 90 },
+    employments.can,
   );
   const recentEmployees = useDashboardList<EmployeeRow>(
     'people',
@@ -146,7 +171,59 @@ export default function PersonnelOverviewPage() {
             to='/functions/personnel/assignments'
           />
         ) : null}
+        {employments.can ? (
+          <DashboardMetric
+            label={t('dashboard.people.metrics.contracts')}
+            value={contractExpiries.data}
+            isLoading={contractExpiries.isPending}
+            icon={CalendarClock}
+            to='/functions/personnel/employments'
+          />
+        ) : null}
       </DashboardMetricGrid>
+      {employments.can ? (
+        <DashboardTableCard
+          title={t('dashboard.people.contractExpiries')}
+          description={t('dashboard.people.contractExpiriesDescription')}
+          columns={[
+            t('dashboard.common.name'),
+            t('dashboard.people.contractDate'),
+            t('dashboard.people.contractLeft'),
+          ]}
+          isLoading={recentContracts.isPending}
+          isError={recentContracts.isError}
+          onRetry={() => void recentContracts.refetch()}
+          isEmpty={recentContracts.data?.length === 0}
+          footer={
+            <DashboardViewAll to='/functions/personnel/employments'>
+              {t('dashboard.viewAll')}
+            </DashboardViewAll>
+          }
+        >
+          {recentContracts.data?.slice(0, 5).map((row) => (
+            <TableRow key={row.id}>
+              <TableCell className='font-medium'>{row.name}</TableCell>
+              <TableCell className='text-muted-foreground'>
+                {formatDashboardDate(row.contractEnd, i18n.language)}
+              </TableCell>
+              <TableCell>
+                <Badge
+                  variant={row.daysLeft < 0 ? 'destructive' : 'secondary'}
+                  className='tabular-nums'
+                >
+                  {row.daysLeft < 0
+                    ? t('dashboard.people.contractExpired', {
+                        count: Math.abs(row.daysLeft),
+                      })
+                    : t('dashboard.people.contractDays', {
+                        count: row.daysLeft,
+                      })}
+                </Badge>
+              </TableCell>
+            </TableRow>
+          ))}
+        </DashboardTableCard>
+      ) : null}
       <div className='grid gap-4 2xl:grid-cols-2'>
         {employees.can ? (
           <DashboardTableCard

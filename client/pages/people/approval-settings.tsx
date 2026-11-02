@@ -7,16 +7,48 @@ import {
   useToaster,
 } from '@nocobase/app-client';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  MoreHorizontal,
+  Plus,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { Badge } from '#components/ui/badge';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { Label } from '#components/ui/label';
-import { Card, CardHeader, CardTitle, CardContent } from '#components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '#components/ui/card';
 import { Alert, AlertDescription } from '#components/ui/alert';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '#components/ui/tabs';
-import { Field, FieldLabel } from '#components/ui/field';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '#components/ui/empty';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '#components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '#components/ui/tooltip';
+import { cn } from 'cn';
 import { PeopleLoading, PeopleErrorNotice, PeopleSelect } from './controls.js';
 import { usePeopleError } from './hooks.js';
 
@@ -71,19 +103,27 @@ export default function ApprovalSettingsPage() {
         signal,
       }),
   });
+  const header = (
+    <PageHeader
+      title={t('people.approvalSettings')}
+      description={t('people.approvalSettingsDescription')}
+    />
+  );
   return (
     <PageContainer>
-      <PageHeader
-        title={t('people.approvalSettings')}
-        description={t('people.approvalSettingsDescription')}
-      />
       {data.isError ? (
-        <PeopleErrorNotice
-          error={data.error}
-          retry={() => void data.refetch()}
-        />
+        <>
+          {header}
+          <PeopleErrorNotice
+            error={data.error}
+            retry={() => void data.refetch()}
+          />
+        </>
       ) : !data.data ? (
-        <PeopleLoading />
+        <>
+          {header}
+          <PeopleLoading />
+        </>
       ) : (
         <ApprovalEditor
           key={data.data.data.revision}
@@ -104,8 +144,16 @@ function ApprovalEditor({ settings }: { settings: Settings }) {
     ),
     [active, setActive] = useState<ChangeType>('entry'),
     [revision, setRevision] = useState(settings.revision),
+    [saved, setSaved] = useState(() =>
+      JSON.stringify(settings.values.approvalChains),
+    ),
     [pending, setPending] = useState(false),
-    [error, setError] = useState<unknown>();
+    [error, setError] = useState<unknown>(),
+    [invalid, setInvalid] = useState<{
+      type: ChangeType;
+      key: string;
+      message: string;
+    } | null>(null);
   const options = settings.options,
     roleItems = useMemo(
       () =>
@@ -150,35 +198,61 @@ function ApprovalEditor({ settings }: { settings: Settings }) {
       user: accountItems,
       position: positionItems,
     },
-    sourceLabel = (type: SelectionType) => t(`people.approvalSources.${type}`);
-  const items = (type: SelectionType) => sourceItems[type];
-  const chain = chains[active] ?? { stages: [] };
+    fieldItems = (type: SelectionType) => sourceItems[type],
+    sourceLabel = (type: SelectionType) => t(`people.approvalSources.${type}`),
+    typeLabel = (type: ChangeType) => t(`people.career.change.${type}`);
+  const chain = chains[active]?.stages ?? [];
+  const dirty = JSON.stringify(chains) !== saved;
+  const savedChains = useMemo(() => JSON.parse(saved) as Chains, [saved]);
+  const dirtyTypes = useMemo(
+    () =>
+      new Set(
+        changeTypes.filter(
+          (type) =>
+            JSON.stringify(chains[type] ?? { stages: [] }) !==
+            JSON.stringify(savedChains[type] ?? { stages: [] }),
+        ),
+      ),
+    [chains, savedChains],
+  );
   const update = (stages: Stage[]) =>
     setChains((current) => ({ ...current, [active]: { stages } }));
-  const updateStage = (index: number, patch: Partial<Stage>) =>
+  const updateStage = (index: number, patch: Partial<Stage>) => {
+    if (invalid && invalid.key === chain[index]?.key) setInvalid(null);
     update(
-      chain.stages.map((stage, i) =>
-        i === index ? { ...stage, ...patch } : stage,
-      ),
+      chain.map((stage, i) => (i === index ? { ...stage, ...patch } : stage)),
     );
+  };
   const move = (index: number, delta: number) => {
-    const next = [...chain.stages],
+    const next = [...chain],
       target = index + delta;
     if (target < 0 || target >= next.length) return;
     [next[index], next[target]] = [next[target], next[index]];
     update(next);
   };
-  const addStage = () =>
-    update([
-      ...chain.stages,
-      emptyStage(
-        t('people.approvalStageDefault', { index: chain.stages.length + 1 }),
-      ),
-    ]);
+  const focusStage = (key: string) =>
+    window.setTimeout(() => {
+      document
+        .getElementById(`stage-${key}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById(`stage-title-${key}`)?.focus();
+    }, 0);
+  const addStage = () => {
+    const stage = emptyStage(
+      t('people.approvalStageDefault', { index: chain.length + 1 }),
+    );
+    update([...chain, stage]);
+    focusStage(stage.key);
+  };
+  const removeStage = (index: number) => {
+    if (chain.length === 1) return;
+    update(chain.filter((_, i) => i !== index));
+    if (invalid?.key === chain[index]?.key) setInvalid(null);
+  };
   const addSelection = (index: number) => {
-    const stage = chain.stages[index],
-      type: SelectionType = 'role';
-    const referenceId = items(type)[0]?.value;
+    const stage = chain[index],
+      type: SelectionType = 'role',
+      referenceId = fieldItems(type)[0]?.value;
     if (!referenceId) return;
     updateStage(index, {
       selections: [...stage.selections, { type, referenceId }],
@@ -189,46 +263,65 @@ function ApprovalEditor({ settings }: { settings: Settings }) {
     position: number,
     patch: Partial<Selection>,
   ) => {
-    const stage = chain.stages[index],
+    const stage = chain[index],
       selections = stage.selections.map((selection, i) => {
         if (i !== position) return selection;
         const next = { ...selection, ...patch };
         if (
           patch.type &&
-          !items(patch.type).some((item) => item.value === next.referenceId)
+          !fieldItems(patch.type).some(
+            (item) => item.value === next.referenceId,
+          )
         )
-          next.referenceId = items(patch.type)[0]?.value ?? '';
+          next.referenceId = fieldItems(patch.type)[0]?.value ?? '';
         return next;
       });
     updateStage(index, { selections });
   };
   const removeSelection = (index: number, position: number) =>
     updateStage(index, {
-      selections: chain.stages[index].selections.filter(
-        (_, i) => i !== position,
-      ),
+      selections: chain[index].selections.filter((_, i) => i !== position),
     });
-  const save = async () => {
-    for (const type of changeTypes)
+  const reset = () => {
+    setChains(structuredClone(settings.values.approvalChains));
+    setInvalid(null);
+    setError(undefined);
+  };
+  const validate = () => {
+    for (const type of changeTypes) {
       for (const [index, stage] of (chains[type]?.stages ?? []).entries()) {
-        if (!stage.title.trim()) {
-          setError(
-            new Error(t('people.approvalTitleRequired', { index: index + 1 })),
-          );
-          return;
-        }
+        if (!stage.title.trim())
+          return {
+            type,
+            stage,
+            message: t('people.approvalTitleRequired', { index: index + 1 }),
+          };
         if (
           !stage.selections.length ||
           stage.selections.some((selection) => !selection.referenceId)
-        ) {
-          setError(
-            new Error(
-              t('people.approvalReviewerRequired', { index: index + 1 }),
-            ),
-          );
-          return;
-        }
+        )
+          return {
+            type,
+            stage,
+            message: t('people.approvalReviewerRequired', { index: index + 1 }),
+          };
       }
+    }
+    return null;
+  };
+  const save = async () => {
+    const problem = validate();
+    if (problem) {
+      setError(undefined);
+      setActive(problem.type);
+      setInvalid({
+        type: problem.type,
+        key: problem.stage.key,
+        message: problem.message,
+      });
+      focusStage(problem.stage.key);
+      return;
+    }
     setPending(true);
     setError(undefined);
     try {
@@ -245,6 +338,8 @@ function ApprovalEditor({ settings }: { settings: Settings }) {
       });
       setRevision(response.data.revision);
       setChains(structuredClone(response.data.values.approvalChains));
+      setSaved(JSON.stringify(response.data.values.approvalChains));
+      setInvalid(null);
       toaster.show({ type: 'success', title: t('people.approvalSaved') });
     } catch (e) {
       setError(e);
@@ -259,186 +354,312 @@ function ApprovalEditor({ settings }: { settings: Settings }) {
         ? error.message
         : undefined;
   return (
-    <div className='flex flex-col gap-4'>
-      <Alert>
-        <AlertDescription>{t('people.approvalHint')}</AlertDescription>
-      </Alert>
-      {message ? (
-        <Alert variant='destructive'>
-          <AlertDescription>{message}</AlertDescription>
-        </Alert>
-      ) : null}
-      <Tabs
-        value={active}
-        onValueChange={(value) => setActive(value as ChangeType)}
-        orientation='vertical'
-        className='items-start gap-4'
-      >
-        <TabsList className='h-auto w-full flex-wrap sm:w-44 sm:flex-col'>
-          {changeTypes.map((type) => (
-            <TabsTrigger key={type} value={type} className='w-full'>
-              {t(`people.career.change.${type}`)}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        <TabsContent value={active} className='flex w-full flex-col gap-4'>
-          {chain.stages.map((stage, index) => (
-            <Card key={stage.key}>
-              <CardHeader className='flex flex-row items-center justify-between gap-2'>
+    <>
+      <PageHeader
+        title={t('people.approvalSettings')}
+        description={t('people.approvalSettingsDescription')}
+        actions={
+          <>
+            {dirty ? (
+              <span className='me-1 hidden text-sm text-muted-foreground sm:inline'>
+                {t('people.approvalUnsaved')}
+              </span>
+            ) : null}
+            <Button
+              variant='outline'
+              disabled={!dirty || pending}
+              onClick={reset}
+            >
+              {t('people.approvalReset')}
+            </Button>
+            <Button disabled={!dirty || pending} onClick={() => void save()}>
+              {pending ? t('people.saving') : t('people.save')}
+            </Button>
+          </>
+        }
+      />
+      <div className='flex flex-col gap-4'>
+        <p className='rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm leading-6 text-muted-foreground'>
+          {t('people.approvalHint')}
+        </p>
+        {message ? (
+          <Alert variant='destructive'>
+            <AlertDescription>{message}</AlertDescription>
+          </Alert>
+        ) : null}
+        <div className='grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-start'>
+          <nav
+            aria-label={t('people.approvalTypes')}
+            className='flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0'
+          >
+            {changeTypes.map((type) => {
+              const count = chains[type]?.stages.length ?? 0;
+              return (
+                <button
+                  key={type}
+                  type='button'
+                  aria-current={active === type ? 'true' : undefined}
+                  onClick={() => setActive(type)}
+                  className={cn(
+                    'flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors lg:w-full',
+                    active === type
+                      ? 'border-border bg-muted font-medium text-foreground'
+                      : 'border-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                >
+                  <span className='min-w-0 flex-1 truncate'>
+                    {typeLabel(type)}
+                  </span>
+                  {dirtyTypes.has(type) ? (
+                    <span
+                      className='size-1.5 shrink-0 rounded-full bg-primary'
+                      aria-label={t('people.approvalUnsaved')}
+                    />
+                  ) : null}
+                  <Badge variant='secondary' className='tabular-nums'>
+                    {count}
+                  </Badge>
+                </button>
+              );
+            })}
+          </nav>
+          <Card>
+            <CardHeader className='flex flex-row flex-wrap items-start justify-between gap-3'>
+              <div className='flex min-w-0 flex-col gap-1.5'>
                 <CardTitle>
-                  {t('people.approvalStageOf', { index: index + 1 })}
+                  {t('people.approvalChainTitle', { type: typeLabel(active) })}
                 </CardTitle>
-                <div className='flex gap-1'>
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    aria-label={t('people.approvalMoveUp')}
-                    disabled={index === 0}
-                    onClick={() => move(index, -1)}
-                  >
-                    <ArrowUp />
-                  </Button>
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    aria-label={t('people.approvalMoveDown')}
-                    disabled={index === chain.stages.length - 1}
-                    onClick={() => move(index, 1)}
-                  >
-                    <ArrowDown />
-                  </Button>
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    aria-label={t('people.approvalRemoveStage')}
-                    disabled={chain.stages.length === 1}
-                    onClick={() =>
-                      update(chain.stages.filter((_, i) => i !== index))
-                    }
-                  >
-                    <Trash2 />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className='flex flex-col gap-4'>
-                <div className='grid gap-4 sm:grid-cols-3'>
-                  <Field>
-                    <FieldLabel htmlFor={`stage-title-${stage.key}`}>
-                      {t('people.approvalStageTitle')}
-                    </FieldLabel>
+                <CardDescription>
+                  {t('people.approvalChainSummary', { count: chain.length })}
+                </CardDescription>
+              </div>
+              <Button
+                variant='outline'
+                size='sm'
+                disabled={chain.length >= 5}
+                onClick={addStage}
+              >
+                <Plus />
+                {t('people.approvalAddStage')}
+              </Button>
+            </CardHeader>
+            <CardContent className='flex flex-col gap-3'>
+              {!chain.length ? (
+                <Empty className='border border-dashed border-border py-10'>
+                  <EmptyHeader>
+                    <EmptyMedia variant='icon'>
+                      <Plus />
+                    </EmptyMedia>
+                    <EmptyTitle>{t('people.approvalEmptyChain')}</EmptyTitle>
+                    <EmptyDescription>
+                      {t('people.approvalEmptyChainHint')}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : null}
+              {chain.map((stage, index) => (
+                <div
+                  id={`stage-${stage.key}`}
+                  key={stage.key}
+                  className={cn(
+                    'rounded-lg border bg-card',
+                    invalid?.key === stage.key
+                      ? 'border-destructive'
+                      : 'border-border',
+                  )}
+                >
+                  <div className='flex flex-wrap items-center gap-2 border-b border-border px-3 py-2'>
+                    <span className='flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium tabular-nums'>
+                      {index + 1}
+                    </span>
                     <Input
                       id={`stage-title-${stage.key}`}
+                      aria-label={t('people.approvalStageTitle')}
                       value={stage.title}
                       maxLength={100}
                       onChange={(event) =>
                         updateStage(index, { title: event.target.value })
                       }
+                      className='h-8 min-w-0 flex-1 border-transparent bg-transparent px-1 font-medium shadow-none focus-visible:border-input sm:max-w-xs'
                     />
-                  </Field>
-                  <Field>
-                    <FieldLabel>{t('people.approvalMode')}</FieldLabel>
-                    <PeopleSelect
-                      label={t('people.approvalMode')}
-                      value={stage.mode}
-                      onChange={(value) =>
-                        updateStage(index, { mode: value as 'any' | 'all' })
-                      }
-                      items={[
-                        { value: 'any', label: t('people.approvalModes.any') },
-                        { value: 'all', label: t('people.approvalModes.all') },
-                      ]}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel>{t('people.approvalCompany')}</FieldLabel>
-                    <PeopleSelect
-                      label={t('people.approvalCompany')}
-                      value={stage.subjectIds[0] ?? 'all'}
-                      onChange={(value) =>
-                        updateStage(index, {
-                          subjectIds: value === 'all' ? [] : [value],
-                        })
-                      }
-                      items={companyItems}
-                    />
-                  </Field>
-                </div>
-                <div className='flex flex-col gap-2'>
-                  <Label>{t('people.approvalReviewers')}</Label>
-                  {stage.selections.map((selection, position) => (
-                    <div
-                      // Rows are positional and a selection may still be empty.
-                      // eslint-disable-next-line @eslint-react/no-array-index-key
-                      key={`${stage.key}-${position}`}
-                      className='grid gap-2 sm:grid-cols-[10rem_1fr_auto]'
-                    >
-                      <PeopleSelect
-                        label={t('people.approvalSource')}
-                        value={selection.type}
-                        onChange={(value) =>
-                          changeSelection(index, position, {
-                            type: value as SelectionType,
-                          })
-                        }
-                        items={selectionTypes.map((type) => ({
-                          value: type,
-                          label: sourceLabel(type),
-                        }))}
-                      />
-                      <PeopleSelect
-                        label={t(sourceLabel(selection.type))}
-                        value={selection.referenceId}
-                        onChange={(value) =>
-                          changeSelection(index, position, {
-                            referenceId: value,
-                          })
-                        }
-                        items={items(selection.type)}
-                      />
-                      <Button
-                        variant='ghost'
-                        size='icon'
-                        aria-label={t('people.approvalRemoveReviewer')}
-                        onClick={() => removeSelection(index, position)}
+                    <div className='ms-auto flex items-center gap-1'>
+                      <div
+                        role='group'
+                        aria-label={t('people.approvalMode')}
+                        className='inline-flex rounded-md border border-border p-0.5'
                       >
-                        <Trash2 />
+                        {(['any', 'all'] as const).map((mode) => (
+                          <button
+                            key={mode}
+                            type='button'
+                            aria-pressed={stage.mode === mode}
+                            onClick={() => updateStage(index, { mode })}
+                            className={cn(
+                              'rounded px-2.5 py-1 text-xs transition-colors',
+                              stage.mode === mode
+                                ? 'bg-muted font-medium text-foreground'
+                                : 'text-muted-foreground hover:text-foreground',
+                            )}
+                          >
+                            {t(`people.approvalModes.${mode}`)}
+                          </button>
+                        ))}
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              variant='ghost'
+                              size='icon-sm'
+                              aria-label={t('people.approvalStageActions')}
+                            />
+                          }
+                        >
+                          <MoreHorizontal />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align='end'>
+                          <DropdownMenuItem
+                            disabled={index === 0}
+                            onClick={() => move(index, -1)}
+                          >
+                            <ArrowUp />
+                            {t('people.approvalMoveUp')}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={index === chain.length - 1}
+                            onClick={() => move(index, 1)}
+                          >
+                            <ArrowDown />
+                            {t('people.approvalMoveDown')}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            variant='destructive'
+                            disabled={chain.length === 1}
+                            onClick={() => removeStage(index)}
+                          >
+                            <Trash2 />
+                            {t('people.approvalRemoveStage')}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                  <div className='flex flex-col gap-4 p-3'>
+                    <div className='sm:max-w-xs'>
+                      <Label className='mb-2 block'>
+                        {t('people.approvalCompany')}
+                      </Label>
+                      <PeopleSelect
+                        label={t('people.approvalCompany')}
+                        value={stage.subjectIds[0] ?? 'all'}
+                        items={companyItems}
+                        onChange={(value) =>
+                          updateStage(index, {
+                            subjectIds: value === 'all' ? [] : [value],
+                          })
+                        }
+                      />
+                    </div>
+                    <div className='flex flex-col gap-2'>
+                      <div className='flex items-center justify-between gap-2'>
+                        <Label>{t('people.approvalReviewers')}</Label>
+                        <span className='text-xs tabular-nums text-muted-foreground'>
+                          {stage.selections.length}/10
+                        </span>
+                      </div>
+                      {stage.selections.length ? (
+                        <div className='flex flex-col gap-2'>
+                          {stage.selections.map((selection, position) => (
+                            <div
+                              // Rows are positional and a selection may still be empty.
+                              // eslint-disable-next-line @eslint-react/no-array-index-key
+                              key={`${stage.key}-${position}`}
+                              className='flex flex-col gap-2 rounded-md border border-border bg-muted/40 p-2 sm:flex-row sm:items-center'
+                            >
+                              <div className='sm:w-36'>
+                                <PeopleSelect
+                                  label={t('people.approvalSource')}
+                                  value={selection.type}
+                                  items={selectionTypes.map((type) => ({
+                                    value: type,
+                                    label: sourceLabel(type),
+                                  }))}
+                                  onChange={(value) =>
+                                    changeSelection(index, position, {
+                                      type: value as SelectionType,
+                                    })
+                                  }
+                                />
+                              </div>
+                              <div className='min-w-0 flex-1'>
+                                <PeopleSelect
+                                  label={sourceLabel(selection.type)}
+                                  value={selection.referenceId}
+                                  items={fieldItems(selection.type)}
+                                  onChange={(value) =>
+                                    changeSelection(index, position, {
+                                      referenceId: value,
+                                    })
+                                  }
+                                />
+                              </div>
+                              <Tooltip>
+                                <TooltipTrigger
+                                  render={
+                                    <Button
+                                      variant='ghost'
+                                      size='icon-sm'
+                                      aria-label={t(
+                                        'people.approvalRemoveReviewer',
+                                      )}
+                                      className='self-end sm:self-auto'
+                                      onClick={() =>
+                                        removeSelection(index, position)
+                                      }
+                                    />
+                                  }
+                                >
+                                  <X />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {t('people.approvalRemoveReviewer')}
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className='rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground'>
+                          {t('people.approvalNoReviewers')}
+                        </p>
+                      )}
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        className='w-fit'
+                        disabled={stage.selections.length >= 10}
+                        onClick={() => addSelection(index)}
+                      >
+                        <Plus />
+                        {t('people.approvalAddReviewer')}
                       </Button>
                     </div>
-                  ))}
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    className='w-fit'
-                    disabled={stage.selections.length >= 10}
-                    onClick={() => addSelection(index)}
-                  >
-                    <Plus />
-                    {t('people.approvalAddReviewer')}
-                  </Button>
+                    {invalid?.key === stage.key ? (
+                      <p className='text-sm text-destructive' role='alert'>
+                        {invalid.message}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-          <div className='flex flex-wrap items-center gap-2'>
-            <Button
-              variant='outline'
-              disabled={chain.stages.length >= 5}
-              onClick={addStage}
-            >
-              <Plus />
-              {t('people.approvalAddStage')}
-            </Button>
-            <span className='text-sm text-muted-foreground'>
-              {t('people.approvalStageLimit')}
-            </span>
-            <div className='ms-auto flex gap-2'>
-              <Button disabled={pending} onClick={() => void save()}>
-                {pending ? t('people.saving') : t('people.save')}
-              </Button>
-            </div>
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
+              ))}
+              <p className='text-xs text-muted-foreground'>
+                {t('people.approvalStageLimit')}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </>
   );
 }
