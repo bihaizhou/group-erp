@@ -1,0 +1,68 @@
+# 代码归属（CODEOWNERS）
+#
+# 用法：把每行末尾的 @bihaizhou 换成对应部门的 GitHub 账号或团队（例如 @qinwang-erp/hr）。
+# 生效需要仓库同时满足：
+#   1. Settings › Branches › Branch protection rules 里对 master 勾选 "Require review from Code Owners"
+#   2. 每个部门至少有一个有写权限的账号被列进来
+# 没勾选之前，这份文件只影响 PR 页面上的推荐评审人，不会拦截合并。
+
+# 默认归属：平台组。没被下面规则覆盖的文件，都算平台的。
+*                                   @bihaizhou
+
+# ── 平台与框架（改这里影响所有人，必须平台组评审）──
+/client/layouts/                    @bihaizhou
+/client/routes.ts                   @bihaizhou
+/client/plugins.ts                  @bihaizhou
+/client/components/                 @bihaizhou
+/server/app.ts                      @bihaizhou
+/server/plugins.ts                  @bihaizhou
+/config.yml                         @bihaizhou
+/package.json                       @bihaizhou
+/pnpm-lock.yaml                     @bihaizhou
+/database/main/migrations/          @bihaizhou
+
+# ── 组织与人资 ──
+/client/pages/organization/         @bihaizhou
+/server/providers/organization*.ts  @bihaizhou
+/client/pages/people/               @bihaizhou
+/server/providers/people*.ts        @bihaizhou
+
+# ── 采购 ──
+/client/pages/procurement/          @bihaizhou
+/client/pages/suppliers/            @bihaizhou
+/server/providers/procurement.ts    @bihaizhou
+/server/providers/supplier*.ts      @bihaizhou
+
+# ── 仓储与物料 ──
+/client/pages/materials/            @bihaizhou
+/server/providers/material*.ts      @bihaizhou
+/server/providers/inventory*.ts     @bihaizhou
+
+# ── 领用 ──
+/client/pages/requisitions/         @bihaizhou
+/server/providers/requisitions.ts   @bihaizhou
+
+# ── 销售与客户 ──
+/client/pages/execution/            @bihaizhou
+/client/pages/customers/            @bihaizhou
+/server/providers/execution*.ts     @bihaizhou
+
+# ── 安环 ──
+/client/pages/hse/                  @bihaizhou
+/server/providers/hse*.ts           @bihaizhou
+
+# ── 生产 ──
+/client/pages/production/           @bihaizhou
+/server/providers/production*.ts    @bihaizhou
+
+# ── 运营 ──
+/client/pages/operations/           @bihaizhou
+/server/providers/operations*.ts    @bihaizhou
+
+# ── 固定资产 ──
+/client/pages/assets/               @bihaizhou
+/server/providers/asset*.ts         @bihaizhou
+
+# ── 内置助手（Agent 的 scope 与工具注册）──
+/client/agents/                     @bihaizhou
+/server/providers/agents.ts         @bihaizhou
