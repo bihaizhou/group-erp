@@ -1092,3 +1092,245 @@ test('transfer discrepancy is independently reviewed, consumes the remaining in-
     warehouseId: null,
   });
 });
+test('counts steel sheets in stock while pricing the purchase in tonnes through a reference rule', async ({
+  testApp,
+  database,
+}) => {
+  const f = await setup(testApp, database),
+    base = '/procurement/orders';
+  const activate = async (
+    kind: string,
+    initial: { id: string; lifecycleVersion: number },
+  ) => {
+    let row = initial;
+    for (const transition of ['submit', 'approve']) {
+      const response = await send(
+        transition === 'submit' ? f.admin : f.reviewer.session,
+        `/materials/${kind}/${row.id}/${transition}`,
+        {
+          version: row.lifecycleVersion,
+          requestKey: randomUUID(),
+          reason: 'Reference unit verification',
+        },
+      );
+      expect(response.status).toBe(200);
+      row = (await response.json()).data;
+    }
+    return row;
+  };
+  const sheet = await f.create('/materials/units', {
+      name: '张',
+      unitType: 'count',
+      precision: 0,
+    }),
+    tonne = await f.create('/materials/units', {
+      name: '吨',
+      unitType: 'mass',
+      precision: 3,
+    }),
+    sku = await activate(
+      'skus',
+      await f.create('/materials/skus', {
+        name: '钢板 10mm',
+        materialNameId: f.m.name.id,
+        baseUnitId: String(sheet.id),
+        managementMode: 'stock',
+        attributeValues: { model: 'B' },
+      }),
+    );
+  await f.create('/materials/subjectSettings', {
+    name: '钢板准入',
+    subjectId: f.a.id,
+    skuId: sku.id,
+    canPurchase: true,
+    canSell: false,
+  });
+  const balance = (quality = 'qualified') =>
+    database.repository('stockBalances').findOne({
+      filter: {
+        warehouseId: String(f.warehouse.id),
+        skuId: String(sku.id),
+        quality,
+      },
+    });
+  const rule = await activate(
+    'unitRules',
+    await f.create('/materials/unitRules', {
+      name: '吨折张参考',
+      skuId: sku.id,
+      unitId: String(tonne.id),
+      numerator: '1.4154',
+      denominator: '1',
+      conversionMode: 'reference',
+      variancePercent: '3',
+    }),
+  );
+  await f.saveRules();
+  await f.orderRules('purchaseOrders');
+  // Requests express demand in the stock unit; the tonne belongs to the order.
+  const referenceDemand = f.content();
+  Object.assign(referenceDemand.lines[0], {
+    selection: {
+      kind: 'known',
+      subjectId: f.a.id,
+      skuId: sku.id,
+      unitId: String(tonne.id),
+      unitRuleId: rule.id,
+      quantity: '10',
+      baseQuantity: '14',
+    },
+    originalName: '钢板',
+    originalSpecification: '10mm',
+    usage: '',
+    notes: '',
+  });
+  delete (referenceDemand.lines[0] as unknown as Record<string, unknown>)
+    .requestedUnitText;
+  const blocked = await send(f.applicant.session, '/procurement/requests', {
+    content: referenceDemand,
+    requestKey: randomUUID(),
+  });
+  expect(blocked.status).toBe(400);
+  expect((await blocked.json()).error.reason).toBe(
+    'SUPPLY_REFERENCE_NOT_REQUESTABLE',
+  );
+  const demand = async (quantity: string) => {
+    const content = f.content();
+    Object.assign(content.lines[0], {
+      selection: {
+        kind: 'known',
+        subjectId: f.a.id,
+        skuId: sku.id,
+        unitId: String(sheet.id),
+        quantity,
+      },
+      originalName: '钢板',
+      originalSpecification: '10mm',
+      usage: '',
+      notes: '',
+    });
+    delete (content.lines[0] as unknown as Record<string, unknown>)
+      .requestedUnitText;
+    let row = await f.draft(content);
+    row = await f.requestFire(row, 'submit');
+    return f.requestFire(row, 'approve', f.reviewer.session);
+  };
+  const approveOrder = async (baseQuantity: string) => {
+    const request = await demand(baseQuantity);
+    const content = f.orderContent('10');
+    Object.assign(content.lines[0].selection, {
+      skuId: sku.id,
+      unitId: String(tonne.id),
+      unitRuleId: rule.id,
+      quantity: '10',
+      baseQuantity,
+    });
+    content.lines[0].unitPrice = '4200';
+    content.lines[0].allocations = [
+      {
+        requestId: request.id,
+        requestLineId: request.lines[0].id,
+        requestVersionId: request.approvedVersionId!,
+        baseQuantity,
+      },
+    ];
+    let order = await f.create(base, {
+      content,
+      requestKey: randomUUID(),
+    });
+    order = await f.fire(base, order, 'submit');
+    order = await f.fire(base, order, 'approve', f.reviewer.session);
+    return { content, order };
+  };
+  const { content, order } = await approveOrder('14'),
+    orderLineId = content.lines[0].id,
+    receiptLineId = randomUUID();
+  const receipt = await f.doc({
+    ...f.header,
+    kind: 'purchaseReceipt',
+    purchaseOrderId: order.id,
+    lines: [
+      {
+        id: receiptLineId,
+        purchaseOrderLineId: orderLineId,
+        quantity: '9.87',
+        baseQuantity: '14',
+        rejectedQuantity: '0',
+        quality: 'qualified',
+        notes: '',
+      },
+    ],
+  });
+  await f.fire('/warehouse/documents', receipt, 'post');
+  expect((await balance())?.quantity).toBe('14');
+  expect(
+    await database
+      .repository('stockDocumentLines')
+      .findOne({ filter: { documentId: receipt.id } }),
+  ).toMatchObject({
+    quantity: '9.87',
+    baseQuantity: '14',
+    unitId: String(tonne.id),
+    conversionModeSnapshot: 'reference',
+    variancePercentSnapshot: '3',
+  });
+  expect(
+    (
+      await database
+        .repository('purchaseOrderLines')
+        .findOne({ filter: { id: orderLineId } })
+    )?.fulfilledQuantity,
+  ).toBe('14');
+  const returned = await f.doc({
+    ...f.header,
+    kind: 'purchaseReturn',
+    originalDocumentId: receipt.id,
+    lines: [
+      {
+        id: randomUUID(),
+        originalLineId: receiptLineId,
+        quantity: '2',
+        quality: 'qualified',
+        replenishmentRequested: false,
+        notes: '',
+      },
+    ],
+  });
+  await f.fire('/warehouse/documents', returned, 'post');
+  expect((await balance())?.quantity).toBe('12');
+  expect(
+    await database
+      .repository('stockDocumentLines')
+      .findOne({ filter: { documentId: returned.id } }),
+  ).toMatchObject({
+    quantity: '2',
+    baseQuantity: '2',
+    unitId: String(sheet.id),
+    numeratorSnapshot: '1',
+    denominatorSnapshot: '1',
+  });
+  const { content: wrongContent, order: wrongOrder } = await approveOrder('14'),
+    rejected = await send(f.admin, '/warehouse/documents', {
+      content: {
+        ...f.header,
+        kind: 'purchaseReceipt',
+        purchaseOrderId: wrongOrder.id,
+        lines: [
+          {
+            id: randomUUID(),
+            purchaseOrderLineId: wrongContent.lines[0].id,
+            quantity: '9.87',
+            baseQuantity: '20',
+            rejectedQuantity: '0',
+            quality: 'qualified',
+            notes: '',
+          },
+        ],
+      },
+      requestKey: randomUUID(),
+    });
+  expect(rejected.status).toBe(400);
+  expect((await rejected.json()).error.reason).toBe(
+    'SUPPLY_REFERENCE_VARIANCE_EXCEEDED',
+  );
+});

@@ -5,9 +5,15 @@ import { BackButton } from '#components/back-button';
 import { useDiscardConfirm } from './use-discard-confirm.js';
 import { createPortal } from 'react-dom';
 import { PhotoField } from './photo-field.js';
+import { ApprovalPreview } from './approval-preview.js';
 import { useState, useRef, type FormEvent } from 'react';
 import { useTranslation } from '@nocobase/i18n/client';
-import { ApiClientError, useApiClient, useToaster } from '@nocobase/app-client';
+import {
+  ApiClientError,
+  createUuid,
+  useApiClient,
+  useToaster,
+} from '@nocobase/app-client';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { Plus, Trash2 } from 'lucide-react';
 import { RouteChildPage } from '#components/route-child-page';
@@ -180,6 +186,7 @@ function RecordForm({
     api = useApiClient(),
     toaster = useToaster(),
     refresh = usePeopleRefresh(),
+    navigate = useNavigate(),
     errorText = usePeopleError();
   const [values, setValues] = useState<Data>(() => {
     const initial: Data = {
@@ -190,6 +197,13 @@ function RecordForm({
       positionId: record?.positionId ?? null,
       ...(record?.data ?? emptyData(kind)),
     };
+    // Show the code the server would assign before the first save, so the
+    // form never looks like it will submit an empty identifier.
+    if (kind === 'changes' && !record)
+      initial.code = `CHG-${businessDate.replaceAll('-', '')}-${createUuid()
+        .replaceAll('-', '')
+        .slice(0, 4)
+        .toUpperCase()}`;
     for (const key of Object.keys(repeats[kind] ?? {}))
       initial[key] = ((initial[key] as Data[] | undefined) ?? []).map(
         (row) => ({
@@ -204,7 +218,10 @@ function RecordForm({
     [error, setError] = useState<unknown>(),
     [pending, setPending] = useState(false),
     [uploadBusy, setUploadBusy] = useState(false),
-    busyRef = useRef(false);
+    busyRef = useRef(false),
+    submitAfterSaveRef = useRef(false),
+    // The generated name follows the person and type until the user edits it.
+    [nameTouched, setNameTouched] = useState(Boolean(record));
   // Person's live employment and primary assignment drive the defaults and
   // the read-only summary shown for exit, regularize and endPartTime.
   const onDate = businessDate;
@@ -237,6 +254,7 @@ function RecordForm({
   };
   const change = (key: string, value: Value) => {
     onDirty(true);
+    if (key === 'name') setNameTouched(true);
     setErrors((v) => ({ ...v, [key]: '' }));
     setValues((previous) => {
       const next = { ...previous, [key]: value };
@@ -252,6 +270,15 @@ function RecordForm({
             type = allowed[0] ?? '';
             next.type = type || null;
           }
+        }
+        if (!nameTouched) {
+          const person = (options.employees?.rows ?? []).find(
+            (r) => r.id === personId,
+          );
+          next.name =
+            person && type
+              ? `${person.name} · ${t(`people.values.${type}`)}`
+              : '';
         }
         if (personId && ['transfer', 'partTime'].includes(type)) {
           if (key === 'personId' || !next.targetSubjectId)
@@ -451,6 +478,8 @@ function RecordForm({
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (busyRef.current || uploadBusy) return;
+    const thenSubmit = submitAfterSaveRef.current;
+    submitAfterSaveRef.current = false;
     const invalid: Record<string, string> = {};
     for (const f of [
       { key: 'code', required: kind !== 'changes' },
@@ -552,6 +581,45 @@ function RecordForm({
       });
       await refresh(result.data, kind);
       onDirty(false);
+      if (thenSubmit && !record && kind === 'changes') {
+        try {
+          const fired = await api.request<{ data: Row }>({
+            path: `people/${kind}/${result.data.id}/fire`,
+            method: 'POST',
+            json: {
+              transition: 'submit',
+              version: result.data.lifecycleVersion,
+              requestId: createUuid(),
+              reason:
+                textValue(data.explanation).trim() ||
+                textValue(values.name).trim() ||
+                t('people.submitReason'),
+            },
+          });
+          await refresh(fired.data, kind);
+          toaster.show({
+            type: 'success',
+            title: t('people.submitted', { name: fired.data.name }),
+          });
+          onBusy(false);
+          busyRef.current = false;
+          exit(true);
+          return;
+        } catch (e) {
+          // The draft is safe; open it so the submit error stays visible.
+          toaster.show({
+            type: 'warning',
+            title: t('people.savedDraftOnly'),
+            description: errorText(e),
+          });
+          onBusy(false);
+          busyRef.current = false;
+          void navigate(`/functions/personnel/changes/${result.data.id}`, {
+            replace: true,
+          });
+          return;
+        }
+      }
       toaster.show({
         type: 'success',
         title: t(record ? 'people.saved' : 'people.created', {
@@ -644,11 +712,45 @@ function RecordForm({
       >
         {t('people.cancel')}
       </Button>
-      <Button type='submit' form='people-form' disabled={pending || uploadBusy}>
-        {t(
-          pending ? 'people.saving' : record ? 'people.save' : 'people.create',
-        )}
-      </Button>
+      {!record && kind === 'changes' ? (
+        <>
+          <Button
+            variant='outline'
+            type='submit'
+            form='people-form'
+            disabled={pending || uploadBusy}
+            onClick={() => {
+              submitAfterSaveRef.current = false;
+            }}
+          >
+            {t(pending ? 'people.saving' : 'people.saveDraft')}
+          </Button>
+          <Button
+            type='submit'
+            form='people-form'
+            disabled={pending || uploadBusy}
+            onClick={() => {
+              submitAfterSaveRef.current = true;
+            }}
+          >
+            {t(pending ? 'people.saving' : 'people.saveAndSubmit')}
+          </Button>
+        </>
+      ) : (
+        <Button
+          type='submit'
+          form='people-form'
+          disabled={pending || uploadBusy}
+        >
+          {t(
+            pending
+              ? 'people.saving'
+              : record
+                ? 'people.save'
+                : 'people.create',
+          )}
+        </Button>
+      )}
     </div>
   );
   return (
@@ -699,6 +801,16 @@ function RecordForm({
           .filter((f) => showField(f.key))
           .map((f) => renderField(f, values, change))}
       </div>
+      {kind === 'changes' && changeType ? (
+        <ApprovalPreview
+          type={changeType}
+          subjectId={
+            textValue(values.targetSubjectId) ||
+            currentEmploymentOf(textValue(values.personId))?.subjectId ||
+            ''
+          }
+        />
+      ) : null}
       {kind === 'changes' &&
       ['exit', 'regularize', 'endPartTime'].includes(changeType) ? (
         <div className='grid gap-4 sm:grid-cols-2'>

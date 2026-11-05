@@ -22,6 +22,7 @@ import { Hono, type Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { z } from 'zod';
 import {
+  operationsCompanyQuery,
   operationsIssueInput,
   operationsIssueQuery,
   operationsIssueUpdate,
@@ -65,6 +66,7 @@ export const operationsRoutes: AppApiRouteContribution<Application> =
     for (const path of [
       '/overview',
       '/company-overview',
+      '/companies',
       '/options',
       '/issues',
       '/issues/:id',
@@ -121,6 +123,21 @@ export const operationsRoutes: AppApiRouteContribution<Application> =
       describe('operationsOptions', 'Read companies in the operations scope'),
       async (c) =>
         c.json({ data: await service.options(actor(c), await scoped(c)) }),
+    );
+
+    router.get(
+      '/companies',
+      allowed,
+      describe('operationsCompanies', 'List companies in the operations scope'),
+      apiValidator('query', operationsCompanyQuery),
+      async (c) =>
+        c.json(
+          await service.companies(
+            actor(c),
+            c.req.valid('query'),
+            await scoped(c),
+          ),
+        ),
     );
 
     router.get(

@@ -25,6 +25,13 @@ export const operationsIssueStatuses = [
   'closed',
 ] as const;
 
+export const operationsCompanyQuery = z.object({
+  q: z.string().trim().max(100).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+export type OperationsCompanyQuery = z.infer<typeof operationsCompanyQuery>;
+
 export const operationsIssueQuery = z.object({
   subjectId: z.string().length(36).optional(),
   status: z.enum(operationsIssueStatuses).optional(),
@@ -43,6 +50,10 @@ export const operationsIssueInput = z.object({
   severity: z.enum(operationsIssueSeverities).default('medium'),
   ownerName: z.string().trim().min(1).max(200),
   dueAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  businessDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 export type OperationsIssueInput = z.infer<typeof operationsIssueInput>;
 

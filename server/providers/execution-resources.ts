@@ -65,10 +65,13 @@ const materialLine = [
 ];
 const orderLine = [
   ...materialLine,
+  'conversionModeSnapshot',
+  'variancePercentSnapshot',
   'orderId',
   'nonce',
   'selectionInput',
   'unitPrice',
+  'amount',
   'managementModeSnapshot',
   'fulfilledQuantity',
   'returnedQuantity',
@@ -78,20 +81,24 @@ const orderLine = [
 export const executionColumns: Record<string, string[]> = {
   purchaseOrders: [
     ...common,
+    'sourceChannel',
     'partnerId',
     'currency',
     'deliveryOn',
     'deliveryTerms',
     'partnerSnapshot',
+    'totalAmount',
     'supersedesId',
   ],
   salesOrders: [
     ...common,
+    'sourceChannel',
     'partnerId',
     'currency',
     'deliveryOn',
     'deliveryTerms',
     'partnerSnapshot',
+    'totalAmount',
     'supersedesId',
   ],
   stockDocuments: [
@@ -119,6 +126,8 @@ export const executionColumns: Record<string, string[]> = {
   salesOrderLines: orderLine,
   stockDocumentLines: [
     ...materialLine,
+    'conversionModeSnapshot',
+    'variancePercentSnapshot',
     'documentId',
     'issueRequestId',
     'issueRequestLineId',

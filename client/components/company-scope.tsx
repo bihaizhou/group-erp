@@ -151,3 +151,28 @@ export function CompanyEmpty({
     </Empty>
   );
 }
+
+/**
+ * The company a form belongs to, shown as text. The page is already scoped by
+ * CompanyGate, so changing companies is a header action, not a form field.
+ */
+export function CompanyIdentity({
+  company,
+  hint,
+}: {
+  readonly company: { code?: string; name?: string } | null;
+  readonly hint?: string;
+}) {
+  const { t } = useTranslation(),
+    ui = (key: string) => `companyScope.${key}`;
+  const label = [company?.code, company?.name].filter(Boolean).join(' · ');
+  return (
+    <div className='flex flex-col gap-2'>
+      <span className='text-sm font-medium'>{t(ui('label'))}</span>
+      <div className='flex min-h-9 items-center rounded-md border bg-muted/30 px-3 text-sm'>
+        {label || '—'}
+      </div>
+      {hint ? <p className='text-sm text-muted-foreground'>{hint}</p> : null}
+    </div>
+  );
+}

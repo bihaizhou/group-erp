@@ -131,6 +131,7 @@ export interface Selection {
   unitId: string;
   unitRuleId?: string;
   quantity: string;
+  baseQuantity?: string;
 }
 export interface Snapshot {
   code?: string;
@@ -151,6 +152,7 @@ export interface InputLine {
   id: string;
   selection?: Selection;
   quantity?: string;
+  baseQuantity?: string;
   notes: string;
   quality?: 'qualified' | 'inspection' | 'frozen';
   targetQuality?: 'qualified' | 'inspection' | 'frozen';
@@ -176,6 +178,9 @@ export interface StoredLine extends InputLine {
   unitRuleId?: string;
   quantity: string;
   baseQuantity: string;
+  conversionModeSnapshot?: 'exact' | 'reference' | null;
+  variancePercentSnapshot?: string | null;
+  amount?: string | null;
   materialSnapshot: Snapshot;
   selectionInput: InputLine;
   fulfilledQuantity?: string;
@@ -206,6 +211,8 @@ export interface ExecutionRecord {
   destinationWarehouseId?: string;
   partnerId?: string;
   currency?: string;
+  totalAmount?: string | null;
+  sourceChannel?: 'manual' | 'import' | 'api' | 'device';
   deliveryOn?: string | null;
   deliveryTerms?: string;
   occurredOn: string;
@@ -384,6 +391,8 @@ export interface SourceLine {
   unitRuleId?: string | null;
   quantity: string;
   baseQuantity: string;
+  conversionMode?: 'exact' | 'reference';
+  variancePercent?: string | null;
   remainingQuantity: string;
   materialSnapshot: Snapshot;
   quality: 'qualified' | 'inspection' | 'frozen';
@@ -489,6 +498,7 @@ export function requestContent(page: ExecutionPage, draft: Draft) {
     return {
       ...common,
       partnerId: draft.partnerId,
+      sourceChannel: 'manual',
       currency: draft.currency.trim().toUpperCase(),
       deliveryOn: draft.deliveryOn || null,
       deliveryTerms: draft.deliveryTerms,
@@ -556,6 +566,11 @@ export function requestContent(page: ExecutionPage, draft: Draft) {
     const lineField = sourceLineField[kind];
     if (lineField) result[lineField] = line[lineField as keyof InputLine];
     result.quantity = line.quantity;
+    if (
+      (kind === 'purchaseReceipt' || kind === 'salesShipment') &&
+      line.baseQuantity !== undefined
+    )
+      result.baseQuantity = line.baseQuantity;
     if (['purchaseReceipt', 'purchaseReturn', 'issueReturn'].includes(kind))
       result.quality = line.quality;
     if (kind === 'purchaseReceipt')
@@ -642,6 +657,13 @@ export function validateDraft(
       (page.kind !== 'stockCounts' && !/[1-9]/u.test(quantity))
     )
       errors[`${prefix}quantity`] = 'quantityInvalid';
+    const counted = line.selection?.baseQuantity ?? line.baseQuantity;
+    if (
+      counted !== undefined &&
+      (!/^(0|[1-9]\d{0,17})(\.\d{1,6})?$/u.test(counted) ||
+        !/[1-9]/u.test(counted))
+    )
+      errors[`${prefix}baseQuantity`] = 'quantityInvalid';
     if (line.selection && (!line.selection.skuId || !line.selection.unitId))
       errors[`${prefix}selection`] = 'required';
     if (

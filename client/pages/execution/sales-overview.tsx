@@ -60,11 +60,11 @@ export default function SalesOverviewPage() {
     { subjectId, status: 'pending' },
     enabled && orders.can,
   );
-  const postedOrders = useDashboardCount(
+  const approvedOrders = useDashboardCount(
     'sales',
-    'postedOrders',
+    'approvedOrders',
     'sales/orders',
-    { subjectId, status: 'posted' },
+    { subjectId, status: 'approved' },
     enabled && orders.can,
   );
   const customerCount = useDashboardCount(
@@ -113,11 +113,11 @@ export default function SalesOverviewPage() {
         ) : null}
         {orders.can ? (
           <DashboardMetric
-            label={t('dashboard.sales.metrics.postedOrders')}
-            value={postedOrders.data}
-            isLoading={postedOrders.isPending}
+            label={t('dashboard.sales.metrics.approvedOrders')}
+            value={approvedOrders.data}
+            isLoading={approvedOrders.isPending}
             icon={Handshake}
-            to={withCompany('/functions/sales/orders?status=posted')}
+            to={withCompany('/functions/sales/orders?status=approved')}
           />
         ) : null}
         {customers.can ? (

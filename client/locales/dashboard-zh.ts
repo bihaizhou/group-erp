@@ -146,7 +146,7 @@ export const dashboard = {
     metrics: {
       orders: '销售订单',
       pendingOrders: '待审订单',
-      postedOrders: '已过账订单',
+      approvedOrders: '已审核订单',
       customers: '客户',
     },
     recentOrders: '最近销售订单',

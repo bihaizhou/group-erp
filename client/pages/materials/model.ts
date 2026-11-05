@@ -47,7 +47,7 @@ export type Options = Record<
 >;
 export type FieldSpec = {
   key: string;
-  type?: 'text' | 'number' | 'boolean' | 'textarea' | 'select' | 'ref';
+  type?: 'text' | 'number' | 'decimal' | 'boolean' | 'textarea' | 'select' | 'ref';
   source?: string;
   choices?: string[];
   required?: boolean;
@@ -86,6 +86,13 @@ export const fields: Record<Kind, FieldSpec[]> = {
     { key: 'unitId', type: 'ref', source: 'units', required: true },
     { key: 'numerator', required: true },
     { key: 'denominator', required: true },
+    {
+      key: 'conversionMode',
+      type: 'select',
+      choices: ['exact', 'reference'],
+      required: true,
+    },
+    { key: 'variancePercent', type: 'decimal' },
   ],
   references: [
     {

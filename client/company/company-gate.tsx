@@ -9,6 +9,7 @@ import { Button } from '#components/ui/button';
 import { useDefaultCompany } from '#hooks/use-default-company';
 import { COMPANY_QUERY_PARAM } from '#lib/company-scope';
 import { useAccountCompanyId } from './use-account-company.js';
+import { CompanyScopeContext } from './use-company-scope.js';
 
 const PAGE_SIZE = 100;
 
@@ -136,5 +137,16 @@ export function CompanyGate({
     );
   }
 
-  return <>{children}</>;
+  const current = companies.find((company) => company.id === subjectId);
+  return (
+    <CompanyScopeContext.Provider
+      value={{
+        id: subjectId,
+        code: current?.code,
+        name: current?.name,
+      }}
+    >
+      {children}
+    </CompanyScopeContext.Provider>
+  );
 }

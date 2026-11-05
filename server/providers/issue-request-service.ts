@@ -1193,6 +1193,14 @@ export class IssueRequestService {
             );
           throw error;
         });
+      if (
+        selection.identificationStatus === 'identified' &&
+        selection.conversionMode === 'reference'
+      )
+        throw new SupplyChainError(
+          'SUPPLY_REFERENCE_NOT_REQUESTABLE',
+          `lines.${index}.selection.unitRuleId`,
+        );
       const changed =
         !previous || canonical(previous.selectionInput) !== canonical(line);
       const oldInput = previous?.selectionInput as
@@ -1273,6 +1281,14 @@ export class IssueRequestService {
         notes: line.notes,
         selectionInput: json(line),
       };
+      // Reference metadata is derived for previews; request lines persist only
+      // the resolved selection and the counted base quantity.
+      for (const field of [
+        'conversionMode',
+        'variancePercent',
+        'suggestedBaseQuantity',
+      ])
+        Reflect.deleteProperty(values, field);
       if (previous)
         await this.repo(c, 'materialIssueRequestLines', p).updateOne({
           filter: { id: text(line.id) },

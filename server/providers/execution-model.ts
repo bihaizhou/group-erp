@@ -84,6 +84,14 @@ export const executionProjection = z.record(z.string(), z.json());
 const known = materialSelectionInput.refine((v) => v.kind === 'known', {
   message: 'A confirmed SKU is required.',
 });
+export const executionSourceChannels = [
+  'manual',
+  'import',
+  'api',
+  'device',
+] as const;
+export type ExecutionSourceChannel = (typeof executionSourceChannels)[number];
+
 export const orderLineInput = z.strictObject({
   id,
   selection: known,
@@ -111,6 +119,7 @@ export const orderContent = z
     warehouseId: id,
     partnerId: id,
     occurredOn: z.iso.date(),
+    sourceChannel: z.enum(executionSourceChannels).default('manual'),
     currency: z
       .string()
       .trim()
@@ -165,6 +174,9 @@ export const warehouseContent = z
       lines: lines(
         z.strictObject({
           ...sourceLine,
+          // Reference conversions require the counted stock quantity beside the
+          // measured business quantity; exact conversions ignore it.
+          baseQuantity: decimalText.optional(),
           purchaseOrderLineId: id,
           rejectedQuantity: decimalText.default('0'),
           quality: z.enum(['qualified', 'inspection']),
@@ -175,7 +187,13 @@ export const warehouseContent = z
       ...warehouseHeader,
       kind: z.literal('salesShipment'),
       salesOrderId: id,
-      lines: lines(z.strictObject({ ...sourceLine, salesOrderLineId: id })),
+      lines: lines(
+        z.strictObject({
+          ...sourceLine,
+          baseQuantity: decimalText.optional(),
+          salesOrderLineId: id,
+        }),
+      ),
     }),
     z.strictObject({
       ...warehouseHeader,

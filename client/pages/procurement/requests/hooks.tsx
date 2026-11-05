@@ -163,6 +163,7 @@ export function usePurchaseError() {
         PURCHASE_MATERIAL_CHANGED: 'materialChanged',
         PURCHASE_REQUEST_CONFLICT: 'requestKeyConflict',
         CONFIGURATION_REQUEST_REUSED: 'requestKeyConflict',
+        SUPPLY_REFERENCE_NOT_REQUESTABLE: 'referenceNotRequestable',
         SUPPLY_QUANTITY_PRECISION: 'precision',
         SUPPLY_QUANTITY_OVERFLOW: 'overflow',
         SUPPLY_INVALID_UNIT: 'invalidReference',

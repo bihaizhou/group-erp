@@ -322,6 +322,14 @@ export default function ExecutionDetail() {
                             ['currency', row.currency],
                             ['deliveryOn', row.deliveryOn],
                             ['deliveryTerms', row.deliveryTerms],
+                            [
+                              'sourceChannel',
+                              t(
+                                ui(
+                                  `sourceChannel_${row.sourceChannel ?? 'manual'}`,
+                                ),
+                              ),
+                            ],
                           ]
                         : []),
                       ['occurredOn', row.occurredOn],
@@ -386,7 +394,14 @@ export default function ExecutionDetail() {
               </Card>
               <Card>
                 <CardHeader>
-                  <CardTitle>{t(ui('lines'))}</CardTitle>
+                  <CardTitle className='flex items-baseline justify-between gap-4'>
+                    <span>{t(ui('lines'))}</span>
+                    {isOrder(config) && row.totalAmount ? (
+                      <span className='text-sm font-normal text-muted-foreground'>
+                        {t(ui('totalAmount'))}: {row.totalAmount} {row.currency}
+                      </span>
+                    ) : null}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className='grid min-w-0 gap-4'>
                   {row.linesRestricted ? (
@@ -414,6 +429,7 @@ export default function ExecutionDetail() {
                               ...(isOrder(config)
                                 ? [
                                     'unitPrice',
+                                    'amount',
                                     'fulfilledQuantity',
                                     'returnedQuantity',
                                     'netExecuted',
@@ -510,6 +526,11 @@ export default function ExecutionDetail() {
                                 {isOrder(config) && (
                                   <TableCell className='tabular-nums'>
                                     {line.unitPrice ?? '—'} {row.currency}
+                                  </TableCell>
+                                )}
+                                {isOrder(config) && (
+                                  <TableCell className='tabular-nums'>
+                                    {line.amount ?? '—'} {row.currency}
                                   </TableCell>
                                 )}
                                 {quantityCells(

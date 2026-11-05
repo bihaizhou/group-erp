@@ -126,6 +126,8 @@ export const materialCatalogColumns: Record<string, string[]> = {
     'unitId',
     'numerator',
     'denominator',
+    'conversionMode',
+    'variancePercent',
     'status',
     'revision',
   ],

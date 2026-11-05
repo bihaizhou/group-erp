@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '#components/ui/table';
-import type { OperationsOptions, OperationsTargets } from './model.js';
+import type { OperationsTargets } from './model.js';
 
 const metrics = ['processed', 'metal', 'sand', 'metalRate'] as const;
 const currentPeriod = () => new Date().toISOString().slice(0, 7);
@@ -23,31 +24,20 @@ export default function OperationsTargetsPage() {
   const { t } = useTranslation();
   const api = useApiClient();
   const queryClient = useQueryClient();
-  const [subjectId, setSubjectId] = useState('');
+  const [params] = useSearchParams(),
+    subjectId = params.get('subjectId') ?? '';
   const [period, setPeriod] = useState(currentPeriod);
   const [metric, setMetric] = useState<(typeof metrics)[number]>('processed');
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
-  const options = useQuery({
-    retry: false,
-    queryKey: ['operations-options'],
-    queryFn: ({ signal }) =>
-      api.request<{ data: OperationsOptions }>({
-        path: 'operations/options',
-        signal,
-      }),
-  });
-  const subjects = options.data?.data.subjects ?? [];
-  const effectiveSubject =
-    subjectId || (subjects.length === 1 ? subjects[0].id : '');
   const targets = useQuery({
     retry: false,
-    queryKey: ['operations-targets', effectiveSubject, period],
+    queryKey: ['operations-targets', subjectId, period],
     queryFn: ({ signal }) =>
       api.request<{ data: OperationsTargets }>({
         path: 'operations/targets',
         query: {
-          ...(effectiveSubject ? { subjectId: effectiveSubject } : {}),
+          ...(subjectId ? { subjectId: subjectId } : {}),
           period,
         },
         signal,
@@ -59,7 +49,7 @@ export default function OperationsTargetsPage() {
         path: 'operations/targets',
         method: 'PUT',
         json: {
-          subjectId: effectiveSubject,
+          subjectId: subjectId,
           period,
           metric,
           targetValue: value.trim(),
@@ -79,23 +69,6 @@ export default function OperationsTargetsPage() {
         description={t('operations.targetsDescription')}
       />
       <div className='mb-4 flex flex-wrap items-end gap-3'>
-        <label className='text-sm'>
-          <span className='mb-1 block text-muted-foreground'>
-            {t('operations.company')}
-          </span>
-          <select
-            className='h-9 rounded-md border bg-background px-3'
-            value={effectiveSubject}
-            onChange={(event) => setSubjectId(event.target.value)}
-          >
-            <option value=''>{t('operations.allCompanies')}</option>
-            {subjects.map((subject) => (
-              <option key={subject.id} value={subject.id}>
-                {subject.name}
-              </option>
-            ))}
-          </select>
-        </label>
         <label className='text-sm'>
           <span className='mb-1 block text-muted-foreground'>
             {t('operations.period')}
@@ -137,7 +110,7 @@ export default function OperationsTargetsPage() {
           />
         </label>
         <Button
-          disabled={!effectiveSubject || !value.trim() || save.isPending}
+          disabled={!subjectId || !value.trim() || save.isPending}
           onClick={() => save.mutate()}
         >
           {t('operations.saveTarget')}
@@ -151,6 +124,7 @@ export default function OperationsTargetsPage() {
             <TableHead>{t('operations.targetValue')}</TableHead>
             <TableHead>{t('operations.actualValue')}</TableHead>
             <TableHead>{t('operations.achievement')}</TableHead>
+            <TableHead>{t('operations.progress')}</TableHead>
             <TableHead>{t('operations.variance')}</TableHead>
             <TableHead>{t('operations.status')}</TableHead>
             <TableHead>{t('operations.updatedAt')}</TableHead>
@@ -167,6 +141,7 @@ export default function OperationsTargetsPage() {
                   ? '—'
                   : `${target.achievementPct}%`}
               </TableCell>
+              <TableCell>{`${target.progressPct}%`}</TableCell>
               <TableCell>{target.varianceValue ?? '—'}</TableCell>
               <TableCell>
                 {t(`operations.targetStatus_${target.status}`)}
@@ -176,7 +151,7 @@ export default function OperationsTargetsPage() {
           ))}
           {targets.data?.data.items.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className='text-muted-foreground'>
+              <TableCell colSpan={8} className='text-muted-foreground'>
                 {t('operations.noTargets')}
               </TableCell>
             </TableRow>

@@ -190,6 +190,8 @@ export async function warehouseSources(
           baseQuantity: line.baseQuantity,
           numeratorSnapshot: line.numeratorSnapshot,
           denominatorSnapshot: line.denominatorSnapshot,
+          conversionMode: text(line.conversionModeSnapshot) || 'exact',
+          variancePercent: text(line.variancePercentSnapshot) || null,
           materialSnapshot: line.materialSnapshot ?? {},
           quality: line.quality ?? 'qualified',
           remainingQuantity: stockQuantity(remaining > 0n ? remaining : 0n),

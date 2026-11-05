@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -24,54 +25,39 @@ import {
   TableHeader,
   TableRow,
 } from '#components/ui/table';
-import type {
-  OperationsIssue,
-  OperationsIssuePage,
-  OperationsOptions,
-} from './model.js';
+import type { OperationsIssue, OperationsIssuePage } from './model.js';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const emptyForm = () => ({
-  subjectId: '',
   sourceType: 'other',
   title: '',
   description: '',
   severity: 'medium',
   ownerName: '',
   dueAt: today(),
+  businessDate: today(),
 });
 
 export default function OperationsIssuesPage() {
   const { t } = useTranslation();
   const api = useApiClient();
   const queryClient = useQueryClient();
-  const [subjectId, setSubjectId] = useState('');
+  const [params] = useSearchParams(),
+    subjectId = params.get('subjectId') ?? '';
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [closing, setClosing] = useState<OperationsIssue | null>(null);
   const [resolution, setResolution] = useState('');
-  const options = useQuery({
-    retry: false,
-    queryKey: ['operations-options'],
-    queryFn: ({ signal }) =>
-      api.request<{ data: OperationsOptions }>({
-        path: 'operations/options',
-        signal,
-      }),
-  });
-  const subjects = options.data?.data.subjects ?? [];
-  const effectiveSubject =
-    subjectId || (subjects.length === 1 ? subjects[0].id : '');
   const list = useQuery({
     retry: false,
-    queryKey: ['operations-issues', effectiveSubject, status, page],
+    queryKey: ['operations-issues', subjectId, status, page],
     queryFn: ({ signal }) =>
       api.request<{ data: OperationsIssuePage }>({
         path: 'operations/issues',
         query: {
-          ...(effectiveSubject ? { subjectId: effectiveSubject } : {}),
+          ...(subjectId ? { subjectId: subjectId } : {}),
           ...(status ? { status } : {}),
           page,
           pageSize: 20,
@@ -86,7 +72,7 @@ export default function OperationsIssuesPage() {
         method: 'POST',
         json: {
           ...form,
-          subjectId: form.subjectId || effectiveSubject,
+          subjectId,
           dueAt: form.dueAt,
         },
       }),
@@ -139,26 +125,6 @@ export default function OperationsIssuesPage() {
       <div className='flex flex-wrap items-end gap-3'>
         <label className='grid gap-1 text-sm'>
           <span className='text-muted-foreground'>
-            {t('operations.company')}
-          </span>
-          <select
-            className='h-9 min-w-48 rounded-md border bg-background px-3'
-            value={effectiveSubject}
-            onChange={(event) => {
-              setSubjectId(event.target.value);
-              setPage(1);
-            }}
-          >
-            <option value=''>{t('operations.allCompanies')}</option>
-            {subjects.map((subject) => (
-              <option key={subject.id} value={subject.id}>
-                {subject.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className='grid gap-1 text-sm'>
-          <span className='text-muted-foreground'>
             {t('operations.issueStatusLabel')}
           </span>
           <select
@@ -189,6 +155,7 @@ export default function OperationsIssuesPage() {
             <TableRow>
               <TableHead>{t('operations.issueCode')}</TableHead>
               <TableHead>{t('operations.issueTitle')}</TableHead>
+              <TableHead>{t('operations.issueBusinessDate')}</TableHead>
               <TableHead>{t('operations.issueSourceLabel')}</TableHead>
               <TableHead>{t('operations.issueSeverityLabel')}</TableHead>
               <TableHead>{t('operations.issueOwner')}</TableHead>
@@ -204,6 +171,7 @@ export default function OperationsIssuesPage() {
                   {issue.code}
                 </TableCell>
                 <TableCell>{issue.title}</TableCell>
+                <TableCell>{issue.businessDate ?? '—'}</TableCell>
                 <TableCell>
                   {t(`operations.issueSource.${issue.sourceType}`)}
                 </TableCell>
@@ -282,23 +250,6 @@ export default function OperationsIssuesPage() {
           </DialogHeader>
           <div className='grid gap-3'>
             <label className='grid gap-1 text-sm'>
-              <span>{t('operations.company')}</span>
-              <select
-                className='h-9 rounded-md border bg-background px-3'
-                value={form.subjectId || effectiveSubject}
-                onChange={(event) =>
-                  setForm({ ...form, subjectId: event.target.value })
-                }
-              >
-                <option value=''>{t('operations.selectCompany')}</option>
-                {subjects.map((subject) => (
-                  <option key={subject.id} value={subject.id}>
-                    {subject.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className='grid gap-1 text-sm'>
               <span>{t('operations.issueTitle')}</span>
               <Input
                 value={form.title}
@@ -369,6 +320,16 @@ export default function OperationsIssuesPage() {
                 />
               </label>
               <label className='grid gap-1 text-sm'>
+                <span>{t('operations.issueBusinessDate')}</span>
+                <Input
+                  type='date'
+                  value={form.businessDate}
+                  onChange={(event) =>
+                    setForm({ ...form, businessDate: event.target.value })
+                  }
+                />
+              </label>
+              <label className='grid gap-1 text-sm'>
                 <span>{t('operations.issueDue')}</span>
                 <Input
                   type='date'
@@ -387,7 +348,7 @@ export default function OperationsIssuesPage() {
             <Button
               disabled={
                 create.isPending ||
-                !(form.subjectId || effectiveSubject) ||
+                !subjectId ||
                 !form.title.trim() ||
                 !form.description.trim() ||
                 !form.ownerName.trim()

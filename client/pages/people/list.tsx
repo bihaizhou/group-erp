@@ -63,6 +63,9 @@ export default function PeopleList({ kind }: { kind: Kind }) {
         ['q', 'status', 'subjectId', 'page', 'orderBy'].includes(k) && v,
     ),
   );
+  if (query.status === 'all') delete query.status;
+  // Talent cards follow the employee lifecycle: show the active ones first.
+  else if (kind === 'profiles' && !query.status) query.status = 'active';
   const data = useQuery({
     retry: false,
     queryKey: ['people-list', kind, params.toString()],
@@ -141,10 +144,12 @@ export default function PeopleList({ kind }: { kind: Kind }) {
         <div className='w-full sm:w-40'>
           <PeopleSelect
             label={t('people.fields.status')}
-            value={params.get('status') ?? ''}
+            value={
+              params.get('status') ?? (kind === 'profiles' ? 'active' : 'all')
+            }
             onChange={(v) => updateFilter('status', v)}
             items={[
-              { value: '', label: t('people.allStatuses') },
+              { value: 'all', label: t('people.allStatuses') },
               ...statuses[kind].map((value) => ({
                 value,
                 label: t(`people.states.${textValue(value)}`),

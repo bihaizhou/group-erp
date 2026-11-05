@@ -60,6 +60,7 @@ export type OperationsIssue = {
   severity: string;
   ownerName: string;
   dueAt: string;
+  businessDate?: string | null;
   status: string;
   resolution: string;
   version: number;
@@ -80,8 +81,9 @@ export type OperationsTarget = {
   targetValue: string;
   actualValue: string | null;
   achievementPct: string | null;
+  progressPct: number;
   varianceValue: string | null;
-  status: 'no_data' | 'behind' | 'achieved';
+  status: 'no_data' | 'on_track' | 'behind' | 'achieved' | 'not_started';
   version: number;
   updatedAt: string;
 };

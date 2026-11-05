@@ -33,6 +33,9 @@ type Asset = {
   name: string;
   category: string | null;
   status: 'in_stock' | 'assigned' | 'maintenance' | 'scrapped';
+  scrapPending: boolean;
+  scrapReason: string | null;
+  scrapDecision: 'approved' | 'rejected' | null;
   custodianEmployeeId: string | null;
   custodian: { id: string; code: string; name: string } | null;
   location: string | null;
@@ -47,7 +50,7 @@ type Options = {
   subjects: { id: string; name: string }[];
   employees: { id: string; code: string; name: string }[];
   categories: string[];
-  permissions: { manage: boolean; readAll: boolean };
+  permissions: { manage: boolean; readAll: boolean; approve: boolean };
 };
 type Page = {
   data: Asset[];
@@ -90,7 +93,7 @@ export default function AssetsPage() {
   const [form, setForm] = useState(emptyForm);
   const [action, setAction] = useState<{
     row: Asset;
-    kind: 'assign' | 'return' | 'scrap';
+    kind: 'assign' | 'return' | 'scrap' | 'approve' | 'reject';
   } | null>(null);
   const [employeeId, setEmployeeId] = useState('');
   const [note, setNote] = useState('');
@@ -117,10 +120,10 @@ export default function AssetsPage() {
         signal,
       }),
   });
-  const subjects = options.data?.data.subjects ?? [];
   const employees = options.data?.data.employees ?? [];
   const categories = options.data?.data.categories ?? [];
   const canManage = options.data?.data.permissions.manage ?? false;
+  const canApprove = options.data?.data.permissions.approve ?? false;
   const rows = list.data?.data ?? [];
   const meta = list.data?.meta;
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['assets'] });
@@ -161,12 +164,20 @@ export default function AssetsPage() {
                 location: location.trim() || null,
                 note: note.trim() || null,
               }
-            : { version: row.version, note: note.trim() };
-      return api.request({
-        path: `assets/${row.id}/${kind}`,
-        method: 'POST',
-        json,
-      });
+            : kind === 'scrap'
+              ? { version: row.version, reason: note.trim() }
+              : {
+                  version: row.version,
+                  approve: kind === 'approve',
+                  note: note.trim() || null,
+                };
+      const path =
+        kind === 'scrap'
+          ? `assets/${row.id}/scrap/request`
+          : kind === 'approve' || kind === 'reject'
+            ? `assets/${row.id}/scrap/decision`
+            : `assets/${row.id}/${kind}`;
+      return api.request({ path, method: 'POST', json });
     },
     onSuccess: async () => {
       setAction(null);
@@ -176,7 +187,10 @@ export default function AssetsPage() {
       await refresh();
     },
   });
-  const openAction = (row: Asset, kind: 'assign' | 'return' | 'scrap') => {
+  const openAction = (
+    row: Asset,
+    kind: 'assign' | 'return' | 'scrap' | 'approve' | 'reject',
+  ) => {
     setAction({ row, kind });
     setEmployeeId(row.custodianEmployeeId ?? '');
     setLocation(row.location ?? '');
@@ -192,7 +206,7 @@ export default function AssetsPage() {
           canManage ? (
             <Button
               onClick={() => {
-                setForm(emptyForm(subjects[0]?.id ?? ''));
+                setForm(emptyForm(subjectId));
                 setOpen(true);
               }}
             >
@@ -266,7 +280,14 @@ export default function AssetsPage() {
                   </TableCell>
                   <TableCell>{row.name}</TableCell>
                   <TableCell>{row.category ?? '—'}</TableCell>
-                  <TableCell>{t(`assets.status.${row.status}`)}</TableCell>
+                  <TableCell>
+                    {t(`assets.status.${row.status}`)}
+                    {row.scrapPending ? (
+                      <span className='ml-2 text-xs text-muted-foreground'>
+                        {t('assets.pendingScrap')}
+                      </span>
+                    ) : null}
+                  </TableCell>
                   <TableCell>{row.custodian?.name ?? '—'}</TableCell>
                   <TableCell>{row.location ?? '—'}</TableCell>
                   <TableCell>
@@ -275,7 +296,26 @@ export default function AssetsPage() {
                       : '—'}
                   </TableCell>
                   <TableCell className='text-right'>
-                    {canManage && row.status !== 'scrapped' ? (
+                    {row.scrapPending && canApprove ? (
+                      <span className='inline-flex gap-2'>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          onClick={() => openAction(row, 'approve')}
+                        >
+                          {t('assets.approveScrap')}
+                        </Button>
+                        <Button
+                          size='sm'
+                          variant='ghost'
+                          onClick={() => openAction(row, 'reject')}
+                        >
+                          {t('assets.rejectScrap')}
+                        </Button>
+                      </span>
+                    ) : canManage &&
+                      row.status !== 'scrapped' &&
+                      !row.scrapPending ? (
                       <span className='inline-flex gap-2'>
                         <Button
                           size='sm'
@@ -302,6 +342,10 @@ export default function AssetsPage() {
                         >
                           {t('assets.scrap')}
                         </Button>
+                      </span>
+                    ) : row.scrapPending ? (
+                      <span className='text-xs text-muted-foreground'>
+                        {t('assets.pendingScrap')}
                       </span>
                     ) : (
                       '—'
@@ -347,19 +391,6 @@ export default function AssetsPage() {
             <DialogDescription>{t('assets.createHint')}</DialogDescription>
           </DialogHeader>
           <div className='grid gap-3'>
-            <select
-              className='h-9 rounded-md border bg-background px-3 text-sm'
-              value={form.subjectId}
-              onChange={(event) =>
-                setForm({ ...form, subjectId: event.target.value })
-              }
-            >
-              {subjects.map((subject) => (
-                <option key={subject.id} value={subject.id}>
-                  {subject.name}
-                </option>
-              ))}
-            </select>
             <Input
               placeholder={t('assets.fields.code')}
               value={form.code}
@@ -483,7 +514,9 @@ export default function AssetsPage() {
               placeholder={
                 action?.kind === 'scrap'
                   ? t('assets.scrapNote')
-                  : t('assets.fields.notes')
+                  : action?.kind === 'approve' || action?.kind === 'reject'
+                    ? t('assets.decisionNote')
+                    : t('assets.fields.notes')
               }
               value={note}
               onChange={(event) => setNote(event.target.value)}

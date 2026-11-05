@@ -155,7 +155,7 @@ export const dashboard = {
     metrics: {
       orders: 'Sales orders',
       pendingOrders: 'Orders awaiting review',
-      postedOrders: 'Posted orders',
+      approvedOrders: 'Approved orders',
       customers: 'Customers',
     },
     recentOrders: 'Recent sales orders',

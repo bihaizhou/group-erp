@@ -48,10 +48,13 @@ describe('app client routes', () => {
     expect(
       [...companyScopeRoutes.entries()].sort(([a], [b]) => a.localeCompare(b)),
     ).toEqual([
+      ['/functions/assets', 'assets/companies'],
       ['/functions/hse', 'hse/companies'],
       ['/functions/hse/certificates', 'hse/companies'],
       ['/functions/hse/hazards', 'hse/companies'],
       ['/functions/hse/incidents', 'hse/companies'],
+      ['/functions/operations/issues', 'operations/companies'],
+      ['/functions/operations/targets', 'operations/companies'],
       ['/functions/procurement/orders', 'procurement/orders/companies'],
       ['/functions/procurement/overview', 'procurement/requestCompanies'],
       ['/functions/procurement/requests', 'procurement/requestCompanies'],

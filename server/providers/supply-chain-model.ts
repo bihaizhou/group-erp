@@ -27,6 +27,9 @@ export const materialSelectionInput = z.discriminatedUnion('kind', [
     quantity,
     unitId: id,
     unitRuleId: id.optional(),
+    // Reference conversions carry the counted stock fact beside the priced
+    // business quantity (sheets beside tonnes); exact lines never need it.
+    baseQuantity: quantity.optional(),
   }),
   z.strictObject({
     kind: z.literal('unknown'),
@@ -76,7 +79,10 @@ export const materialSelectionOutput = z.discriminatedUnion(
       numeratorSnapshot: decimalText,
       denominatorSnapshot: decimalText,
       baseUnitId: id,
-      baseQuantity: decimalText,
+      conversionMode: z.enum(['exact', 'reference']),
+      variancePercent: decimalText.nullable(),
+      baseQuantity: decimalText.nullable(),
+      suggestedBaseQuantity: decimalText.nullable(),
       materialSnapshot: z.object({
         code: z.string(),
         name: z.string(),
@@ -140,5 +146,84 @@ export function exactBaseQuantity(
     return supplyChainFail('SUPPLY_QUANTITY_PRECISION', 'quantity');
   return normalizeDecimal(
     `${result / scale}.${String(result % scale).padStart(6, '0')}`,
+  );
+}
+
+/**
+ * Display-only estimate for a reference rule. It never becomes a stock fact;
+ * the receipt must still collect the counted quantity.
+ */
+export function theoreticalBaseQuantity(
+  amount: string,
+  numerator: string,
+  denominator: string,
+  unitPrecision: number,
+  basePrecision: number,
+): string {
+  const quantityValue = scaled(amount),
+    numeratorValue = scaled(numerator),
+    denominatorValue = scaled(denominator);
+  if (quantityValue <= 0n || !precisionAllows(quantityValue, unitPrecision))
+    return supplyChainFail('SUPPLY_QUANTITY_PRECISION', 'quantity');
+  if (numeratorValue <= 0n || denominatorValue <= 0n)
+    return supplyChainFail('SUPPLY_INVALID_UNIT', 'unitRuleId');
+  if (
+    !Number.isInteger(basePrecision) ||
+    basePrecision < 0 ||
+    basePrecision > 6
+  )
+    return supplyChainFail('SUPPLY_QUANTITY_PRECISION', 'baseQuantity');
+  const unit = 10n ** BigInt(6 - basePrecision),
+    divisor = denominatorValue * unit,
+    dividend = quantityValue * numeratorValue,
+    remainder = dividend % divisor;
+  let result = (dividend / divisor) * unit;
+  if (remainder * 2n >= divisor) result += unit;
+  if (result > maxQuantity)
+    return supplyChainFail('SUPPLY_QUANTITY_OVERFLOW', 'quantity');
+  return normalizeDecimal(
+    `${result / scale}.${String(result % scale).padStart(6, '0')}`,
+  );
+}
+
+/**
+ * Validates the counted stock fact of a reference rule against the measured
+ * business quantity. The tolerance is a percentage of the theoretical base
+ * quantity, so a rule change never retests old documents.
+ */
+export function referenceBaseQuantity(
+  baseQuantity: string,
+  amount: string,
+  numerator: string,
+  denominator: string,
+  unitPrecision: number,
+  basePrecision: number,
+  variancePercent: string | null,
+): string {
+  const baseValue = scaled(baseQuantity),
+    quantityValue = scaled(amount),
+    numeratorValue = scaled(numerator),
+    denominatorValue = scaled(denominator),
+    varianceValue = scaled(variancePercent ?? '3');
+  if (baseValue <= 0n || !precisionAllows(baseValue, basePrecision))
+    return supplyChainFail('SUPPLY_QUANTITY_PRECISION', 'baseQuantity');
+  if (quantityValue <= 0n || !precisionAllows(quantityValue, unitPrecision))
+    return supplyChainFail('SUPPLY_QUANTITY_PRECISION', 'quantity');
+  if (numeratorValue <= 0n || denominatorValue <= 0n)
+    return supplyChainFail('SUPPLY_INVALID_UNIT', 'unitRuleId');
+  if (varianceValue < 0n || varianceValue > 100n * scale)
+    return supplyChainFail('SUPPLY_REFERENCE_VARIANCE_INVALID', 'variancePercent');
+  if (baseValue > maxQuantity)
+    return supplyChainFail('SUPPLY_QUANTITY_OVERFLOW', 'baseQuantity');
+  const expected = quantityValue * numeratorValue,
+    actual = baseValue * denominatorValue,
+    difference = actual > expected ? actual - expected : expected - actual;
+  if (difference * 100n * scale > expected * varianceValue)
+    return supplyChainFail(
+      'SUPPLY_REFERENCE_VARIANCE_EXCEEDED',
+      'baseQuantity',
+    );
+  return normalizeDecimal(
+    `${baseValue / scale}.${String(baseValue % scale).padStart(6, '0')}`,
   );
 }

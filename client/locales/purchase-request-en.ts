@@ -30,6 +30,12 @@ export const requestUi = {
   unit: 'Department',
   usage: 'Purpose',
   neededOn: 'Needed on',
+  businessDate: 'Business date',
+  sourceChannel: 'Source',
+  sourceChannel_manual: 'Manual entry',
+  sourceChannel_import: 'Import',
+  sourceChannel_api: 'API',
+  sourceChannel_device: 'Device',
   supplier: 'Suggested supplier',
   notes: 'Notes',
   requiredToSubmit: 'Required to submit',
@@ -255,6 +261,8 @@ export const requestUi = {
     'This action is unavailable in the current state. Check the latest record.',
   required: 'Enter {{field}}.',
   invalidQuantity: 'Enter a quantity greater than zero.',
+  referenceNotRequestable:
+    'Requests use the stock unit; use reference units such as tonnes on the purchase order.',
   precision: 'Check quantity precision and unit conversion.',
   overflow: 'The quantity is too large. Reduce it.',
   invalidReference:

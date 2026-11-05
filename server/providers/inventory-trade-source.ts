@@ -40,9 +40,20 @@ export async function approvedTradeLine(
     frozen = (
       version?.payload as { lines?: RepositoryRecord[] } | undefined
     )?.lines?.find((row) => row.id === lineId);
+  if (!line || !frozen) return fail('STOCK_SOURCE_CHANGED');
+  // Approved versions frozen before reference conversions existed carry no
+  // conversion snapshot; those lines were exact by definition.
+  const current: RepositoryRecord = {
+      ...line,
+      conversionModeSnapshot: text(line.conversionModeSnapshot) || 'exact',
+      variancePercentSnapshot: text(line.variancePercentSnapshot) || null,
+    },
+    approved: RepositoryRecord = {
+      ...frozen,
+      conversionModeSnapshot: text(frozen.conversionModeSnapshot) || 'exact',
+      variancePercentSnapshot: text(frozen.variancePercentSnapshot) || null,
+    };
   if (
-    !line ||
-    !frozen ||
     [
       'skuId',
       'baseUnitId',
@@ -52,7 +63,11 @@ export async function approvedTradeLine(
       'baseQuantity',
       'numeratorSnapshot',
       'denominatorSnapshot',
-    ].some((field) => (line[field] ?? null) !== (frozen[field] ?? null))
+      'conversionModeSnapshot',
+      'variancePercentSnapshot',
+    ].some(
+      (field) => (current[field] ?? null) !== (approved[field] ?? null),
+    )
   )
     return fail('STOCK_SOURCE_CHANGED');
   return { head, line, frozen };

@@ -210,9 +210,11 @@ function RecordForm({
             : (spec.choices?.[0] ??
               (spec.key === 'precision'
                 ? '0'
-                : spec.key === 'numerator' || spec.key === 'denominator'
-                  ? '1'
-                  : ''))),
+                : spec.key === 'variancePercent'
+                  ? '3'
+                  : spec.key === 'numerator' || spec.key === 'denominator'
+                    ? '1'
+                    : ''))),
       ]),
     ),
   };
@@ -243,6 +245,19 @@ function RecordForm({
             issue(spec.key, t('materials.required'));
           if (spec.type === 'number' && !/^\d+$/.test(text(values[spec.key])))
             issue(spec.key, t('materials.integer'));
+          if (
+            spec.type === 'decimal' &&
+            text(values[spec.key]) &&
+            !/^(0|[1-9]\d{0,17})(\.\d{1,6})?$/.test(text(values[spec.key]))
+          )
+            issue(spec.key, t('materials.decimal'));
+          if (
+            kind === 'unitRules' &&
+            spec.key === 'variancePercent' &&
+            text(values[spec.key]) &&
+            Number(values[spec.key]) > 100
+          )
+            issue(spec.key, t('materials.varianceRange'));
         }
         if (kind === 'templates') {
           const rows = values.fields as Attribute[];

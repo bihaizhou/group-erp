@@ -37,6 +37,7 @@ import {
   stockPrecision,
 } from './inventory-quantity.js';
 import { insertStockRowIfMissing, lockStockRow } from './inventory-db.js';
+import { orderAmount, orderTotal } from './order-amount.js';
 import { z } from 'zod';
 
 export type TradeKind = 'purchaseOrders' | 'salesOrders';
@@ -221,12 +222,21 @@ export class TradeOrderService {
         id: line.id,
         lineNo: index + 1,
         quantity: text(selection.requestedQuantity),
+        conversionModeSnapshot: selection.conversionMode,
+        variancePercentSnapshot: selection.variancePercent,
         selectionInput: json(line),
         unitPrice: line.unitPrice,
+        amount: orderAmount(text(selection.requestedQuantity), line.unitPrice),
         notes: line.notes,
       });
     }
-    return { partner: json(partner.identity), lines: resolved };
+    return {
+      partner: json(partner.identity),
+      lines: resolved,
+      totalAmount: orderTotal(
+        resolved.map((line) => line.amount as string | null),
+      ),
+    };
   }
   private async allocationLocks(
     c: DatabaseConnection,
@@ -463,6 +473,8 @@ export class TradeOrderService {
           'unitRuleId',
           'numeratorSnapshot',
           'denominatorSnapshot',
+          'conversionModeSnapshot',
+          'variancePercentSnapshot',
         ].some((field) => (previous[field] ?? null) !== (value[field] ?? null))
       )
         return fail(
@@ -497,9 +509,12 @@ export class TradeOrderService {
             'baseQuantity',
             'numeratorSnapshot',
             'denominatorSnapshot',
+            'conversionModeSnapshot',
+            'variancePercentSnapshot',
             'materialSnapshot',
             'selectionInput',
             'unitPrice',
+            'amount',
             'managementModeSnapshot',
             'notes',
           ].map((field) => [field, value[field] ?? null]),
@@ -614,7 +629,11 @@ export class TradeOrderService {
             notes: content.notes,
             reason: content.reason,
             occurredOn: content.occurredOn,
+            sourceChannel: head
+              ? text(head.sourceChannel) || 'manual'
+              : content.sourceChannel,
             partnerSnapshot: resolved.partner,
+            totalAmount: resolved.totalAmount,
             supersedesId: copyFrom ?? head?.supersedesId ?? null,
           };
           if (!head)
@@ -735,6 +754,8 @@ export class TradeOrderService {
           'baseQuantity',
           'numeratorSnapshot',
           'denominatorSnapshot',
+          'conversionModeSnapshot',
+          'variancePercentSnapshot',
         ].some(
           (key) => (line[key] ?? null) !== (resolved.lines[index][key] ?? null),
         )
