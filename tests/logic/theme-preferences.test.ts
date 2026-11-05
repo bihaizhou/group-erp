@@ -1,3 +1,7 @@
+// @vitest-environment jsdom
+
+import '@testing-library/jest-dom/vitest';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { themePresets } from '../../client/theme/theme-presets';
 import {

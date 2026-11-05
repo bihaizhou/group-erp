@@ -1,3 +1,7 @@
+// @vitest-environment jsdom
+
+import '@testing-library/jest-dom/vitest';
+
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { revealScrollbarsWhileScrolling } from '../../client/lib/scrollbar';
