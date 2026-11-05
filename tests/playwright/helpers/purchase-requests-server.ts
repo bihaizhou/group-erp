@@ -1,4 +1,5 @@
-import type { PurchaseContent } from '../../../server/providers/purchase-request-model.js';
+import type { z } from 'zod';
+import type { purchaseContent } from '../../../server/providers/purchase-request-model.js';
 import path from 'node:path';
 import { mkdir, writeFile, unlink, access } from 'node:fs/promises';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -250,14 +251,12 @@ const unknown = () => ({
   usage: '设备维护',
   notes: '原始需求说明\n保留换行',
 });
-const content = (usage = '临时采购需求'): PurchaseContent => ({
+const content = (usage = '临时采购需求'): z.input<typeof purchaseContent> => ({
   subjectId: company.id,
   requesterEmployeeId: applicant.employee.id,
   requestingUnitId: unit.id,
   usage,
   neededOn: '2026-11-01',
-  businessDate: null,
-  sourceChannel: 'manual',
   suggestedSupplierId: supplier.partnerId,
   projectId: null,
   notes: '临时隔离验收资料',
