@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: 类型检查与单元测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # --ignore-scripts：跳过 postinstall 里的 `nocobase skills sync`，
+      # 它要读本地技能目录，CI 上没有。类型检查和逻辑测试不需要它。
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: 类型检查（客户端 / 脚本 / 服务端）
+        run: pnpm typecheck
+
+      - name: 逻辑单元测试
+        run: pnpm exec vitest run -c vitest.logic.config.ts
