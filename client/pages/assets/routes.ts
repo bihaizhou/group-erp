@@ -11,6 +11,7 @@ export const assetsRoutes: AppClientRouteDefinition[] = [
     children: [
       {
         name: 'assets-list',
+        companyScope: 'assets/companies',
         path: '/functions/assets',
         auth: 'required',
         authz: pageAuthz('people-assets'),

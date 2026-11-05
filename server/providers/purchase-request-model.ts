@@ -20,6 +20,14 @@ export const purchaseTransitions = [
   'cancel',
   'reassign',
 ] as const;
+export const purchaseSourceChannels = [
+  'manual',
+  'import',
+  'api',
+  'device',
+] as const;
+export type PurchaseSourceChannel = (typeof purchaseSourceChannels)[number];
+
 export const purchaseLineInput = z.strictObject({
   id,
   selection: materialSelectionInput,
@@ -36,6 +44,8 @@ export const purchaseContent = z
     requestingUnitId: optionalId,
     usage: note,
     neededOn: z.iso.date().nullable().default(null),
+    businessDate: z.iso.date().nullable().default(null),
+    sourceChannel: z.enum(purchaseSourceChannels).default('manual'),
     suggestedSupplierId: optionalId,
     projectId: z.null().default(null),
     notes: note,
@@ -136,6 +146,8 @@ export const purchaseHeadColumns = [
   'requestingUnitId',
   'usage',
   'neededOn',
+  'businessDate',
+  'sourceChannel',
   'suggestedSupplierId',
   'supplierSnapshot',
   'notes',

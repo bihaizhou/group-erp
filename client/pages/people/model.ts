@@ -39,6 +39,7 @@ export type Row = {
     history: { transition: string; actorId: string; at: string; input: Data }[];
   };
   // Present on personnel changes: the approval chain around the current round.
+  profileId?: string | null;
   approval?: {
     round: number;
     status: string;
@@ -267,7 +268,7 @@ export const statuses: Record<Kind, string[]> = {
   changes: ['draft', 'pending', 'approved', 'effective', 'cancelled'],
   dimensions: ['active', 'inactive'],
   models: ['active', 'inactive'],
-  profiles: ['active'],
+  profiles: ['active', 'inactive'],
   evaluations: [
     'draft',
     'selfReviewed',

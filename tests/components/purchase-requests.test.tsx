@@ -345,13 +345,14 @@ it('opens in the first authorised company and scopes requests to it', async () =
 });
 it('defaults the new form to the caller identity and removes other companies', async () => {
   const user = userEvent.setup();
-  mount(`${rootPath}/new?subjectId=${otherCompany.id}`);
+  mount(`${rootPath}/new?subjectId=${companyId}`);
   await screen.findByRole('button', { name: 'Save draft' });
-  expect(screen.getByText(company.name)).toBeVisible();
+  const editor = within(form());
+  expect(editor.getByText(new RegExp(company.name))).toBeVisible();
   expect(screen.queryByText(otherCompany.name)).not.toBeInTheDocument();
-  expect(screen.getByText(new RegExp(employee.name))).toBeVisible();
-  expect(screen.getAllByText(new RegExp(unit.name)).length).toBeGreaterThan(0);
-  await user.click(screen.getByRole('button', { name: 'Save draft' }));
+  expect(editor.getByText(new RegExp(employee.name))).toBeVisible();
+  expect(editor.getAllByText(new RegExp(unit.name)).length).toBeGreaterThan(0);
+  await user.click(editor.getByRole('button', { name: 'Save draft' }));
   const sent = api.request.mock.calls
     .map(([value]) => value)
     .find(

@@ -4,6 +4,7 @@ import { createServiceToken } from '@nocobase/service-provider';
 import { businessDate } from './business-date.js';
 import { currentCompanyForUser } from './company-identity.js';
 import type {
+  OperationsCompanyQuery,
   OperationsTargetMetric,
   OperationsIssueInput,
   OperationsIssueQuery,
@@ -89,6 +90,41 @@ export class OperationsService {
     if (requested && requested !== company)
       throw new OperationsError('OPERATIONS_FORBIDDEN');
     return company;
+  }
+
+  async companies(
+    principal: OperationsPrincipal,
+    query: OperationsCompanyQuery,
+    scope: OperationsScope,
+  ) {
+    const company = await this.resolveSubject(principal, undefined, scope);
+    const rows = await this.database.repository('orgSubjects').findMany({
+      filter: {
+        status: 'active',
+        ...(company ? { id: company } : {}),
+      },
+      limit: 1000,
+      sort: (sort) => [sort.field('sortOrder').asc(), sort.field('name').asc()],
+    });
+    const q = query.q?.toLowerCase() ?? '';
+    const matched = rows
+      .map((row) => ({
+        id: text(row.id),
+        code: text(row.code),
+        name: text(row.name),
+      }))
+      .filter(
+        (row) => !q || `${row.code} ${row.name}`.toLowerCase().includes(q),
+      );
+    const start = (query.page - 1) * query.pageSize;
+    return {
+      data: matched.slice(start, start + query.pageSize),
+      meta: {
+        total: matched.length,
+        page: query.page,
+        pageSize: query.pageSize,
+      },
+    };
   }
 
   async options(principal: OperationsPrincipal, scope: OperationsScope) {
@@ -590,6 +626,19 @@ export class OperationsService {
     };
   }
 
+  private periodProgress(period: string) {
+    const today = businessDate(this.timeZone);
+    const current = today.slice(0, 7);
+    const [year, month] = period.split('-').map(Number);
+    const days = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    if (!Number.isFinite(days) || days <= 0) return 0;
+    if (period === current) {
+      const elapsed = Number(today.slice(8, 10));
+      return Number(((elapsed / days) * 100).toFixed(1));
+    }
+    return period < current ? 100 : 0;
+  }
+
   private target(
     row: Record<string, unknown>,
     actuals?: {
@@ -607,6 +656,20 @@ export class OperationsService {
       actualMinor !== null && targetMinor > 0n
         ? ((Number(actualMinor) / Number(targetMinor)) * 100).toFixed(1)
         : null;
+    const progressPct = this.periodProgress(text(row.period));
+    const status:
+      'no_data' | 'achieved' | 'on_track' | 'behind' | 'not_started' =
+      actualValue === null || achievementPct === null
+        ? 'no_data'
+        : Number(achievementPct) >= 100
+          ? 'achieved'
+          : progressPct <= 0
+            ? 'not_started'
+            : progressPct >= 100
+              ? 'behind'
+              : Number(achievementPct) >= progressPct
+                ? 'on_track'
+                : 'behind';
     return {
       id: text(row.id),
       subjectId: text(row.subjectId),
@@ -615,14 +678,10 @@ export class OperationsService {
       targetValue: text(row.targetValue),
       actualValue,
       achievementPct,
+      progressPct,
       varianceValue:
         actualMinor === null ? null : decimal(actualMinor - targetMinor),
-      status:
-        actualValue === null
-          ? ('no_data' as const)
-          : achievementPct !== null && Number(achievementPct) >= 100
-            ? ('achieved' as const)
-            : ('behind' as const),
+      status,
       version: Number(row.version ?? 1),
       updatedAt: text(row.updatedAt),
     };
@@ -704,6 +763,7 @@ export class OperationsService {
         severity: input.severity,
         ownerName: input.ownerName,
         dueAt: input.dueAt,
+        businessDate: input.businessDate ?? businessDate(this.timeZone),
         status: 'open',
         resolution: '',
         closedAt: null,
@@ -785,6 +845,7 @@ export class OperationsService {
       severity: text(row.severity),
       ownerName: text(row.ownerName),
       dueAt: day(row.dueAt),
+      businessDate: day(row.businessDate),
       status: text(row.status),
       resolution: text(row.resolution),
       version: Number(row.version ?? 0),

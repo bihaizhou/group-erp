@@ -403,6 +403,32 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
         });
       },
     );
+    router.get(
+      '/people/changes/approval-preview',
+      describeRoute({
+        tags: ['People'],
+        operationId: 'peopleApprovalPreview',
+        summary: 'Read the approval stages a new change will enter',
+        responses: { '200': dataResponse(output), ...responses },
+      }),
+      apiValidator(
+        'query',
+        z.object({
+          type: z.string().min(1),
+          subjectId: z.string().optional(),
+        }),
+      ),
+      async (c) => {
+        const query = c.req.valid('query');
+        return c.json({
+          data: await service.approvalPreview(
+            query.type,
+            query.subjectId ?? '',
+            await authorize(c.get('authz'), 'changes', 'read'),
+          ),
+        });
+      },
+    );
     for (const kind of peopleKinds) {
       const access =
         (action: string) =>

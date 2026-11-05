@@ -211,7 +211,15 @@ export class PeopleService {
       checklist =
         kind === 'changes'
           ? await this.checklist.view(this.db.connection(), id)
-          : null;
+          : null,
+      card =
+        kind === 'employees'
+          ? await this.db
+              .connection()
+              .repository('hrProfiles')
+              .findOne({ filter: { personId: id } })
+          : null,
+      profileId = card ? scalar(card.id) : null;
     if (workflowKinds.includes(kind) && actor) {
       const view = await this.runtime.view(peopleTables[kind], id, actor);
       return {
@@ -219,13 +227,20 @@ export class PeopleService {
         currentStaffing,
         ...(approval ? { approval } : {}),
         ...(checklist ? { checklist } : {}),
+        ...(profileId ? { profileId } : {}),
         workflow: {
           available: view.available,
           history: view.history.transitions,
         },
       };
     }
-    return { ...record, currentStaffing, ...(approval ? { approval } : {}) };
+    return {
+      ...record,
+      currentStaffing,
+      ...(approval ? { approval } : {}),
+      ...(checklist ? { checklist } : {}),
+      ...(profileId ? { profileId } : {}),
+    };
   }
   async options(
     kind: PeopleKind,
@@ -1238,6 +1253,47 @@ export class PeopleService {
   async approvalTodo(actor: PeopleActor, policies: PeoplePolicies) {
     return this.approval.todo(this.db.connection(), policies, actor);
   }
+  async approvalPreview(
+    type: string,
+    subjectId: string,
+    policies: PeoplePolicies,
+  ) {
+    if (!policies[peopleTables.changes]) return fail('PEOPLE_FORBIDDEN');
+    const settings = await this.approval.settings(this.db.connection());
+    const chains = settings.values.approvalChains as unknown as Record<
+      string,
+      {
+        stages: {
+          title: string;
+          mode: 'any' | 'all';
+          subjectIds: string[];
+        }[];
+      }
+    >;
+    const chain = chains[type];
+    if (!chain) return { stages: [] };
+    const stages: { title: string; mode: 'any' | 'all'; candidates: number }[] =
+      [];
+    for (const stage of chain.stages) {
+      if (
+        stage.subjectIds.length &&
+        (!subjectId || !stage.subjectIds.includes(subjectId))
+      )
+        continue;
+      const candidates = await this.approval.resolve(
+        this.db.connection(),
+        subjectId,
+        stage as never,
+        '',
+      );
+      stages.push({
+        title: stage.title,
+        mode: stage.mode,
+        candidates: candidates.length,
+      });
+    }
+    return { stages };
+  }
   async approvalSettings() {
     // The parameter store reads through its own nested transaction.
     return this.db.transaction((c) => this.approval.settings(c));
@@ -1682,7 +1738,12 @@ export class PeopleService {
         ).includes(d.type)
       )
         return fail('PEOPLE_CHANGE_TYPE_CONFLICT', 'data.type');
-      await this.checklist.ensure(c, scalar(row.id), d.type);
+      await this.checklist.ensure(
+        c,
+        scalar(row.id),
+        scalar(row.personId),
+        await this.approval.checklistTemplates(c, d.type),
+      );
       await this.approval.submit(
         c,
         asRow(record),
@@ -2071,6 +2132,34 @@ export class PeopleService {
       for (const record of currentEmployment)
         await close('employments', record);
       await this.closeEmployee(c, person, actor, `change ${row.code}`);
+      const card = await c
+        .repository('hrProfiles')
+        .findOne({ filter: { personId: person.id } });
+      if (card && card.status !== 'inactive') {
+        const next = {
+          ...card,
+          status: 'inactive',
+          revision: Number(card.revision) + 1,
+          updatedAt: new Date(),
+        };
+        await c.repository('hrProfiles').updateOne({
+          filter: { id: scalar(card.id) },
+          values: {
+            status: next.status,
+            revision: next.revision,
+            updatedAt: next.updatedAt,
+          },
+        });
+        await this.audit(
+          c,
+          'profiles',
+          card,
+          next as unknown as PeopleRow,
+          actor,
+          `change ${row.code}`,
+          'exit',
+        );
+      }
     }
     if (d.type === 'regularize') {
       const employment = currentEmployment[0];
@@ -2134,6 +2223,46 @@ export class PeopleService {
     }
     return failures;
   }
+  /** Lifecycle phase shown on the talent card; distinct from the card's own on/off status. */
+  private async talentPhase(c: DatabaseConnection, person: PeopleRow) {
+    const rows = (
+        await c
+          .repository(peopleTables.employments)
+          .findMany({ filter: { personId: scalar(person.id) }, limit: 100 })
+      ).map(asRow),
+      today = this.businessDate();
+    if (scalar(person.status) !== 'active') {
+      const ended = rows
+        .map((row) => {
+          const end = (row.data as { endDate?: unknown }).endDate;
+          return typeof end === 'string' ? end : null;
+        })
+        .filter((end): end is string => Boolean(end))
+        .sort()
+        .at(-1);
+      return { phase: 'departed' as const, since: ended ?? null };
+    }
+    const current = rows.find((row) => this.isCurrent(row));
+    if (!current) return { phase: 'pending' as const, since: null };
+    const data = current.data as {
+        startDate?: string;
+        probationEnd?: string | null;
+        regularizedAt?: string | null;
+      },
+      probationEnd =
+        typeof data.probationEnd === 'string' ? data.probationEnd : null;
+    if (data.regularizedAt || !probationEnd)
+      return {
+        phase: 'regular' as const,
+        since: data.startDate ?? null,
+        probationEnd,
+      };
+    return {
+      phase: probationEnd > today ? ('probation' as const) : ('due' as const),
+      since: data.startDate ?? null,
+      probationEnd,
+    };
+  }
   async talent(personId: string, policies: PeoplePolicies, actor: PeopleActor) {
     const c = this.db.connection();
     const person = await this.accessible(
@@ -2173,6 +2302,7 @@ export class PeopleService {
       : null;
     return {
       person: peopleView(person),
+      phase: await this.talentPhase(c, person),
       ...related,
       options: await this.options('profiles', policies),
       viewerId: actor.id,

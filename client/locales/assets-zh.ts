@@ -16,10 +16,14 @@ export const assets = {
   assign: '分配保管人',
   transfer: '调拨保管人',
   return: '归还入库',
-  scrap: '报废',
+  scrap: '申请报废',
+  approveScrap: '批准报废',
+  rejectScrap: '驳回',
+  pendingScrap: '报废待审批',
+  decisionNote: '可填写审批意见',
   noCustodian: '暂不分配保管人',
   chooseEmployee: '选择保管人',
-  scrapNote: '请填写报废原因',
+  scrapNote: '请填写报废原因，提交后需审批',
   actionTitle: '资产操作',
   actionHint: '操作会记录办理人、时间和前后保管人。',
   status: {
@@ -43,6 +47,8 @@ export const assets = {
   action: {
     assign: '分配资产 {{code}}',
     return: '归还资产 {{code}}',
-    scrap: '报废资产 {{code}}',
+    scrap: '申请报废 {{code}}',
+    approve: '批准报废 {{code}}',
+    reject: '驳回报废 {{code}}',
   },
 };

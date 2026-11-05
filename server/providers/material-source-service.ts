@@ -616,22 +616,25 @@ export class MaterialSourceService implements DemandSourceHooks {
         if (selected.identificationStatus !== 'identified')
           return fail('SUPPLY_SOURCE_NOT_OFFERED');
         const previous = line.selectionInput as JsonObject;
-        await this.lineWrite(
-          c,
-          port,
-          line,
-          {
-            ...selected,
-            requestedUnitId: selected.unitId,
-            requestedUnitText: selected.materialSnapshot.unitName,
-            selectionInput: { ...previous, selection: selectionInput },
-            revision: Number(line.revision) + 1,
-            inputRevision: Number(line.inputRevision) + 1,
-            confirmedBy: actor.id,
-            confirmedAt: new Date(),
-          },
-          access,
-        );
+        const values = {
+          ...selected,
+          requestedUnitId: selected.unitId,
+          requestedUnitText: selected.materialSnapshot.unitName,
+          selectionInput: { ...previous, selection: selectionInput },
+          revision: Number(line.revision) + 1,
+          inputRevision: Number(line.inputRevision) + 1,
+          confirmedBy: actor.id,
+          confirmedAt: new Date(),
+        };
+        // Reference metadata is derived for previews; request lines persist only
+        // the resolved selection and the counted base quantity.
+        for (const field of [
+          'conversionMode',
+          'variancePercent',
+          'suggestedBaseQuantity',
+        ])
+          Reflect.deleteProperty(values, field);
+        await this.lineWrite(c, port, line, values, access);
         const result = (
           await this.repo(c, access.policies).updateOne({
             filter: { id: text(source.id), revision: input.sourceVersion },

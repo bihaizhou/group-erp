@@ -20,6 +20,8 @@ export const companyScope = {
   createCompany: 'Create a company',
   page: 'Page {{page}} · {{total}} total',
   switchCompany: 'Switch company',
+  fromIdentity:
+    'Set by your signed-in identity. Use the company switcher in the header to change it.',
   prev: 'Previous',
   next: 'Next',
 };

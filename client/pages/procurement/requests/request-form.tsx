@@ -28,9 +28,11 @@ import {
   FieldDescription,
 } from '#components/ui/field';
 import { Card, CardHeader, CardTitle, CardContent } from '#components/ui/card';
+import { CompanyIdentity } from '#components/company-scope';
 import { Alert, AlertDescription } from '#components/ui/alert';
 import { Spinner } from '#components/ui/spinner';
 import { randomUuid } from '#lib/random-id';
+import { useCurrentCompany } from '../../../company/use-company-scope.js';
 import {
   ui,
   useRequest,
@@ -194,14 +196,22 @@ function FormBody({
     [params] = useSearchParams(),
     refresh = usePurchaseRefresh();
   const initialContent = () => {
+    const selectedCompanyId =
+      params.get('subjectId') ?? identity?.default?.subjectId ?? '';
     const c = initial
       ? requestContent(initial)
-      : blankContent(
-          identity?.default?.subjectId ?? params.get('subjectId') ?? '',
-        );
+      : blankContent(selectedCompanyId);
     if (mode === 'new' && identity?.employee) {
-      c.requesterEmployeeId = identity.employee.id;
-      c.requestingUnitId = identity.default?.unitId ?? null;
+      const company = identity.companies.find(
+        (item) => item.id === selectedCompanyId,
+      );
+      if (company) {
+        c.requesterEmployeeId = identity.employee.id;
+        c.requestingUnitId =
+          company.units.find((item) => item.primary)?.id ??
+          company.units[0]?.id ??
+          null;
+      }
     }
     if (mode === 'copy') {
       c.lines = c.lines.map((l) => ({ ...l, id: randomUuid() }));
@@ -247,7 +257,8 @@ function FormBody({
     );
   const key = useRequestKey(),
     busyRef = useRef(false),
-    confirm = useConfirm();
+    confirm = useConfirm(),
+    scope = useCurrentCompany();
   const dirty = !same(baseline, draft) || !!reason.trim(),
     guard = useLeaveGuard(dirty, busy || uploading, path);
   const cap = useCapabilities(mode === 'new' ? undefined : initial?.id),
@@ -263,19 +274,12 @@ function FormBody({
   const identityCompany = identity?.companies.find(
       (item) => item.id === draft.subjectId,
     ),
-    identityLocked =
-      mode === 'new' && !!identity && identity.companies.length <= 1,
     requesterLocked = mode === 'new' && !!identity && !delegate.can,
     unitLocked =
       mode === 'new' &&
       !!identity &&
       !delegate.can &&
-      (identityCompany?.units.length ?? 0) <= 1,
-    companyLocked =
-      identityLocked ||
-      (mode === 'edit' &&
-        !!row &&
-        (row.reviewRound > 0 || row.lines.length > 0));
+      (identityCompany?.units.length ?? 0) <= 1;
   const errors: Record<string, string> = {
     ...serverErrors,
     ...(attempted
@@ -318,57 +322,6 @@ function FormBody({
     );
   const cancel = async () => {
     if (await guard.leave()) exit();
-  };
-  const changeCompany = async (value: string, item?: Choice) => {
-    if (value === draft.subjectId) return;
-    if (
-      (draft.requesterEmployeeId ||
-        draft.requestingUnitId ||
-        draft.suggestedSupplierId ||
-        draft.lines.length) &&
-      !(await confirm.ask(
-        t(ui('companyChangeTitle')),
-        t(ui('companyChangeHint')),
-        t(ui('confirmCompanyChange')),
-      ))
-    )
-      return;
-    setUnitNeedsReselection(false);
-    setHints({});
-    const own = identity?.companies.find((item) => item.id === value),
-      nextRequester = own && identity?.employee ? identity.employee : undefined,
-      nextUnit = own?.units[0];
-    setRefs({
-      company: item ?? own,
-      requester: nextRequester,
-      unit: nextUnit,
-    });
-    setDraft((old) => ({
-      ...blankContent(value),
-      ...(nextRequester ? { requesterEmployeeId: nextRequester.id } : {}),
-      ...(nextUnit ? { requestingUnitId: nextUnit.id } : {}),
-      usage: old.usage,
-      neededOn: old.neededOn,
-      notes: old.notes,
-      lines: old.lines.map((l) => ({
-        ...l,
-        selection: {
-          kind: 'unknown',
-          subjectId: value,
-          originalName:
-            l.originalName ||
-            (l.selection.kind === 'unknown' ? l.selection.originalName : ''),
-          originalSpecification:
-            l.originalSpecification ||
-            (l.selection.kind === 'unknown'
-              ? l.selection.originalSpecification
-              : ''),
-          requestedUnitText:
-            l.selection.kind === 'unknown' ? l.selection.requestedUnitText : '',
-          quantity: l.selection.quantity,
-        },
-      })),
-    }));
   };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -625,9 +578,7 @@ function FormBody({
     },
   };
   const localText = [
-    t(ui('company')) +
-      ': ' +
-      (refs.company?.name ?? row?.display.company?.name ?? ''),
+    t(ui('company')) + ': ' + (scope?.name ?? row?.display.company?.name ?? ''),
     t(ui('usage')) + ': ' + draft.usage,
     t(ui('neededOn')) + ': ' + (draft.neededOn ?? ''),
     ...draft.lines.map((l, i) => `${i + 1}. ${describe(l, 'lines')}`),
@@ -750,27 +701,14 @@ function FormBody({
             </CardHeader>
             <CardContent className='grid gap-4 md:grid-cols-2'>
               <div className='md:col-span-2'>
-                <ReferencePicker
-                  id='purchase-subjectId'
-                  key={`company-${mode}`}
-                  path='requestCompanies'
-                  label={`${t(ui('company'))} *`}
-                  value={draft.subjectId}
-                  selected={refs.company ?? row?.display.company}
-                  disabled={companyLocked}
-                  onChange={(v, item) => void changeCompany(v, item)}
+                <CompanyIdentity
+                  company={
+                    scope?.id === draft.subjectId
+                      ? scope
+                      : (row?.display.company ?? null)
+                  }
+                  hint={t('companyScope.fromIdentity')}
                 />
-                {companyLocked && (
-                  <p className='mt-2 text-sm text-muted-foreground'>
-                    {t(
-                      ui(
-                        mode === 'new' && identityLocked
-                          ? 'identityLockedHint'
-                          : 'companyLocked',
-                      ),
-                    )}
-                  </p>
-                )}
                 {fieldError('subjectId')}
               </div>
               <div className='flex flex-col gap-2'>
@@ -844,6 +782,17 @@ function FormBody({
                   aria-invalid={!!errors.usage}
                 />
                 {fieldError('usage')}
+              </Field>
+              <Field>
+                <FieldLabel htmlFor='purchase-businessDate'>
+                  {t(ui('businessDate'))}
+                </FieldLabel>
+                <DatePicker
+                  id='purchase-businessDate'
+                  value={draft.businessDate ?? ''}
+                  onChange={(v) => update('businessDate', v || null)}
+                  label={t(ui('businessDate'))}
+                />
               </Field>
               <Field>
                 <FieldLabel htmlFor='purchase-neededOn'>

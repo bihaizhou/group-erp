@@ -9,7 +9,7 @@ import {
 } from '@nocobase/app-plugin-authentication/testing';
 import { userAdministrationServiceToken } from '@nocobase/app-plugin-authentication';
 import { authorizationToken } from '@nocobase/app-plugin-authorization/server';
-import type { PurchaseContent } from '../../server/providers/purchase-request-model.js';
+import type { purchaseContent } from '../../server/providers/purchase-request-model.js';
 import { businessDate } from '../../server/providers/business-date.js';
 import {
   purchaseActions,
@@ -220,7 +220,7 @@ export async function fixture(
     usage: '',
     notes: '',
   });
-  const content = (): PurchaseContent => ({
+  const content = (): z.input<typeof purchaseContent> => ({
     subjectId: a.id,
     requesterEmployeeId: applicant.employee.id,
     requestingUnitId: unit.id,

@@ -1110,6 +1110,9 @@ export class MaterialService {
         .findOne({ filter: { id: scalar(sku.baseUnitId) } });
       next.numerator = normalizeDecimal(scalar(next.numerator));
       next.denominator = normalizeDecimal(scalar(next.denominator));
+      next.variancePercent = normalizeDecimal(
+        scalar(next.variancePercent) || '3',
+      );
       if (
         !positiveDecimal(scalar(next.numerator)) ||
         !positiveDecimal(scalar(next.denominator))
@@ -1117,7 +1120,18 @@ export class MaterialService {
         return fail('MATERIAL_INVALID_RATIO', 'numerator');
       if (unit.id === sku.baseUnitId && next.numerator !== next.denominator)
         return fail('MATERIAL_INVALID_RATIO', 'numerator');
-      if (unit.unitType !== 'package' && unit.unitType !== base?.unitType)
+      if (next.conversionMode === 'reference') {
+        // A reference rule estimates a counted stock unit from a measured
+        // purchase unit; identical dimensions belong to exact conversion.
+        if (unit.unitType === base?.unitType)
+          return fail('MATERIAL_REFERENCE_SAME_DIMENSION', 'unitId');
+        if (
+          !Number.isFinite(Number(next.variancePercent)) ||
+          Number(next.variancePercent) < 0 ||
+          Number(next.variancePercent) > 100
+        )
+          return fail('MATERIAL_INVALID_VARIANCE', 'variancePercent');
+      } else if (unit.unitType !== 'package' && unit.unitType !== base?.unitType)
         return fail('MATERIAL_VARIABLE_CONVERSION', 'unitId');
       if (
         await c.repository('materialUnitRules').exists({
@@ -1661,6 +1675,22 @@ export class MaterialService {
         'materialUnitRules',
         policies,
       ).findMany({ filter: { skuId: id, status: 'active' }, limit: 101 });
+      const packageUnitIds = [
+        ...new Set(packages.map((rule) => scalar(rule.unitId))),
+      ];
+      const packageUnits = packageUnitIds.length
+        ? await this.repo(c, 'measureUnits', policies).findMany({
+            filter: (f) =>
+              f.and([
+                materialIdFilter(f, 'id', packageUnitIds),
+                f.string('status').eq('active'),
+              ]),
+            limit: 101,
+          })
+        : [];
+      const packageUnitsById = new Map(
+        packageUnits.map((row) => [scalar(row.id), row]),
+      );
       const links = await this.repo(c, 'materialTagLinks', policies).findMany({
         filter: (f) =>
           f.and([
@@ -1722,7 +1752,15 @@ export class MaterialService {
           })),
           standardName: name.name,
           baseUnitName: unit.name,
-          packages: packages.slice(0, 100),
+          packages: packages.slice(0, 100).map((rule) => {
+            const ruleUnit = packageUnitsById.get(scalar(rule.unitId));
+            return {
+              ...rule,
+              unitName: ruleUnit?.name ?? '',
+              unitType: ruleUnit?.unitType ?? null,
+              unitPrecision: ruleUnit ? Number(ruleUnit.precision) : null,
+            };
+          }),
           tags: [...tags.values()],
           relationsTruncated:
             packages.length > 100 || links.length > 100 || aliases.length > 100,

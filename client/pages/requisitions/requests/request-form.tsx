@@ -28,9 +28,11 @@ import {
   FieldDescription,
 } from '#components/ui/field';
 import { Card, CardHeader, CardTitle, CardContent } from '#components/ui/card';
+import { CompanyIdentity } from '#components/company-scope';
 import { Alert, AlertDescription } from '#components/ui/alert';
 import { Spinner } from '#components/ui/spinner';
 import { randomUuid } from '#lib/random-id';
+import { useCurrentCompany } from '../../../company/use-company-scope.js';
 import {
   ui,
   useRequest,
@@ -207,7 +209,8 @@ function FormBody({
     );
   const key = useRequestKey(),
     busyRef = useRef(false),
-    confirm = useConfirm();
+    confirm = useConfirm(),
+    scope = useCurrentCompany();
   const dirty = !same(baseline, draft) || !!reason.trim(),
     guard = useLeaveGuard(dirty, busy || uploading, path);
   const cap = useCapabilities(mode === 'new' ? undefined : initial?.id),
@@ -219,8 +222,6 @@ function FormBody({
   const terminal =
     error instanceof ApiClientError && [401, 403, 404].includes(error.status);
   const remoteNotDraft = mode === 'edit' && latest && latest.status !== 'draft';
-  const companyLocked =
-    mode === 'edit' && !!row && (row.reviewRound > 0 || row.lines.length > 0);
   const errors: Record<string, string> = {
     ...serverErrors,
     ...(attempted
@@ -263,49 +264,6 @@ function FormBody({
     );
   const cancel = async () => {
     if (await guard.leave()) exit();
-  };
-  const changeCompany = async (value: string, item?: Choice) => {
-    if (value === draft.subjectId) return;
-    if (
-      (draft.requesterEmployeeId ||
-        draft.recipientEmployeeId ||
-        draft.requestingUnitId ||
-        draft.purposeId ||
-        draft.lines.length) &&
-      !(await confirm.ask(
-        t(ui('companyChangeTitle')),
-        t(ui('companyChangeHint')),
-        t(ui('confirmCompanyChange')),
-      ))
-    )
-      return;
-    setRefs({ company: item });
-    setUnitNeedsReselection(false);
-    setHints({});
-    setDraft((old) => ({
-      ...blankContent(value),
-      usage: old.usage,
-      neededOn: old.neededOn,
-      notes: old.notes,
-      lines: old.lines.map((l) => ({
-        ...l,
-        selection: {
-          kind: 'unknown',
-          subjectId: value,
-          originalName:
-            l.originalName ||
-            (l.selection.kind === 'unknown' ? l.selection.originalName : ''),
-          originalSpecification:
-            l.originalSpecification ||
-            (l.selection.kind === 'unknown'
-              ? l.selection.originalSpecification
-              : ''),
-          requestedUnitText:
-            l.selection.kind === 'unknown' ? l.selection.requestedUnitText : '',
-          quantity: l.selection.quantity,
-        },
-      })),
-    }));
   };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -564,9 +522,7 @@ function FormBody({
     },
   };
   const localText = [
-    t(ui('company')) +
-      ': ' +
-      (refs.company?.name ?? row?.display.company?.name ?? ''),
+    t(ui('company')) + ': ' + (scope?.name ?? row?.display.company?.name ?? ''),
     t(ui('usage')) + ': ' + draft.usage,
     t(ui('neededOn')) + ': ' + (draft.neededOn ?? ''),
     ...draft.lines.map((l, i) => `${i + 1}. ${describe(l, 'lines')}`),
@@ -689,21 +645,14 @@ function FormBody({
             </CardHeader>
             <CardContent className='grid gap-4 md:grid-cols-2'>
               <div className='md:col-span-2'>
-                <ReferencePicker
-                  id='issue-subjectId'
-                  key={`company-${mode}`}
-                  path='requestCompanies'
-                  label={`${t(ui('company'))} *`}
-                  value={draft.subjectId}
-                  selected={refs.company ?? row?.display.company}
-                  disabled={companyLocked}
-                  onChange={(v, item) => void changeCompany(v, item)}
+                <CompanyIdentity
+                  company={
+                    scope?.id === draft.subjectId
+                      ? scope
+                      : (row?.display.company ?? null)
+                  }
+                  hint={t('companyScope.fromIdentity')}
                 />
-                {companyLocked && (
-                  <p className='mt-2 text-sm text-muted-foreground'>
-                    {t(ui('companyLocked'))}
-                  </p>
-                )}
                 {fieldError('subjectId')}
               </div>
               <div className='flex flex-col gap-2'>

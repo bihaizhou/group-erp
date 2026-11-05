@@ -54,6 +54,8 @@ export interface DemandLine {
   usage: string;
   notes: string;
 }
+export type SourceChannel = 'manual' | 'import' | 'api' | 'device';
+const todayIso = () => new Date().toLocaleDateString('en-CA');
 export interface Content {
   attachments?: DemandAttachment[];
   subjectId: string;
@@ -61,6 +63,8 @@ export interface Content {
   requestingUnitId: string | null;
   usage: string;
   neededOn: string | null;
+  businessDate: string | null;
+  sourceChannel: SourceChannel;
   suggestedSupplierId: string | null;
   projectId: null;
   notes: string;
@@ -141,6 +145,8 @@ export interface PurchaseRequest {
   usage: string;
   notes: string;
   neededOn: string | null;
+  businessDate?: string | null;
+  sourceChannel?: SourceChannel;
   createdBy: string;
   status: State;
   revision: number;
@@ -255,6 +261,8 @@ export const blankContent = (subjectId = ''): Content => ({
   requestingUnitId: null,
   usage: '',
   neededOn: null,
+  businessDate: todayIso(),
+  sourceChannel: 'manual',
   suggestedSupplierId: null,
   projectId: null,
   notes: '',
@@ -282,6 +290,8 @@ export const requestContent = (row: PurchaseRequest): Content => ({
   requestingUnitId: row.requestingUnitId,
   usage: row.usage,
   neededOn: row.neededOn,
+  businessDate: row.businessDate ?? null,
+  sourceChannel: row.sourceChannel ?? 'manual',
   suggestedSupplierId: row.suggestedSupplierId,
   projectId: null,
   notes: row.notes,

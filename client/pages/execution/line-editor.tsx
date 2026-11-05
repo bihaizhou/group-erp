@@ -181,6 +181,14 @@ export function LineEditor({
     snapshot = (line: InputLine) =>
       sourceFor(line)?.materialSnapshot ??
       initial?.lines.find((row) => row.id === line.id)?.materialSnapshot,
+    referenceFor = (line: InputLine) => {
+      const mode = sourceFor(line)?.conversionMode;
+      if (mode) return mode === 'reference';
+      return (
+        initial?.lines.find((row) => row.id === line.id)
+          ?.conversionModeSnapshot === 'reference'
+      );
+    },
     addSource = (value: SourceLine) => {
       if (!sourceField) return;
       onChange({
@@ -199,6 +207,11 @@ export function LineEditor({
             condition: '',
             rejectedQuantity: '0',
             replenishmentRequested: false,
+            ...(value.conversionMode === 'reference' &&
+            (draft.kind === 'purchaseReceipt' ||
+              draft.kind === 'salesShipment')
+              ? { baseQuantity: '' }
+              : {}),
           },
         ],
       });
@@ -305,6 +318,20 @@ export function LineEditor({
               const prefix = `line-${line.id}-`,
                 stored = initial?.lines.find((row) => row.id === line.id),
                 material = snapshot(line),
+                reference = referenceFor(line),
+                baseName =
+                  sourceFor(line)?.materialSnapshot.baseUnitName ??
+                  stored?.materialSnapshot.baseUnitName ??
+                  t(ui('baseUnit')),
+                countedReceipt =
+                  reference &&
+                  (draft.kind === 'purchaseReceipt' ||
+                    draft.kind === 'salesShipment'),
+                baseReturn =
+                  reference &&
+                  ['purchaseReturn', 'salesReturn', 'issueReturn'].includes(
+                    draft.kind,
+                  ),
                 label =
                   material?.name ??
                   t(ui('lineNumber'), {
@@ -503,11 +530,14 @@ export function LineEditor({
                     <>
                       <p className='text-sm text-muted-foreground'>
                         {material?.code ?? '—'} · {material?.unitName ?? '—'}
+                        {reference ? ` / ${baseName}` : ''}
                       </p>
                       <Field data-invalid={!!errors[`${prefix}quantity`]}>
                         <FieldLabel htmlFor={`${prefix}quantity`}>
                           {t(ui('quantity'))} ·{' '}
-                          {material?.unitName ?? t(ui('unit'))} *
+                          {baseReturn
+                            ? baseName
+                            : (material?.unitName ?? t(ui('unit')))} *
                         </FieldLabel>
                         <Input
                           id={`${prefix}quantity`}
@@ -519,12 +549,54 @@ export function LineEditor({
                             updateField(line, 'quantity', event.target.value)
                           }
                         />
-                        {errors[`${prefix}quantity`] && (
+                        {errors[`${prefix}quantity`] ? (
                           <FieldError>
                             {t(ui(errors[`${prefix}quantity`]))}
                           </FieldError>
+                        ) : (
+                          baseReturn && (
+                            <p className='text-xs text-muted-foreground'>
+                              {t(ui('returnReferenceHint'), { unit: baseName })}
+                            </p>
+                          )
                         )}
                       </Field>
+                      {countedReceipt && (
+                        <Field
+                          data-invalid={!!errors[`${prefix}baseQuantity`]}
+                        >
+                          <FieldLabel htmlFor={`${prefix}baseQuantity`}>
+                            {t(ui('baseQuantity'))} · {baseName} *
+                          </FieldLabel>
+                          <Input
+                            id={`${prefix}baseQuantity`}
+                            inputMode='decimal'
+                            value={line.baseQuantity ?? ''}
+                            disabled={busy}
+                            aria-invalid={!!errors[`${prefix}baseQuantity`]}
+                            onChange={(event) =>
+                              updateField(
+                                line,
+                                'baseQuantity',
+                                event.target.value,
+                              )
+                            }
+                          />
+                          {errors[`${prefix}baseQuantity`] ? (
+                            <FieldError>
+                              {t(ui(errors[`${prefix}baseQuantity`]))}
+                            </FieldError>
+                          ) : (
+                            <p className='text-xs text-muted-foreground'>
+                              {t(ui('receiptReferenceHint'), {
+                                unit: baseName,
+                                measured: material?.unitName ?? '',
+                                variance: sourceFor(line)?.variancePercent ?? '3',
+                              })}
+                            </p>
+                          )}
+                        </Field>
+                      )}
                     </>
                   )}
                   {config.kind === 'purchaseOrders' &&
@@ -672,6 +744,7 @@ export function LineEditor({
                       )}{' '}
                     {draft.kind === 'purchaseReceipt' &&
                       !count &&
+                      !countedReceipt &&
                       !isOrder(config) && (
                         <Field>
                           <FieldLabel htmlFor={`${prefix}rejectedQuantity`}>

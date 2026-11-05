@@ -11,7 +11,9 @@ import { materialIdFilter } from './material-filters.js';
 import {
   exactBaseQuantity,
   materialSelectionInput,
+  referenceBaseQuantity,
   supplyChainFail as fail,
+  theoreticalBaseQuantity,
   type MaterialSelectionInput,
   type SupplyChainModule,
 } from './supply-chain-model.js';
@@ -224,7 +226,18 @@ export class SupplyChainMaterialService {
       filter: { id: 'materials' },
       values: { nonce: randomUUID() },
     });
-    return this.previewSelectionInTransaction(c, module, input, policies);
+    const selection = await this.previewSelectionInTransaction(
+      c,
+      module,
+      input,
+      policies,
+    );
+    if (
+      selection.identificationStatus === 'identified' &&
+      selection.baseQuantity === null
+    )
+      return fail('SUPPLY_REFERENCE_QUANTITY_REQUIRED', 'baseQuantity');
+    return selection;
   }
 
   /** Read-only preview for action availability; never mutates coordination locks. */
@@ -279,13 +292,46 @@ export class SupplyChainMaterialService {
       return fail('SUPPLY_INVALID_UNIT', 'unitRuleId');
     const numerator = rule ? text(rule.numerator) : '1';
     const denominator = rule ? text(rule.denominator) : '1';
-    const baseQuantity = exactBaseQuantity(
-      input.quantity,
-      numerator,
-      denominator,
-      Number(unit.precision),
-      Number(base.precision),
-    );
+    const conversionMode =
+        rule && text(rule.conversionMode) === 'reference' ? 'reference' : 'exact',
+      variancePercent =
+        conversionMode === 'reference'
+          ? text(rule?.variancePercent) || '3'
+          : null;
+    let baseQuantity: string | null = null,
+      suggestedBaseQuantity: string | null = null;
+    if (conversionMode === 'reference') {
+      suggestedBaseQuantity = theoreticalBaseQuantity(
+        input.quantity,
+        numerator,
+        denominator,
+        Number(unit.precision),
+        Number(base.precision),
+      );
+      if (input.baseQuantity)
+        baseQuantity = referenceBaseQuantity(
+          input.baseQuantity,
+          input.quantity,
+          numerator,
+          denominator,
+          Number(unit.precision),
+          Number(base.precision),
+          variancePercent,
+        );
+    } else {
+      baseQuantity = exactBaseQuantity(
+        input.quantity,
+        numerator,
+        denominator,
+        Number(unit.precision),
+        Number(base.precision),
+      );
+      if (
+        input.baseQuantity &&
+        normalizeDecimal(input.baseQuantity) !== baseQuantity
+      )
+        return fail('SUPPLY_BASE_QUANTITY_INVALID', 'baseQuantity');
+    }
     return {
       identificationStatus: 'identified' as const,
       subjectId: input.subjectId,
@@ -299,8 +345,11 @@ export class SupplyChainMaterialService {
       unitRuleRevision: rule?.revision ?? null,
       numeratorSnapshot: numerator,
       denominatorSnapshot: denominator,
+      conversionMode,
+      variancePercent,
       baseUnitId: sku.baseUnitId,
       baseQuantity,
+      suggestedBaseQuantity,
       materialSnapshot: {
         code: sku.code,
         name: sku.name,

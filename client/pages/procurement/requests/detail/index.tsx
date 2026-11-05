@@ -287,6 +287,18 @@ export function RequestInformation({
         ['requester', refs.requester?.name],
         ['unit', refs.unit?.name],
         [
+          'businessDate',
+          head.businessDate
+            ? new Date(`${head.businessDate}T12:00:00`).toLocaleDateString(
+                i18n.language,
+              )
+            : '',
+        ],
+        [
+          'sourceChannel',
+          t(ui(`sourceChannel_${head.sourceChannel ?? 'manual'}`)),
+        ],
+        [
           'neededOn',
           head.neededOn
             ? new Date(`${head.neededOn}T12:00:00`).toLocaleDateString(

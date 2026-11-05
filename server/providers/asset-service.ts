@@ -8,10 +8,12 @@ import { createServiceToken } from '@nocobase/service-provider';
 import { currentCompanyForUser } from './company-identity.js';
 import type {
   AssetAssign,
+  AssetCompanyQuery,
   AssetCreate,
   AssetQuery,
   AssetReturn,
-  AssetScrap,
+  AssetScrapDecision,
+  AssetScrapRequest,
   AssetStatus,
   AssetUpdate,
 } from './asset-model.js';
@@ -20,7 +22,11 @@ export const assetServiceToken =
   createServiceToken<AssetService>('group-erp/assets');
 
 export type AssetPrincipal = { type: string; id: string };
-export type AssetScope = { readAll: boolean; manage: boolean };
+export type AssetScope = {
+  readAll: boolean;
+  manage: boolean;
+  approve: boolean;
+};
 export type AssetErrorCode =
   'ASSET_FORBIDDEN' | 'ASSET_NOT_FOUND' | 'ASSET_CONFLICT' | 'ASSET_INVALID';
 
@@ -88,6 +94,11 @@ export class AssetService {
       name: text(row.name),
       category: text(row.category) || null,
       status: text(row.status) as AssetStatus,
+      scrapPending: row.scrapPending === true,
+      scrapReason: text(row.scrapReason) || null,
+      scrapDecision: text(row.scrapDecision) || null,
+      scrapRequestedAt: row.scrapRequestedAt ?? null,
+      scrapDecidedAt: row.scrapDecidedAt ?? null,
       custodianEmployeeId: text(row.custodianEmployeeId) || null,
       custodian: custodian
         ? {
@@ -126,6 +137,38 @@ export class AssetService {
     });
   }
 
+  async companies(
+    principal: AssetPrincipal,
+    query: AssetCompanyQuery,
+    scope: AssetScope,
+  ) {
+    const subjectId = await this.resolveSubject(principal, undefined, scope);
+    const rows = await this.database.repository('orgSubjects').findMany({
+      filter: { status: 'active', ...(subjectId ? { id: subjectId } : {}) },
+      limit: 1000,
+      sort: (sort) => [sort.field('sortOrder').asc(), sort.field('name').asc()],
+    });
+    const q = query.q?.toLowerCase() ?? '';
+    const matched = rows
+      .map((row) => ({
+        id: text(row.id),
+        code: text(row.code),
+        name: text(row.name),
+      }))
+      .filter(
+        (row) => !q || `${row.code} ${row.name}`.toLowerCase().includes(q),
+      );
+    const start = (query.page - 1) * query.pageSize;
+    return {
+      data: matched.slice(start, start + query.pageSize),
+      meta: {
+        total: matched.length,
+        page: query.page,
+        pageSize: query.pageSize,
+      },
+    };
+  }
+
   async options(principal: AssetPrincipal, scope: AssetScope) {
     const subjectId = await this.resolveSubject(principal, undefined, scope);
     const subjects = await this.database.repository('orgSubjects').findMany({
@@ -159,7 +202,11 @@ export class AssetService {
         '检测仪器',
         '其他',
       ],
-      permissions: { manage: scope.manage, readAll: scope.readAll },
+      permissions: {
+        manage: scope.manage,
+        readAll: scope.readAll,
+        approve: scope.approve,
+      },
     };
   }
 
@@ -428,10 +475,10 @@ export class AssetService {
     return this.detail(principal, id, scope);
   }
 
-  async scrap(
+  async requestScrap(
     principal: AssetPrincipal,
     id: string,
-    input: AssetScrap,
+    input: AssetScrapRequest,
     scope: AssetScope,
   ) {
     if (!scope.manage) throw new AssetError('ASSET_FORBIDDEN');
@@ -441,13 +488,18 @@ export class AssetService {
         throw new AssetError('ASSET_NOT_FOUND');
       if (text(row.status) === 'scrapped')
         throw new AssetError('ASSET_INVALID', 'ASSET_SCRAPPED');
-      const fromEmployeeId = text(row.custodianEmployeeId) || null;
-      const fromLocation = text(row.location) || null;
+      if (row.scrapPending === true)
+        throw new AssetError('ASSET_CONFLICT', 'ASSET_SCRAP_PENDING');
       const updated = await c.repository('assets').updateOne({
         filter: { id, version: input.version },
         values: {
-          custodianEmployeeId: null,
-          status: 'scrapped',
+          scrapPending: true,
+          scrapReason: input.reason,
+          scrapDecision: null,
+          scrapRequestedBy: principal.id,
+          scrapRequestedAt: new Date(),
+          scrapDecidedBy: null,
+          scrapDecidedAt: null,
           version: input.version + 1,
           updatedBy: principal.id,
           updatedAt: new Date(),
@@ -457,11 +509,63 @@ export class AssetService {
       await this.event(c, {
         assetId: id,
         subjectId: text(row.subjectId),
-        action: 'scrap',
+        action: 'scrap_requested',
+        actorId: principal.id,
+        note: input.reason,
+      });
+    });
+    return this.detail(principal, id, scope);
+  }
+
+  async decideScrap(
+    principal: AssetPrincipal,
+    id: string,
+    input: AssetScrapDecision,
+    scope: AssetScope,
+  ) {
+    if (!scope.approve) throw new AssetError('ASSET_FORBIDDEN');
+    await this.database.transaction(async (c) => {
+      const row = await c.repository('assets').findOne({ filter: { id } });
+      if (!row || !(await this.allowedSubject(principal, row, scope)))
+        throw new AssetError('ASSET_NOT_FOUND');
+      if (row.scrapPending !== true)
+        throw new AssetError('ASSET_INVALID', 'ASSET_SCRAP_NOT_PENDING');
+      const fromEmployeeId = text(row.custodianEmployeeId) || null;
+      const fromLocation = text(row.location) || null;
+      const values = input.approve
+        ? {
+            custodianEmployeeId: null,
+            status: 'scrapped',
+            scrapPending: false,
+            scrapDecision: 'approved',
+            scrapDecidedBy: principal.id,
+            scrapDecidedAt: new Date(),
+            version: input.version + 1,
+            updatedBy: principal.id,
+            updatedAt: new Date(),
+          }
+        : {
+            scrapPending: false,
+            scrapDecision: 'rejected',
+            scrapDecidedBy: principal.id,
+            scrapDecidedAt: new Date(),
+            version: input.version + 1,
+            updatedBy: principal.id,
+            updatedAt: new Date(),
+          };
+      const updated = await c.repository('assets').updateOne({
+        filter: { id, version: input.version },
+        values,
+      });
+      if (!updated) throw new AssetError('ASSET_CONFLICT', 'VERSION_CONFLICT');
+      await this.event(c, {
+        assetId: id,
+        subjectId: text(row.subjectId),
+        action: input.approve ? 'scrap' : 'scrap_rejected',
         fromEmployeeId,
         fromLocation,
         actorId: principal.id,
-        note: input.note,
+        note: input.note ?? (text(row.scrapReason) || null),
       });
     });
     return this.detail(principal, id, scope);

@@ -191,6 +191,14 @@ export const execution = {
   precision: 'Use the decimal precision allowed by the selected unit.',
   overflow: 'This quantity exceeds the supported range.',
   quantityInvalid: 'Enter a valid exact quantity.',
+  referenceQuantityRequired:
+    'This unit uses a reference conversion. Enter the counted quantity in the base unit.',
+  varianceExceeded:
+    'The counted quantity is outside the allowed tolerance. Recheck the scale and the count.',
+  baseQuantityInvalid:
+    'The base quantity does not match the measured quantity. Check both values.',
+  referenceRejection:
+    'A reference receipt cannot also carry a rejected quantity. Use inspection or a quality adjustment.',
   noReviewer:
     'Independent reviewers are not configured or available. Ask an administrator to check review settings.',
   reviewersAvailable: 'The original reviewers are still available.',
@@ -213,6 +221,14 @@ export const execution = {
   changeReason: 'Reason for this change',
   quantity: 'Quantity this time',
   baseQuantity: 'Base quantity',
+  reference: 'Reference rate',
+  referenceHint:
+    'Stock is counted in {{unit}}; {{measured}} is a pricing and theoretical reference only.',
+  receiptReferenceHint:
+    'Stock increases in {{unit}}; {{measured}} is for settlement, tolerance ±{{variance}}%.',
+  returnReferenceHint:
+    'The original line used a reference rate; return the quantity in {{unit}}.',
+  theoreticalBaseQuantity: 'Theoretical',
   unit: 'Unit',
   material: 'Material',
   specification: 'Specification',
@@ -221,8 +237,15 @@ export const execution = {
   rejectedQuantity: 'Rejected quantity',
   remainingQuantity: 'Source remaining · base unit',
   unitPrice: 'Unit price',
+  amount: 'Amount',
+  totalAmount: 'Total',
   currency: 'Currency',
   deliveryTerms: 'Delivery terms',
+  sourceChannel: 'Source',
+  sourceChannel_manual: 'Manual entry',
+  sourceChannel_import: 'Import',
+  sourceChannel_api: 'API',
+  sourceChannel_device: 'Device',
   allocations: 'Approved demand allocations',
   addLine: 'Add material',
   removeLine: 'Remove line',

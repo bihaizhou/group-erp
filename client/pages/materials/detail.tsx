@@ -265,6 +265,9 @@ export default function MaterialDetail({
             {((extra.packages ?? []) as Row[]).map((v) => (
               <p key={v.id}>
                 {v.name} · {text(v.denominator)} : {text(v.numerator)}
+                {v.conversionMode === 'reference'
+                  ? ` · ${t('materials.referenceConversion')} ±${text(v.variancePercent)}%`
+                  : ''}
               </p>
             ))}
             {((extra.aliases ?? []) as Row[]).map((v) => (

@@ -18,10 +18,14 @@ export const assets = {
   assign: 'Assign custodian',
   transfer: 'Transfer custodian',
   return: 'Return to stock',
-  scrap: 'Scrap',
+  scrap: 'Request scrap',
+  approveScrap: 'Approve scrap',
+  rejectScrap: 'Reject',
+  pendingScrap: 'Scrap pending',
+  decisionNote: 'Optional decision note',
   noCustodian: 'No custodian yet',
   chooseEmployee: 'Choose custodian',
-  scrapNote: 'Please provide the disposal reason',
+  scrapNote: 'Please provide the disposal reason; it needs approval',
   actionTitle: 'Asset action',
   actionHint:
     'The action records the operator, time and the previous and next custodians.',
@@ -46,6 +50,8 @@ export const assets = {
   action: {
     assign: 'Assign asset {{code}}',
     return: 'Return asset {{code}}',
-    scrap: 'Scrap asset {{code}}',
+    scrap: 'Request scrap for {{code}}',
+    approve: 'Approve scrap for {{code}}',
+    reject: 'Reject scrap for {{code}}',
   },
 };

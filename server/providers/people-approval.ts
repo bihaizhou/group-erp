@@ -157,6 +157,116 @@ export function parseApprovalChains(value: unknown): JsonValue {
   return parsed.data;
 }
 
+export type ChecklistTemplate = {
+  key: string;
+  title: string;
+  owner: string;
+  /** Expand into one row per asset the employee still holds. */
+  assets?: boolean;
+};
+export type ChecklistTemplates = Record<
+  ApprovalChangeType,
+  ChecklistTemplate[]
+>;
+const checklistItemSchema = z.strictObject({
+  key: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9][a-z0-9-]*$/),
+  title: z.string().trim().min(1).max(100),
+  owner: z.string().trim().max(30).default(''),
+  assets: z.boolean().default(false),
+});
+const checklistTemplatesSchema = z
+  .strictObject({
+    entry: z.array(checklistItemSchema).max(20),
+    transfer: z.array(checklistItemSchema).max(20),
+    partTime: z.array(checklistItemSchema).max(20),
+    endPartTime: z.array(checklistItemSchema).max(20),
+    exit: z.array(checklistItemSchema).max(20),
+    regularize: z.array(checklistItemSchema).max(20),
+  })
+  .superRefine((templates, ctx) => {
+    for (const type of approvalChangeTypes) {
+      const keys = templates[type].map((item) => item.key);
+      if (new Set(keys).size !== keys.length)
+        ctx.addIssue({
+          code: 'custom',
+          path: [type],
+          message: '同一类型的清单事项标识不能重复。',
+        });
+    }
+  });
+
+/** The default onboarding/offboarding work each transaction type starts with. */
+export function defaultChecklists(): ChecklistTemplates {
+  return {
+    entry: [
+      { key: 'entry-pickup', title: '领取办公物品与设备', owner: '行政' },
+      { key: 'entry-accounts', title: '开通账号与系统权限', owner: 'IT' },
+      { key: 'entry-onboarding', title: '工作对接与入职引导', owner: '用人部门' },
+      { key: 'entry-contract', title: '签署劳动合同', owner: '人事' },
+    ],
+    transfer: [
+      { key: 'transfer-handover', title: '原岗位工作交接', owner: '原部门' },
+      { key: 'transfer-role', title: '新岗位职责与目标确认', owner: '新部门' },
+      { key: 'transfer-access', title: '系统权限调整', owner: 'IT' },
+    ],
+    partTime: [
+      { key: 'parttime-agreement', title: '签署兼职协议', owner: '人事' },
+      { key: 'parttime-plan', title: '兼职工作安排确认', owner: '用人部门' },
+    ],
+    endPartTime: [
+      { key: 'endparttime-handover', title: '兼职工作交接', owner: '用人部门' },
+      { key: 'endparttime-access', title: '收回兼职权限', owner: 'IT' },
+    ],
+    exit: [
+      { key: 'exit-handover', title: '工作交接', owner: '用人部门' },
+      {
+        key: 'exit-assets',
+        title: '归还公司资产',
+        owner: '行政',
+        assets: true,
+      },
+      { key: 'exit-access', title: '账号与系统权限回收', owner: 'IT' },
+      { key: 'exit-settlement', title: '最后一笔工资与补偿结算', owner: '财务' },
+      { key: 'exit-social', title: '社保与公积金减员', owner: '人事' },
+      { key: 'exit-certificate', title: '开具离职证明', owner: '人事' },
+    ],
+    regularize: [
+      { key: 'regularize-review', title: '转正评估与面谈', owner: '用人部门' },
+      { key: 'regularize-paperwork', title: '转正手续与合同变更', owner: '人事' },
+    ],
+  };
+}
+export const checklistsDefaults = defaultChecklists();
+
+/**
+ * Validates and normalizes the checklist templates. A type that is missing
+ * keeps its default, while an explicitly empty list disables that checklist.
+ */
+export function parseChecklists(value: unknown): JsonValue {
+  const input =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const merged = Object.fromEntries(
+    approvalChangeTypes.map((type) => [
+      type,
+      input[type] === undefined ? checklistsDefaults[type] : input[type],
+    ]),
+  );
+  const parsed = checklistTemplatesSchema.safeParse(merged);
+  if (!parsed.success)
+    throw new ParameterConfigurationError(
+      'CONFIGURATION_INVALID',
+      parsed.error.issues.map((issue) => issue.message).join('；'),
+    );
+  return parsed.data;
+}
+
 export const PEOPLE_APPROVAL_SCOPE = 'people:group';
 export const PEOPLE_APPROVAL_TABLE = 'peopleApprovalTasks';
 export const peopleApprovalGroup: ParameterGroup = {
@@ -169,10 +279,16 @@ export const peopleApprovalGroup: ParameterGroup = {
       title: '审批链',
       parse: parseApprovalChains,
     },
+    checklists: {
+      type: 'object',
+      title: '办理清单模板',
+      parse: parseChecklists,
+    },
   },
 };
 export const peopleApprovalDefaults = {
   approvalChains: approvalChainsDefaults,
+  checklists: checklistsDefaults,
 };
 
 export type ApprovalCandidate = { id: string; name: string };
@@ -625,6 +741,21 @@ export class PeopleApproval {
     }
     return { data: items, meta: { total: items.length } };
   }
+  /** The configured checklist for one change type, without resolving people. */
+  async checklistTemplates(c: DatabaseConnection, type: string) {
+    const current = await this.parameters.read(
+      PEOPLE_APPROVAL_SCOPE,
+      peopleApprovalGroup.key,
+      c,
+    );
+    const values = current
+      ? normalizeParameterValues(peopleApprovalGroup, current.values)
+      : peopleApprovalDefaults;
+    const parsed = parseChecklists(values.checklists) as unknown as
+      | ChecklistTemplates
+      | JsonObject;
+    return (parsed as ChecklistTemplates)[type as ApprovalChangeType] ?? [];
+  }
   async settings(c: DatabaseConnection) {
     const current = await this.parameters.read(
       PEOPLE_APPROVAL_SCOPE,
@@ -642,19 +773,31 @@ export class PeopleApproval {
     ]);
     const unitsById = new Map(units.map((unit) => [text(unit.id), unit])),
       subjectsById = new Map(subjects.map((row) => [text(row.id), row]));
+    const values = current
+      ? normalizeParameterValues(peopleApprovalGroup, current.values)
+      : peopleApprovalDefaults;
     return {
       scope: PEOPLE_APPROVAL_SCOPE,
       revision: current?.revision ?? 0,
       schemaVersion: peopleApprovalGroup.schemaVersion,
-      values: current
-        ? normalizeParameterValues(peopleApprovalGroup, current.values)
-        : peopleApprovalDefaults,
-      defaults: peopleApprovalDefaults,
+      values: {
+        approvalChains: parseApprovalChains(values.approvalChains),
+        checklists: parseChecklists(values.checklists),
+      },
+      defaults: {
+        approvalChains: approvalChainsDefaults,
+        checklists: checklistsDefaults,
+      },
       fields: [
         {
           key: 'approvalChains',
           type: 'object',
           title: peopleApprovalGroup.fields.approvalChains.title,
+        },
+        {
+          key: 'checklists',
+          type: 'object',
+          title: peopleApprovalGroup.fields.checklists.title,
         },
       ],
       options: {
@@ -695,7 +838,8 @@ export class PeopleApproval {
     const values = normalizeParameterValues(peopleApprovalGroup, input.values),
       chains = parseApprovalChains(
         values.approvalChains,
-      ) as ParsedApprovalChains;
+      ) as ParsedApprovalChains,
+      checklists = parseChecklists(values.checklists);
     for (const type of approvalChangeTypes)
       for (const stage of chains[type].stages) {
         for (const selection of stage.selections) {
@@ -737,7 +881,7 @@ export class PeopleApproval {
       {
         scope: PEOPLE_APPROVAL_SCOPE,
         group: peopleApprovalGroup,
-        values,
+        values: { approvalChains: chains, checklists },
         expectedRevision: input.version,
         requestId: input.requestId,
         actorId: actor.id,

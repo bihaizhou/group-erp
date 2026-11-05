@@ -28,6 +28,13 @@ const decimal = z
     message: 'INVALID_DECIMAL',
   });
 
+export const assetCompanyQuery = z.object({
+  q: z.string().trim().max(100).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+export type AssetCompanyQuery = z.infer<typeof assetCompanyQuery>;
+
 export const assetQuery = z
   .object({
     subjectId: id.optional(),
@@ -97,13 +104,22 @@ export const assetReturn = z
   .strict();
 export type AssetReturn = z.infer<typeof assetReturn>;
 
-export const assetScrap = z
+export const assetScrapRequest = z
   .object({
     version,
-    note: z.string().trim().min(1).max(1000),
+    reason: z.string().trim().min(1).max(1000),
   })
   .strict();
-export type AssetScrap = z.infer<typeof assetScrap>;
+export type AssetScrapRequest = z.infer<typeof assetScrapRequest>;
+
+export const assetScrapDecision = z
+  .object({
+    version,
+    approve: z.boolean(),
+    note: optionalText(1000),
+  })
+  .strict();
+export type AssetScrapDecision = z.infer<typeof assetScrapDecision>;
 
 export const assetIdParams = z.object({ id }).strict();
 export const assetEmployeeParams = z.object({ employeeId: id }).strict();

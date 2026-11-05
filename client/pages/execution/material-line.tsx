@@ -27,6 +27,8 @@ interface Material {
     unitName: string;
     numerator: string;
     denominator: string;
+    conversionMode?: 'exact' | 'reference';
+    variancePercent?: string | null;
   }[];
   relationsTruncated?: boolean;
 }
@@ -60,6 +62,8 @@ export function MaterialLine({
     ),
     material = detail.data?.data,
     ruleId = selection?.unitRuleId ?? 'base',
+    rule = material?.packages?.find((item) => item.id === ruleId),
+    reference = rule?.conversionMode === 'reference',
     previewSelection: Selection = {
       kind: 'known',
       subjectId,
@@ -67,6 +71,9 @@ export function MaterialLine({
       unitId: selection?.unitId ?? material?.baseUnitId ?? '',
       quantity: selection?.quantity ?? '',
       ...(selection?.unitRuleId ? { unitRuleId: selection.unitRuleId } : {}),
+      ...(reference && selection?.baseQuantity
+        ? { baseQuantity: selection.baseQuantity }
+        : {}),
     },
     preview = useQuery({
       queryKey: ['execution-preview', apiPath, previewSelection],
@@ -80,7 +87,11 @@ export function MaterialLine({
       refetchOnWindowFocus: false,
       queryFn: ({ signal }) =>
         api.request<{
-          data: { baseQuantity: string; materialSnapshot: Snapshot };
+          data: {
+            baseQuantity: string | null;
+            suggestedBaseQuantity?: string | null;
+            materialSnapshot: Snapshot;
+          };
         }>({
           path: `${apiPath}/materialSelections`,
           method: 'POST',
@@ -169,20 +180,29 @@ export function MaterialLine({
               { value: 'base', label: material.baseUnitName },
               ...(material.packages ?? []).map((item) => ({
                 value: item.id,
-                label: `${item.name} · ${item.unitName} · ${item.numerator}/${item.denominator} ${material.baseUnitName}`,
+                label: `${item.name} · ${item.unitName} · ${item.numerator}/${item.denominator} ${material.baseUnitName}${
+                  item.conversionMode === 'reference'
+                    ? ` · ${t(ui('reference'))}`
+                    : ''
+                }`,
               })),
             ]}
             onChange={(value) => {
-              const rule = material.packages?.find((item) => item.id === value);
+              const next = material.packages?.find(
+                (item) => item.id === value,
+              );
               onChange({
                 ...line,
                 selection: {
                   kind: 'known',
                   subjectId,
                   skuId,
-                  unitId: rule?.unitId ?? material.baseUnitId,
+                  unitId: next?.unitId ?? material.baseUnitId,
                   quantity: selection?.quantity ?? '',
-                  ...(rule ? { unitRuleId: rule.id } : {}),
+                  ...(next ? { unitRuleId: next.id } : {}),
+                  ...(next?.conversionMode === 'reference'
+                    ? { baseQuantity: selection?.baseQuantity ?? '' }
+                    : {}),
                 },
               });
             }}
@@ -215,6 +235,40 @@ export function MaterialLine({
           )}
         </Field>
       )}
+      {!count && reference && material && (
+        <Field data-invalid={!!errors[`${prefix}baseQuantity`]}>
+          <FieldLabel htmlFor={`${prefix}baseQuantity`}>
+            {t(ui('baseQuantity'))} · {material.baseUnitName} *
+          </FieldLabel>
+          <Input
+            id={`${prefix}baseQuantity`}
+            inputMode='decimal'
+            value={selection?.baseQuantity ?? ''}
+            disabled={disabled}
+            aria-invalid={!!errors[`${prefix}baseQuantity`]}
+            onChange={(event) =>
+              onChange({
+                ...line,
+                selection: {
+                  ...previewSelection,
+                  quantity: selection?.quantity ?? '',
+                  baseQuantity: event.target.value,
+                },
+              })
+            }
+          />
+          {errors[`${prefix}baseQuantity`] ? (
+            <FieldError>{t(ui(errors[`${prefix}baseQuantity`]))}</FieldError>
+          ) : (
+            <p className='text-xs text-muted-foreground'>
+              {t(ui('referenceHint'), {
+                unit: material.baseUnitName,
+                measured: rule?.unitName ?? '',
+              })}
+            </p>
+          )}
+        </Field>
+      )}
       {!count && (preview.data || preview.error) && (
         <div className='md:col-span-2'>
           {preview.error ? (
@@ -222,12 +276,29 @@ export function MaterialLine({
               error={preview.error}
               retry={() => void preview.refetch()}
             />
+          ) : reference ? (
+            <p className='text-sm text-muted-foreground' aria-live='polite'>
+              {t(ui('theoreticalBaseQuantity'))}:{' '}
+              {preview.data?.data.suggestedBaseQuantity
+                ? formatStockQuantity(
+                    preview.data.data.suggestedBaseQuantity,
+                    i18n.language,
+                  )
+                : '—'}{' '}
+              {preview.data?.data.materialSnapshot.baseUnitName ?? ''}
+              {preview.data?.data.baseQuantity
+                ? ` · ${t(ui('baseQuantity'))}: ${formatStockQuantity(
+                    preview.data.data.baseQuantity,
+                    i18n.language,
+                  )}`
+                : ''}
+            </p>
           ) : (
             <p className='text-sm text-muted-foreground' aria-live='polite'>
               {t(ui('baseQuantity'))}:{' '}
               {preview.data
                 ? formatStockQuantity(
-                    preview.data.data.baseQuantity,
+                    preview.data.data.baseQuantity ?? '0',
                     i18n.language,
                   )
                 : '—'}{' '}

@@ -25,11 +25,14 @@ import { z } from 'zod';
 import {
   assetAssign,
   assetCreate,
+  assetCompanyQuery,
   assetIdParams,
   assetQuery,
   assetReturn,
-  assetScrap,
+  assetScrapDecision,
+  assetScrapRequest,
   assetUpdate,
+  type AssetAssign,
 } from '../providers/asset-model.js';
 import {
   AssetError,
@@ -92,9 +95,10 @@ export const assetRoutes: AppApiRouteContribution<Application> =
       return {
         readAll: await result('readAll'),
         manage: await result('manage'),
+        approve: await result('approve'),
       };
     };
-    const allowed = (action: 'read' | 'manage' | 'readAll') =>
+    const allowed = (action: 'read' | 'manage' | 'readAll' | 'approve') =>
       createMiddleware<Env>(async (c, next) => {
         const result = await c.get('authz').authorize({
           resource: { type: 'settings', id: 'assets' },
@@ -132,6 +136,25 @@ export const assetRoutes: AppApiRouteContribution<Application> =
       ),
       async (c) =>
         c.json({ data: await service.options(actor(c), await scoped(c)) }),
+    );
+
+    router.get(
+      '/companies',
+      allowed('read'),
+      describe(
+        'assetCompanies',
+        'List companies in the assets scope',
+        listResponse(object, pageMeta),
+      ),
+      apiValidator('query', assetCompanyQuery),
+      async (c) =>
+        c.json(
+          await service.companies(
+            actor(c),
+            c.req.valid('query'),
+            await scoped(c),
+          ),
+        ),
     );
 
     router.get(
@@ -226,7 +249,6 @@ export const assetRoutes: AppApiRouteContribution<Application> =
     for (const [action, schema] of [
       ['assign', assetAssign],
       ['return', assetReturn],
-      ['scrap', assetScrap],
     ] as const) {
       router.post(
         `/:id/${action}`,
@@ -244,14 +266,54 @@ export const assetRoutes: AppApiRouteContribution<Application> =
           const scope = await scoped(c);
           const data =
             action === 'assign'
-              ? await service.assign(actor(c), id, input as never, scope)
-              : action === 'return'
-                ? await service.returnAsset(actor(c), id, input as never, scope)
-                : await service.scrap(actor(c), id, input as never, scope);
+              ? await service.assign(actor(c), id, input as AssetAssign, scope)
+              : await service.returnAsset(actor(c), id, input, scope);
           return c.json({ data });
         },
       );
     }
+
+    router.post(
+      '/:id/scrap/request',
+      allowed('manage'),
+      describe(
+        'assetScrapRequest',
+        'Request to scrap a fixed asset; requires approval before it applies',
+        dataResponse(object),
+      ),
+      apiValidator('param', assetIdParams),
+      apiValidator('json', assetScrapRequest),
+      async (c) => {
+        const data = await service.requestScrap(
+          actor(c),
+          c.req.valid('param').id,
+          c.req.valid('json'),
+          await scoped(c),
+        );
+        return c.json({ data });
+      },
+    );
+
+    router.post(
+      '/:id/scrap/decision',
+      allowed('approve'),
+      describe(
+        'assetScrapDecision',
+        'Approve or reject a scrap request',
+        dataResponse(object),
+      ),
+      apiValidator('param', assetIdParams),
+      apiValidator('json', assetScrapDecision),
+      async (c) => {
+        const data = await service.decideScrap(
+          actor(c),
+          c.req.valid('param').id,
+          c.req.valid('json'),
+          await scoped(c),
+        );
+        return c.json({ data });
+      },
+    );
 
     const root = new Hono();
     root.route('/assets', router);

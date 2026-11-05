@@ -29,6 +29,7 @@ export const operationsRoutes: AppClientRouteDefinition[] = [
       },
       {
         name: 'operations-issues',
+        companyScope: 'operations/companies',
         path: '/functions/operations/issues',
         auth: 'required',
         authz: {
@@ -40,6 +41,7 @@ export const operationsRoutes: AppClientRouteDefinition[] = [
       },
       {
         name: 'operations-targets',
+        companyScope: 'operations/companies',
         path: '/functions/operations/targets',
         auth: 'required',
         authz: {

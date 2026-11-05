@@ -1160,6 +1160,14 @@ export class PurchaseRequestService {
             );
           throw error;
         });
+      if (
+        selection.identificationStatus === 'identified' &&
+        selection.conversionMode === 'reference'
+      )
+        throw new SupplyChainError(
+          'SUPPLY_REFERENCE_NOT_REQUESTABLE',
+          `lines.${index}.selection.unitRuleId`,
+        );
       const changed =
         !previous || canonical(previous.selectionInput) !== canonical(line);
       const oldInput = previous?.selectionInput as
@@ -1240,6 +1248,14 @@ export class PurchaseRequestService {
         notes: line.notes,
         selectionInput: json(line),
       };
+      // Reference metadata is derived for previews; request lines persist only
+      // the resolved selection and the counted base quantity.
+      for (const field of [
+        'conversionMode',
+        'variancePercent',
+        'suggestedBaseQuantity',
+      ])
+        Reflect.deleteProperty(values, field);
       if (previous)
         await this.repo(c, 'purchaseRequestLines', p).updateOne({
           filter: { id: text(line.id) },
@@ -1287,6 +1303,8 @@ export class PurchaseRequestService {
     const next: Row = {
       ...values,
       id,
+      businessDate: content.businessDate ?? businessDate(this.timeZone),
+      sourceChannel: content.sourceChannel,
       code: `PR-${now.toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().replaceAll('-', '').toUpperCase()}`,
       revision: 1,
       contentVersion: 1,
@@ -1431,6 +1449,8 @@ export class PurchaseRequestService {
             false,
             identityChanged,
           )),
+          businessDate: input.content.businessDate ?? text(before.businessDate),
+          sourceChannel: text(before.sourceChannel) || 'manual',
           contentVersion: Number(before.contentVersion) + 1,
           lineCount: input.content.lines.length,
           identifiedCount: input.content.lines.filter(
@@ -2049,6 +2069,10 @@ export class PurchaseRequestService {
       requestingUnitId: text(before.requestingUnitId) || null,
       usage: text(before.usage),
       neededOn: text(before.neededOn) || null,
+      businessDate: text(before.businessDate) || null,
+      sourceChannel:
+        (text(before.sourceChannel) as PurchaseContent['sourceChannel']) ||
+        'manual',
       suggestedSupplierId: text(before.suggestedSupplierId) || null,
       projectId: null,
       notes: text(before.notes),

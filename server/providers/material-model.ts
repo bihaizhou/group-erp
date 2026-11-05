@@ -97,6 +97,10 @@ export const materialSchemas = {
     unitId: ref,
     numerator: decimalText,
     denominator: decimalText,
+    // exact: the ratio is a posting fact (1 box = 12 each). reference: the
+    // ratio only estimates a counted stock unit from a measured purchase unit.
+    conversionMode: z.enum(['exact', 'reference']).default('exact'),
+    variancePercent: decimalText.default('3'),
   }),
   references: z.strictObject({
     ...base,
@@ -229,7 +233,14 @@ export const materialColumns: Record<MaterialKind, string[]> = {
     'searchText',
   ],
   units: ['unitType', 'precision'],
-  unitRules: ['skuId', 'unitId', 'numerator', 'denominator'],
+  unitRules: [
+    'skuId',
+    'unitId',
+    'numerator',
+    'denominator',
+    'conversionMode',
+    'variancePercent',
+  ],
   references: [
     'targetKind',
     'targetId',

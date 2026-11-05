@@ -76,6 +76,26 @@ export default function PeopleDetailPage({
           {t('people.edit')}
         </Button>
       ) : null}
+      {kind === 'employees' && row?.profileId ? (
+        <Button
+          variant='outline'
+          nativeButton={false}
+          render={<Link to={`/human-resources/profiles/${row.profileId}`} />}
+        >
+          {t('people.viewTalentCard')}
+        </Button>
+      ) : null}
+      {kind === 'profiles' && row?.personId ? (
+        <Button
+          variant='outline'
+          nativeButton={false}
+          render={
+            <Link to={`/functions/personnel/employees/${row.personId}`} />
+          }
+        >
+          {t('people.viewPersonnelRecord')}
+        </Button>
+      ) : null}
       {kind === 'employments' && row && canWrite && !record.isError ? (
         <ContractEndAction row={row} onSaved={() => void record.refetch()} />
       ) : null}

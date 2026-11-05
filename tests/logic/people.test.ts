@@ -420,6 +420,19 @@ test('closes the account and revokes direct roles when a departure takes effect'
     .repository('personnelEmployees')
     .findOne({ filter: { id: employee.id } });
   expect(stored?.status).toBe('inactive');
+  // The talent card follows the employee out of the company.
+  expect(
+    (
+      await database
+        .repository('hrProfiles')
+        .findOne({ filter: { personId: employee.id } })
+    )?.status,
+  ).toBe('inactive');
+  const talent = await (
+    await admin.fetch(`/people/talent/${employee.id}`)
+  ).json();
+  expect(talent.data.phase.phase).toBe('departed');
+  expect(talent.data.phase.since).toBe(businessDate());
   expect(stored?.accountId).toBeNull();
   expect(stored?.data).toMatchObject({ accountId: null });
   expect((await users.get(account.id))?.disabledAt).not.toBeNull();

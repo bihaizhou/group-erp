@@ -19,6 +19,7 @@ export const companyScope = {
   createCompany: '去建公司',
   page: '第 {{page}} 页，共 {{total}} 条',
   switchCompany: '切换公司',
+  fromIdentity: '由登录身份决定；要换公司，请用顶部的公司切换。',
   prev: '上一页',
   next: '下一页',
 };

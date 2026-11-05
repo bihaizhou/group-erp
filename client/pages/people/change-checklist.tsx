@@ -88,8 +88,9 @@ export function ChangeChecklist({
       setPending(null);
     }
   };
-  const label = (item: ChecklistItem) =>
-    t(`people.checklist.items.${item.key}`, { defaultValue: item.title });
+  // Titles and owners come from the configured template, so they are shown
+  // verbatim instead of being looked up by key.
+  const label = (item: ChecklistItem) => item.title;
   return (
     <Card>
       <CardHeader className='flex flex-row flex-wrap items-start justify-between gap-3'>
@@ -143,9 +144,7 @@ export function ChangeChecklist({
                   </label>
                   <div className='flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
                     <Badge variant='outline' className='font-normal'>
-                      {t(`people.checklist.owners.${item.owner}`, {
-                        defaultValue: item.owner,
-                      })}
+                      {item.owner || '—'}
                     </Badge>
                     {item.note ? (
                       <span className='min-w-0 break-words'>{item.note}</span>

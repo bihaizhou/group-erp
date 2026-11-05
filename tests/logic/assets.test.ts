@@ -118,10 +118,25 @@ test('registers fixed assets and tracks custodian assignment, return and disposa
     custodianEmployeeId: null,
   });
 
+  const pendingScrap = (
+    await (
+      await send(`/assets/${asset.id}/scrap/request`, {
+        version: returned.version,
+        reason: 'Board failure',
+      })
+    ).json()
+  ).data;
+  expect(pendingScrap).toMatchObject({
+    status: 'in_stock',
+    scrapPending: true,
+    scrapReason: 'Board failure',
+  });
+
   const scrapped = (
     await (
-      await send(`/assets/${asset.id}/scrap`, {
-        version: returned.version,
+      await send(`/assets/${asset.id}/scrap/decision`, {
+        version: pendingScrap.version,
+        approve: true,
         note: 'Board failure',
       })
     ).json()

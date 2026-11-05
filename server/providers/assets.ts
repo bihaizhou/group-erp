@@ -31,7 +31,12 @@ export default class AssetsProvider extends ServiceProvider<Application> {
     authz.settings.add({
       id: 'assets',
       title: { key: 'assets.settings', ns: 'group-erp' },
-      actions: [{ name: 'read' }, { name: 'manage' }, { name: 'readAll' }],
+      actions: [
+        { name: 'read' },
+        { name: 'manage' },
+        { name: 'readAll' },
+        { name: 'approve' },
+      ],
     });
     authz.ui.place(
       { type: 'settings', id: 'assets' },

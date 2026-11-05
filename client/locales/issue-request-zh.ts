@@ -248,6 +248,7 @@ export const requestUi = {
   actionUnavailable: '当前状态无法办理此操作，请核对最新资料。',
   required: '请填写{{field}}。',
   invalidQuantity: '请输入大于零的数量。',
+  referenceNotRequestable: '领用按库存单位填写；称重单位只用于采购结算。',
   precision: '数量精度或单位换算不符合要求，请调整。',
   overflow: '数量超出允许范围，请调整。',
   invalidReference: '引用已失效或不属于本公司，请重新选择。',

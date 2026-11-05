@@ -27,10 +27,26 @@ import { TalentRadar } from './talent-radar.js';
 import { type Row, type Data, type Options } from './model.js';
 
 type Related = { rows: Row[]; total: number; truncated: boolean };
+export type TalentPhase = {
+  phase: 'pending' | 'probation' | 'regular' | 'due' | 'departed';
+  since?: string | null;
+  probationEnd?: string | null;
+};
+const phaseTones: Record<
+  TalentPhase['phase'],
+  'neutral' | 'info' | 'warning' | 'success'
+> = {
+  pending: 'neutral',
+  probation: 'info',
+  due: 'warning',
+  regular: 'success',
+  departed: 'neutral',
+};
 type Talent = {
   asOf: string;
   photoUrl: string | null;
   person: Row;
+  phase?: TalentPhase;
   profiles: Related;
   employments: Related;
   assignments: Related;
@@ -61,6 +77,7 @@ export function TalentCard({ profile }: { profile: Row }) {
     );
   if (!query.data) return <PeopleLoading />;
   const talent = query.data.data,
+    phase = talent.phase,
     d = profile.data;
   const name = (source: string, id: unknown) =>
     talent.options[source]?.rows.find((r) => r.id === id)?.name ?? '—';
@@ -161,14 +178,34 @@ export function TalentCard({ profile }: { profile: Row }) {
                   {talent.person.name}
                 </CardTitle>
                 <CardDescription>{talent.person.code}</CardDescription>
-                <div className='mt-2'>
-                  <StatusBadge tone={current.length ? 'success' : 'neutral'}>
-                    {t(
-                      current.length
-                        ? 'people.inService'
-                        : 'people.noActiveAssignment',
-                    )}
-                  </StatusBadge>
+                <div className='mt-2 flex flex-wrap items-center gap-2'>
+                  {phase ? (
+                    <StatusBadge tone={phaseTones[phase.phase]}>
+                      {t(`people.phases.${phase.phase}`)}
+                    </StatusBadge>
+                  ) : (
+                    <StatusBadge tone={current.length ? 'success' : 'neutral'}>
+                      {t(
+                        current.length
+                          ? 'people.inService'
+                          : 'people.noActiveAssignment',
+                      )}
+                    </StatusBadge>
+                  )}
+                  {phase && phase.phase === 'departed' && phase.since ? (
+                    <span className='text-xs text-muted-foreground'>
+                      {t('people.leftOn', { date: phase.since })}
+                    </span>
+                  ) : null}
+                  {phase &&
+                  (phase.phase === 'probation' || phase.phase === 'due') &&
+                  phase.probationEnd ? (
+                    <span className='text-xs text-muted-foreground'>
+                      {t('people.probationUntil', {
+                        date: phase.probationEnd,
+                      })}
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </div>

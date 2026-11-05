@@ -423,6 +423,7 @@ export class ExecutionRecords {
       'salesOrderLineId',
       'transferLineId',
       'quantity',
+      'baseQuantity',
     ])
       if (!(field in line)) delete input[field];
     if (

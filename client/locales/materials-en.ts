@@ -74,6 +74,8 @@ export const materials = {
   codeFormat:
     'Use uppercase letters, digits, periods, underscores and hyphens.',
   integer: 'Enter a non-negative integer.',
+  decimal: 'Enter a valid decimal with at most 6 places.',
+  varianceRange: 'Tolerance must be between 0 and 100.',
   choose: 'Choose an option',
   unavailable: 'Unavailable or restricted',
   basic: 'Basic information',
@@ -146,6 +148,7 @@ export const materials = {
   updated: 'Record updated',
   catalogRelations: 'Units, packaging, aliases and tags',
   unitValue: 'Base unit: {{name}}',
+  referenceConversion: 'Reference conversion',
   aliasValue: 'Alias: {{name}}',
   inherited: 'Inherited from standard name',
   relationCap:
@@ -187,7 +190,7 @@ export const materials = {
     templates:
       'Define structured attributes and the fields that identify a material.',
     units: 'Maintain measurement types and precision.',
-    unitRules: 'Review fixed packaging conversions for each SKU.',
+    unitRules: 'Review fixed packaging or reference conversions for each SKU.',
     references:
       'Review aliases and legacy codes while preserving multiple candidates.',
     tags: 'Maintain tags for standard names and SKUs.',
@@ -217,6 +220,8 @@ export const materials = {
     unitId: 'Conversion unit',
     numerator: 'Base-unit quantity',
     denominator: 'Conversion-unit quantity',
+    conversionMode: 'Conversion mode',
+    variancePercent: 'Tolerance percent',
     sourceType: 'Mapping type',
     targetKind: 'Target level',
     targetId: 'Target material',
@@ -248,6 +253,8 @@ export const materials = {
     text: 'Text',
     number: 'Number',
     option: 'Options',
+    exact: 'Exact conversion',
+    reference: 'Reference conversion',
   },
   states: {
     draft: 'Draft',
@@ -296,6 +303,9 @@ export const materials = {
     MATERIAL_VARIABLE_CONVERSION:
       'Different measurement dimensions cannot use a fixed conversion. Record actual measurements.',
     MATERIAL_RULE_EXISTS: 'This rule already exists.',
+    MATERIAL_REFERENCE_SAME_DIMENSION:
+      'Reference conversion is for different dimensions only; use an exact conversion within the same dimension.',
+    MATERIAL_INVALID_VARIANCE: 'Tolerance must be between 0 and 100.',
     MATERIAL_REFERENCE_EXISTS: 'This mapping already exists.',
     MATERIAL_INVALID_REFERENCE:
       'The related record is inactive, belongs to another organization, or is unavailable.',

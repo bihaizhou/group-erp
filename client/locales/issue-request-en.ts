@@ -273,6 +273,8 @@ export const requestUi = {
     'This action is unavailable in the current state. Check the latest record.',
   required: 'Enter {{field}}.',
   invalidQuantity: 'Enter a quantity greater than zero.',
+  referenceNotRequestable:
+    'Issue requests use the stock unit; weighing units are for purchase settlement only.',
   precision: 'Check quantity precision and unit conversion.',
   overflow: 'The quantity is too large. Reduce it.',
   invalidReference:

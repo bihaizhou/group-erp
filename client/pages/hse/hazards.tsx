@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -66,6 +67,8 @@ export default function HseHazardsPage() {
   } | null>(null);
   const [rectification, setRectification] = useState('');
   const [note, setNote] = useState('');
+  const [params] = useSearchParams(),
+    subjectId = params.get('subjectId') ?? '';
   const options = useQuery({
     retry: false,
     queryKey: ['hse-options'],
@@ -74,15 +77,18 @@ export default function HseHazardsPage() {
   });
   const list = useQuery({
     retry: false,
-    queryKey: ['hse-hazards', page],
+    queryKey: ['hse-hazards', subjectId, page],
     queryFn: ({ signal }) =>
       api.request<HsePage<HseHazard>>({
         path: 'hse/hazards',
-        query: { page, pageSize: 20 },
+        query: {
+          ...(subjectId ? { subjectId } : {}),
+          page,
+          pageSize: 20,
+        },
         signal,
       }),
   });
-  const subjects = options.data?.data.subjects ?? [];
   const canManage = options.data?.data.permissions.manage ?? false;
   const canApprove = options.data?.data.permissions.approve ?? false;
   const units = useMemo(
@@ -172,10 +178,7 @@ export default function HseHazardsPage() {
             />
             <Button
               onClick={() => {
-                setForm({
-                  ...emptyForm(),
-                  subjectId: subjects[0]?.id ?? '',
-                });
+                setForm({ ...emptyForm(), subjectId });
                 setOpen(true);
               }}
             >
@@ -318,20 +321,6 @@ export default function HseHazardsPage() {
           </DialogHeader>
           <div className='grid gap-4'>
             <div className='grid gap-2 sm:grid-cols-2'>
-              <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.subject')}</span>
-                <HseSelect
-                  value={form.subjectId}
-                  onChange={(value) =>
-                    setForm((current) => ({
-                      ...current,
-                      subjectId: value,
-                      unitId: '',
-                    }))
-                  }
-                  options={subjects}
-                />
-              </label>
               <label className='grid gap-1.5 text-sm'>
                 <span>{t('hse.fields.unit')}</span>
                 <HseSelect

@@ -5,7 +5,9 @@ import { withPeopleApprovalGrants } from '../../database/main/migrations/2026110
 import {
   approvalChangeTypes,
   defaultApprovalChains,
+  defaultChecklists,
   parseApprovalChains,
+  parseChecklists,
 } from '../../server/providers/people-approval.js';
 
 const stage = (key: string) => ({
@@ -123,5 +125,47 @@ describe('people approval page grants', () => {
     expect(withPeopleApprovalGrants([], 'personnel-maintainer')).toEqual([]);
     const once = withPeopleApprovalGrants([changes], 'personnel-maintainer');
     expect(withPeopleApprovalGrants(once, 'personnel-maintainer')).toBe(once);
+  });
+});
+
+describe('people change checklists', () => {
+  it('keeps missing change types on the default checklist', () => {
+    const parsed = parseChecklists({
+      entry: [{ key: 'custom', title: 'Custom item', owner: 'Admin' }],
+    }) as Record<string, unknown[]>;
+    expect(parsed.entry).toHaveLength(1);
+    expect(parsed.exit).toHaveLength(defaultChecklists().exit.length);
+  });
+
+  it('keeps an explicitly empty checklist empty', () => {
+    const parsed = parseChecklists({ entry: [] }) as Record<string, unknown[]>;
+    expect(parsed.entry).toEqual([]);
+    expect(parsed.transfer).toHaveLength(defaultChecklists().transfer.length);
+  });
+
+  it('rejects duplicate item keys and unsafe keys', () => {
+    expect(() =>
+      parseChecklists({
+        entry: [
+          { key: 'a', title: 'One', owner: '' },
+          { key: 'a', title: 'Two', owner: '' },
+        ],
+      }),
+    ).toThrow(ParameterConfigurationError);
+    expect(() =>
+      parseChecklists({
+        entry: [{ key: 'A B', title: 'One', owner: '' }],
+      }),
+    ).toThrow(ParameterConfigurationError);
+    expect(() =>
+      parseChecklists({ entry: [{ key: 'ok', title: '', owner: '' }] }),
+    ).toThrow(ParameterConfigurationError);
+  });
+
+  it('defaults the asset flag to false', () => {
+    const parsed = parseChecklists({
+      entry: [{ key: 'ok', title: 'One', owner: '' }],
+    }) as Record<string, { assets: boolean }[]>;
+    expect(parsed.entry[0].assets).toBe(false);
   });
 });

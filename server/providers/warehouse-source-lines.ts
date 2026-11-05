@@ -12,6 +12,7 @@ import { approvedIssueLine } from './inventory-issue-source.js';
 import { approvedTradeLine } from './inventory-trade-source.js';
 import {
   exactBaseQuantity,
+  referenceBaseQuantity,
   type MaterialSelectionInput,
 } from './supply-chain-model.js';
 import {
@@ -27,12 +28,18 @@ const sourceFields = [
   'unitRuleId',
   'numeratorSnapshot',
   'denominatorSnapshot',
+  'conversionModeSnapshot',
+  'variancePercentSnapshot',
   'materialSnapshot',
   'commercialSnapshot',
   'sourceSnapshot',
 ];
-const fromSource = (source: RepositoryRecord) =>
-  Object.fromEntries(sourceFields.map((key) => [key, source[key] ?? null]));
+const fromSource = (source: RepositoryRecord) => ({
+  ...Object.fromEntries(sourceFields.map((key) => [key, source[key] ?? null])),
+  // Rows from before reference conversions existed, and lines whose source has
+  // no conversion (transfers, counts), are exact by definition.
+  conversionModeSnapshot: text(source.conversionModeSnapshot) || 'exact',
+});
 async function converted(
   c: DatabaseConnection,
   source: RepositoryRecord,
@@ -50,6 +57,46 @@ async function converted(
     text(source.numeratorSnapshot),
     text(source.denominatorSnapshot),
     Number(unit.precision),
+    Number(base.precision),
+  );
+}
+async function countedBase(
+  c: DatabaseConnection,
+  source: RepositoryRecord,
+  baseQuantity: string,
+  quantity: string,
+) {
+  const unit = await c
+      .repository('measureUnits')
+      .findOne({ filter: { id: text(source.unitId) } }),
+    base = await c
+      .repository('measureUnits')
+      .findOne({ filter: { id: text(source.baseUnitId) } });
+  if (!unit || !base) return fail('STOCK_MATERIAL_UNAVAILABLE');
+  return referenceBaseQuantity(
+    baseQuantity,
+    quantity,
+    text(source.numeratorSnapshot),
+    text(source.denominatorSnapshot),
+    Number(unit.precision),
+    Number(base.precision),
+    text(source.variancePercentSnapshot) || '3',
+  );
+}
+async function baseOnly(
+  c: DatabaseConnection,
+  source: RepositoryRecord,
+  quantity: string,
+) {
+  const base = await c
+    .repository('measureUnits')
+    .findOne({ filter: { id: text(source.baseUnitId) } });
+  if (!base) return fail('STOCK_MATERIAL_UNAVAILABLE');
+  return exactBaseQuantity(
+    quantity,
+    '1',
+    '1',
+    Number(base.precision),
     Number(base.precision),
   );
 }
@@ -304,12 +351,36 @@ export async function warehouseSourceLines(
       );
       if (source.head.warehouseId !== content.warehouseId)
         return fail('STOCK_SOURCE_WAREHOUSE_CHANGED', 'warehouseId');
-      const receivedBase = await converted(c, source.frozen, quantity),
-        rejectedQuantity = purchase ? text(raw.rejectedQuantity ?? '0') : '0',
+      const reference =
+          text(source.frozen.conversionModeSnapshot) === 'reference',
+        rejectedQuantity = purchase ? text(raw.rejectedQuantity ?? '0') : '0';
+      let receivedBase: string, baseRejectedQuantity: string;
+      if (reference) {
+        // The measured tonne never posts. The counted sheet quantity is the
+        // stock fact and the tolerance checks it against the ordered ratio.
+        if (rejectedQuantity !== '0')
+          return fail(
+            'STOCK_REFERENCE_REJECTION_UNSUPPORTED',
+            'rejectedQuantity',
+          );
+        if (!raw.baseQuantity)
+          return fail('SUPPLY_REFERENCE_QUANTITY_REQUIRED', 'baseQuantity');
+        receivedBase = await countedBase(
+          c,
+          source.frozen,
+          text(raw.baseQuantity),
+          quantity,
+        );
+        baseRejectedQuantity = '0';
+      } else {
+        if (raw.baseQuantity)
+          return fail('STOCK_BASE_QUANTITY_INVALID', 'baseQuantity');
+        receivedBase = await converted(c, source.frozen, quantity);
         baseRejectedQuantity =
           rejectedQuantity === '0'
             ? '0'
             : await converted(c, source.frozen, rejectedQuantity);
+      }
       if (stockMicros(baseRejectedQuantity) > stockMicros(receivedBase))
         return fail('STOCK_REJECTED_EXCEEDED', 'rejectedQuantity');
       const baseQuantity = stockQuantity(
@@ -456,9 +527,28 @@ export async function warehouseSourceLines(
         },
       });
       if (!stored) return fail('STOCK_SOURCE_UNAVAILABLE');
+      // A reference receipt returned by count is denominated in the stock unit;
+      // there is no weighing step and therefore nothing to convert.
+      const reference = text(stored.conversionModeSnapshot) === 'reference',
+        snapshot = (stored.materialSnapshot ?? {}) as Record<string, unknown>,
+        baseQuantity = reference
+          ? await baseOnly(c, line, quantity)
+          : await converted(c, line, quantity);
       Object.assign(base, fromSource(stored), {
         quantity,
-        baseQuantity: await converted(c, line, quantity),
+        baseQuantity,
+        ...(reference
+          ? {
+              unitId: text(line.baseUnitId),
+              unitRuleId: null,
+              numeratorSnapshot: '1',
+              denominatorSnapshot: '1',
+              materialSnapshot: {
+                ...snapshot,
+                unitName: snapshot.baseUnitName,
+              },
+            }
+          : {}),
         originalDocumentId: content.originalDocumentId,
         originalLineId: line.id,
         sourceSnapshot: json({

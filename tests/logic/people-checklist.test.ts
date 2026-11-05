@@ -160,4 +160,65 @@ test('starts and tracks the change handout checklist', async ({ testApp }) => {
     { done: true },
   );
   expect(missing.status).toBe(404);
+
+  // The checklist template is configurable; a custom entry list is used by the
+  // next submission, and an asset-aware item without assets keeps one row.
+  const settingsResponse = await request('/people/approval-settings'),
+    settingsPayload = await settingsResponse.json();
+  expect(settingsResponse.status).toBe(200);
+  const settings = settingsPayload.data as {
+    revision: number;
+    values: { approvalChains: unknown; checklists: Record<string, unknown[]> };
+  };
+  const saved = await request('/people/approval-settings', 'PUT', {
+    values: {
+      approvalChains: settings.values.approvalChains,
+      checklists: {
+        ...settings.values.checklists,
+        entry: [
+          {
+            key: 'custom-pass',
+            title: 'Custom pass',
+            owner: 'Admin',
+            assets: false,
+          },
+          {
+            key: 'custom-assets',
+            title: 'Return assets',
+            owner: 'Admin',
+            assets: true,
+          },
+        ],
+      },
+    },
+    version: settings.revision,
+    requestId: randomUUID(),
+  });
+  expect(saved.status).toBe(200);
+  const employee2 = await create('/people/employees', {
+    code: 'CL-002',
+    name: 'Checklist person 2',
+    subjectId: subject.id,
+    data: {},
+  });
+  const second = await create('/people/changes', {
+    code: 'CL-RZ-002',
+    name: 'Entry 2',
+    personId: employee2.id,
+    data: {
+      type: 'entry',
+      effectiveDate: businessDate(),
+      targetSubjectId: subject.id,
+      targetPositionId: position.id,
+      explanation: 'Second checklist entry',
+    },
+  });
+  await fire(second, 'submit');
+  const secondDetail = await detail(second.id);
+  expect(secondDetail.checklist.items.map((item) => item.title)).toEqual([
+    'Custom pass',
+    'Return assets',
+  ]);
+  // The first change keeps the four rows it was submitted with.
+  expect((await detail(created.id)).checklist.total).toBe(4);
 });

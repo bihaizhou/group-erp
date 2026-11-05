@@ -135,7 +135,10 @@ test('runs a two-stage approval, then all-signed stages, return and withdraw', a
     );
   const settings = settingsBody.data as {
     revision: number;
-    values: { approvalChains: Record<string, { stages: unknown[] }> };
+    values: {
+      approvalChains: Record<string, { stages: unknown[] }>;
+      checklists: Record<string, unknown[]>;
+    };
   };
   const chains = settings.values.approvalChains;
   let revision = settings.revision;
@@ -146,6 +149,7 @@ test('runs a two-stage approval, then all-signed stages, return and withdraw', a
       {
         values: {
           approvalChains: { ...chains, entry: { stages: entryChain } },
+          checklists: settings.values.checklists,
         },
         version: revision,
         requestId: randomUUID(),

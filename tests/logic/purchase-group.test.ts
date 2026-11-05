@@ -56,6 +56,8 @@ function contentFor(
     requestingUnitId,
     usage: 'Group purchase verification',
     neededOn: businessDate(),
+    businessDate: businessDate(),
+    sourceChannel: 'manual',
     suggestedSupplierId: null,
     projectId: null,
     notes: '',
