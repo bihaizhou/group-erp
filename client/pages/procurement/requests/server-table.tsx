@@ -43,7 +43,7 @@ export function ServerTable({
     state: { pagination: { pageIndex: page - 1, pageSize }, sorting },
   });
   return (
-    <div className='overflow-hidden rounded-lg border'>
+    <div className='overflow-x-auto rounded-lg border'>
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((group) => (

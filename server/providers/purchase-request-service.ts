@@ -51,9 +51,12 @@ import {
   type PurchaseAction,
   type PurchaseQuery,
   type PurchasePage,
+  type PurchaseMergeQuery,
   type PurchaseOptionQuery,
   type PurchaseSettingsSave,
 } from './purchase-request-model.js';
+import { resolvePurchaseIdentity } from './purchase-identity.js';
+import { buildPurchaseMerge } from './purchase-merge.js';
 import {
   purchaseLifecycle,
   purchaseParameterCollections,
@@ -340,10 +343,13 @@ export class PurchaseRequestService {
   }
   async list(query: PurchaseQuery, actor: LifecycleActor, p: MaterialPolicies) {
     const c = this.db.connection();
-    await this.company(c, query.subjectId, p, false);
+    if (query.subjectId) await this.company(c, query.subjectId, p, false);
     const filter = (f: FilterBuilder) =>
       f.and([
-        f.string('subjectId').eq(query.subjectId),
+        ...(query.subjectId ? [f.string('subjectId').eq(query.subjectId)] : []),
+        ...(query.submitted === 'true'
+          ? [f.date('submittedAt').notEmpty()]
+          : []),
         ...(query.status ? [f.string('status').eq(query.status)] : []),
         ...(query.mine === 'true'
           ? [
@@ -399,6 +405,80 @@ export class PurchaseRequestService {
       meta: { page: query.page, pageSize: query.pageSize, total },
     };
   }
+  async identity(actor: LifecycleActor) {
+    return resolvePurchaseIdentity(this.db.connection(), this.timeZone, {
+      type: 'user',
+      id: actor.id,
+    });
+  }
+
+  async merge(query: PurchaseMergeQuery, p: MaterialPolicies) {
+    const c = this.db.connection();
+    if (query.subjectId) await this.company(c, query.subjectId, p, false);
+    const requests = await this.repo(c, 'purchaseRequests', p).findMany({
+      filter: (f: FilterBuilder) =>
+        f.and([
+          f.string('status').eq('approved'),
+          ...(query.subjectId
+            ? [f.string('subjectId').eq(query.subjectId)]
+            : []),
+          ...(query.neededFrom
+            ? [f.date('neededOn').notBefore(query.neededFrom)]
+            : []),
+          ...(query.neededTo
+            ? [f.date('neededOn').notAfter(query.neededTo)]
+            : []),
+        ]),
+      limit: 10001,
+      sort: (s) => [s.field('code').asc(), s.field('id').asc()],
+    });
+    if (requests.length > 10000)
+      return purchaseError('PURCHASE_REFERENCE_TOO_BROAD');
+    const ids = requests.map((row) => text(row.id)),
+      lines = ids.length
+        ? await this.repo(c, 'purchaseRequestLines', p).findMany({
+            filter: (f: FilterBuilder) =>
+              f.and([
+                f.string('status').eq('active'),
+                materialIdFilter(f, 'requestId', ids),
+              ]),
+            limit: 100001,
+          })
+        : [];
+    if (lines.length > 100000)
+      return purchaseError('PURCHASE_REFERENCE_TOO_BROAD');
+    const companyIds = [
+        ...new Set(requests.map((row) => text(row.subjectId))),
+      ].filter(Boolean),
+      companyRows = companyIds.length
+        ? await this.repo(c, 'orgSubjects', p).findMany({
+            filter: (f: FilterBuilder) => materialIdFilter(f, 'id', companyIds),
+            limit: 10001,
+          })
+        : [];
+    const groups = buildPurchaseMerge(
+      requests,
+      lines,
+      new Map(
+        companyRows.map((row) => [
+          text(row.id),
+          { code: text(row.code), name: text(row.name) },
+        ]),
+      ),
+    );
+    return {
+      data: groups.slice(
+        (query.page - 1) * query.pageSize,
+        query.page * query.pageSize,
+      ),
+      meta: {
+        page: query.page,
+        pageSize: query.pageSize,
+        total: groups.length,
+      },
+    };
+  }
+
   async history(id: string, query: PurchasePage, p: MaterialPolicies) {
     const c = this.db.connection();
     await this.head(c, id, p);
@@ -884,9 +964,37 @@ export class PurchaseRequestService {
     access: PurchaseAccess,
     formal = false,
     readOnly = false,
+    requireEmployment = false,
   ) {
     const p = access.policies;
     await this.company(c, content.subjectId, p);
+    // A reference-only empty draft (no requester and no lines) stays usable for
+    // setup work; a request that carries a person or demand needs an employment.
+    const needsEmployment =
+      requireEmployment &&
+      (!!content.requesterEmployeeId || content.lines.length > 0);
+    const identity = needsEmployment
+      ? await resolvePurchaseIdentity(c, this.timeZone, {
+          type: 'user',
+          id: actor.id,
+        })
+      : null;
+    if (needsEmployment && (!identity?.employee || !identity.companies.length))
+      return purchaseError(
+        'PURCHASE_EMPLOYMENT_REQUIRED',
+        'INVALID_ARGUMENT',
+        'subjectId',
+      );
+    if (
+      needsEmployment &&
+      !identity!.companies.some((row) => row.id === content.subjectId) &&
+      !(await this.canDelegate(c, content.subjectId, access))
+    )
+      return purchaseError(
+        'PURCHASE_DELEGATE_REQUIRED',
+        'PERMISSION_DENIED',
+        'subjectId',
+      );
     let requesterAccountId: string | null = null;
     if (content.requesterEmployeeId) {
       const person = await this.activeEmployee(
@@ -901,6 +1009,16 @@ export class PurchaseRequestService {
         !(await this.canDelegate(c, content.subjectId, access))
       )
         return purchaseError('PURCHASE_DELEGATE_REQUIRED', 'PERMISSION_DENIED');
+      if (
+        needsEmployment &&
+        requesterAccountId === actor.id &&
+        !identity!.companies.some((row) => row.id === content.subjectId)
+      )
+        return purchaseError(
+          'PURCHASE_COMPANY_UNAVAILABLE',
+          'INVALID_ARGUMENT',
+          'subjectId',
+        );
     }
     if (
       content.requestingUnitId &&
@@ -1155,7 +1273,15 @@ export class PurchaseRequestService {
     supersedesId: string | null = null,
     copyReason?: string,
   ) {
-    const values = await this.contentValues(c, content, actor, access);
+    const values = await this.contentValues(
+      c,
+      content,
+      actor,
+      access,
+      false,
+      false,
+      true,
+    );
     const id = randomUUID(),
       now = new Date();
     const next: Row = {
@@ -1291,8 +1417,20 @@ export class PurchaseRequestService {
             'subjectId',
           );
         await this.applicant(c, before, actor, access);
+        const identityChanged =
+          before.subjectId !== input.content.subjectId ||
+          before.requesterEmployeeId !== input.content.requesterEmployeeId ||
+          before.requestingUnitId !== input.content.requestingUnitId;
         const values = {
-          ...(await this.contentValues(c, input.content, actor, access)),
+          ...(await this.contentValues(
+            c,
+            input.content,
+            actor,
+            access,
+            false,
+            false,
+            identityChanged,
+          )),
           contentVersion: Number(before.contentVersion) + 1,
           lineCount: input.content.lines.length,
           identifiedCount: input.content.lines.filter(

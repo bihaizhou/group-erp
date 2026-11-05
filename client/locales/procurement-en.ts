@@ -18,6 +18,8 @@ export const procurement = {
     withdraw: 'Withdraw purchase requests',
     revise: 'Revise approved purchase requests',
     cancel: 'Cancel purchase requests',
+    readAll: "View all companies' purchase requests",
+    merge: 'Read the group purchase merge list',
     reassign: 'Recover purchase review assignment',
     delegate: 'Submit purchase requests for others',
     ownRequests: 'My purchase requests',

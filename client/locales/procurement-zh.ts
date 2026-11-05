@@ -18,6 +18,8 @@ export const procurement = {
     withdraw: '撤回采购申请',
     revise: '修订已批准采购申请',
     cancel: '取消采购申请',
+    readAll: '查看全部公司采购申请',
+    merge: '查看集团采购合并清单',
     reassign: '采购审核交接',
     delegate: '为他人代办采购申请',
     ownRequests: '本人采购申请',

@@ -167,6 +167,28 @@ function base(v: Call): Promise<unknown> {
   }
   if (v.path === 'procurement/requestCompanies')
     return Promise.resolve(page([company, otherCompany]));
+  if (v.path === 'procurement/requestIdentity')
+    return Promise.resolve({
+      data: {
+        employee,
+        companies: [
+          {
+            ...company,
+            primary: true,
+            units: [
+              {
+                ...unit,
+                positionId: 'position',
+                positionCode: 'POS',
+                positionName: 'Position',
+                primary: true,
+              },
+            ],
+          },
+        ],
+        default: { subjectId: companyId, unitId },
+      },
+    });
   if (v.path === 'procurement/settings/companies')
     return Promise.resolve(page([company]));
   if (v.path === 'procurement/requestOptions')
@@ -299,6 +321,8 @@ beforeEach(() => {
   });
   row = structuredClone(original);
   denied.clear();
+  denied.add('procurement.requests:readAll');
+  denied.add('procurement.requests:merge');
   api.request.mockReset();
   api.request.mockImplementation(base);
   toast.show.mockReset();
@@ -319,6 +343,56 @@ it('opens in the first authorised company and scopes requests to it', async () =
     ),
   ).toBe(false);
 });
+it('defaults the new form to the caller identity and removes other companies', async () => {
+  const user = userEvent.setup();
+  mount(`${rootPath}/new?subjectId=${otherCompany.id}`);
+  await screen.findByRole('button', { name: 'Save draft' });
+  expect(screen.getByText(company.name)).toBeVisible();
+  expect(screen.queryByText(otherCompany.name)).not.toBeInTheDocument();
+  expect(screen.getByText(new RegExp(employee.name))).toBeVisible();
+  expect(screen.getAllByText(new RegExp(unit.name)).length).toBeGreaterThan(0);
+  await user.click(screen.getByRole('button', { name: 'Save draft' }));
+  const sent = api.request.mock.calls
+    .map(([value]) => value)
+    .find(
+      (value) =>
+        value.path === 'procurement/requests' && value.method === 'POST',
+    );
+  expect(sent.json.content.subjectId).toBe(companyId);
+  expect(sent.json.content.requesterEmployeeId).toBe(employeeId);
+  expect(sent.json.content.requestingUnitId).toBe(unitId);
+});
+
+it('defaults a group reader to submitted requests across companies', async () => {
+  denied.delete('procurement.requests:readAll');
+  mount(rootPath);
+  await waitFor(() =>
+    expect(
+      api.request.mock.calls.some(
+        ([value]) =>
+          value.path === 'procurement/requests' &&
+          value.query?.submitted === 'true' &&
+          !value.query?.subjectId,
+      ),
+    ).toBe(true),
+  );
+});
+
+it('shows why an account without an effective employment cannot create', async () => {
+  api.request.mockImplementation((value) =>
+    value.path === 'procurement/requestIdentity'
+      ? Promise.resolve({
+          data: { employee: null, companies: [], default: null },
+        })
+      : base(value),
+  );
+  mount(`${rootPath}/new?subjectId=${companyId}`);
+  expect(
+    await screen.findByText(/This account has no active employment/),
+  ).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Save draft' })).toBeNull();
+});
+
 it('saves a company-only draft without a reason and retries the same payload/key after a network failure', async () => {
   let writes = 0;
   api.request.mockImplementation((v) =>

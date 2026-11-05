@@ -44,6 +44,8 @@ test('authenticates and authorizes all paths before input validation; page grant
   for (const path of [
     '/procurement/requests',
     '/procurement/requests/not-id/history',
+    '/procurement/requestIdentity',
+    '/procurement/merge',
     '/procurement/requestOptions',
     '/procurement/requestMaterialOptions',
     '/procurement/requestMaterialOptions/not-id',
@@ -80,6 +82,8 @@ test('authenticates and authorizes all paths before input validation; page grant
   });
   for (const path of [
     '/procurement/requests?unexpected=1',
+    '/procurement/requestIdentity',
+    '/procurement/merge',
     '/procurement/settings?unexpected=1',
     '/procurement/requestMaterialOptions?unexpected=1',
     '/procurement/requestMaterialOptions/not-id',

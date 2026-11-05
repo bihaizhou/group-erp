@@ -8,7 +8,7 @@ import {
   defineDatabasePermission,
 } from '@nocobase/app-plugin-authorization/server';
 import type { DatabaseManager } from '@nocobase/db';
-import { currentCompanyForUser } from './company-identity.js';
+import { currentCompaniesForUser } from './purchase-identity.js';
 import { businessMaterialColumns } from './supply-chain-resources.js';
 import {
   supplierIdentityColumns,
@@ -28,6 +28,7 @@ import {
 
 export const purchaseActions = [
   'read',
+  'readAll',
   'create',
   'update',
   'submit',
@@ -41,6 +42,7 @@ export const purchaseActions = [
   'confirmMaterial',
   'rejectMaterial',
   'takeOverSource',
+  'merge',
 ] as const;
 export type PurchasePermissionAction = (typeof purchaseActions)[number];
 const title = (key: string) => ({
@@ -96,7 +98,7 @@ export const purchaseResource: CompositeResource = {
         if (table === 'purchaseRequests') {
           if (action === 'create')
             permission = permission.create(purchaseHeadColumns);
-          else if (!['read', 'delegate'].includes(action))
+          else if (!['read', 'readAll', 'delegate', 'merge'].includes(action))
             permission = permission.update(purchaseHeadColumns);
         }
         if (
@@ -206,8 +208,18 @@ export function purchaseOwnCompanyAccess(
       .title(title('ownCompany'))
       .collections(...purchaseCompanyTables)
       .resolver(async ({ principal }) => {
-        const company = await currentCompanyForUser(db, timeZone, principal);
-        return company ? condition('subjectId', '$eq', company) : false;
+        const companies = await currentCompaniesForUser(
+          db,
+          timeZone,
+          principal,
+        );
+        if (!companies.length) return false;
+        const items = companies.map((company) =>
+          condition('subjectId', '$eq', company),
+        );
+        return items.length === 1
+          ? items[0]
+          : { kind: 'group', logic: 'or', items };
       }),
   );
 }

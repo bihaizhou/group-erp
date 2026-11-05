@@ -53,6 +53,7 @@ import {
   purchaseAction,
   purchaseParams,
   purchaseQuery,
+  purchaseMergeQuery,
   purchasePage,
   purchaseMeta,
   purchaseView,
@@ -65,6 +66,8 @@ import {
   purchaseSettingsView,
   purchaseCapabilityView,
   purchaseCompanyMeta,
+  purchaseIdentityView,
+  purchaseMergeView,
 } from '../providers/purchase-request-model.js';
 
 type Env = AuthEnv &
@@ -85,6 +88,8 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
     for (const path of [
       '/requests',
       '/requests/*',
+      '/requestIdentity',
+      '/merge',
       '/requestOptions',
       '/requestCompanies',
       '/requestMaterialOptions',
@@ -387,6 +392,31 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
             access(c).policies,
           ),
         ),
+    );
+    router.get(
+      '/requestIdentity',
+      allowed('create'),
+      describe(
+        'purchaseRequestIdentity',
+        'Read the caller’s effective employment companies and departments',
+        dataResponse(purchaseIdentityView),
+      ),
+      async (c) =>
+        c.json({
+          data: await service.identity(actor(c)),
+        }),
+    );
+    router.get(
+      '/merge',
+      allowed('merge'),
+      describe(
+        'purchaseRequestMerge',
+        'Read the group purchase list derived from approved request lines',
+        listResponse(purchaseMergeView, purchaseMeta),
+      ),
+      apiValidator('query', purchaseMergeQuery),
+      async (c) =>
+        c.json(await service.merge(c.req.valid('query'), access(c).policies)),
     );
     router.post(
       '/requests',

@@ -36,6 +36,7 @@ import {
   useRequest,
   useCapabilities,
   usePurchaseCan,
+  usePurchaseIdentity,
   usePurchaseRefresh,
   useRequestKey,
   useLeaveGuard,
@@ -57,6 +58,7 @@ import {
   applyContentMerge,
   type Content,
   type PurchaseRequest,
+  type PurchaseIdentity,
   type Choice,
   type DemandLine,
   type Preview,
@@ -84,7 +86,8 @@ export default function RequestFormPage() {
       : 'edit';
   const record = useRequest(mode === 'new' ? undefined : requestId),
     cap = useCapabilities(mode === 'new' ? undefined : requestId),
-    create = usePurchaseCan('create');
+    create = usePurchaseCan('create'),
+    purchaseIdentity = usePurchaseIdentity(mode === 'new');
   const [loaded, setLoaded] = useState<{
     identity: string;
     record: PurchaseRequest;
@@ -118,15 +121,36 @@ export default function RequestFormPage() {
     <RouteChildPage>
       <PageContainer>
         {mode === 'new' ? (
-          create.isPending ? (
+          create.isPending || purchaseIdentity.isPending ? (
             <Loading kind='form' />
           ) : !allowed ? (
             <>
               <BackButton />
               <AccessDenied title={t(ui('forbidden'))} />
             </>
+          ) : purchaseIdentity.error ? (
+            <>
+              <BackButton />
+              <ErrorNotice
+                error={purchaseIdentity.error}
+                retry={() => void purchaseIdentity.refetch()}
+              />
+            </>
+          ) : !purchaseIdentity.data?.data.employee ||
+            !purchaseIdentity.data.data.companies.length ? (
+            <>
+              <BackButton />
+              <PageHeader title={title} />
+              <Alert variant='destructive'>
+                <AlertDescription>{t(ui('noEmploymentHint'))}</AlertDescription>
+              </Alert>
+            </>
           ) : (
-            <FormBody mode={mode} path={path} />
+            <FormBody
+              mode={mode}
+              path={path}
+              identity={purchaseIdentity.data.data}
+            />
           )
         ) : ready ? (
           <FormBody key={identity} mode={mode} path={path} initial={ready} />
@@ -155,10 +179,12 @@ function FormBody({
   mode,
   path,
   initial,
+  identity,
 }: {
   mode: Mode;
   path: string;
   initial?: PurchaseRequest;
+  identity?: PurchaseIdentity;
 }) {
   const { t } = useTranslation(),
     api = useApiClient(),
@@ -170,7 +196,13 @@ function FormBody({
   const initialContent = () => {
     const c = initial
       ? requestContent(initial)
-      : blankContent(params.get('subjectId') ?? '');
+      : blankContent(
+          identity?.default?.subjectId ?? params.get('subjectId') ?? '',
+        );
+    if (mode === 'new' && identity?.employee) {
+      c.requesterEmployeeId = identity.employee.id;
+      c.requestingUnitId = identity.default?.unitId ?? null;
+    }
     if (mode === 'copy') {
       c.lines = c.lines.map((l) => ({ ...l, id: randomUuid() }));
       c.attachments = [];
@@ -189,7 +221,20 @@ function FormBody({
     [unitNeedsReselection, setUnitNeedsReselection] = useState(false),
     [latest, setLatest] = useState<PurchaseRequest>(),
     [choices, setChoices] = useState<Record<string, 'local' | 'server'>>({}),
-    [refs, setRefs] = useState<Record<string, Choice | undefined>>({}),
+    [refs, setRefs] = useState<Record<string, Choice | undefined>>(() => {
+      const result: Record<string, Choice | undefined> = {};
+      if (!identity) return result;
+      if (identity.employee) result.requester = identity.employee;
+      const company = identity.companies.find(
+          (item) => item.id === baseline.subjectId,
+        ),
+        unit = company?.units.find(
+          (item) => item.id === baseline.requestingUnitId,
+        );
+      if (company) result.company = company;
+      if (unit) result.unit = unit;
+      return result;
+    }),
     [hints, setHints] = useState<Record<string, Preview>>(() =>
       Object.fromEntries(
         (initial?.lines ?? [])
@@ -206,7 +251,8 @@ function FormBody({
   const dirty = !same(baseline, draft) || !!reason.trim(),
     guard = useLeaveGuard(dirty, busy || uploading, path);
   const cap = useCapabilities(mode === 'new' ? undefined : initial?.id),
-    create = usePurchaseCan('create');
+    create = usePurchaseCan('create'),
+    delegate = usePurchaseCan('delegate');
   const currentCapability =
     cap.data?.data.actions[mode === 'copy' ? 'copy' : 'update'];
   const allowed =
@@ -214,8 +260,22 @@ function FormBody({
   const terminal =
     error instanceof ApiClientError && [401, 403, 404].includes(error.status);
   const remoteNotDraft = mode === 'edit' && latest && latest.status !== 'draft';
-  const companyLocked =
-    mode === 'edit' && !!row && (row.reviewRound > 0 || row.lines.length > 0);
+  const identityCompany = identity?.companies.find(
+      (item) => item.id === draft.subjectId,
+    ),
+    identityLocked =
+      mode === 'new' && !!identity && identity.companies.length <= 1,
+    requesterLocked = mode === 'new' && !!identity && !delegate.can,
+    unitLocked =
+      mode === 'new' &&
+      !!identity &&
+      !delegate.can &&
+      (identityCompany?.units.length ?? 0) <= 1,
+    companyLocked =
+      identityLocked ||
+      (mode === 'edit' &&
+        !!row &&
+        (row.reviewRound > 0 || row.lines.length > 0));
   const errors: Record<string, string> = {
     ...serverErrors,
     ...(attempted
@@ -273,11 +333,20 @@ function FormBody({
       ))
     )
       return;
-    setRefs({ company: item });
     setUnitNeedsReselection(false);
     setHints({});
+    const own = identity?.companies.find((item) => item.id === value),
+      nextRequester = own && identity?.employee ? identity.employee : undefined,
+      nextUnit = own?.units[0];
+    setRefs({
+      company: item ?? own,
+      requester: nextRequester,
+      unit: nextUnit,
+    });
     setDraft((old) => ({
       ...blankContent(value),
+      ...(nextRequester ? { requesterEmployeeId: nextRequester.id } : {}),
+      ...(nextUnit ? { requestingUnitId: nextUnit.id } : {}),
       usage: old.usage,
       neededOn: old.neededOn,
       notes: old.notes,
@@ -359,6 +428,7 @@ function FormBody({
           PURCHASE_PERSON_UNIT_MISMATCH: 'requestingUnitId',
           PURCHASE_DELEGATE_REQUIRED: 'requesterEmployeeId',
           PURCHASE_COMPANY_UNAVAILABLE: 'subjectId',
+          PURCHASE_EMPLOYMENT_REQUIRED: 'subjectId',
           PURCHASE_SUPPLIER_CHANGED: 'suggestedSupplierId',
           SUPPLIER_COMPANY_INACTIVE: 'suggestedSupplierId',
           SUPPLIER_GLOBALLY_INACTIVE: 'suggestedSupplierId',
@@ -692,7 +762,13 @@ function FormBody({
                 />
                 {companyLocked && (
                   <p className='mt-2 text-sm text-muted-foreground'>
-                    {t(ui('companyLocked'))}
+                    {t(
+                      ui(
+                        mode === 'new' && identityLocked
+                          ? 'identityLockedHint'
+                          : 'companyLocked',
+                      ),
+                    )}
                   </p>
                 )}
                 {fieldError('subjectId')}
@@ -711,7 +787,7 @@ function FormBody({
                   label={`${t(ui('requester'))} (${t(ui('requiredToSubmit'))})`}
                   value={draft.requesterEmployeeId ?? ''}
                   selected={refs.requester ?? row?.display.requester}
-                  disabled={!draft.subjectId}
+                  disabled={!draft.subjectId || requesterLocked}
                   onChange={(id, item) => {
                     if (
                       id !== draft.requesterEmployeeId &&
@@ -748,7 +824,9 @@ function FormBody({
                 label={`${t(ui('unit'))} (${t(ui('requiredToSubmit'))})`}
                 value={draft.requestingUnitId ?? ''}
                 selected={refs.unit ?? row?.display.unit}
-                disabled={!draft.subjectId || !draft.requesterEmployeeId}
+                disabled={
+                  !draft.subjectId || !draft.requesterEmployeeId || unitLocked
+                }
                 onChange={(id, item) => {
                   setUnitNeedsReselection(false);
                   update('requestingUnitId', id || null);
