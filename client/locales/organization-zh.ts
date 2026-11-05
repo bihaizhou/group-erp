@@ -188,7 +188,7 @@ export const org = {
 };
 export const erp = {
   title: '集团 ERP',
-  description: '集团与各公司协同管理的统一工作平台。',
+  description: '集团与各公司协同管理的统一工作平台。（预览测试）',
   organization: '组织架构',
   hr: '人力资源',
   functions: '职能平台',
