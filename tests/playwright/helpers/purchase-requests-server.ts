@@ -256,6 +256,8 @@ const content = (usage = '临时采购需求'): PurchaseContent => ({
   requestingUnitId: unit.id,
   usage,
   neededOn: '2026-11-01',
+  businessDate: null,
+  sourceChannel: 'manual',
   suggestedSupplierId: supplier.partnerId,
   projectId: null,
   notes: '临时隔离验收资料',

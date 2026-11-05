@@ -226,6 +226,8 @@ export async function fixture(
     requestingUnitId: unit.id,
     usage: 'Maintenance',
     neededOn: businessDate(),
+    businessDate: null,
+    sourceChannel: 'manual',
     suggestedSupplierId: null as string | null,
     projectId: null,
     notes: '',
