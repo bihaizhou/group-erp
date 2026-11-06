@@ -167,6 +167,7 @@ export default defineSeed({
     }
 
     for (const account of accounts) {
+      const userId = randomUUID();
       const positionId = randomUUID();
       await query
         .insertInto('org_positions')
@@ -194,9 +195,20 @@ export default defineSeed({
             updated_at: now,
           } as Row)
           .execute();
+        // 任职同步在界面上由人事服务写这张表；种子直接落库，登录后即可生效。
+        await query
+          .insertInto('authorization_permission_set_assignments')
+          .values({
+            id: `user:${userId}:${permissionSet}`,
+            subject_type: 'user',
+            subject_id: userId,
+            permission_set_key: permissionSet,
+            created_at: now,
+            updated_at: now,
+          } as Row)
+          .execute();
       }
 
-      const userId = randomUUID();
       await query
         .insertInto('user')
         .values({
@@ -235,7 +247,26 @@ export default defineSeed({
           created_by: admin?.id,
           account_id: userId,
           subject_id: subject.id,
-          data: JSON.stringify({ location: '演示数据', education: '', experience: '', accountId: userId }),
+          data: { location: '演示数据', education: '', experience: '', accountId: userId },
+          created_at: now,
+          updated_at: now,
+        } as Row)
+        .execute();
+
+      await query
+        .insertInto('personnel_employments')
+        .values({
+          id: randomUUID(),
+          code: `DEMO-EMP-REC-${account.position.code.replace('DEMO-POS-', '')}`,
+          name: account.name,
+          status: 'active',
+          revision: 1,
+          lifecycle_version: 1,
+          created_by: admin?.id,
+          account_id: userId,
+          subject_id: subject.id,
+          person_id: employeeId,
+          data: { startDate: '2026-01-01', endDate: null, location: '演示数据' },
           created_at: now,
           updated_at: now,
         } as Row)
@@ -255,7 +286,7 @@ export default defineSeed({
           subject_id: subject.id,
           person_id: employeeId,
           position_id: positionId,
-          data: JSON.stringify({ type: 'primary', startDate: '2026-01-01', endDate: null, location: '' }),
+          data: { type: 'primary', startDate: '2026-01-01', endDate: null, location: '' },
           created_at: now,
           updated_at: now,
         } as Row)
