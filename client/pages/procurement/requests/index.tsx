@@ -13,6 +13,7 @@ import {
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { Alert, AlertDescription } from '#components/ui/alert';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import {
@@ -31,9 +32,11 @@ import {
 } from '#components/ui/dropdown-menu';
 import { DateRangePicker } from '#components/date-picker';
 import { useUrlSearch } from '#hooks/use-url-search';
+import { useCurrentCompany } from '../../../company/use-company-scope.js';
 import {
   ui,
   usePurchaseCan,
+  usePurchaseIdentity,
   usePurchaseQuery,
   usePurchaseReturnFocus,
 } from './hooks.js';
@@ -48,13 +51,21 @@ import {
 } from './controls.js';
 import { OverflowText } from '../../materials/controls.js';
 import { ServerTable } from './server-table.js';
+import { MergePanel } from './merge-panel.js';
 import type { Choice, Page, PurchaseRequest } from './model.js';
 export default function RequestsPage() {
   const { t, i18n } = useTranslation(),
     location = useLocation(),
     read = usePurchaseCan('read'),
+    readAll = usePurchaseCan('readAll'),
+    merge = usePurchaseCan('merge'),
     create = usePurchaseCan('create'),
-    edit = usePurchaseCan('update');
+    edit = usePurchaseCan('update'),
+    identity = usePurchaseIdentity(),
+    currentCompany = useCurrentCompany();
+  const hasPosition =
+    !!identity.data?.data.employee &&
+    identity.data.data.companies.some((company) => company.units.length > 0);
   usePurchaseReturnFocus(useResolvedPath('.').pathname, 'purchase-search');
   const {
     searchParams: params,
@@ -63,7 +74,12 @@ export default function RequestsPage() {
     updateParams,
     clear,
   } = useUrlSearch({ resetParams: ['page'] });
-  const subjectId = params.get('subjectId') ?? '',
+  const tab = params.get('tab') === 'merge' && merge.can ? 'merge' : 'list',
+    group = tab === 'list' && readAll.can && params.get('scope') !== 'company',
+    subjectId = readAll.can
+      ? (params.get('subjectId') ?? '')
+      : (currentCompany?.id ?? params.get('subjectId') ?? ''),
+    listSubjectId = group ? '' : subjectId,
     page = Math.max(1, Math.trunc(Number(params.get('page'))) || 1),
     pageSize =
       [20, 50, 100].find((v) => String(v) === params.get('pageSize')) ?? 20;
@@ -72,11 +88,12 @@ export default function RequestsPage() {
   )
     ? params.get('orderBy')!
     : '-updatedAt';
-  const status = ['draft', 'pending', 'approved', 'cancelled'].includes(
+  const selectedStatus = ['draft', 'pending', 'approved', 'cancelled'].includes(
       params.get('status') ?? '',
     )
       ? params.get('status')!
       : '',
+    status = group && selectedStatus === 'draft' ? '' : selectedStatus,
     identification = ['identified', 'unidentified'].includes(
       params.get('identification') ?? '',
     )
@@ -85,11 +102,12 @@ export default function RequestsPage() {
   const date = (name: string) =>
     /^\d{4}-\d{2}-\d{2}$/.test(params.get(name) ?? '') ? params.get(name)! : '';
   const query = {
-    subjectId,
+    ...(listSubjectId ? { subjectId: listSubjectId } : {}),
     q: search,
     page,
     pageSize,
     orderBy,
+    submitted: group ? 'true' : 'false',
     ...(status ? { status } : {}),
     ...(identification ? { identification } : {}),
     mine: params.get('mine') === 'true' ? 'true' : 'false',
@@ -99,12 +117,12 @@ export default function RequestsPage() {
   const result = usePurchaseQuery<Page<PurchaseRequest>>(
       'requests',
       query,
-      !!subjectId && read.can,
+      tab === 'list' && (group || !!subjectId) && read.can,
       true,
     ),
     companies = usePurchaseQuery<Page<Choice>>(
       'requestCompanies',
-      { page: 1, pageSize: 1 },
+      { page: 1, pageSize: 100 },
       read.can,
     );
   const change = (name: string, value: string) =>
@@ -113,13 +131,24 @@ export default function RequestsPage() {
       else p.delete(name);
       p.delete('page');
     });
+  const selectCompany = (value: string) =>
+    updateParams((p) => {
+      if (value) {
+        p.set('subjectId', value);
+        p.set('scope', 'company');
+      } else {
+        p.set('scope', 'group');
+      }
+      p.delete('page');
+    });
   const hasFilters = !!(
     search ||
     status ||
     identification ||
     params.get('mine') === 'true' ||
     date('neededFrom') ||
-    date('neededTo')
+    date('neededTo') ||
+    (readAll.can && !group)
   );
   const clearFilters = () =>
     clear((p) => {
@@ -188,6 +217,11 @@ export default function RequestsPage() {
             {row.original.code}
           </Link>
         ),
+      },
+      {
+        id: 'company',
+        header: t(ui('company')),
+        cell: ({ row }) => truncate(row.original.display.company?.name ?? ''),
       },
       {
         id: 'requester',
@@ -286,20 +320,66 @@ export default function RequestsPage() {
           description={t(ui('description'))}
           actions={
             <>
-              {create.can && rows && (total > 0 || hasFilters)
+              {merge.can ? (
+                <>
+                  <Button
+                    variant={tab === 'list' ? 'default' : 'outline'}
+                    onClick={() =>
+                      updateParams((p) => {
+                        p.delete('tab');
+                        p.delete('page');
+                      })
+                    }
+                  >
+                    {t(ui('title'))}
+                  </Button>
+                  <Button
+                    variant={tab === 'merge' ? 'default' : 'outline'}
+                    onClick={() =>
+                      updateParams((p) => {
+                        p.set('tab', 'merge');
+                        p.delete('page');
+                      })
+                    }
+                  >
+                    {t(ui('mergedList'))}
+                  </Button>
+                </>
+              ) : null}
+              {tab === 'list' && create.can && rows && (total > 0 || hasFilters)
                 ? newButton
                 : null}
-              <RefreshButton
-                busy={result.isFetching || companies.isFetching}
-                onClick={() => {
-                  if (subjectId && read.can) void result.refetch();
-                  void companies.refetch();
-                }}
-              />
+              {tab === 'list' ? (
+                <RefreshButton
+                  busy={result.isFetching || companies.isFetching}
+                  onClick={() => {
+                    if ((group || subjectId) && read.can) void result.refetch();
+                    void companies.refetch();
+                  }}
+                />
+              ) : null}
             </>
           }
         />
-        {read.isPending ? (
+        {identity.isPending ? (
+          <Loading kind='table' />
+        ) : identity.error ? (
+          <ErrorNotice
+            error={identity.error}
+            retry={() => void identity.refetch()}
+          />
+        ) : !hasPosition ? (
+          <Alert variant='destructive'>
+            <AlertDescription>
+              {t(ui('noProcurementPositionHint'))}
+            </AlertDescription>
+          </Alert>
+        ) : tab === 'merge' ? (
+          <MergePanel
+            companies={companies.data?.data ?? []}
+            businessDate={companies.data?.meta.businessDate}
+          />
+        ) : read.isPending ? (
           <Loading kind='table' />
         ) : !read.can ? (
           <AccessDenied title={t(ui('forbidden'))} />
@@ -314,17 +394,28 @@ export default function RequestsPage() {
                 maxLength={200}
                 className='w-full sm:max-w-sm'
               />
+              {readAll.can ? (
+                <PurchaseSelect
+                  label={t(ui('company'))}
+                  value={group ? 'all' : subjectId}
+                  items={[
+                    { value: 'all', label: t(ui('allCompanies')) },
+                    ...(companies.data?.data ?? []).map((item) => ({
+                      value: item.id,
+                      label: [item.code, item.name].filter(Boolean).join(' · '),
+                    })),
+                  ]}
+                  onChange={(v) => selectCompany(v === 'all' ? '' : v)}
+                />
+              ) : null}
               <div className='w-full sm:w-auto'>
                 <PurchaseSelect
                   label={t(ui('reviewState'))}
                   value={status || 'all'}
-                  items={[
-                    'all',
-                    'draft',
-                    'pending',
-                    'approved',
-                    'cancelled',
-                  ].map((value) => ({
+                  items={(group
+                    ? ['all', 'pending', 'approved', 'cancelled']
+                    : ['all', 'draft', 'pending', 'approved', 'cancelled']
+                  ).map((value) => ({
                     value,
                     label: t(ui(value === 'all' ? 'allStatuses' : value)),
                   }))}

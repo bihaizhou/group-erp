@@ -13,7 +13,6 @@ export const procurement = {
     revise: '修订已批准采购申请',
     cancel: '取消采购申请',
     reassign: '采购审核交接',
-    delegate: '为他人代办采购申请',
     ownRequests: '本人采购申请',
     ownCompany: '本公司',
     selectedCompanies: '指定公司',

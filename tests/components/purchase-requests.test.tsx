@@ -167,6 +167,28 @@ function base(v: Call): Promise<unknown> {
   }
   if (v.path === 'procurement/requestCompanies')
     return Promise.resolve(page([company, otherCompany]));
+  if (v.path === 'procurement/requestIdentity')
+    return Promise.resolve({
+      data: {
+        employee,
+        companies: [
+          {
+            ...company,
+            primary: true,
+            units: [
+              {
+                ...unit,
+                positionId: 'position',
+                positionCode: 'POS',
+                positionName: 'Position',
+                primary: true,
+              },
+            ],
+          },
+        ],
+        default: { subjectId: companyId, unitId },
+      },
+    });
   if (v.path === 'procurement/settings/companies')
     return Promise.resolve(page([company]));
   if (v.path === 'procurement/requestOptions')
@@ -299,6 +321,8 @@ beforeEach(() => {
   });
   row = structuredClone(original);
   denied.clear();
+  denied.add('procurement.requests:readAll');
+  denied.add('procurement.requests:merge');
   api.request.mockReset();
   api.request.mockImplementation(base);
   toast.show.mockReset();
@@ -319,6 +343,66 @@ it('opens in the first authorised company and scopes requests to it', async () =
     ),
   ).toBe(false);
 });
+it('defaults the new form to the caller identity and removes other companies', async () => {
+  const user = userEvent.setup();
+  mount(`${rootPath}/new?subjectId=${companyId}`);
+  await screen.findByRole('button', { name: 'Save draft' });
+  const editor = within(form());
+  expect(editor.getByText(new RegExp(company.name))).toBeVisible();
+  expect(screen.queryByText(otherCompany.name)).not.toBeInTheDocument();
+  expect(editor.getByText(new RegExp(employee.name))).toBeVisible();
+  expect(editor.getAllByText(new RegExp(unit.name)).length).toBeGreaterThan(0);
+  for (const id of [
+    'purchase-requesterEmployeeId',
+    'purchase-requestingUnitId',
+  ]) {
+    const field = document.getElementById(id);
+    expect(field?.tagName).toBe('DIV');
+    expect(field).toHaveAttribute('aria-readonly', 'true');
+    expect(field?.querySelector('button')).toBeNull();
+  }
+  await user.click(editor.getByRole('button', { name: 'Save draft' }));
+  const sent = api.request.mock.calls
+    .map(([value]) => value)
+    .find(
+      (value) =>
+        value.path === 'procurement/requests' && value.method === 'POST',
+    );
+  expect(sent.json.content.subjectId).toBe(companyId);
+  expect(sent.json.content.requesterEmployeeId).toBe(employeeId);
+  expect(sent.json.content.requestingUnitId).toBe(unitId);
+});
+
+it('defaults a group reader to submitted requests across companies', async () => {
+  denied.delete('procurement.requests:readAll');
+  mount(rootPath);
+  await waitFor(() =>
+    expect(
+      api.request.mock.calls.some(
+        ([value]) =>
+          value.path === 'procurement/requests' &&
+          value.query?.submitted === 'true' &&
+          !value.query?.subjectId,
+      ),
+    ).toBe(true),
+  );
+});
+
+it('shows why an account without an effective employment cannot create', async () => {
+  api.request.mockImplementation((value) =>
+    value.path === 'procurement/requestIdentity'
+      ? Promise.resolve({
+          data: { employee: null, companies: [], default: null },
+        })
+      : base(value),
+  );
+  mount(`${rootPath}/new?subjectId=${companyId}`);
+  expect(
+    await screen.findByText(/This account has no active employment/),
+  ).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Save draft' })).toBeNull();
+});
+
 it('saves a company-only draft without a reason and retries the same payload/key after a network failure', async () => {
   let writes = 0;
   api.request.mockImplementation((v) =>
@@ -533,7 +617,7 @@ it('requires confirmation for cancellation and keeps the reason until it is conf
       .reason,
   ).toBe('No longer needed');
 });
-it('marks an unavailable department inline and focuses the affected reference without losing the draft', async () => {
+it('shows an unavailable department inline without losing the draft', async () => {
   row = {
     ...row,
     requesterEmployeeId: employeeId,
@@ -555,10 +639,12 @@ it('marks an unavailable department inline and focuses the affected reference wi
     within(form()).getByRole('button', { name: 'Save', exact: true }),
   );
   await waitFor(() =>
-    expect(document.getElementById('purchase-requestingUnitId')).toHaveFocus(),
+    expect(
+      within(form()).getAllByText(/This reference is unavailable/).length,
+    ).toBeGreaterThan(0),
   );
   expect(document.getElementById('purchase-requestingUnitId')).toHaveAttribute(
-    'aria-invalid',
+    'aria-readonly',
     'true',
   );
   expect(
@@ -693,54 +779,27 @@ it('focuses the retained line editor region after a server-side material referen
   ).toHaveValue('Retain this explanation');
 });
 
-it('marks a retained department for explicit reselection after the requester changes', async () => {
+it('shows the requester and department as read-only on edit', async () => {
   row = {
     ...row,
     requesterEmployeeId: employeeId,
     requestingUnitId: unitId,
     display: { ...row.display, requester: employee, unit },
   };
-  const other = {
-    id: '00000000-0000-4000-8000-000000000005',
-    code: 'EMP2',
-    name: 'Other Applicant',
-  };
-  api.request.mockImplementation((v) =>
-    v.path === 'procurement/requestOptions' && v.query?.kind === 'employees'
-      ? Promise.resolve(page([employee, other]))
-      : base(v),
-  );
-  const user = userEvent.setup();
   mount(`${rootPath}/edit/${requestId}?subjectId=${companyId}`);
-  await user.type(
-    await screen.findByRole('textbox', { name: /Reason for changes/ }),
-    'Changed requester',
-  );
-  await user.click(
-    within(form()).getByRole('radio', { name: /Other Applicant/ }),
-  );
-  expect(within(form()).getByText(/The requester changed/)).toBeVisible();
-  await user.click(
-    within(form()).getByRole('button', { name: 'Save', exact: true }),
-  );
-  expect(api.request.mock.calls.some(([v]) => v.method === 'PATCH')).toBe(
-    false,
-  );
-  expect(document.getElementById('purchase-requestingUnitId')).toHaveFocus();
-  await user.click(
-    await within(form()).findByRole('radio', { name: /UNIT.*Department/ }),
-  );
+  await screen.findByRole('button', { name: 'Save', exact: true });
+  const requester = document.getElementById('purchase-requesterEmployeeId'),
+    department = document.getElementById('purchase-requestingUnitId');
+  for (const field of [requester, department]) {
+    expect(field?.tagName).toBe('DIV');
+    expect(field).toHaveAttribute('aria-readonly', 'true');
+    expect(field?.querySelector('button')).toBeNull();
+  }
+  expect(requester).toHaveTextContent(employee.name);
+  expect(department).toHaveTextContent(unit.name);
   expect(
-    within(form()).queryByText(/The requester changed/),
-  ).not.toBeInTheDocument();
-  await user.click(
-    within(form()).getByRole('button', { name: 'Save', exact: true }),
-  );
-  await waitFor(() =>
-    expect(api.request.mock.calls.some(([v]) => v.method === 'PATCH')).toBe(
-      true,
-    ),
-  );
+    within(form()).queryByRole('radio', { name: /Other Applicant/ }),
+  ).toBeNull();
 });
 
 it('keeps rejected company rules and focuses their inline error region', async () => {

@@ -8,7 +8,6 @@ import {
   useNavigate,
   useParams,
   useResolvedPath,
-  useSearchParams,
   Outlet,
 } from 'react-router';
 import { ApiClientError, useApiClient, useToaster } from '@nocobase/app-client';
@@ -38,6 +37,7 @@ import {
   useRequest,
   useCapabilities,
   usePurchaseCan,
+  usePurchaseIdentity,
   usePurchaseRefresh,
   useRequestKey,
   useLeaveGuard,
@@ -59,6 +59,7 @@ import {
   applyContentMerge,
   type Content,
   type PurchaseRequest,
+  type PurchaseIdentity,
   type Choice,
   type DemandLine,
   type Preview,
@@ -86,7 +87,8 @@ export default function RequestFormPage() {
       : 'edit';
   const record = useRequest(mode === 'new' ? undefined : requestId),
     cap = useCapabilities(mode === 'new' ? undefined : requestId),
-    create = usePurchaseCan('create');
+    create = usePurchaseCan('create'),
+    purchaseIdentity = usePurchaseIdentity(mode === 'new');
   const [loaded, setLoaded] = useState<{
     identity: string;
     record: PurchaseRequest;
@@ -116,19 +118,55 @@ export default function RequestFormPage() {
           : 'editTitle',
     ),
   );
+  const hasPosition =
+    !!purchaseIdentity.data?.data.employee &&
+    purchaseIdentity.data.data.companies.some(
+      (company) => company.units.length > 0,
+    );
   return (
     <RouteChildPage>
       <PageContainer>
         {mode === 'new' ? (
-          create.isPending ? (
+          create.isPending || purchaseIdentity.isPending ? (
             <Loading kind='form' />
           ) : !allowed ? (
             <>
               <BackButton />
               <AccessDenied title={t(ui('forbidden'))} />
             </>
+          ) : purchaseIdentity.error ? (
+            <>
+              <BackButton />
+              <ErrorNotice
+                error={purchaseIdentity.error}
+                retry={() => void purchaseIdentity.refetch()}
+              />
+            </>
+          ) : !purchaseIdentity.data?.data.employee ||
+            !purchaseIdentity.data.data.companies.length ? (
+            <>
+              <BackButton />
+              <PageHeader title={title} />
+              <Alert variant='destructive'>
+                <AlertDescription>{t(ui('noEmploymentHint'))}</AlertDescription>
+              </Alert>
+            </>
+          ) : !hasPosition ? (
+            <>
+              <BackButton />
+              <PageHeader title={title} />
+              <Alert variant='destructive'>
+                <AlertDescription>
+                  {t(ui('noProcurementPositionHint'))}
+                </AlertDescription>
+              </Alert>
+            </>
           ) : (
-            <FormBody mode={mode} path={path} />
+            <FormBody
+              mode={mode}
+              path={path}
+              identity={purchaseIdentity.data.data}
+            />
           )
         ) : ready ? (
           <FormBody key={identity} mode={mode} path={path} initial={ready} />
@@ -157,22 +195,43 @@ function FormBody({
   mode,
   path,
   initial,
+  identity,
 }: {
   mode: Mode;
   path: string;
   initial?: PurchaseRequest;
+  identity?: PurchaseIdentity;
 }) {
   const { t } = useTranslation(),
     api = useApiClient(),
     toaster = useToaster(),
     navigate = useNavigate(),
     location = useLocation(),
-    [params] = useSearchParams(),
+    scope = useCurrentCompany(),
     refresh = usePurchaseRefresh();
   const initialContent = () => {
+    // The company was chosen before this page opened. Once here it is fixed:
+    // the form never reads or writes another company from the URL.
+    const selectedCompanyId =
+      mode === 'new'
+        ? (scope?.id ?? identity?.default?.subjectId ?? '')
+        : (initial?.subjectId ?? scope?.id ?? '');
     const c = initial
       ? requestContent(initial)
-      : blankContent(params.get('subjectId') ?? '');
+      : blankContent(selectedCompanyId);
+    if (mode === 'new' && identity?.employee) {
+      const company = identity.companies.find(
+        (item) => item.id === selectedCompanyId,
+      );
+      if (company) {
+        c.subjectId = company.id;
+        c.requesterEmployeeId = identity.employee.id;
+        c.requestingUnitId =
+          company.units.find((item) => item.primary)?.id ??
+          company.units[0]?.id ??
+          null;
+      }
+    }
     if (mode === 'copy') {
       c.lines = c.lines.map((l) => ({ ...l, id: randomUuid() }));
       c.attachments = [];
@@ -188,10 +247,22 @@ function FormBody({
     [error, setError] = useState<unknown>(),
     [serverErrors, setServerErrors] = useState<Record<string, string>>({}),
     [attempted, setAttempted] = useState(false),
-    [unitNeedsReselection, setUnitNeedsReselection] = useState(false),
     [latest, setLatest] = useState<PurchaseRequest>(),
     [choices, setChoices] = useState<Record<string, 'local' | 'server'>>({}),
-    [refs, setRefs] = useState<Record<string, Choice | undefined>>({}),
+    [refs, setRefs] = useState<Record<string, Choice | undefined>>(() => {
+      const result: Record<string, Choice | undefined> = {};
+      if (!identity) return result;
+      if (identity.employee) result.requester = identity.employee;
+      const company = identity.companies.find(
+          (item) => item.id === baseline.subjectId,
+        ),
+        unit = company?.units.find(
+          (item) => item.id === baseline.requestingUnitId,
+        );
+      if (company) result.company = company;
+      if (unit) result.unit = unit;
+      return result;
+    }),
     [hints, setHints] = useState<Record<string, Preview>>(() =>
       Object.fromEntries(
         (initial?.lines ?? [])
@@ -204,8 +275,7 @@ function FormBody({
     );
   const key = useRequestKey(),
     busyRef = useRef(false),
-    confirm = useConfirm(),
-    scope = useCurrentCompany();
+    confirm = useConfirm();
   const dirty = !same(baseline, draft) || !!reason.trim(),
     guard = useLeaveGuard(dirty, busy || uploading, path);
   const cap = useCapabilities(mode === 'new' ? undefined : initial?.id),
@@ -222,21 +292,26 @@ function FormBody({
     ...(attempted
       ? validateContent(draft, mode === 'new' ? undefined : reason)
       : {}),
-    ...(attempted && unitNeedsReselection
-      ? { requestingUnitId: 'requesterUnitMismatch' }
-      : {}),
   };
-  const fieldError = (name: string) => (
-    <>
-      {errors[name] && (
-        <FieldError>
-          {t(ui(errors[name]), {
-            field: t(ui(name === 'subjectId' ? 'company' : name)),
-          })}
-        </FieldError>
-      )}
-    </>
-  );
+  const fieldError = (name: string) => {
+    const label =
+      name === 'subjectId'
+        ? 'company'
+        : name === 'requestingUnitId'
+          ? 'unit'
+          : name === 'requesterEmployeeId'
+            ? 'requester'
+            : name;
+    return (
+      <>
+        {errors[name] && (
+          <FieldError>
+            {t(ui(errors[name]), { field: t(ui(label)) })}
+          </FieldError>
+        )}
+      </>
+    );
+  };
   const update = <K extends keyof Content>(field: K, value: Content[K]) => {
     setServerErrors((old) =>
       Object.fromEntries(Object.entries(old).filter(([key]) => key !== field)),
@@ -266,8 +341,6 @@ function FormBody({
       return;
     setAttempted(true);
     const invalid = validateContent(draft, mode === 'new' ? undefined : reason);
-    if (unitNeedsReselection)
-      invalid.requestingUnitId = 'requesterUnitMismatch';
     if (Object.keys(invalid).length) {
       const first = Object.keys(invalid)[0];
       document
@@ -316,8 +389,9 @@ function FormBody({
           PURCHASE_PERSON_UNAVAILABLE: 'requesterEmployeeId',
           PURCHASE_UNIT_UNAVAILABLE: 'requestingUnitId',
           PURCHASE_PERSON_UNIT_MISMATCH: 'requestingUnitId',
-          PURCHASE_DELEGATE_REQUIRED: 'requesterEmployeeId',
           PURCHASE_COMPANY_UNAVAILABLE: 'subjectId',
+          PURCHASE_EMPLOYMENT_REQUIRED: 'subjectId',
+          PURCHASE_POSITION_REQUIRED: 'subjectId',
           PURCHASE_SUPPLIER_CHANGED: 'suggestedSupplierId',
           SUPPLIER_COMPANY_INACTIVE: 'suggestedSupplierId',
           SUPPLIER_GLOBALLY_INACTIVE: 'suggestedSupplierId',
@@ -524,6 +598,8 @@ function FormBody({
     t(ui('notes')) + ': ' + draft.notes,
     t(ui('reason')) + ': ' + reason,
   ].join('\n');
+  const identityLabel = (value?: Choice | null) =>
+    value ? [value.code, value.name].filter(Boolean).join(' · ') : '—';
   return (
     <>
       <BackButton />
@@ -643,68 +719,42 @@ function FormBody({
                       ? scope
                       : (row?.display.company ?? null)
                   }
-                  hint={t('companyScope.fromIdentity')}
+                  hint={t(ui('identityLockedHint'))}
                 />
                 {fieldError('subjectId')}
               </div>
-              <div className='flex flex-col gap-2'>
-                <ReferencePicker
+              <Field
+                data-invalid={!!errors.requesterEmployeeId}
+                className='flex flex-col gap-2'
+              >
+                <FieldLabel htmlFor='purchase-requesterEmployeeId'>
+                  {t(ui('requester'))} ({t(ui('requiredToSubmit'))})
+                </FieldLabel>
+                <div
                   id='purchase-requesterEmployeeId'
-                  error={
-                    errors.requesterEmployeeId
-                      ? t(ui(errors.requesterEmployeeId))
-                      : undefined
-                  }
-                  key={`person-${draft.subjectId}`}
-                  path='requestOptions'
-                  query={{ subjectId: draft.subjectId, kind: 'employees' }}
-                  label={`${t(ui('requester'))} (${t(ui('requiredToSubmit'))})`}
-                  value={draft.requesterEmployeeId ?? ''}
-                  selected={refs.requester ?? row?.display.requester}
-                  disabled={!draft.subjectId}
-                  onChange={(id, item) => {
-                    if (
-                      id !== draft.requesterEmployeeId &&
-                      draft.requestingUnitId
-                    )
-                      setUnitNeedsReselection(true);
-                    update('requesterEmployeeId', id || null);
-                    setRefs((old) => ({ ...old, requester: item }));
-                  }}
-                />
-                {unitNeedsReselection && (
-                  <p className='text-sm text-muted-foreground'>
-                    {t(ui('reselectUnit'))}
-                  </p>
-                )}
-              </div>
-              <ReferencePicker
-                id='purchase-requestingUnitId'
-                needsReselection={unitNeedsReselection}
-                error={
-                  errors.requestingUnitId
-                    ? t(ui(errors.requestingUnitId))
-                    : undefined
-                }
-                key={`unit-${draft.subjectId}-${draft.requesterEmployeeId}`}
-                path='requestOptions'
-                query={{
-                  subjectId: draft.subjectId,
-                  kind: 'units',
-                  ...(draft.requesterEmployeeId
-                    ? { requesterEmployeeId: draft.requesterEmployeeId }
-                    : {}),
-                }}
-                label={`${t(ui('unit'))} (${t(ui('requiredToSubmit'))})`}
-                value={draft.requestingUnitId ?? ''}
-                selected={refs.unit ?? row?.display.unit}
-                disabled={!draft.subjectId || !draft.requesterEmployeeId}
-                onChange={(id, item) => {
-                  setUnitNeedsReselection(false);
-                  update('requestingUnitId', id || null);
-                  setRefs((old) => ({ ...old, unit: item }));
-                }}
-              />
+                  aria-readonly='true'
+                  className='flex min-h-9 items-center rounded-md border bg-muted/30 px-3 text-sm'
+                >
+                  {identityLabel(refs.requester ?? row?.display.requester)}
+                </div>
+                {fieldError('requesterEmployeeId')}
+              </Field>
+              <Field
+                data-invalid={!!errors.requestingUnitId}
+                className='flex flex-col gap-2'
+              >
+                <FieldLabel htmlFor='purchase-requestingUnitId'>
+                  {t(ui('unit'))} ({t(ui('requiredToSubmit'))})
+                </FieldLabel>
+                <div
+                  id='purchase-requestingUnitId'
+                  aria-readonly='true'
+                  className='flex min-h-9 items-center rounded-md border bg-muted/30 px-3 text-sm'
+                >
+                  {identityLabel(refs.unit ?? row?.display.unit)}
+                </div>
+                {fieldError('requestingUnitId')}
+              </Field>
               <Field data-invalid={!!errors.usage} className='md:col-span-2'>
                 <FieldLabel htmlFor='purchase-usage'>
                   {t(ui('usage'))} ({t(ui('requiredToSubmit'))})

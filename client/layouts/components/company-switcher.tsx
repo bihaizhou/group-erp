@@ -11,7 +11,10 @@ import {
   DropdownMenuTrigger,
 } from '#components/ui/dropdown-menu';
 import { COMPANY_QUERY_PARAM } from '#lib/company-scope';
-import { useCompanyScopeEndpoint } from '../../company/company-route-scope.js';
+import {
+  useCompanyLock,
+  useCompanyScopeEndpoint,
+} from '../../company/company-route-scope.js';
 
 type Company = { id: string; code?: string; name?: string };
 
@@ -22,8 +25,9 @@ type Company = { id: string; code?: string; name?: string };
  */
 export function CompanySwitcher() {
   const location = useLocation(),
-    endpoint = useCompanyScopeEndpoint(location.pathname);
-  if (!endpoint) return null;
+    endpoint = useCompanyScopeEndpoint(location.pathname),
+    locked = useCompanyLock(location.pathname);
+  if (!endpoint || locked) return null;
   return <CompanySwitcherMenu endpoint={endpoint} />;
 }
 

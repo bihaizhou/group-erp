@@ -82,15 +82,23 @@ export const purchasePage = z.strictObject({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 export const purchaseQuery = purchasePage.extend({
-  subjectId: id,
+  subjectId: id.optional(),
   status: z.enum(purchaseStates).optional(),
   mine: z.enum(['true', 'false']).default('false'),
+  submitted: z.enum(['true', 'false']).default('false'),
   identification: z.enum(['identified', 'unidentified']).optional(),
   neededFrom: z.iso.date().optional(),
   neededTo: z.iso.date().optional(),
   orderBy: z
     .enum(['updatedAt', '-updatedAt', 'neededOn', '-neededOn'])
     .default('-updatedAt'),
+});
+export const purchaseMergeQuery = z.strictObject({
+  subjectId: id.optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  neededFrom: z.iso.date().optional(),
+  neededTo: z.iso.date().optional(),
 });
 export const purchaseOptionQuery = purchasePage.extend({
   subjectId: id,
@@ -123,6 +131,7 @@ export type PurchaseMutation = z.infer<typeof purchaseMutation>;
 export type PurchaseUpdate = z.infer<typeof purchaseUpdate>;
 export type PurchaseAction = z.infer<typeof purchaseAction>;
 export type PurchaseQuery = z.infer<typeof purchaseQuery>;
+export type PurchaseMergeQuery = z.infer<typeof purchaseMergeQuery>;
 export type PurchasePage = z.infer<typeof purchasePage>;
 export type PurchaseOptionQuery = z.infer<typeof purchaseOptionQuery>;
 export type PurchaseRules = z.infer<typeof purchaseRules>;
@@ -279,6 +288,58 @@ export const purchaseOptionView = z.object({
   id: z.string(),
   code: z.string(),
   name: z.string(),
+});
+export const purchaseIdentityView = z.object({
+  employee: z.object({ id, code: z.string(), name: z.string() }).nullable(),
+  companies: z.array(
+    z.object({
+      id,
+      code: z.string(),
+      name: z.string(),
+      primary: z.boolean(),
+      units: z.array(
+        z.object({
+          id,
+          code: z.string(),
+          name: z.string(),
+          positionId: id,
+          positionCode: z.string(),
+          positionName: z.string(),
+          primary: z.boolean(),
+        }),
+      ),
+    }),
+  ),
+  default: z.object({ subjectId: id, unitId: id.nullable() }).nullable(),
+});
+export const purchaseMergeView = z.object({
+  key: z.string(),
+  kind: z.enum(['known', 'unknown']),
+  material: z.object({
+    skuId: id.nullable(),
+    code: z.string(),
+    name: z.string(),
+    specification: z.string(),
+    unitId: id.nullable(),
+    unitName: z.string(),
+  }),
+  quantity: z.string(),
+  sources: z.array(
+    z.object({
+      requestId: id,
+      requestCode: z.string(),
+      subjectId: id,
+      companyName: z.string(),
+      lineId: id,
+      lineNo: z.number().int(),
+      requestedQuantity: z.string(),
+      requestedUnit: z.string(),
+      baseQuantity: z.string().nullable(),
+      baseUnit: z.string().nullable(),
+      neededOn: z.string().nullable(),
+      usage: z.string(),
+    }),
+  ),
 });
 export const purchaseAuditView = z
   .object({

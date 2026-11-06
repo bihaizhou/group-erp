@@ -51,9 +51,12 @@ import {
   type PurchaseAction,
   type PurchaseQuery,
   type PurchasePage,
+  type PurchaseMergeQuery,
   type PurchaseOptionQuery,
   type PurchaseSettingsSave,
 } from './purchase-request-model.js';
+import { resolvePurchaseIdentity } from './purchase-identity.js';
+import { buildPurchaseMerge } from './purchase-merge.js';
 import {
   purchaseLifecycle,
   purchaseParameterCollections,
@@ -65,7 +68,6 @@ import {
 type Row = RepositoryRecord;
 export interface PurchaseAccess {
   policies: MaterialPolicies;
-  delegate: MaterialPolicies | null;
   source?: SourceAccess;
 }
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
@@ -131,7 +133,7 @@ export class PurchaseRequestService {
       lineTable: 'purchaseRequestLines',
       authorized: async (c, id, actor, access) => {
         const head = await this.head(c, id, access.policies);
-        await this.applicant(c, head, actor, access);
+        await this.sourceApplicant(c, head, actor, access);
         return head;
       },
       mutate: (c, id, actor, access, input) =>
@@ -152,7 +154,7 @@ export class PurchaseRequestService {
     },
   ): Promise<JsonObject> {
     const before = await this.head(c, id, access.policies);
-    await this.applicant(c, before, actor, access);
+    await this.sourceApplicant(c, before, actor, access);
     if (before.status === 'cancelled')
       return purchaseError('PURCHASE_NOT_DRAFT');
     const effectiveActor = input.auditActor ?? actor;
@@ -340,10 +342,16 @@ export class PurchaseRequestService {
   }
   async list(query: PurchaseQuery, actor: LifecycleActor, p: MaterialPolicies) {
     const c = this.db.connection();
-    await this.company(c, query.subjectId, p, false);
+    const identity = await this.identity(actor);
+    if (!identity.companies.some((company) => company.units.length > 0))
+      return purchaseError('PURCHASE_POSITION_REQUIRED', 'PERMISSION_DENIED');
+    if (query.subjectId) await this.company(c, query.subjectId, p, false);
     const filter = (f: FilterBuilder) =>
       f.and([
-        f.string('subjectId').eq(query.subjectId),
+        ...(query.subjectId ? [f.string('subjectId').eq(query.subjectId)] : []),
+        ...(query.submitted === 'true'
+          ? [f.date('submittedAt').notEmpty()]
+          : []),
         ...(query.status ? [f.string('status').eq(query.status)] : []),
         ...(query.mine === 'true'
           ? [
@@ -399,6 +407,80 @@ export class PurchaseRequestService {
       meta: { page: query.page, pageSize: query.pageSize, total },
     };
   }
+  async identity(actor: LifecycleActor) {
+    return resolvePurchaseIdentity(this.db.connection(), this.timeZone, {
+      type: 'user',
+      id: actor.id,
+    });
+  }
+
+  async merge(query: PurchaseMergeQuery, p: MaterialPolicies) {
+    const c = this.db.connection();
+    if (query.subjectId) await this.company(c, query.subjectId, p, false);
+    const requests = await this.repo(c, 'purchaseRequests', p).findMany({
+      filter: (f: FilterBuilder) =>
+        f.and([
+          f.string('status').eq('approved'),
+          ...(query.subjectId
+            ? [f.string('subjectId').eq(query.subjectId)]
+            : []),
+          ...(query.neededFrom
+            ? [f.date('neededOn').notBefore(query.neededFrom)]
+            : []),
+          ...(query.neededTo
+            ? [f.date('neededOn').notAfter(query.neededTo)]
+            : []),
+        ]),
+      limit: 10001,
+      sort: (s) => [s.field('code').asc(), s.field('id').asc()],
+    });
+    if (requests.length > 10000)
+      return purchaseError('PURCHASE_REFERENCE_TOO_BROAD');
+    const ids = requests.map((row) => text(row.id)),
+      lines = ids.length
+        ? await this.repo(c, 'purchaseRequestLines', p).findMany({
+            filter: (f: FilterBuilder) =>
+              f.and([
+                f.string('status').eq('active'),
+                materialIdFilter(f, 'requestId', ids),
+              ]),
+            limit: 100001,
+          })
+        : [];
+    if (lines.length > 100000)
+      return purchaseError('PURCHASE_REFERENCE_TOO_BROAD');
+    const companyIds = [
+        ...new Set(requests.map((row) => text(row.subjectId))),
+      ].filter(Boolean),
+      companyRows = companyIds.length
+        ? await this.repo(c, 'orgSubjects', p).findMany({
+            filter: (f: FilterBuilder) => materialIdFilter(f, 'id', companyIds),
+            limit: 10001,
+          })
+        : [];
+    const groups = buildPurchaseMerge(
+      requests,
+      lines,
+      new Map(
+        companyRows.map((row) => [
+          text(row.id),
+          { code: text(row.code), name: text(row.name) },
+        ]),
+      ),
+    );
+    return {
+      data: groups.slice(
+        (query.page - 1) * query.pageSize,
+        query.page * query.pageSize,
+      ),
+      meta: {
+        page: query.page,
+        pageSize: query.pageSize,
+        total: groups.length,
+      },
+    };
+  }
+
   async history(id: string, query: PurchasePage, p: MaterialPolicies) {
     const c = this.db.connection();
     await this.head(c, id, p);
@@ -682,7 +764,7 @@ export class PurchaseRequestService {
           replayWrite,
           text(row.id),
         );
-        // A saved delegate permission is never sufficient after it is revoked.
+        // Re-check the creator/requester rule on every replay.
         if (
           !('transition' in input) ||
           !['approve', 'return', 'reassign'].includes(String(input.transition))
@@ -837,71 +919,98 @@ export class PurchaseRequestService {
     }
     return valid;
   }
-  private async canDelegate(
-    c: DatabaseConnection,
-    subjectId: string,
-    access: PurchaseAccess,
-  ) {
-    const policy = access.delegate?.orgSubjects;
-    return (
-      !!policy &&
-      policy.read !== false &&
-      (await c
-        .repository('orgSubjects')
-        .withPolicy(policy)
-        .exists({ filter: { id: subjectId } }))
-    );
-  }
   private async applicant(
     c: DatabaseConnection,
     row: Row,
     actor: LifecycleActor,
     access: PurchaseAccess,
   ) {
-    if (!row.requesterEmployeeId) {
-      if (
-        row.createdBy !== actor.id &&
-        !(await this.canDelegate(c, text(row.subjectId), access))
-      )
-        return denied();
-      return;
-    }
-    const person = await this.repo(
-      c,
-      'personnelEmployees',
-      access.policies,
-    ).findOne({ filter: { id: text(row.requesterEmployeeId) } });
+    // The creator and the requester are the only people who may act on a
+    // request. Delegation is not a purchase-request permission.
+    if (row.createdBy === actor.id) return;
+    const person = row.requesterEmployeeId
+      ? await this.repo(c, 'personnelEmployees', access.policies).findOne({
+          filter: { id: text(row.requesterEmployeeId) },
+        })
+      : undefined;
+    if (person?.accountId !== actor.id) return denied();
+  }
+  private async sourceApplicant(
+    c: DatabaseConnection,
+    row: Row,
+    actor: LifecycleActor,
+    access: SourceAccess,
+  ) {
+    // Purchase requests no longer support delegation, but a material source
+    // takeover is a shared governance action with its own delegate grant.
+    if (row.createdBy === actor.id) return;
+    const person = row.requesterEmployeeId
+      ? await this.repo(c, 'personnelEmployees', access.policies).findOne({
+          filter: { id: text(row.requesterEmployeeId) },
+        })
+      : undefined;
+    if (person?.accountId === actor.id) return;
+    const policy = access.delegate?.orgSubjects;
+    if (!policy || policy.read === false) return denied();
     if (
-      person?.accountId !== actor.id &&
-      !(await this.canDelegate(c, text(row.subjectId), access))
+      await c
+        .repository('orgSubjects')
+        .withPolicy(policy)
+        .exists({ filter: { id: text(row.subjectId) } })
     )
-      return purchaseError('PURCHASE_DELEGATE_REQUIRED', 'PERMISSION_DENIED');
+      return;
+    return denied();
   }
   private async contentValues(
     c: DatabaseConnection,
-    content: PurchaseContent,
+    raw: PurchaseContent,
     actor: LifecycleActor,
     access: PurchaseAccess,
     formal = false,
     readOnly = false,
   ) {
     const p = access.policies;
-    await this.company(c, content.subjectId, p);
-    let requesterAccountId: string | null = null;
-    if (content.requesterEmployeeId) {
-      const person = await this.activeEmployee(
-        c,
-        content.requesterEmployeeId,
-        content.subjectId,
-        p,
+    await this.company(c, raw.subjectId, p);
+    // One identity rule for create, update and submission: the company is one
+    // of the caller's active employments, the requester is the caller, and the
+    // department is that company's primary (or first) effective department.
+    const identity = await resolvePurchaseIdentity(c, this.timeZone, {
+      type: 'user',
+      id: actor.id,
+    });
+    if (!identity.employee || !identity.companies.length)
+      return purchaseError(
+        'PURCHASE_EMPLOYMENT_REQUIRED',
+        'INVALID_ARGUMENT',
+        'subjectId',
       );
-      requesterAccountId = text(person.accountId) || null;
-      if (
-        requesterAccountId !== actor.id &&
-        !(await this.canDelegate(c, content.subjectId, access))
-      )
-        return purchaseError('PURCHASE_DELEGATE_REQUIRED', 'PERMISSION_DENIED');
-    }
+    const company = identity.companies.find((row) => row.id === raw.subjectId);
+    if (!company || !company.units.length)
+      return purchaseError(
+        'PURCHASE_POSITION_REQUIRED',
+        'INVALID_ARGUMENT',
+        'subjectId',
+      );
+    const employeeId = identity.default?.employeeId ?? identity.employee.id;
+    if (raw.requesterEmployeeId && raw.requesterEmployeeId !== employeeId)
+      return purchaseError(
+        'PURCHASE_FORBIDDEN',
+        'PERMISSION_DENIED',
+        'requesterEmployeeId',
+      );
+    const unit = company.units.find((item) => item.primary) ?? company.units[0];
+    if (raw.requestingUnitId && raw.requestingUnitId !== unit.id)
+      return purchaseError(
+        'PURCHASE_UNIT_UNAVAILABLE',
+        'INVALID_ARGUMENT',
+        'requestingUnitId',
+      );
+    const content: PurchaseContent = {
+        ...raw,
+        requesterEmployeeId: employeeId,
+        requestingUnitId: unit.id,
+      },
+      requesterAccountId = actor.id;
     if (
       content.requestingUnitId &&
       !(await this.repo(c, 'orgUnits', p).exists({
@@ -914,22 +1023,6 @@ export class PurchaseRequestService {
     )
       return purchaseError(
         'PURCHASE_UNIT_UNAVAILABLE',
-        'INVALID_ARGUMENT',
-        'requestingUnitId',
-      );
-    if (
-      content.requesterEmployeeId &&
-      content.requestingUnitId &&
-      !(
-        await this.positionsFor(
-          c,
-          content.requesterEmployeeId,
-          content.subjectId,
-        )
-      ).some((r) => r.unitId === content.requestingUnitId)
-    )
-      return purchaseError(
-        'PURCHASE_PERSON_UNIT_MISMATCH',
         'INVALID_ARGUMENT',
         'requestingUnitId',
       );
@@ -2111,8 +2204,7 @@ export class PurchaseRequestService {
     const c = this.db.connection(),
       p = access.policies;
     await this.company(c, query.subjectId, p);
-    const allPeople =
-      configuration || (await this.canDelegate(c, query.subjectId, access));
+    const allPeople = configuration;
     const search = (f: FilterBuilder) =>
       query.q
         ? f.or(

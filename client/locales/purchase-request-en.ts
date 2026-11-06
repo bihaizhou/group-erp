@@ -57,6 +57,24 @@ export const requestUi = {
   clearFilters: 'Clear filters',
   allRequests: 'All requests',
   myRequests: 'My requests',
+  allCompanies: 'All companies',
+  mergedList: 'Merged purchase list',
+  mergeHint:
+    'Only approved requests are included. Totals are recalculated from current source lines.',
+  mergeMaterial: 'Material',
+  mergeUnit: 'Unit',
+  mergeQuantity: 'Merged quantity',
+  mergeSources: 'Sources',
+  mergeSourceCount: '{{count}} sources',
+  mergeSourceCount_one: '{{count}} source',
+  mergeSourceCount_other: '{{count}} sources',
+  mergeEmpty: 'No approved request lines match these filters.',
+  noEmploymentHint:
+    'This account has no active employment. Ask an administrator to maintain your employment and department before creating a purchase request.',
+  noProcurementPositionHint:
+    'This account has no active procurement position. Ask an administrator to assign you to a department and position before creating a purchase request.',
+  identityLockedHint:
+    'The company is fixed by the company chosen before entering this page; it cannot be switched here.',
   allStatuses: 'All review states',
   allIdentification: 'All identification states',
   draft: 'Draft',
@@ -249,8 +267,6 @@ export const requestUi = {
     'You cannot review your own request or one you submitted for someone else.',
   reviewStillAvailable:
     'Current reviewers can still decide. Matching again is unnecessary.',
-  delegateRequired:
-    'Acting for another requester requires delegation access in this company.',
   requesterUnitMismatch:
     'The requester has no current assignment in this department. Select again.',
   materialsRequired:

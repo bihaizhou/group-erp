@@ -39,7 +39,6 @@ import { MaterialError } from '../providers/material-model.js';
 import { materialApiError } from './material-error.js';
 import { createMiddleware } from 'hono/factory';
 import { bodyLimit } from 'hono/body-limit';
-import type { MaterialPolicies } from '../providers/material-service.js';
 import { SupplyChainError } from '../providers/supply-chain-model.js';
 import { purchaseRequestServiceToken } from '../providers/procurement.js';
 import {
@@ -53,6 +52,7 @@ import {
   purchaseAction,
   purchaseParams,
   purchaseQuery,
+  purchaseMergeQuery,
   purchasePage,
   purchaseMeta,
   purchaseView,
@@ -65,6 +65,8 @@ import {
   purchaseSettingsView,
   purchaseCapabilityView,
   purchaseCompanyMeta,
+  purchaseIdentityView,
+  purchaseMergeView,
 } from '../providers/purchase-request-model.js';
 
 type Env = AuthEnv &
@@ -85,6 +87,8 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
     for (const path of [
       '/requests',
       '/requests/*',
+      '/requestIdentity',
+      '/merge',
       '/requestOptions',
       '/requestCompanies',
       '/requestMaterialOptions',
@@ -113,12 +117,6 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
         });
         if (result.effect === 'deny' || !result.conditions?.database)
           return purchaseError('PURCHASE_FORBIDDEN', 'PERMISSION_DENIED');
-        const delegate = settings
-          ? null
-          : await context.authorize({
-              resource: { type: 'composite', id: 'procurement.requests' },
-              action: 'delegate',
-            });
         const source =
           !settings && action === 'submit'
             ? await context.authorize({
@@ -132,18 +130,9 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
             source && source.effect !== 'deny' && source.conditions?.database
               ? {
                   policies: source.conditions.database,
-                  delegate:
-                    delegate && delegate.effect !== 'deny'
-                      ? (delegate.conditions?.database ?? null)
-                      : null,
+                  delegate: null,
                 }
               : undefined,
-          delegate:
-            delegate &&
-            delegate.effect !== 'deny' &&
-            delegate.conditions?.database
-              ? (delegate.conditions.database as MaterialPolicies)
-              : null,
         });
         await next();
       });
@@ -262,13 +251,12 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
             result.effect !== 'deny' && result.conditions?.database
               ? {
                   policies: result.conditions.database,
-                  delegate: access(c).delegate,
                   source:
                     sourceDecision.effect !== 'deny' &&
                     sourceDecision.conditions?.database
                       ? {
                           policies: sourceDecision.conditions.database,
-                          delegate: access(c).delegate,
+                          delegate: null,
                         }
                       : undefined,
                 }
@@ -387,6 +375,40 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
             access(c).policies,
           ),
         ),
+    );
+    router.get(
+      '/requestIdentity',
+      allowed('read'),
+      describe(
+        'purchaseRequestIdentity',
+        'Read the caller’s effective employment companies and departments',
+        dataResponse(purchaseIdentityView),
+      ),
+      async (c) =>
+        c.json({
+          data: await service.identity(actor(c)),
+        }),
+    );
+    router.get(
+      '/merge',
+      allowed('merge'),
+      describe(
+        'purchaseRequestMerge',
+        'Read the group purchase list derived from approved request lines',
+        listResponse(purchaseMergeView, purchaseMeta),
+      ),
+      apiValidator('query', purchaseMergeQuery),
+      async (c) => {
+        const identity = await service.identity(actor(c));
+        if (!identity.companies.some((company) => company.units.length > 0))
+          return purchaseError(
+            'PURCHASE_POSITION_REQUIRED',
+            'PERMISSION_DENIED',
+          );
+        return c.json(
+          await service.merge(c.req.valid('query'), access(c).policies),
+        );
+      },
     );
     router.post(
       '/requests',

@@ -44,6 +44,8 @@ test('authenticates and authorizes all paths before input validation; page grant
   for (const path of [
     '/procurement/requests',
     '/procurement/requests/not-id/history',
+    '/procurement/requestIdentity',
+    '/procurement/merge',
     '/procurement/requestOptions',
     '/procurement/requestMaterialOptions',
     '/procurement/requestMaterialOptions/not-id',
@@ -80,6 +82,8 @@ test('authenticates and authorizes all paths before input validation; page grant
   });
   for (const path of [
     '/procurement/requests?unexpected=1',
+    '/procurement/requestIdentity',
+    '/procurement/merge',
     '/procurement/settings?unexpected=1',
     '/procurement/requestMaterialOptions?unexpected=1',
     '/procurement/requestMaterialOptions/not-id',
@@ -275,53 +279,65 @@ test('keeps stable line identities through reorder and cancellation and rejects 
   expect(current.revision).toBe(row.revision);
 });
 
-test('enforces own-record, company and separate delegate scopes, including revoked delegation', async ({
+test('rejects another company, another requester and another department', async ({
   testApp,
   database,
 }) => {
   const f = await fixture(testApp, database),
-    row = await f.draft();
-  await f.authz.permissionSets.assign({
-    permissionSet: 'procurement-requester',
-    subject: { type: 'user', id: f.agent.user.id },
-  });
-  expect(
-    (await f.agent.session.fetch(`/procurement/requests/${row.id}`)).status,
-  ).toBe(404);
-  const forged = await send(f.agent.session, '/procurement/requests', {
-    content: f.content(),
-    requestKey: randomUUID(),
-  });
-  expect(forged.status).toBe(403);
-  const grant = await f.grant(f.agent.user.id, [
-    'read',
-    'create',
-    'update',
-    'submit',
-    'delegate',
-  ]);
-  const body = { content: f.content(), requestKey: randomUUID() };
-  const made = await send(f.agent.session, '/procurement/requests', body);
-  expect(made.status).toBe(201);
-  expect(
-    (await f.agent.session.fetch(`/procurement/requests/${row.id}/history`))
-      .status,
-  ).toBe(200);
-  expect(
-    (await f.agent.session.fetch(`/procurement/requests?subjectId=${f.b.id}`))
-      .status,
-  ).toBe(400);
-  expect(
-    (
-      await f.applicant.session.fetch(
-        `/procurement/settings?subjectId=${f.a.id}`,
-      )
-    ).status,
-  ).toBe(403);
-  await f.authz.permissionSets.revoke(grant.id);
-  expect(
-    (await send(f.agent.session, '/procurement/requests', body)).status,
-  ).toBe(403);
+    own = await send(f.applicant.session, '/procurement/requests', {
+      content: f.content(),
+      requestKey: randomUUID(),
+    });
+  expect(own.status).toBe(201);
+
+  const line = f.line(),
+    lineB = {
+      ...line,
+      selection: { ...line.selection, subjectId: f.b.id },
+    },
+    foreignCompany = await send(f.applicant.session, '/procurement/requests', {
+      content: {
+        ...f.content(),
+        subjectId: f.b.id,
+        lines: [lineB],
+      },
+      requestKey: randomUUID(),
+    });
+  expect(foreignCompany.status).toBe(400);
+  expect((await foreignCompany.json()).error.reason).toBe(
+    'PURCHASE_COMPANY_UNAVAILABLE',
+  );
+
+  const foreignRequester = await send(
+    f.applicant.session,
+    '/procurement/requests',
+    {
+      content: {
+        ...f.content(),
+        requesterEmployeeId: f.reviewer.employee.id,
+      },
+      requestKey: randomUUID(),
+    },
+  );
+  expect(foreignRequester.status).toBe(403);
+  expect((await foreignRequester.json()).error.reason).toBe(
+    'PURCHASE_FORBIDDEN',
+  );
+
+  const otherUnit = await f.create('/organization/units', {
+      code: randomUUID(),
+      name: 'Another department',
+      type: 'department',
+      subjectId: f.a.id,
+    }),
+    foreignUnit = await send(f.applicant.session, '/procurement/requests', {
+      content: { ...f.content(), requestingUnitId: otherUnit.id },
+      requestKey: randomUUID(),
+    });
+  expect(foreignUnit.status).toBe(400);
+  expect((await foreignUnit.json()).error.reason).toBe(
+    'PURCHASE_UNIT_UNAVAILABLE',
+  );
 });
 
 test('validates complete configuration groups, scoped references, CAS and same-key replay', async ({
@@ -1120,49 +1136,27 @@ test('requires full identification when parallel governance is disabled; configu
   ).toBe(403);
 });
 
-test('does not widen a company-limited delegate grant when the primary action covers more companies', async ({
+test('does not let broad request grants cross into another company', async ({
   testApp,
   database,
 }) => {
   const f = await fixture(testApp, database);
   await f.grant(f.agent.user.id, ['read', 'create'], [f.a.id, f.b.id]);
-  await f.grant(f.agent.user.id, ['delegate'], [f.a.id]);
-  const foreign = await f.create('/people/employees', {
-    code: randomUUID(),
-    name: 'Company B applicant',
-    subjectId: f.b.id,
-    data: {},
-  });
-  await database.repository('personnelEmployments').createOne({
-    values: {
-      id: randomUUID(),
-      code: randomUUID(),
-      name: 'B employment',
-      personId: foreign.id,
+  const line = f.line(),
+    content: PurchaseContent = {
+      ...f.content(),
       subjectId: f.b.id,
-      data: { type: 'employee', startDate: '2020-01-01', endDate: null },
-      status: 'active',
-      revision: 1,
-      lifecycleVersion: 0,
-      createdBy: 'isolated-fixture',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-  });
-  const content: PurchaseContent = {
-    ...f.content(),
-    subjectId: f.b.id,
-    requesterEmployeeId: foreign.id,
-    requestingUnitId: null,
-    lines: [],
-  };
+      requesterEmployeeId: f.agent.employee.id,
+      requestingUnitId: null,
+      lines: [{ ...line, selection: { ...line.selection, subjectId: f.b.id } }],
+    };
   const response = await send(f.agent.session, '/procurement/requests', {
     content,
     requestKey: randomUUID(),
   });
-  expect(response.status).toBe(403);
+  expect(response.status).toBe(400);
   expect((await response.json()).error.reason).toBe(
-    'PURCHASE_DELEGATE_REQUIRED',
+    'PURCHASE_POSITION_REQUIRED',
   );
 });
 
@@ -1240,12 +1234,10 @@ test('enforces write fields and post-create scope around lifecycle persistence, 
           create: { scope: { subjectId: f.b.id } },
         },
       },
-      delegate: null,
     }),
   ).rejects.toMatchObject({ reason: 'PURCHASE_FORBIDDEN' });
   const row = await service.create(body, actor, {
     policies: p,
-    delegate: null,
   });
   await expect(
     service.create(body, actor, {
@@ -1259,13 +1251,11 @@ test('enforces write fields and post-create scope around lifecycle persistence, 
           },
         },
       },
-      delegate: null,
     }),
   ).rejects.toMatchObject({ reason: 'PURCHASE_FORBIDDEN' });
   await expect(
     service.create(body, actor, {
       policies: { ...p, purchaseRequestLines: { ...allow, create: false } },
-      delegate: null,
     }),
   ).rejects.toMatchObject({ reason: 'PURCHASE_FORBIDDEN' });
   const edit = {
@@ -1284,7 +1274,6 @@ test('enforces write fields and post-create scope around lifecycle persistence, 
           update: { scope: true, fields: ['notes', 'updatedBy'] },
         },
       },
-      delegate: null,
     }),
   ).rejects.toMatchObject({ reason: 'PURCHASE_FORBIDDEN' });
   expect((await service.detail(String(row.id), p)).revision).toBe(row.revision);

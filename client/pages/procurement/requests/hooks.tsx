@@ -18,7 +18,12 @@ import {
 } from '#components/ui/alert-dialog';
 import { Button } from '#components/ui/button';
 import { randomUuid } from '#lib/random-id';
-import type { Capabilities, Page, PurchaseRequest } from './model.js';
+import type {
+  Capabilities,
+  Page,
+  PurchaseIdentity,
+  PurchaseRequest,
+} from './model.js';
 export const ui = (key: string) => `procurement.requestUi.${key}`;
 export function usePurchaseCan(action: string, settings = false) {
   return useCan({
@@ -55,6 +60,8 @@ export function usePurchaseQuery<T>(
 }
 export const useRequest = (id?: string) =>
   usePurchaseQuery<{ data: PurchaseRequest }>(`requests/${id}`, {}, !!id);
+export const usePurchaseIdentity = (enabled = true) =>
+  usePurchaseQuery<{ data: PurchaseIdentity }>('requestIdentity', {}, enabled);
 export const useCapabilities = (id?: string) =>
   usePurchaseQuery<{ data: Capabilities }>(
     `requests/${id}/capabilities`,
@@ -153,7 +160,9 @@ export function usePurchaseError() {
         PURCHASE_REVIEW_DENIED: 'notCandidate',
         PURCHASE_REVIEWERS_STILL_AVAILABLE: 'reviewStillAvailable',
         PURCHASE_MATERIALS_REQUIRED: 'materialsRequired',
-        PURCHASE_DELEGATE_REQUIRED: 'delegateRequired',
+        PURCHASE_EMPLOYMENT_REQUIRED: 'noEmploymentHint',
+        PURCHASE_POSITION_REQUIRED: 'noProcurementPositionHint',
+        PURCHASE_REFERENCE_TOO_BROAD: 'tooLarge',
         PURCHASE_COMPANY_FROZEN: 'companyLocked',
         PURCHASE_COMPANY_HAS_LINES: 'companyLocked',
         PURCHASE_PERSON_UNIT_MISMATCH: 'requesterUnitMismatch',

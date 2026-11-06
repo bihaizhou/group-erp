@@ -176,6 +176,56 @@ export interface PurchaseRequest {
     }[];
   };
 }
+export interface IdentityUnit {
+  id: string;
+  code: string;
+  name: string;
+  positionId: string;
+  positionCode: string;
+  positionName: string;
+  primary: boolean;
+}
+export interface IdentityCompany extends Choice {
+  primary: boolean;
+  units: IdentityUnit[];
+}
+export interface PurchaseIdentity {
+  employee: Choice | null;
+  companies: IdentityCompany[];
+  default: {
+    employeeId: string;
+    subjectId: string;
+    unitId: string | null;
+  } | null;
+}
+export interface MergeSource {
+  requestId: string;
+  requestCode: string;
+  subjectId: string;
+  companyName: string;
+  lineId: string;
+  lineNo: number;
+  requestedQuantity: string;
+  requestedUnit: string;
+  baseQuantity: string | null;
+  baseUnit: string | null;
+  neededOn: string | null;
+  usage: string;
+}
+export interface MergeGroup {
+  key: string;
+  kind: 'known' | 'unknown';
+  material: {
+    skuId: string | null;
+    code: string;
+    name: string;
+    specification: string;
+    unitId: string | null;
+    unitName: string;
+  };
+  quantity: string;
+  sources: MergeSource[];
+}
 export interface Capabilities {
   recordRevision: number;
   lifecycleVersion: number;

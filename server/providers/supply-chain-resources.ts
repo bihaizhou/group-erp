@@ -7,7 +7,7 @@ import {
   defineDatabasePermission,
 } from '@nocobase/app-plugin-authorization/server';
 import type { DatabaseManager } from '@nocobase/db';
-import { currentCompanyForUser } from './company-identity.js';
+import { currentCompaniesForUser } from './purchase-identity.js';
 import { materialCatalogColumns } from './material-resources.js';
 import { supplyChainModules } from './supply-chain-model.js';
 
@@ -94,18 +94,22 @@ export function supplyChainOwnCompanyAccess(
             kind === 'subjects' ? 'orgSubjects' : 'materialSubjectSettings',
           )
           .resolver(async ({ principal }) => {
-            const company = await currentCompanyForUser(
+            const companies = await currentCompaniesForUser(
               database,
               timeZone,
               principal,
             );
-            return company
-              ? condition(
-                  kind === 'subjects' ? 'id' : 'subjectId',
-                  '$eq',
-                  company,
-                )
-              : false;
+            if (!companies.length) return false;
+            const items = companies.map((company) =>
+              condition(
+                kind === 'subjects' ? 'id' : 'subjectId',
+                '$eq',
+                company,
+              ),
+            );
+            return items.length === 1
+              ? items[0]
+              : { kind: 'group', logic: 'or', items };
           }),
     ),
   );

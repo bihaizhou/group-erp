@@ -179,21 +179,57 @@ test('protects company retirement and department ownership atomically, and relea
     type: 'group',
   });
   const unit = await f.create('/organization/units', {
-    code: randomUUID(),
-    name: 'Reference-only department',
-    subjectId: company.id,
-    type: 'department',
-  });
+      code: randomUUID(),
+      name: 'Reference-only department',
+      subjectId: company.id,
+      type: 'department',
+    }),
+    position = await f.create('/organization/positions', {
+      code: randomUUID(),
+      name: 'Reference-only position',
+      unitId: unit.id,
+    });
+  for (const table of ['personnelEmployments', 'personnelAssignments'])
+    await database.repository(table).createOne({
+      values: {
+        id: randomUUID(),
+        code: randomUUID(),
+        name: 'Reference-only employment',
+        subjectId: company.id,
+        personId: f.applicant.employee.id,
+        positionId: table === 'personnelAssignments' ? position.id : null,
+        data: {
+          type: table === 'personnelAssignments' ? 'primary' : 'employee',
+          startDate: '2020-01-01',
+          endDate: null,
+        },
+        status: 'active',
+        revision: 1,
+        lifecycleVersion: 0,
+        createdBy: 'isolated-fixture',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
   let row = await f.draft(
     {
       ...f.content(),
       subjectId: company.id,
-      requesterEmployeeId: null,
+      requesterEmployeeId: f.applicant.employee.id,
       requestingUnitId: unit.id,
       lines: [],
     },
-    f.admin,
+    f.applicant.session,
   );
+  // The request now carries the company/department reference. Remove the
+  // temporary employment so the organisation service is blocked by the
+  // request, not by the fixture's own position.
+  await database.repository('personnelAssignments').deleteMany({
+    filter: { personId: f.applicant.employee.id, subjectId: company.id },
+  });
+  await database.repository('orgPositions').deleteMany({
+    filter: { id: position.id },
+  });
   const orgBefore = await database.repository('orgAudit').count();
   for (const [path, body] of [
     [
@@ -236,8 +272,11 @@ test('protects company retirement and department ownership atomically, and relea
       .repository('orgUnits')
       .findOne({ filter: { id: unit.id } }))!.subjectId,
   ).toBe(company.id);
-  row = await f.fire(row, 'cancel', f.admin);
+  row = await f.fire(row, 'cancel', f.applicant.session);
   expect(row.status).toBe('cancelled');
+  await database.repository('personnelEmployments').deleteMany({
+    filter: { personId: f.applicant.employee.id, subjectId: company.id },
+  });
   const moved = await send(
     f.admin,
     `/organization/units/${unit.id}`,
