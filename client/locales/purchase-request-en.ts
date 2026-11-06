@@ -73,7 +73,8 @@ export const requestUi = {
     'This account has no active employment. Ask an administrator to maintain your employment and department before creating a purchase request.',
   noProcurementPositionHint:
     'This account has no active procurement position. Ask an administrator to assign you to a department and position before creating a purchase request.',
-  identityLockedHint: 'The company comes from your active employment.',
+  identityLockedHint:
+    'The company is fixed by the company chosen before entering this page; it cannot be switched here.',
   allStatuses: 'All review states',
   allIdentification: 'All identification states',
   draft: 'Draft',

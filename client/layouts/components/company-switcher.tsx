@@ -23,7 +23,13 @@ type Company = { id: string; code?: string; name?: string };
 export function CompanySwitcher() {
   const location = useLocation(),
     endpoint = useCompanyScopeEndpoint(location.pathname);
-  if (!endpoint) return null;
+  // The purchase request screen locks the company selected before entry; it
+  // must not offer a company switch inside the request flow.
+  if (
+    !endpoint ||
+    /\/functions\/procurement\/requests(?:\/|$)/.test(location.pathname)
+  )
+    return null;
   return <CompanySwitcherMenu endpoint={endpoint} />;
 }
 

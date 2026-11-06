@@ -32,6 +32,7 @@ import {
 } from '#components/ui/dropdown-menu';
 import { DateRangePicker } from '#components/date-picker';
 import { useUrlSearch } from '#hooks/use-url-search';
+import { useCurrentCompany } from '../../../company/use-company-scope.js';
 import {
   ui,
   usePurchaseCan,
@@ -60,7 +61,8 @@ export default function RequestsPage() {
     merge = usePurchaseCan('merge'),
     create = usePurchaseCan('create'),
     edit = usePurchaseCan('update'),
-    identity = usePurchaseIdentity();
+    identity = usePurchaseIdentity(),
+    currentCompany = useCurrentCompany();
   const hasPosition =
     !!identity.data?.data.employee &&
     identity.data.data.companies.some((company) => company.units.length > 0);
@@ -74,7 +76,9 @@ export default function RequestsPage() {
   } = useUrlSearch({ resetParams: ['page'] });
   const tab = params.get('tab') === 'merge' && merge.can ? 'merge' : 'list',
     group = tab === 'list' && readAll.can && params.get('scope') !== 'company',
-    subjectId = params.get('subjectId') ?? '',
+    subjectId = readAll.can
+      ? (params.get('subjectId') ?? '')
+      : (currentCompany?.id ?? params.get('subjectId') ?? ''),
     listSubjectId = group ? '' : subjectId,
     page = Math.max(1, Math.trunc(Number(params.get('page'))) || 1),
     pageSize =

@@ -352,6 +352,15 @@ it('defaults the new form to the caller identity and removes other companies', a
   expect(screen.queryByText(otherCompany.name)).not.toBeInTheDocument();
   expect(editor.getByText(new RegExp(employee.name))).toBeVisible();
   expect(editor.getAllByText(new RegExp(unit.name)).length).toBeGreaterThan(0);
+  for (const id of [
+    'purchase-requesterEmployeeId',
+    'purchase-requestingUnitId',
+  ]) {
+    const field = document.getElementById(id);
+    expect(field?.tagName).toBe('DIV');
+    expect(field).toHaveAttribute('aria-readonly', 'true');
+    expect(field?.querySelector('button')).toBeNull();
+  }
   await user.click(editor.getByRole('button', { name: 'Save draft' }));
   const sent = api.request.mock.calls
     .map(([value]) => value)
@@ -608,7 +617,7 @@ it('requires confirmation for cancellation and keeps the reason until it is conf
       .reason,
   ).toBe('No longer needed');
 });
-it('marks an unavailable department inline and focuses the affected reference without losing the draft', async () => {
+it('shows an unavailable department inline without losing the draft', async () => {
   row = {
     ...row,
     requesterEmployeeId: employeeId,
@@ -630,10 +639,12 @@ it('marks an unavailable department inline and focuses the affected reference wi
     within(form()).getByRole('button', { name: 'Save', exact: true }),
   );
   await waitFor(() =>
-    expect(document.getElementById('purchase-requestingUnitId')).toHaveFocus(),
+    expect(
+      within(form()).getAllByText(/This reference is unavailable/).length,
+    ).toBeGreaterThan(0),
   );
   expect(document.getElementById('purchase-requestingUnitId')).toHaveAttribute(
-    'aria-invalid',
+    'aria-readonly',
     'true',
   );
   expect(
@@ -768,54 +779,27 @@ it('focuses the retained line editor region after a server-side material referen
   ).toHaveValue('Retain this explanation');
 });
 
-it('marks a retained department for explicit reselection after the requester changes', async () => {
+it('shows the requester and department as read-only on edit', async () => {
   row = {
     ...row,
     requesterEmployeeId: employeeId,
     requestingUnitId: unitId,
     display: { ...row.display, requester: employee, unit },
   };
-  const other = {
-    id: '00000000-0000-4000-8000-000000000005',
-    code: 'EMP2',
-    name: 'Other Applicant',
-  };
-  api.request.mockImplementation((v) =>
-    v.path === 'procurement/requestOptions' && v.query?.kind === 'employees'
-      ? Promise.resolve(page([employee, other]))
-      : base(v),
-  );
-  const user = userEvent.setup();
   mount(`${rootPath}/edit/${requestId}?subjectId=${companyId}`);
-  await user.type(
-    await screen.findByRole('textbox', { name: /Reason for changes/ }),
-    'Changed requester',
-  );
-  await user.click(
-    within(form()).getByRole('radio', { name: /Other Applicant/ }),
-  );
-  expect(within(form()).getByText(/The requester changed/)).toBeVisible();
-  await user.click(
-    within(form()).getByRole('button', { name: 'Save', exact: true }),
-  );
-  expect(api.request.mock.calls.some(([v]) => v.method === 'PATCH')).toBe(
-    false,
-  );
-  expect(document.getElementById('purchase-requestingUnitId')).toHaveFocus();
-  await user.click(
-    await within(form()).findByRole('radio', { name: /UNIT.*Department/ }),
-  );
+  await screen.findByRole('button', { name: 'Save', exact: true });
+  const requester = document.getElementById('purchase-requesterEmployeeId'),
+    department = document.getElementById('purchase-requestingUnitId');
+  for (const field of [requester, department]) {
+    expect(field?.tagName).toBe('DIV');
+    expect(field).toHaveAttribute('aria-readonly', 'true');
+    expect(field?.querySelector('button')).toBeNull();
+  }
+  expect(requester).toHaveTextContent(employee.name);
+  expect(department).toHaveTextContent(unit.name);
   expect(
-    within(form()).queryByText(/The requester changed/),
-  ).not.toBeInTheDocument();
-  await user.click(
-    within(form()).getByRole('button', { name: 'Save', exact: true }),
-  );
-  await waitFor(() =>
-    expect(api.request.mock.calls.some(([v]) => v.method === 'PATCH')).toBe(
-      true,
-    ),
-  );
+    within(form()).queryByRole('radio', { name: /Other Applicant/ }),
+  ).toBeNull();
 });
 
 it('keeps rejected company rules and focuses their inline error region', async () => {
