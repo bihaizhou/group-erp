@@ -16,6 +16,7 @@ export const purchaseRoutes: AppClientRouteDefinition[] = [
     path: '/functions/procurement/requests',
     auth: 'required',
     companyScope: 'procurement/requestCompanies',
+    lockCompany: true,
     authz: {
       resource: { type: 'page', id: 'procurement-requests' },
       action: 'access',

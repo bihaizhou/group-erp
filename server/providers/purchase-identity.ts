@@ -28,7 +28,11 @@ export interface PurchaseIdentityCompany {
 export interface PurchaseIdentity {
   employee: { id: string; code: string; name: string } | null;
   companies: PurchaseIdentityCompany[];
-  default: { subjectId: string; unitId: string | null } | null;
+  default: {
+    employeeId: string;
+    subjectId: string;
+    unitId: string | null;
+  } | null;
 }
 
 export interface IdentityPrincipal {
@@ -216,7 +220,11 @@ export async function resolvePurchaseIdentity(
     employee,
     companies: result,
     default: defaultCompany
-      ? { subjectId: defaultCompany.id, unitId: defaultUnit?.id ?? null }
+      ? {
+          employeeId: employee.id,
+          subjectId: defaultCompany.id,
+          unitId: defaultUnit?.id ?? null,
+        }
       : null,
   };
 }

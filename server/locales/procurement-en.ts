@@ -13,7 +13,6 @@ export const procurement = {
     revise: 'Revise approved purchase requests',
     cancel: 'Cancel purchase requests',
     reassign: 'Recover purchase review assignment',
-    delegate: 'Submit purchase requests for others',
     ownRequests: 'My purchase requests',
     ownCompany: 'My company',
     selectedCompanies: 'Selected companies',

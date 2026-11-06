@@ -37,7 +37,6 @@ export const purchaseActions = [
   'revise',
   'cancel',
   'reassign',
-  'delegate',
   'requestGovernance',
   'confirmMaterial',
   'rejectMaterial',
@@ -98,7 +97,7 @@ export const purchaseResource: CompositeResource = {
         if (table === 'purchaseRequests') {
           if (action === 'create')
             permission = permission.create(purchaseHeadColumns);
-          else if (!['read', 'readAll', 'delegate', 'merge'].includes(action))
+          else if (!['read', 'readAll', 'merge'].includes(action))
             permission = permission.update(purchaseHeadColumns);
         }
         if (

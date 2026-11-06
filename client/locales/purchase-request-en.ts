@@ -267,8 +267,6 @@ export const requestUi = {
     'You cannot review your own request or one you submitted for someone else.',
   reviewStillAvailable:
     'Current reviewers can still decide. Matching again is unnecessary.',
-  delegateRequired:
-    'Acting for another requester requires delegation access in this company.',
   requesterUnitMismatch:
     'The requester has no current assignment in this department. Select again.',
   materialsRequired:

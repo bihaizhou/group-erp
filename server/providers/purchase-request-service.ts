@@ -68,7 +68,6 @@ import {
 type Row = RepositoryRecord;
 export interface PurchaseAccess {
   policies: MaterialPolicies;
-  delegate: MaterialPolicies | null;
   source?: SourceAccess;
 }
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
@@ -765,7 +764,7 @@ export class PurchaseRequestService {
           replayWrite,
           text(row.id),
         );
-        // A saved delegate permission is never sufficient after it is revoked.
+        // Re-check the creator/requester rule on every replay.
         if (
           !('transition' in input) ||
           !['approve', 'return', 'reassign'].includes(String(input.transition))
@@ -920,118 +919,72 @@ export class PurchaseRequestService {
     }
     return valid;
   }
-  private async canDelegate(
-    c: DatabaseConnection,
-    subjectId: string,
-    access: PurchaseAccess,
-  ) {
-    const policy = access.delegate?.orgSubjects;
-    return (
-      !!policy &&
-      policy.read !== false &&
-      (await c
-        .repository('orgSubjects')
-        .withPolicy(policy)
-        .exists({ filter: { id: subjectId } }))
-    );
-  }
   private async applicant(
     c: DatabaseConnection,
     row: Row,
     actor: LifecycleActor,
     access: PurchaseAccess,
   ) {
-    if (!row.requesterEmployeeId) {
-      if (
-        row.createdBy !== actor.id &&
-        !(await this.canDelegate(c, text(row.subjectId), access))
-      )
-        return denied();
-      return;
-    }
-    const person = await this.repo(
-      c,
-      'personnelEmployees',
-      access.policies,
-    ).findOne({ filter: { id: text(row.requesterEmployeeId) } });
-    if (
-      person?.accountId !== actor.id &&
-      !(await this.canDelegate(c, text(row.subjectId), access))
-    )
-      return purchaseError('PURCHASE_DELEGATE_REQUIRED', 'PERMISSION_DENIED');
+    // The creator and the requester are the only people who may act on a
+    // request. Delegation is not a purchase-request permission.
+    if (row.createdBy === actor.id) return;
+    const person = row.requesterEmployeeId
+      ? await this.repo(c, 'personnelEmployees', access.policies).findOne({
+          filter: { id: text(row.requesterEmployeeId) },
+        })
+      : undefined;
+    if (person?.accountId !== actor.id) return denied();
   }
   private async contentValues(
     c: DatabaseConnection,
-    content: PurchaseContent,
+    raw: PurchaseContent,
     actor: LifecycleActor,
     access: PurchaseAccess,
     formal = false,
     readOnly = false,
-    requireEmployment = false,
   ) {
     const p = access.policies;
-    await this.company(c, content.subjectId, p);
-    // A reference-only empty draft (no requester and no lines) stays usable for
-    // setup work; a request that carries a person or demand needs an employment.
-    const needsEmployment =
-      requireEmployment &&
-      (!!content.requesterEmployeeId || content.lines.length > 0);
-    const identity = needsEmployment
-      ? await resolvePurchaseIdentity(c, this.timeZone, {
-          type: 'user',
-          id: actor.id,
-        })
-      : null;
-    if (needsEmployment && (!identity?.employee || !identity.companies.length))
+    await this.company(c, raw.subjectId, p);
+    // One identity rule for create, update and submission: the company is one
+    // of the caller's active employments, the requester is the caller, and the
+    // department is that company's primary (or first) effective department.
+    const identity = await resolvePurchaseIdentity(c, this.timeZone, {
+      type: 'user',
+      id: actor.id,
+    });
+    if (!identity.employee || !identity.companies.length)
       return purchaseError(
         'PURCHASE_EMPLOYMENT_REQUIRED',
         'INVALID_ARGUMENT',
         'subjectId',
       );
-    if (
-      needsEmployment &&
-      !identity!.companies.some((company) => company.units.length > 0)
-    )
+    const company = identity.companies.find((row) => row.id === raw.subjectId);
+    if (!company || !company.units.length)
       return purchaseError(
         'PURCHASE_POSITION_REQUIRED',
         'INVALID_ARGUMENT',
         'subjectId',
       );
-    if (
-      needsEmployment &&
-      !identity!.companies.some((row) => row.id === content.subjectId) &&
-      !(await this.canDelegate(c, content.subjectId, access))
-    )
+    const employeeId = identity.default?.employeeId ?? identity.employee.id;
+    if (raw.requesterEmployeeId && raw.requesterEmployeeId !== employeeId)
       return purchaseError(
-        'PURCHASE_DELEGATE_REQUIRED',
+        'PURCHASE_FORBIDDEN',
         'PERMISSION_DENIED',
-        'subjectId',
+        'requesterEmployeeId',
       );
-    let requesterAccountId: string | null = null;
-    if (content.requesterEmployeeId) {
-      const person = await this.activeEmployee(
-        c,
-        content.requesterEmployeeId,
-        content.subjectId,
-        p,
+    const unit = company.units.find((item) => item.primary) ?? company.units[0];
+    if (raw.requestingUnitId && raw.requestingUnitId !== unit.id)
+      return purchaseError(
+        'PURCHASE_UNIT_UNAVAILABLE',
+        'INVALID_ARGUMENT',
+        'requestingUnitId',
       );
-      requesterAccountId = text(person.accountId) || null;
-      if (
-        requesterAccountId !== actor.id &&
-        !(await this.canDelegate(c, content.subjectId, access))
-      )
-        return purchaseError('PURCHASE_DELEGATE_REQUIRED', 'PERMISSION_DENIED');
-      if (
-        needsEmployment &&
-        requesterAccountId === actor.id &&
-        !identity!.companies.some((row) => row.id === content.subjectId)
-      )
-        return purchaseError(
-          'PURCHASE_COMPANY_UNAVAILABLE',
-          'INVALID_ARGUMENT',
-          'subjectId',
-        );
-    }
+    const content: PurchaseContent = {
+        ...raw,
+        requesterEmployeeId: employeeId,
+        requestingUnitId: unit.id,
+      },
+      requesterAccountId = actor.id;
     if (
       content.requestingUnitId &&
       !(await this.repo(c, 'orgUnits', p).exists({
@@ -1044,22 +997,6 @@ export class PurchaseRequestService {
     )
       return purchaseError(
         'PURCHASE_UNIT_UNAVAILABLE',
-        'INVALID_ARGUMENT',
-        'requestingUnitId',
-      );
-    if (
-      content.requesterEmployeeId &&
-      content.requestingUnitId &&
-      !(
-        await this.positionsFor(
-          c,
-          content.requesterEmployeeId,
-          content.subjectId,
-        )
-      ).some((r) => r.unitId === content.requestingUnitId)
-    )
-      return purchaseError(
-        'PURCHASE_PERSON_UNIT_MISMATCH',
         'INVALID_ARGUMENT',
         'requestingUnitId',
       );
@@ -1301,15 +1238,7 @@ export class PurchaseRequestService {
     supersedesId: string | null = null,
     copyReason?: string,
   ) {
-    const values = await this.contentValues(
-      c,
-      content,
-      actor,
-      access,
-      false,
-      false,
-      true,
-    );
+    const values = await this.contentValues(c, content, actor, access);
     const id = randomUUID(),
       now = new Date();
     const next: Row = {
@@ -1447,20 +1376,8 @@ export class PurchaseRequestService {
             'subjectId',
           );
         await this.applicant(c, before, actor, access);
-        const identityChanged =
-          before.subjectId !== input.content.subjectId ||
-          before.requesterEmployeeId !== input.content.requesterEmployeeId ||
-          before.requestingUnitId !== input.content.requestingUnitId;
         const values = {
-          ...(await this.contentValues(
-            c,
-            input.content,
-            actor,
-            access,
-            false,
-            false,
-            identityChanged,
-          )),
+          ...(await this.contentValues(c, input.content, actor, access)),
           businessDate: input.content.businessDate ?? text(before.businessDate),
           sourceChannel: text(before.sourceChannel) || 'manual',
           contentVersion: Number(before.contentVersion) + 1,
@@ -2261,8 +2178,7 @@ export class PurchaseRequestService {
     const c = this.db.connection(),
       p = access.policies;
     await this.company(c, query.subjectId, p);
-    const allPeople =
-      configuration || (await this.canDelegate(c, query.subjectId, access));
+    const allPeople = configuration;
     const search = (f: FilterBuilder) =>
       query.q
         ? f.or(

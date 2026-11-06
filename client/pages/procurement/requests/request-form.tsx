@@ -389,7 +389,6 @@ function FormBody({
           PURCHASE_PERSON_UNAVAILABLE: 'requesterEmployeeId',
           PURCHASE_UNIT_UNAVAILABLE: 'requestingUnitId',
           PURCHASE_PERSON_UNIT_MISMATCH: 'requestingUnitId',
-          PURCHASE_DELEGATE_REQUIRED: 'requesterEmployeeId',
           PURCHASE_COMPANY_UNAVAILABLE: 'subjectId',
           PURCHASE_EMPLOYMENT_REQUIRED: 'subjectId',
           PURCHASE_POSITION_REQUIRED: 'subjectId',

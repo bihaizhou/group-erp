@@ -44,7 +44,7 @@ export default defineSeed({
       ],
       [
         'procurement-request-agent',
-        '本公司采购代办',
+        '本公司采购经办',
         'procurement.requests',
         [
           'read',
@@ -54,9 +54,9 @@ export default defineSeed({
           'withdraw',
           'revise',
           'cancel',
-          'delegate',
         ],
-        false,
+        // No delegation: the former agent role now has the requester's own-record scope.
+        true,
       ],
       [
         'procurement-request-reviewer',

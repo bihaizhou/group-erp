@@ -192,7 +192,11 @@ export interface IdentityCompany extends Choice {
 export interface PurchaseIdentity {
   employee: Choice | null;
   companies: IdentityCompany[];
-  default: { subjectId: string; unitId: string | null } | null;
+  default: {
+    employeeId: string;
+    subjectId: string;
+    unitId: string | null;
+  } | null;
 }
 export interface MergeSource {
   requestId: string;

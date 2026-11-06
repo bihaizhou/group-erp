@@ -39,7 +39,6 @@ import { MaterialError } from '../providers/material-model.js';
 import { materialApiError } from './material-error.js';
 import { createMiddleware } from 'hono/factory';
 import { bodyLimit } from 'hono/body-limit';
-import type { MaterialPolicies } from '../providers/material-service.js';
 import { SupplyChainError } from '../providers/supply-chain-model.js';
 import { purchaseRequestServiceToken } from '../providers/procurement.js';
 import {
@@ -118,12 +117,6 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
         });
         if (result.effect === 'deny' || !result.conditions?.database)
           return purchaseError('PURCHASE_FORBIDDEN', 'PERMISSION_DENIED');
-        const delegate = settings
-          ? null
-          : await context.authorize({
-              resource: { type: 'composite', id: 'procurement.requests' },
-              action: 'delegate',
-            });
         const source =
           !settings && action === 'submit'
             ? await context.authorize({
@@ -137,18 +130,9 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
             source && source.effect !== 'deny' && source.conditions?.database
               ? {
                   policies: source.conditions.database,
-                  delegate:
-                    delegate && delegate.effect !== 'deny'
-                      ? (delegate.conditions?.database ?? null)
-                      : null,
+                  delegate: null,
                 }
               : undefined,
-          delegate:
-            delegate &&
-            delegate.effect !== 'deny' &&
-            delegate.conditions?.database
-              ? (delegate.conditions.database as MaterialPolicies)
-              : null,
         });
         await next();
       });
@@ -267,13 +251,12 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
             result.effect !== 'deny' && result.conditions?.database
               ? {
                   policies: result.conditions.database,
-                  delegate: access(c).delegate,
                   source:
                     sourceDecision.effect !== 'deny' &&
                     sourceDecision.conditions?.database
                       ? {
                           policies: sourceDecision.conditions.database,
-                          delegate: access(c).delegate,
+                          delegate: null,
                         }
                       : undefined,
                 }

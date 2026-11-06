@@ -246,7 +246,6 @@ export const requestUi = {
   notCandidate: '当前账号不是本轮有效审核人。',
   selfReview: '不能审核本人或本人代办的申请。',
   reviewStillAvailable: '现有审核人仍可办理，无需重新匹配。',
-  delegateRequired: '办理他人申请需要本公司代办权限。',
   requesterUnitMismatch: '申请人当前未在所选部门有效任职，请重新选择。',
   materialsRequired: '本公司规则要求先确认全部物料后再审核。',
   copyRequiresCancelled: '仅已取消申请可复制。',

@@ -160,7 +160,6 @@ export function usePurchaseError() {
         PURCHASE_REVIEW_DENIED: 'notCandidate',
         PURCHASE_REVIEWERS_STILL_AVAILABLE: 'reviewStillAvailable',
         PURCHASE_MATERIALS_REQUIRED: 'materialsRequired',
-        PURCHASE_DELEGATE_REQUIRED: 'delegateRequired',
         PURCHASE_EMPLOYMENT_REQUIRED: 'noEmploymentHint',
         PURCHASE_POSITION_REQUIRED: 'noProcurementPositionHint',
         PURCHASE_REFERENCE_TOO_BROAD: 'tooLarge',

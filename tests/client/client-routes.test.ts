@@ -6,7 +6,10 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import applicationRoutes from '../../client/routes.ts';
-import { companyScopeRoutes } from '../../client/company/route-scopes.ts';
+import {
+  companyLockForRoute,
+  companyScopeRoutes,
+} from '../../client/company/route-scopes.ts';
 
 describe('app client routes', () => {
   it('keeps the landing page and the authentication pages', () => {
@@ -42,6 +45,18 @@ describe('app client routes', () => {
         default: expect.any(Function),
       });
     }
+  });
+
+  it('marks only the locked company routes as locked', () => {
+    expect(companyLockForRoute('/functions/procurement/requests')).toBe(true);
+    expect(companyLockForRoute('/functions/procurement/requests/new')).toBe(
+      true,
+    );
+    expect(
+      companyLockForRoute('/functions/procurement/requests/:requestId/edit'),
+    ).toBe(true);
+    expect(companyLockForRoute('/functions/procurement/orders')).toBe(false);
+    expect(companyLockForRoute('/functions/sales/settings')).toBe(false);
   });
 
   it('declares the company endpoint on every company-scoped page', () => {

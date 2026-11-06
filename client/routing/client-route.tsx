@@ -11,7 +11,10 @@ import { ErrorBoundary } from 'react-error-boundary';
 
 import { CompanyGate } from '../company/company-gate.js';
 import { useDeclareCompanyScope } from '../company/company-route-scope.js';
-import { companyScopeForRoute } from '../company/route-scopes.js';
+import {
+  companyLockForRoute,
+  companyScopeForRoute,
+} from '../company/route-scopes.js';
 import { Loading } from '#components/loading';
 import { Button } from '#components/ui/button';
 
@@ -21,7 +24,8 @@ export interface ClientRouteProps {
 
 export function ClientRoute({ route }: ClientRouteProps): ReactElement {
   const { authz, componentLoader } = route;
-  const endpoint = companyScopeForRoute(route.path);
+  const endpoint = companyScopeForRoute(route.path),
+    locked = companyLockForRoute(route.path);
   const checkAccess = authz !== 'skip';
   const { can: allowed, isPending: accessLoading } = useCan(
     authz === 'skip' ? undefined : authz,
@@ -74,7 +78,7 @@ export function ClientRoute({ route }: ClientRouteProps): ReactElement {
   );
   return (
     <ErrorBoundary fallback={<ClientPageError route={route} />}>
-      <CompanyScopeDeclaration endpoint={endpoint} />
+      <CompanyScopeDeclaration endpoint={endpoint} locked={locked} />
       {endpoint ? <CompanyGate endpoint={endpoint}>{page}</CompanyGate> : page}
     </ErrorBoundary>
   );
@@ -139,20 +143,24 @@ function ClientPageError(inputProps: ClientRouteProps): ReactElement {
 
 function CompanyScopeDeclaration({
   endpoint,
+  locked,
 }: {
   endpoint: string | undefined;
+  locked: boolean;
 }): ReactElement | null {
   return useInRouterContext() ? (
-    <DeclareAtLocation endpoint={endpoint} />
+    <DeclareAtLocation endpoint={endpoint} locked={locked} />
   ) : null;
 }
 
 function DeclareAtLocation({
   endpoint,
+  locked,
 }: {
   endpoint: string | undefined;
+  locked: boolean;
 }): null {
   const { pathname } = useLocation();
-  useDeclareCompanyScope(pathname, endpoint);
+  useDeclareCompanyScope(pathname, endpoint, locked);
   return null;
 }

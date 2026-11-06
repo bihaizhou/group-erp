@@ -9,6 +9,7 @@ import applicationRoutes from '../routes.js';
  * still a single edit on the route itself.
  */
 const scopes = new Map<string, string>();
+const locks = new Set<string>();
 
 function join(parent: string, path: string | undefined): string {
   if (!path) return parent;
@@ -19,13 +20,18 @@ function join(parent: string, path: string | undefined): string {
 function collect(
   routes: readonly AppClientRouteDefinition[],
   parent: string,
+  inheritedLock = false,
 ): void {
   for (const route of routes) {
-    const path = join(parent, route.path);
+    const path = join(parent, route.path),
+      normalized = path.replace(/\/+$/u, ''),
+      locked = inheritedLock || !!route.lockCompany;
     if (route.companyScope && route.componentLoader) {
-      scopes.set(path.replace(/\/+$/u, ''), route.companyScope);
+      scopes.set(normalized, route.companyScope);
     }
-    collect(route.children ?? [], path);
+    if (locked) locks.add(normalized);
+    else locks.delete(normalized);
+    collect(route.children ?? [], path, locked);
   }
 }
 
@@ -33,9 +39,15 @@ for (const contribution of applicationRoutes) {
   collect(contribution.routes ?? [], '');
 }
 
+const normalize = (path: string) =>
+  path.length > 1 ? path.replace(/\/+$/u, '') : path;
+
 export function companyScopeForRoute(path: string): string | undefined {
-  const normalized = path.length > 1 ? path.replace(/\/+$/u, '') : path;
-  return scopes.get(normalized);
+  return scopes.get(normalize(path));
+}
+
+export function companyLockForRoute(path: string): boolean {
+  return locks.has(normalize(path));
 }
 
 export const companyScopeRoutes = scopes;

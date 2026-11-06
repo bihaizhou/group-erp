@@ -38,13 +38,19 @@ function Location() {
   return <output>{location.search}</output>;
 }
 
-function Scope({ endpoint }: { endpoint: string }) {
+function Scope({
+  endpoint,
+  locked = false,
+}: {
+  endpoint: string;
+  locked?: boolean;
+}) {
   const { pathname } = useLocation();
-  useDeclareCompanyScope(pathname, endpoint);
+  useDeclareCompanyScope(pathname, endpoint, locked);
   return null;
 }
 
-function mount(path: string, endpoint?: string) {
+function mount(path: string, endpoint?: string, locked = false) {
   render(
     <TestI18nProvider runtime={runtime}>
       <QueryClientProvider
@@ -53,7 +59,7 @@ function mount(path: string, endpoint?: string) {
         }
       >
         <MemoryRouter initialEntries={[path]}>
-          {endpoint && <Scope endpoint={endpoint} />}
+          {endpoint && <Scope endpoint={endpoint} locked={locked} />}
           <CompanySwitcher />
           <Location />
         </MemoryRouter>
@@ -70,8 +76,8 @@ beforeEach(() => {
 it('shows the current company and switches the page URL', async () => {
   const user = userEvent.setup();
   mount(
-    '/functions/procurement/requests?subjectId=00000000-0000-4000-8000-000000000001',
-    'procurement/requestCompanies',
+    '/functions/procurement/orders?subjectId=00000000-0000-4000-8000-000000000001',
+    'procurement/orders/companies',
   );
   const trigger = await screen.findByRole('button', { name: 'Switch company' });
   expect(trigger).toHaveTextContent('CO · Company One');
@@ -105,6 +111,17 @@ it('keeps the settings editor subject in sync when present', async () => {
       'reviewSubjectId=00000000-0000-4000-8000-000000000002',
     );
   });
+});
+
+it('renders nothing on a company-locked route', () => {
+  mount(
+    '/functions/procurement/requests?subjectId=00000000-0000-4000-8000-000000000001',
+    'procurement/requestCompanies',
+    true,
+  );
+  expect(
+    screen.queryByRole('button', { name: 'Switch company' }),
+  ).not.toBeInTheDocument();
 });
 
 it('renders nothing outside company-scoped pages', () => {

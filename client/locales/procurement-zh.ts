@@ -21,7 +21,6 @@ export const procurement = {
     readAll: '查看全部公司采购申请',
     merge: '查看集团采购合并清单',
     reassign: '采购审核交接',
-    delegate: '为他人代办采购申请',
     ownRequests: '本人采购申请',
     ownCompany: '本公司',
     selectedCompanies: '指定公司',
