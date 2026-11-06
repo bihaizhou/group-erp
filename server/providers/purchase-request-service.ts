@@ -133,7 +133,7 @@ export class PurchaseRequestService {
       lineTable: 'purchaseRequestLines',
       authorized: async (c, id, actor, access) => {
         const head = await this.head(c, id, access.policies);
-        await this.applicant(c, head, actor, access);
+        await this.sourceApplicant(c, head, actor, access);
         return head;
       },
       mutate: (c, id, actor, access, input) =>
@@ -154,7 +154,7 @@ export class PurchaseRequestService {
     },
   ): Promise<JsonObject> {
     const before = await this.head(c, id, access.policies);
-    await this.applicant(c, before, actor, access);
+    await this.sourceApplicant(c, before, actor, access);
     if (before.status === 'cancelled')
       return purchaseError('PURCHASE_NOT_DRAFT');
     const effectiveActor = input.auditActor ?? actor;
@@ -934,6 +934,32 @@ export class PurchaseRequestService {
         })
       : undefined;
     if (person?.accountId !== actor.id) return denied();
+  }
+  private async sourceApplicant(
+    c: DatabaseConnection,
+    row: Row,
+    actor: LifecycleActor,
+    access: SourceAccess,
+  ) {
+    // Purchase requests no longer support delegation, but a material source
+    // takeover is a shared governance action with its own delegate grant.
+    if (row.createdBy === actor.id) return;
+    const person = row.requesterEmployeeId
+      ? await this.repo(c, 'personnelEmployees', access.policies).findOne({
+          filter: { id: text(row.requesterEmployeeId) },
+        })
+      : undefined;
+    if (person?.accountId === actor.id) return;
+    const policy = access.delegate?.orgSubjects;
+    if (!policy || policy.read === false) return denied();
+    if (
+      await c
+        .repository('orgSubjects')
+        .withPolicy(policy)
+        .exists({ filter: { id: text(row.subjectId) } })
+    )
+      return;
+    return denied();
   }
   private async contentValues(
     c: DatabaseConnection,
