@@ -395,7 +395,7 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
     );
     router.get(
       '/requestIdentity',
-      allowed('create'),
+      allowed('read'),
       describe(
         'purchaseRequestIdentity',
         'Read the caller’s effective employment companies and departments',
