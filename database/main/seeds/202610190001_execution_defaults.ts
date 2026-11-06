@@ -546,7 +546,7 @@ export default defineSeed({
       {
         key: 'execution-review-configurator',
         title: '本公司数量业务审核配置',
-        pages: ['procurement-settings', 'sales-settings', 'warehouse-settings'],
+        pages: ['procurement-review-settings', 'sales-review-settings', 'warehouse-review-settings'],
         resources: [['warehouse.settings', ['read', 'update']]],
       },
       {

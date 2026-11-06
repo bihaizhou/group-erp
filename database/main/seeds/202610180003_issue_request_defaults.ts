@@ -93,7 +93,7 @@ export default defineSeed({
                 type: 'page',
                 id:
                   resource === 'requisitions.settings'
-                    ? 'requisitions-settings'
+                    ? 'requisitions-review-settings'
                     : 'requisitions-requests',
               },
               actions: [{ action: 'access' }],

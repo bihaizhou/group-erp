@@ -39,7 +39,13 @@ const accounts: DemoAccount[] = [
     position: {
       code: 'DEMO-POS-BUYER',
       name: '采购员',
-      permissionSets: ['procurement-requester', 'procurement-material-selector', 'procurement-order-operator'],
+      permissionSets: [
+        'procurement-requester',
+        'procurement-material-selector',
+        'procurement-order-operator',
+        'procurement-supplier-reader',
+        'procurement-review-configurator',
+      ],
     },
   },
   {
@@ -49,7 +55,14 @@ const accounts: DemoAccount[] = [
     position: {
       code: 'DEMO-POS-KEEPER',
       name: '仓储员',
-      permissionSets: ['warehouse-stock-operator', 'warehouse-stock-reader'],
+      permissionSets: [
+        'warehouse-stock-operator',
+        'warehouse-stock-reader',
+        'warehouse-transfer-operator',
+        'warehouse-count-operator',
+        'warehouse-master-maintainer',
+        'demo-warehouse-review-settings',
+      ],
     },
   },
   {
@@ -91,14 +104,18 @@ const accounts: DemoAccount[] = [
     position: {
       code: 'DEMO-POS-HR',
       name: '人事专员',
-      permissionSets: ['personnel-maintainer', 'personnel-reader'],
+      permissionSets: ['personnel-maintainer', 'personnel-reader', 'human-resources-reader', 'people-auditor'],
     },
   },
   {
     email: 'sales@demo.local',
     name: '演示销售员',
     unit: 'DEMO-UNIT-SALES',
-    position: { code: 'DEMO-POS-SALES', name: '销售员', permissionSets: ['sales-order-operator'] },
+    position: {
+      code: 'DEMO-POS-SALES',
+      name: '销售员',
+      permissionSets: ['sales-order-operator', 'sales-customer-manager', 'demo-sales-review-settings'],
+    },
   },
   {
     email: 'requester@demo.local',
@@ -107,7 +124,7 @@ const accounts: DemoAccount[] = [
     position: {
       code: 'DEMO-POS-REQUESTER',
       name: '领用申请人',
-      permissionSets: ['requisitions-requester'],
+      permissionSets: ['requisitions-requester', 'requisitions-purpose-maintainer', 'requisitions-review-configurator'],
     },
   },
 ];
@@ -141,6 +158,27 @@ export default defineSeed({
       (await repository('user').findOne({ filter: { email: 'admin@nocobase.com' } })) ??
       (await repository('user').findOne({ filter: {} }));
     const now = new Date().toISOString();
+
+    for (const extra of [
+      { key: 'demo-sales-review-settings', title: '演示：销售复核设置', page: 'sales-review-settings' },
+      { key: 'demo-warehouse-review-settings', title: '演示：仓储复核设置', page: 'warehouse-review-settings' },
+    ]) {
+      if (await repository('authorizationPermissionSets').findOne({ filter: { key: extra.key } })) continue;
+      await query
+        .insertInto('authorization_permission_sets')
+        .values({
+          id: extra.key,
+          key: extra.key,
+          title: JSON.stringify(extra.title),
+          grants: JSON.stringify([
+            { resource: { type: 'page', id: extra.page }, actions: [{ action: 'access' }] },
+          ]),
+          revision: 1,
+          created_at: now,
+          updated_at: now,
+        } as Row)
+        .execute();
+    }
 
     const unitIds = new Map<string, unknown>();
     for (const department of departments) {
