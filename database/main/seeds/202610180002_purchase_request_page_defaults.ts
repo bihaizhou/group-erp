@@ -24,7 +24,7 @@ export default defineSeed({
       }[];
       const page =
         key === 'procurement-review-configurator'
-          ? 'procurement-settings'
+          ? 'procurement-review-settings'
           : 'procurement-requests';
       // Preserve existing page grants, actions, scopes and customized titles; assign no accounts.
       if (
