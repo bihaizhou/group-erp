@@ -71,6 +71,8 @@ export const requestUi = {
   mergeEmpty: 'No approved request lines match these filters.',
   noEmploymentHint:
     'This account has no active employment. Ask an administrator to maintain your employment and department before creating a purchase request.',
+  noProcurementPositionHint:
+    'This account has no active procurement position. Ask an administrator to assign you to a department and position before creating a purchase request.',
   identityLockedHint: 'The company comes from your active employment.',
   allStatuses: 'All review states',
   allIdentification: 'All identification states',

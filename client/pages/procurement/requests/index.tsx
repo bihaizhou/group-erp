@@ -13,6 +13,7 @@ import {
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { Alert, AlertDescription } from '#components/ui/alert';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import {
@@ -34,6 +35,7 @@ import { useUrlSearch } from '#hooks/use-url-search';
 import {
   ui,
   usePurchaseCan,
+  usePurchaseIdentity,
   usePurchaseQuery,
   usePurchaseReturnFocus,
 } from './hooks.js';
@@ -57,7 +59,11 @@ export default function RequestsPage() {
     readAll = usePurchaseCan('readAll'),
     merge = usePurchaseCan('merge'),
     create = usePurchaseCan('create'),
-    edit = usePurchaseCan('update');
+    edit = usePurchaseCan('update'),
+    identity = usePurchaseIdentity();
+  const hasPosition =
+    !!identity.data?.data.employee &&
+    identity.data.data.companies.some((company) => company.units.length > 0);
   usePurchaseReturnFocus(useResolvedPath('.').pathname, 'purchase-search');
   const {
     searchParams: params,
@@ -351,7 +357,20 @@ export default function RequestsPage() {
             </>
           }
         />
-        {tab === 'merge' ? (
+        {identity.isPending ? (
+          <Loading kind='table' />
+        ) : identity.error ? (
+          <ErrorNotice
+            error={identity.error}
+            retry={() => void identity.refetch()}
+          />
+        ) : !hasPosition ? (
+          <Alert variant='destructive'>
+            <AlertDescription>
+              {t(ui('noProcurementPositionHint'))}
+            </AlertDescription>
+          </Alert>
+        ) : tab === 'merge' ? (
           <MergePanel
             companies={companies.data?.data ?? []}
             businessDate={companies.data?.meta.businessDate}

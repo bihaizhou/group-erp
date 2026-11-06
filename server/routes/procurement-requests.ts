@@ -415,8 +415,17 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
         listResponse(purchaseMergeView, purchaseMeta),
       ),
       apiValidator('query', purchaseMergeQuery),
-      async (c) =>
-        c.json(await service.merge(c.req.valid('query'), access(c).policies)),
+      async (c) => {
+        const identity = await service.identity(actor(c));
+        if (!identity.companies.some((company) => company.units.length > 0))
+          return purchaseError(
+            'PURCHASE_POSITION_REQUIRED',
+            'PERMISSION_DENIED',
+          );
+        return c.json(
+          await service.merge(c.req.valid('query'), access(c).policies),
+        );
+      },
     );
     router.post(
       '/requests',

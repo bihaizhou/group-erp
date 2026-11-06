@@ -162,6 +162,7 @@ export function usePurchaseError() {
         PURCHASE_MATERIALS_REQUIRED: 'materialsRequired',
         PURCHASE_DELEGATE_REQUIRED: 'delegateRequired',
         PURCHASE_EMPLOYMENT_REQUIRED: 'noEmploymentHint',
+        PURCHASE_POSITION_REQUIRED: 'noProcurementPositionHint',
         PURCHASE_REFERENCE_TOO_BROAD: 'tooLarge',
         PURCHASE_COMPANY_FROZEN: 'companyLocked',
         PURCHASE_COMPANY_HAS_LINES: 'companyLocked',

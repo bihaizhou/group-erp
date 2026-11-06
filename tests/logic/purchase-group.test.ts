@@ -186,19 +186,13 @@ async function saveRules(
 }
 
 async function groupUser(
-  testApp: Parameters<typeof signIn>[0],
+  _testApp: Parameters<typeof signIn>[0],
   f: Awaited<ReturnType<typeof fixture>>,
   actions: readonly string[],
 ) {
-  const password = randomUUID(),
-    user = await f.users.create({
-      name: 'Group purchaser',
-      email: `${randomUUID()}@example.test`,
-      password,
-    }),
-    session = await signIn(testApp, { email: user.email!, password });
-  await f.grant(user.id, actions, [f.a.id, f.b.id]);
-  return session;
+  const person = await f.person('Group purchaser');
+  await f.grant(person.user.id, actions, [f.a.id, f.b.id]);
+  return person.session;
 }
 
 test('derives the caller identity from effective employments and refuses creation without one', async ({
@@ -320,6 +314,59 @@ test('derives the caller identity from effective employments and refuses creatio
     'PURCHASE_EMPLOYMENT_REQUIRED',
   );
   expect(backup.user.id).not.toBe(unassigned.id);
+});
+
+test('refuses list and creation when the employment has no active position', async ({
+  testApp,
+  database,
+}) => {
+  const f = await fixture(testApp, database),
+    password = randomUUID(),
+    user = await f.users.create({
+      name: 'Employment without position',
+      email: `${randomUUID()}@example.test`,
+      password,
+    }),
+    session = await signIn(testApp, { email: user.email!, password }),
+    employee = await f.create('/people/employees', {
+      code: randomUUID(),
+      name: 'Employment without position',
+      subjectId: f.a.id,
+      data: { accountId: user.id },
+    });
+  await database.repository('personnelEmployments').createOne({
+    values: {
+      id: randomUUID(),
+      code: randomUUID(),
+      name: 'Employment without position',
+      subjectId: f.a.id,
+      personId: employee.id,
+      positionId: null,
+      data: { type: 'employee', startDate: '2020-01-01', endDate: null },
+      status: 'active',
+      revision: 1,
+      lifecycleVersion: 0,
+      createdBy: 'isolated-fixture',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
+  await f.grant(user.id, ['read', 'create'], [f.a.id]);
+  const list = await session.fetch('/procurement/requests?submitted=false'),
+    created = await send(session, '/procurement/requests', {
+      content: contentFor(
+        f.a.id,
+        employee.id,
+        f.unit.id,
+        lineFor(f.a.id, { name: 'No position need' }),
+      ),
+      requestKey: randomUUID(),
+    });
+  expect(list.status).toBe(403);
+  expect(created.status).toBe(400);
+  expect((await created.json()).error.reason).toBe(
+    'PURCHASE_POSITION_REQUIRED',
+  );
 });
 
 test('lists submitted requests across companies for group readers and keeps company readers scoped', async ({

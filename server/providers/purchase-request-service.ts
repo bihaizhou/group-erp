@@ -343,6 +343,9 @@ export class PurchaseRequestService {
   }
   async list(query: PurchaseQuery, actor: LifecycleActor, p: MaterialPolicies) {
     const c = this.db.connection();
+    const identity = await this.identity(actor);
+    if (!identity.companies.some((company) => company.units.length > 0))
+      return purchaseError('PURCHASE_POSITION_REQUIRED', 'PERMISSION_DENIED');
     if (query.subjectId) await this.company(c, query.subjectId, p, false);
     const filter = (f: FilterBuilder) =>
       f.and([
@@ -982,6 +985,15 @@ export class PurchaseRequestService {
     if (needsEmployment && (!identity?.employee || !identity.companies.length))
       return purchaseError(
         'PURCHASE_EMPLOYMENT_REQUIRED',
+        'INVALID_ARGUMENT',
+        'subjectId',
+      );
+    if (
+      needsEmployment &&
+      !identity!.companies.some((company) => company.units.length > 0)
+    )
+      return purchaseError(
+        'PURCHASE_POSITION_REQUIRED',
         'INVALID_ARGUMENT',
         'subjectId',
       );

@@ -65,6 +65,8 @@ export const requestUi = {
   mergeEmpty: '没有符合筛选条件的已批准明细。',
   noEmploymentHint:
     '当前账号没有有效任职。请联系管理员维护任职和部门后再新建采购申请。',
+  noProcurementPositionHint:
+    '当前账号没有有效的采购岗位任职。请联系管理员分配部门和岗位后再新建采购申请。',
   identityLockedHint: '公司由当前有效任职带出。',
   allStatuses: '全部审批状态',
   allIdentification: '全部识别进度',

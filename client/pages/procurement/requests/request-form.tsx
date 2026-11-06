@@ -119,6 +119,11 @@ export default function RequestFormPage() {
           : 'editTitle',
     ),
   );
+  const hasPosition =
+    !!purchaseIdentity.data?.data.employee &&
+    purchaseIdentity.data.data.companies.some(
+      (company) => company.units.length > 0,
+    );
   return (
     <RouteChildPage>
       <PageContainer>
@@ -145,6 +150,16 @@ export default function RequestFormPage() {
               <PageHeader title={title} />
               <Alert variant='destructive'>
                 <AlertDescription>{t(ui('noEmploymentHint'))}</AlertDescription>
+              </Alert>
+            </>
+          ) : !hasPosition ? (
+            <>
+              <BackButton />
+              <PageHeader title={title} />
+              <Alert variant='destructive'>
+                <AlertDescription>
+                  {t(ui('noProcurementPositionHint'))}
+                </AlertDescription>
               </Alert>
             </>
           ) : (
@@ -382,6 +397,7 @@ function FormBody({
           PURCHASE_DELEGATE_REQUIRED: 'requesterEmployeeId',
           PURCHASE_COMPANY_UNAVAILABLE: 'subjectId',
           PURCHASE_EMPLOYMENT_REQUIRED: 'subjectId',
+          PURCHASE_POSITION_REQUIRED: 'subjectId',
           PURCHASE_SUPPLIER_CHANGED: 'suggestedSupplierId',
           SUPPLIER_COMPANY_INACTIVE: 'suggestedSupplierId',
           SUPPLIER_GLOBALLY_INACTIVE: 'suggestedSupplierId',
