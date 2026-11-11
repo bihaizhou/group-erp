@@ -28,6 +28,12 @@ import type { SupplierAction } from '../providers/supplier-resources.js';
 import type { MaterialPolicies } from '../providers/material-service.js';
 import type { SupplierService } from '../providers/supplier-service.js';
 import {
+  assertFieldsWritable,
+  fieldPoliciesFor,
+  redactRecord,
+  redactRows,
+} from '../providers/field-access.js';
+import {
   supplierQuery,
   supplierPage,
   supplierCreate,
@@ -80,6 +86,20 @@ export function createPartnerRoutes(
   const authz = app.container.resolve(authorizationToken);
   const router = new Hono<Env>();
   const actor = (c: Context<Env>) => ({ id: c.get('auth')!.user.id });
+  const db = app.container.resolve(databaseManagerToken);
+  const partnerResource =
+    role === 'supplier' ? 'procurement.supplier.identity' : null;
+  const visibleIdentity = async <T extends Record<string, unknown>>(
+    c: Context<Env>,
+    rows: readonly T[],
+  ): Promise<T[]> => {
+    if (!partnerResource) return [...rows];
+    const rules = await fieldPoliciesFor(db, {
+      type: 'user',
+      id: actor(c).id,
+    });
+    return redactRows(rows, rules, partnerResource);
+  };
   const policies = (c: Context<Env>) => c.get('supplierPolicies');
   const access = (action: SupplierAction) =>
     createMiddleware<Env>(async (c, next) => {
@@ -184,7 +204,14 @@ export function createPartnerRoutes(
       listResponse(relationshipView, supplierMeta),
     ),
     apiValidator('query', supplierQuery),
-    async (c) => c.json(await service.list(c.req.valid('query'), policies(c))),
+    async (c) => {
+      const page = await service.list(c.req.valid('query'), policies(c));
+      const data = await visibleIdentity(
+        c,
+        page.data as Record<string, unknown>[],
+      );
+      return c.json({ ...page, data });
+    },
   );
   for (const [path, onlyActive] of [
     [partnerPath('supplierAvailability'), false],
@@ -199,14 +226,27 @@ export function createPartnerRoutes(
         listResponse(supplierAvailabilityView, supplierMeta),
       ),
       apiValidator('query', supplierAvailabilityQuery),
-      async (c) =>
-        c.json(
-          await service.availability(
-            c.req.valid('query'),
-            policies(c),
-            onlyActive,
+      async (c) => {
+        const page = await service.availability(
+          c.req.valid('query'),
+          policies(c),
+          onlyActive,
+        );
+        if (!partnerResource) return c.json(page);
+        const rules = await fieldPoliciesFor(db, {
+          type: 'user',
+          id: actor(c).id,
+        });
+        const data = page.data.map((row) => ({
+          ...row,
+          identity: redactRecord(
+            row.identity as unknown as Record<string, unknown>,
+            rules,
+            partnerResource,
           ),
-        ),
+        }));
+        return c.json({ ...page, data });
+      },
     );
   router.get(
     partnerPath('/supplierCompanies/:id'),
@@ -505,14 +545,28 @@ export function createPartnerRoutes(
     ),
     apiValidator('param', supplierParams),
     apiValidator('query', z.strictObject({ subjectId: z.string().uuid() })),
-    async (c) =>
-      c.json({
-        data: await service.availabilityDetail(
-          c.req.valid('param').id,
-          c.req.valid('query').subjectId,
-          policies(c),
-        ),
-      }),
+    async (c) => {
+      const data = await service.availabilityDetail(
+        c.req.valid('param').id,
+        c.req.valid('query').subjectId,
+        policies(c),
+      );
+      if (!partnerResource) return c.json({ data });
+      const rules = await fieldPoliciesFor(db, {
+        type: 'user',
+        id: actor(c).id,
+      });
+      return c.json({
+        data: {
+          ...data,
+          identity: redactRecord(
+            data.identity as unknown as Record<string, unknown>,
+            rules,
+            partnerResource,
+          ),
+        },
+      });
+    },
   );
   router.get(
     partnerPath('/supplierCompanies'),
@@ -583,10 +637,24 @@ export function createPartnerRoutes(
       dataResponse(relationshipView),
     ),
     apiValidator('param', supplierParams),
-    async (c) =>
-      c.json({
-        data: await service.detail(c.req.valid('param').id, policies(c)),
-      }),
+    async (c) => {
+      const data = await service.detail(c.req.valid('param').id, policies(c));
+      if (!partnerResource) return c.json({ data });
+      const rules = await fieldPoliciesFor(db, {
+        type: 'user',
+        id: actor(c).id,
+      });
+      return c.json({
+        data: {
+          ...data,
+          identity: redactRecord(
+            data.identity as unknown as Record<string, unknown>,
+            rules,
+            partnerResource,
+          ),
+        },
+      });
+    },
   );
   router.get(
     partnerPath('/suppliers/:id/history'),
@@ -747,15 +815,33 @@ export function createPartnerRoutes(
     ),
     apiValidator('param', supplierParams),
     apiValidator('json', supplierIdentityUpdate),
-    async (c) =>
-      c.json({
+    async (c) => {
+      const body = c.req.valid('json');
+      if (partnerResource && 'registrationCode' in body) {
+        const current = await db
+          .repository('businessPartners')
+          .findOne({ filter: { id: c.req.valid('param').id } });
+        const before = current
+          ? ((current as unknown as { registrationCode?: string | null })
+              .registrationCode ?? null)
+          : null;
+        if ((body.registrationCode ?? null) !== before) {
+          const rules = await fieldPoliciesFor(db, {
+            type: 'user',
+            id: actor(c).id,
+          });
+          assertFieldsWritable(rules, partnerResource, ['registrationCode']);
+        }
+      }
+      return c.json({
         data: await service.updateIdentity(
           c.req.valid('param').id,
-          c.req.valid('json'),
+          body,
           actor(c),
           policies(c),
         ),
-      }),
+      });
+    },
   );
   for (const [path, table, action, schema] of [
     [

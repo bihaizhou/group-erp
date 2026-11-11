@@ -19,6 +19,15 @@ import { BackButton } from '#components/back-button';
 import { RouteChildPage } from '#components/route-child-page';
 import { Button } from '#components/ui/button';
 import { LongText } from '#components/long-text';
+import {
+  Table,
+  TableHeader,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+} from '#components/ui/table';
+import { formatStockQuantity } from '#lib/stock-quantity';
 import { ReviewAudit } from '#components/review-audit';
 import {
   ui,
@@ -28,6 +37,7 @@ import {
   usePurchaseRefresh,
   usePurchaseError,
   usePurchaseReturnFocus,
+  useProgress,
 } from '../hooks.js';
 import {
   Loading,
@@ -199,6 +209,7 @@ export default function RequestDetail() {
                 <DemandLines lines={row.lines} />
               </DemandGovernance>
             </section>
+            {!related && <RequestProgress row={row} />}
             <DemandAttachments
               domain='procurement'
               requestId={row.id}
@@ -472,6 +483,84 @@ function History({
           />
         </>
       )}
+    </section>
+  );
+}
+
+function RequestProgress({ row }: { row: PurchaseRequest }) {
+  const { t, i18n } = useTranslation(),
+    progress = useProgress(row.id),
+    data = progress.data?.data,
+    byLine = new Map((data?.lines ?? []).map((line) => [line.lineId, line]));
+  if (progress.isPending) return null;
+  if (!data) return null;
+  return (
+    <section className='flex flex-col gap-4'>
+      <h2 className='text-base font-medium'>{t(ui('progress'))}</h2>
+      <div className='overflow-x-auto rounded-lg border'>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t(ui('material'))}</TableHead>
+              <TableHead className='text-right'>
+                {t(ui('requestedQuantity'))}
+              </TableHead>
+              <TableHead className='text-right'>
+                {t(ui('orderedQuantity'))}
+              </TableHead>
+              <TableHead className='text-right'>
+                {t(ui('receivedQuantity'))}
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {row.lines.map((line) => {
+              const item = byLine.get(line.id),
+                unit = line.materialSnapshot?.baseUnitName ?? '';
+              return (
+                <TableRow key={line.id}>
+                  <TableCell>
+                    {line.materialSnapshot?.name ?? line.originalName}
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {formatStockQuantity(
+                      item?.baseQuantity ?? line.baseQuantity ?? '0',
+                      i18n.language,
+                    )}{' '}
+                    {unit}
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {formatStockQuantity(
+                      item?.orderedBaseQuantity ?? '0',
+                      i18n.language,
+                    )}{' '}
+                    {unit}
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {formatStockQuantity(
+                      item?.receivedBaseQuantity ?? '0',
+                      i18n.language,
+                    )}{' '}
+                    {unit}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+      <p className='text-sm text-muted-foreground'>
+        {t(ui('progressTotals'), {
+          ordered: formatStockQuantity(
+            data.totals.orderedBaseQuantity,
+            i18n.language,
+          ),
+          received: formatStockQuantity(
+            data.totals.receivedBaseQuantity,
+            i18n.language,
+          ),
+        })}
+      </p>
     </section>
   );
 }

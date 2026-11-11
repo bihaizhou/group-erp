@@ -93,6 +93,8 @@ interface Version {
   contentVersion: number;
   createdAt: string;
 }
+import { useFieldAccess } from '../../hooks/use-field-access.js';
+
 export default function ExecutionDetail() {
   const { id: routeId, documentId } = useParams(),
     { t, i18n } = useTranslation(),
@@ -118,6 +120,10 @@ export default function ExecutionDetail() {
     [historyPage, setHistoryPage] = useState(1),
     [versionPage, setVersionPage] = useState(1),
     createDocument = useExecutionCan('warehouse.documents', 'create'),
+    fieldAccess = useFieldAccess(),
+    priceVisible =
+      fieldAccess.access('execution.document.line', 'unitPrice') !== 'hidden' &&
+      fieldAccess.access('execution.document.line', 'amount') !== 'hidden',
     history = useExecutionQuery<Page<Audit>>(
       `${config.api}/${id}/history`,
       { page: historyPage, pageSize: 20 },
@@ -428,8 +434,9 @@ export default function ExecutionDetail() {
                                 : ['quantity', 'baseQuantity']),
                               ...(isOrder(config)
                                 ? [
-                                    'unitPrice',
-                                    'amount',
+                                    ...(priceVisible
+                                      ? ['unitPrice', 'amount']
+                                      : []),
                                     'fulfilledQuantity',
                                     'returnedQuantity',
                                     'netExecuted',
@@ -523,12 +530,12 @@ export default function ExecutionDetail() {
                                     </TableCell>
                                   </>
                                 )}
-                                {isOrder(config) && (
+                                {isOrder(config) && priceVisible && (
                                   <TableCell className='tabular-nums'>
                                     {line.unitPrice ?? '—'} {row.currency}
                                   </TableCell>
                                 )}
-                                {isOrder(config) && (
+                                {isOrder(config) && priceVisible && (
                                   <TableCell className='tabular-nums'>
                                     {line.amount ?? '—'} {row.currency}
                                   </TableCell>
@@ -573,6 +580,67 @@ export default function ExecutionDetail() {
                       total={row.lines.length}
                       onPage={setLinePage}
                     />
+                  )}
+                  {config.kind === 'purchaseOrders' && (
+                    <p className='text-sm text-muted-foreground'>
+                      {t(ui('demandSource'))}
+                      {': '}
+                      {row.demandMode === 'temporary'
+                        ? `${t(ui('demandTemporary'))}${row.temporaryReason ? ` · ${row.temporaryReason}` : ''}`
+                        : row.demandMode === 'request'
+                          ? t(ui('demandFromRequest'))
+                          : t(ui('demandUnset'))}
+                    </p>
+                  )}
+                  {row.demand && (
+                    <section className='grid gap-3'>
+                      <h3 className='text-sm font-medium'>
+                        {t(ui('demandSource'))}
+                      </h3>
+                      {row.demand.mode === 'temporary' ? (
+                        <p className='text-sm'>
+                          {t(ui('demandTemporary'))}
+                          {row.demand.temporaryReason
+                            ? ` · ${row.demand.temporaryReason}`
+                            : ''}
+                        </p>
+                      ) : row.demand.items.length ? (
+                        row.demand.items.map((item) => (
+                          <div
+                            key={`${item.requestId}:${item.requestLineId}`}
+                            className='flex flex-wrap justify-between gap-2 rounded-lg border p-3 text-sm'
+                          >
+                            <span>
+                              <Link
+                                to={`/functions/requisitions/requests/${item.requestId}`}
+                                className='text-primary underline-offset-4 hover:underline'
+                              >
+                                {item.requestCode ?? item.requestId}
+                              </Link>
+                              {item.materialName
+                                ? ` · ${item.materialName}`
+                                : ''}
+                            </span>
+                            <span className='tabular-nums'>
+                              {t(ui('demandReceivedOnDocument'), {
+                                received: formatStockQuantity(
+                                  item.receivedBaseQuantity,
+                                  i18n.language,
+                                ),
+                                allocated: formatStockQuantity(
+                                  item.allocatedBaseQuantity,
+                                  i18n.language,
+                                ),
+                              })}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className='text-sm text-muted-foreground'>
+                          {t(ui('demandNoSource'))}
+                        </p>
+                      )}
+                    </section>
                   )}
                   {row.allocations && (
                     <section className='grid gap-3'>

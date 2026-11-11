@@ -117,6 +117,13 @@ export const requestUi = {
   notSavedSelection: '已选入明细，保存申请后生效。',
   detail: '申请信息',
   lines: '需求明细',
+  progress: '执行进度',
+  material: '物料',
+  requestedQuantity: '申请数量',
+  orderedQuantity: '已下单',
+  receivedQuantity: '已入库',
+  progressTotals:
+    '已下单 {{ordered}}，已入库 {{received}}；入库按分配比例折算到申请行。',
   submission: '本轮提交',
   history: '办理历史',
   version: '提交版本',

@@ -462,3 +462,19 @@ export function applyContentMerge(
   }
   return merged;
 }
+
+export interface PurchaseProgressLine {
+  lineId: string;
+  baseQuantity: string;
+  orderedBaseQuantity: string;
+  receivedBaseQuantity: string;
+}
+export interface PurchaseProgress {
+  requestId: string;
+  lines: PurchaseProgressLine[];
+  totals: {
+    baseQuantity: string;
+    orderedBaseQuantity: string;
+    receivedBaseQuantity: string;
+  };
+}

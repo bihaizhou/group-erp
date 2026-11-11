@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { Textarea } from '#components/ui/textarea';
@@ -173,18 +174,21 @@ export default function HseCertificatesPage() {
               busy={list.isFetching}
               onClick={() => void list.refetch()}
             />
-            <Button
-              onClick={() => {
-                setForm({ ...emptyForm(), subjectId });
-                setOpen(true);
-              }}
-            >
-              <Plus />
-              {t('hse.createCertificate')}
-            </Button>
+            {canManage ? (
+              <Button
+                onClick={() => {
+                  setForm({ ...emptyForm(), subjectId });
+                  setOpen(true);
+                }}
+              >
+                <Plus />
+                {t('hse.createCertificate')}
+              </Button>
+            ) : null}
           </>
         }
       />
+      <ReadOnlyNotice canManage={canManage} canApprove={canApprove} />
       {list.isError ? (
         <HseErrorNotice error={list.error} retry={() => void list.refetch()} />
       ) : list.isLoading ? (

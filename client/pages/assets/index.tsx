@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { Textarea } from '#components/ui/textarea';
@@ -216,6 +217,7 @@ export default function AssetsPage() {
           ) : undefined
         }
       />
+      <ReadOnlyNotice canManage={canManage} canApprove={canApprove} />
       <div className='mb-4 flex flex-wrap items-center gap-3'>
         <select
           className='h-9 rounded-md border bg-background px-3 text-sm'

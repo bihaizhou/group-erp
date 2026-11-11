@@ -25,6 +25,7 @@ import {
   type AppApiRouteContribution,
 } from '@nocobase/app-server/router';
 import { executionApiError } from './execution-error.js';
+import { fieldPoliciesFor, redactRows } from '../providers/field-access.js';
 import type { MaterialPolicies } from '../providers/material-service.js';
 import type { ExecutionKind } from '../providers/execution-workflow.js';
 import {
@@ -573,15 +574,28 @@ export const warehouseRoutes: AppApiRouteContribution<Application> =
           dataResponse(executionProjection),
         ),
         apiValidator('param', executionParams),
-        async (c) =>
-          c.json({
-            data: await records.view(
-              records.db.connection(),
-              kind,
-              c.req.valid('param').id,
-              p(c),
-            ),
-          }),
+        async (c) => {
+          const data = await records.view(
+            records.db.connection(),
+            kind,
+            c.req.valid('param').id,
+            p(c),
+          );
+          const policies = await fieldPoliciesFor(records.db, {
+            type: 'user',
+            id: actor(c).id,
+          });
+          return c.json({
+            data: {
+              ...data,
+              lines: redactRows(
+                (data.lines ?? []) as Record<string, unknown>[],
+                policies,
+                'execution.document.line',
+              ),
+            },
+          });
+        },
       );
       router.patch(
         `${base}/:id`,

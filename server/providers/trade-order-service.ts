@@ -38,6 +38,12 @@ import {
 } from './inventory-quantity.js';
 import { insertStockRowIfMissing, lockStockRow } from './inventory-db.js';
 import { orderAmount, orderTotal } from './order-amount.js';
+import {
+  accessFor,
+  fieldPoliciesFor,
+  type FieldPolicyView,
+} from './field-access.js';
+import { ApiError } from '@nocobase/app-server/router';
 import { z } from 'zod';
 
 export type TradeKind = 'purchaseOrders' | 'salesOrders';
@@ -414,6 +420,47 @@ export class TradeOrderService {
     }
     return { old, normalized };
   }
+  /**
+   * A read-only price may be carried back unchanged by the editor, but a real
+   * change needs write access; otherwise a user without price rights could
+   * rewrite a draft and move money.
+   */
+  private async guardPrices(
+    c: DatabaseConnection,
+    kind: TradeKind,
+    head: RepositoryRecord | null,
+    content: OrderContent,
+    policies: readonly FieldPolicyView[],
+  ) {
+    if (accessFor(policies, 'execution.document.line', 'unitPrice') === 'write')
+      return;
+    const previous = head
+        ? await this.records.lines(c, kind, text(head.id))
+        : [],
+      prices = new Map(
+        previous.map((line) => [
+          text(line.id),
+          (line.unitPrice as string | null) ?? null,
+        ]),
+      );
+    for (const line of content.lines) {
+      const next = line.unitPrice ?? null,
+        prior = prices.get(line.id);
+      if (prior === undefined ? next === null : prior === next) continue;
+      throw new ApiError({
+        status: 'PERMISSION_DENIED',
+        domain: 'authorization',
+        reason: 'FIELD_NOT_WRITABLE',
+        message: 'The price column is read-only for this account.',
+        fieldViolations: [
+          {
+            field: `lines.${line.id}.unitPrice`,
+            description: 'FIELD_NOT_WRITABLE',
+          },
+        ],
+      });
+    }
+  }
   private async saveLines(
     c: DatabaseConnection,
     kind: TradeKind,
@@ -567,7 +614,11 @@ export class TradeOrderService {
   ) {
     const input =
         id || copyFrom ? orderUpdate.parse(raw) : orderCreate.parse(raw),
-      content = input.content;
+      content = input.content,
+      fieldPolicies = await fieldPoliciesFor(this.records.db, {
+        type: 'user',
+        id: actor.id,
+      });
     return this.records.db.transaction(async (c) => {
       await this.records.masterLock(c);
       const read = (resultId: string) =>
@@ -612,6 +663,7 @@ export class TradeOrderService {
               return fail('STOCK_COMPANY_FROZEN', 'subjectId');
             await this.records.wholeLines(c, kind, head, p);
           }
+          await this.guardPrices(c, kind, head, content, fieldPolicies);
           const resolved = await this.resolve(c, kind, content, p),
             before = head
               ? json({
@@ -632,6 +684,8 @@ export class TradeOrderService {
             sourceChannel: head
               ? text(head.sourceChannel) || 'manual'
               : content.sourceChannel,
+            demandMode: content.demandMode ?? null,
+            temporaryReason: content.temporaryReason ?? null,
             partnerSnapshot: resolved.partner,
             totalAmount: resolved.totalAmount,
             supersedesId: copyFrom ?? head?.supersedesId ?? null,
@@ -738,6 +792,8 @@ export class TradeOrderService {
             'deliveryTerms',
             'notes',
             'reason',
+            'demandMode',
+            'temporaryReason',
           ].map((key) => [key, head[key]]),
         ),
         lines: lines.map((line) => line.selectionInput),
@@ -761,7 +817,14 @@ export class TradeOrderService {
         )
       )
         return fail('STOCK_SOURCE_CHANGED', `lines.${text(line.id)}.selection`);
-    if (kind === 'purchaseOrders')
+    // A request-sourced order must carry allocations; a temporary order must
+    // not. Both are decided by the demand-mode guard during the transition, so
+    // only validate allocation quantities once the mode is settled.
+    if (
+      kind === 'purchaseOrders' &&
+      text(head.demandMode) === 'request' &&
+      content.lines.some((line) => line.allocations.length > 0)
+    )
       await this.allocations(
         c,
         text(head.id),

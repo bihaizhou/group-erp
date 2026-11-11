@@ -1,6 +1,7 @@
 import { textValue } from './model.js';
 import { useState } from 'react';
 import { useTranslation } from '@nocobase/i18n/client';
+import { useFieldAccess } from '../../hooks/use-field-access.js';
 import { useApiClient } from '@nocobase/app-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router';
@@ -55,6 +56,7 @@ type Talent = {
   options: Options;
 };
 export function TalentCard({ profile }: { profile: Row }) {
+  const fieldAccess = useFieldAccess();
   const { t, i18n } = useTranslation(),
     api = useApiClient(),
     location = useLocation(),
@@ -133,10 +135,14 @@ export function TalentCard({ profile }: { profile: Row }) {
     ['subjectId', name('orgSubjects', talent.person.subjectId)],
     ['unit', name('orgUnits', unitId)],
     ['positionId', name('orgPositions', primary?.positionId)],
-    [
-      'grade',
-      profile.grade ? t('people.gradeValue', { grade: profile.grade }) : '—',
-    ],
+    ...(fieldAccess.access('people.employee.grade', 'grade') === 'hidden'
+      ? []
+      : ([
+          'grade',
+          profile.grade
+            ? t('people.gradeValue', { grade: profile.grade })
+            : '—',
+        ] as const)),
     [
       'startDate',
       talent.employments.rows.find((r) => !r.data.endDate)?.data.startDate,

@@ -30,6 +30,13 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { peopleServiceToken } from '../providers/people.js';
+import { databaseManagerToken } from '@nocobase/db';
+import {
+  assertFieldsWritable,
+  fieldPoliciesFor,
+  redactRecord,
+  redactRows,
+} from '../providers/field-access.js';
 import {
   peopleKinds,
   peopleTables,
@@ -94,6 +101,7 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
     const authentication = app.container.resolve(authenticationToken);
     const authz = app.container.resolve(authorizationToken);
     const service = app.container.resolve(peopleServiceToken);
+    const database = app.container.resolve(databaseManagerToken);
     const router = new Hono<PeopleEnv>();
     // Contributions share a router: every middleware is scoped to this feature's paths.
     router.use(
@@ -460,14 +468,24 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
           responses: { '200': listResponse(output), ...responses },
         }),
         apiValidator('query', peopleQuery),
-        async (c) =>
-          c.json(
-            await service.list(
-              kind,
-              c.req.valid('query'),
-              c.get('peoplePolicies'),
+        async (c) => {
+          const result = await service.list(
+            kind,
+            c.req.valid('query'),
+            c.get('peoplePolicies'),
+          );
+          if (kind !== 'employees' && kind !== 'profiles')
+            return c.json(result);
+          const policies = await fieldPoliciesFor(database, actor(c));
+          return c.json({
+            ...result,
+            data: redactRows(
+              result.data as Record<string, unknown>[],
+              policies,
+              'people.employee.grade',
             ),
-          ),
+          });
+        },
       );
       router.get(
         `/people/${kind}/:id`,
@@ -491,12 +509,20 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
             resource: { type: 'composite', id: `people.${kind}` },
             action: 'review',
           });
+          const data = await service.get(
+            kind,
+            c.req.valid('param').id,
+            c.get('peoplePolicies'),
+            who,
+          );
+          if (kind !== 'employees' && kind !== 'profiles')
+            return c.json({ data });
+          const policies = await fieldPoliciesFor(database, actor(c));
           return c.json({
-            data: await service.get(
-              kind,
-              c.req.valid('param').id,
-              c.get('peoplePolicies'),
-              who,
+            data: redactRecord(
+              data as Record<string, unknown>,
+              policies,
+              'people.employee.grade',
             ),
           });
         },
@@ -715,13 +741,20 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
         responses: { '200': dataResponse(output), ...responses },
       }),
       apiValidator('param', idParam),
-      async (c) =>
-        c.json({
-          data: await service.contacts(
-            c.req.valid('param').id,
-            c.get('peoplePolicies'),
+      async (c) => {
+        const data = await service.contacts(
+          c.req.valid('param').id,
+          c.get('peoplePolicies'),
+        );
+        const policies = await fieldPoliciesFor(database, actor(c));
+        return c.json({
+          data: redactRecord(
+            data as Record<string, unknown>,
+            policies,
+            'people.employee.contact',
           ),
-        }),
+        });
+      },
     );
     router.put(
       '/people/employees/:id/contacts',
@@ -750,15 +783,27 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
           email: z.union([z.literal(''), z.email().max(200)]),
         }),
       ),
-      async (c) =>
-        c.json({
+      async (c) => {
+        const id = c.req.valid('param').id,
+          input = c.req.valid('json'),
+          policies = await fieldPoliciesFor(database, actor(c)),
+          previous = (await service.contacts(id, c.get('peoplePolicies'))) as {
+            phone?: string;
+            email?: string;
+          };
+        const changed = (['phone', 'email'] as const).filter(
+          (field) => (previous[field] ?? '') !== (input[field] ?? ''),
+        );
+        assertFieldsWritable(policies, 'people.employee.contact', changed);
+        return c.json({
           data: await service.contacts(
-            c.req.valid('param').id,
+            id,
             c.get('peoplePolicies'),
-            c.req.valid('json'),
+            input,
             actor(c),
           ),
-        }),
+        });
+      },
     );
     router.get(
       '/people/contract-expiries',

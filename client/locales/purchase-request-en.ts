@@ -125,6 +125,13 @@ export const requestUi = {
   notSavedSelection: 'Added to the line. Save the request to keep it.',
   detail: 'Request information',
   lines: 'Demand lines',
+  progress: 'Fulfilment progress',
+  material: 'Material',
+  requestedQuantity: 'Requested',
+  orderedQuantity: 'Ordered',
+  receivedQuantity: 'Received',
+  progressTotals:
+    'Ordered {{ordered}}, received {{received}}; receipts are apportioned to request lines by allocation.',
   submission: 'Current submission',
   history: 'History',
   version: 'Submitted version',

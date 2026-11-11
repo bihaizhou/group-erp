@@ -14,6 +14,7 @@ import { StatusBadge } from '#components/status-badge';
 import { useUrlSearch } from '#hooks/use-url-search';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import {
@@ -183,6 +184,7 @@ export default function SupplierList() {
             </>
           }
         />
+        <ReadOnlyNotice canManage={create.can} />
         {read.can && (
           <>
             <div className='flex flex-col gap-3 sm:flex-row sm:flex-wrap'>

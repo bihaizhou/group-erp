@@ -247,6 +247,30 @@ export const execution = {
   sourceChannel_api: 'API',
   sourceChannel_device: 'Device',
   allocations: 'Approved demand allocations',
+  demandSource: 'Demand source',
+  demandSourceHint:
+    'An order must state where the demand comes from: allocate approved purchase requests, or mark it as a temporary purchase with a reason.',
+  demandFromRequest: 'From purchase requests',
+  demandFromRequestHint:
+    '{{count}} request lines allocated; allocate at least one before submitting.',
+  demandTemporary: 'Temporary purchase (no request)',
+  demandTemporaryHint:
+    'With a reason, the order can be submitted without a purchase request.',
+  demandTemporaryConflict:
+    'A temporary purchase cannot also allocate requests. Remove the allocations first.',
+  temporaryReason: 'Temporary purchase reason',
+  temporaryReasonPlaceholder:
+    'For example: urgent repair, no time to approve a request.',
+  demandModeRequired:
+    'Choose a demand source first: allocate purchase requests, or mark a temporary purchase.',
+  demandReasonRequired:
+    'Enter at least 5 characters explaining the temporary purchase.',
+  demandAllocationRequired:
+    'Allocate at least one approved request line, or switch to a temporary purchase.',
+  demandUnset: 'No demand source yet',
+  demandReceivedOnDocument:
+    'Received now {{received}} / allocated {{allocated}}',
+  demandNoSource: 'This document has no purchase request allocations.',
   addLine: 'Add material',
   removeLine: 'Remove line',
   lineNumber: 'Line {{number}}',

@@ -238,6 +238,22 @@ export interface ExecutionRecord {
   evidence?: string;
   lines: StoredLine[];
   linesRestricted?: boolean;
+  demandMode?: 'request' | 'temporary' | null;
+  temporaryReason?: string | null;
+  demand?: {
+    order: { id: string; code: string };
+    mode: 'request' | 'temporary' | null;
+    temporaryReason: string | null;
+    items: {
+      requestId: string;
+      requestCode: string | null;
+      requestLineId: string;
+      orderLineId: string;
+      materialName: string | null;
+      allocatedBaseQuantity: string;
+      receivedBaseQuantity: string;
+    }[];
+  } | null;
   review?: ReviewContext;
   allocations?: {
     restricted: boolean;
@@ -363,6 +379,8 @@ export interface Draft {
   deliveryTerms: string;
   reason: string;
   notes: string;
+  demandMode: '' | 'request' | 'temporary';
+  temporaryReason: string;
   kind: DocumentKind;
   sourceId: string;
   originalPostingId: string;
@@ -428,6 +446,8 @@ export const blankDraft = (subjectId = '', date = ''): Draft => ({
   deliveryTerms: '',
   reason: '',
   notes: '',
+  demandMode: '',
+  temporaryReason: '',
   kind: 'purchaseReceipt',
   sourceId: '',
   originalPostingId: '',
@@ -456,6 +476,8 @@ export function recordDraft(row: ExecutionRecord): Draft {
         'deliveryTerms',
         'reason',
         'notes',
+        'demandMode',
+        'temporaryReason',
         'kind',
         'originalPostingId',
         'initializationReference',
@@ -502,6 +524,8 @@ export function requestContent(page: ExecutionPage, draft: Draft) {
       currency: draft.currency.trim().toUpperCase(),
       deliveryOn: draft.deliveryOn || null,
       deliveryTerms: draft.deliveryTerms,
+      demandMode: draft.demandMode || null,
+      temporaryReason: draft.temporaryReason.trim() || null,
       lines: draft.lines.map((line) => ({
         id: line.id,
         selection: line.selection,
@@ -598,6 +622,16 @@ export function validateDraft(
     if (!draft.partnerId) errors.partnerId = 'required';
     if (!/^[A-Za-z]{3}$/u.test(draft.currency))
       errors.currency = 'currencyInvalid';
+  }
+  if (page.kind === 'purchaseOrders') {
+    const allocated = draft.lines.some(
+      (line) => (line.allocations?.length ?? 0) > 0,
+    );
+    if (!draft.demandMode) errors.demandMode = 'required';
+    else if (draft.demandMode === 'temporary') {
+      if (draft.temporaryReason.trim().length < 5)
+        errors.temporaryReason = 'demandReasonRequired';
+    } else if (!allocated) errors.demandMode = 'demandAllocationRequired';
   }
   if (
     page.kind === 'stockTransfers' &&

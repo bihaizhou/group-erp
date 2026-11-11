@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { ReadOnlyNotice } from '#components/read-only-notice';
+import { useFieldAccess } from '../../hooks/use-field-access.js';
 import { StatusBadge } from '#components/status-badge';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
@@ -49,6 +51,9 @@ import {
 import { readOnly, statuses, workflows, type Kind, type Row } from './model.js';
 
 export default function PeopleList({ kind }: { kind: Kind }) {
+  const fieldAccess = useFieldAccess();
+  const gradeVisible =
+    fieldAccess.access('people.employee.grade', 'grade') !== 'hidden';
   const { t, i18n } = useTranslation(),
     api = useApiClient(),
     location = useLocation();
@@ -129,6 +134,7 @@ export default function PeopleList({ kind }: { kind: Kind }) {
           </>
         }
       />
+      <ReadOnlyNotice canManage={canWrite} />
       <div className='flex flex-wrap items-end gap-3'>
         <div className='w-full sm:max-w-xs'>
           <Label htmlFor={`people-search-${kind}`} className='sr-only'>
@@ -238,21 +244,23 @@ export default function PeopleList({ kind }: { kind: Kind }) {
                 <TableHead>{t('people.fields.code')}</TableHead>
                 <TableHead>{t('people.fields.subjectId')}</TableHead>
                 {kind === 'profiles' ? (
-                  <TableHead className='text-right'>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={() => sort('grade')}
-                    >
-                      {t('people.fields.grade')}
-                      <ArrowDownUp />
-                      {params.get('orderBy')?.includes('grade')
-                        ? params.get('orderBy')?.startsWith('-')
-                          ? '↓'
-                          : '↑'
-                        : null}
-                    </Button>
-                  </TableHead>
+                  gradeVisible ? (
+                    <TableHead className='text-right'>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => sort('grade')}
+                      >
+                        {t('people.fields.grade')}
+                        <ArrowDownUp />
+                        {params.get('orderBy')?.includes('grade')
+                          ? params.get('orderBy')?.startsWith('-')
+                            ? '↓'
+                            : '↑'
+                          : null}
+                      </Button>
+                    </TableHead>
+                  ) : null
                 ) : (
                   <TableHead>{t('people.fields.personId')}</TableHead>
                 )}
@@ -301,11 +309,13 @@ export default function PeopleList({ kind }: { kind: Kind }) {
                     </span>
                   </TableCell>
                   {kind === 'profiles' ? (
-                    <TableCell className='text-right tabular-nums'>
-                      {row.grade === null
-                        ? '—'
-                        : t('people.gradeValue', { grade: row.grade })}
-                    </TableCell>
+                    gradeVisible ? (
+                      <TableCell className='text-right tabular-nums'>
+                        {row.grade === null
+                          ? '—'
+                          : t('people.gradeValue', { grade: row.grade })}
+                      </TableCell>
+                    ) : null
                   ) : (
                     <TableCell>
                       {optionName('employees', row.personId)}

@@ -11,6 +11,8 @@ import {
   type AuthorizationEnv,
 } from '@nocobase/app-plugin-authorization/server';
 import type { Application } from '@nocobase/app-server/application';
+import { databaseManagerToken } from '@nocobase/db';
+import { fieldPoliciesFor, redactRows } from '../providers/field-access.js';
 import {
   defineApiRoutes,
   apiValidator,
@@ -53,6 +55,7 @@ export const inventoryRoutes: AppApiRouteContribution<Application> =
       auth = app.container.resolve(authenticationToken),
       authz = app.container.resolve(authorizationToken),
       service = app.container.resolve(inventoryReadServiceToken),
+      db = app.container.resolve(databaseManagerToken),
       records = app.container.resolve(executionRecordsToken),
       base = '/warehouse/inventory',
       p = (c: Context<Env>) => c.get('executionPolicies'),
@@ -175,7 +178,21 @@ export const inventoryRoutes: AppApiRouteContribution<Application> =
       allowed('read'),
       describe('List', 'Read exact stock dimensions without cross-SKU totals'),
       apiValidator('query', inventoryQuery),
-      async (c) => c.json(await service.list(c.req.valid('query'), p(c))),
+      async (c) => {
+        const result = await service.list(c.req.valid('query'), p(c));
+        const policies = await fieldPoliciesFor(db, {
+          type: 'user',
+          id: actor(c).id,
+        });
+        return c.json({
+          ...result,
+          data: redactRows(
+            result.data as Record<string, unknown>[],
+            policies,
+            'warehouse.inventory.balance',
+          ),
+        });
+      },
     );
     router.get(
       `${base}/reconcile`,

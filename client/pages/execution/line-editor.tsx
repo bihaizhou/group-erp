@@ -11,6 +11,7 @@ import { Field, FieldLabel, FieldError } from '#components/ui/field';
 import { formatStockQuantity } from '#lib/stock-quantity';
 import { randomUuid } from '#lib/random-id';
 import { useDiscard, useExecutionQuery, ui } from './hooks.js';
+import { useFieldAccess } from '../../hooks/use-field-access.js';
 import {
   ReferencePicker,
   StaticSelect,
@@ -145,6 +146,9 @@ export function LineEditor({
   orderId?: string;
 }) {
   const { t, i18n } = useTranslation(),
+    fieldAccess = useFieldAccess(),
+    unitPriceWritable =
+      fieldAccess.access('execution.document.line', 'unitPrice') === 'write',
     discard = useDiscard(),
     [page, setPage] = useState(1),
     count = config.kind === 'stockCounts',
@@ -208,8 +212,7 @@ export function LineEditor({
             rejectedQuantity: '0',
             replenishmentRequested: false,
             ...(value.conversionMode === 'reference' &&
-            (draft.kind === 'purchaseReceipt' ||
-              draft.kind === 'salesShipment')
+            (draft.kind === 'purchaseReceipt' || draft.kind === 'salesShipment')
               ? { baseQuantity: '' }
               : {}),
           },
@@ -537,7 +540,8 @@ export function LineEditor({
                           {t(ui('quantity'))} ·{' '}
                           {baseReturn
                             ? baseName
-                            : (material?.unitName ?? t(ui('unit')))} *
+                            : (material?.unitName ?? t(ui('unit')))}{' '}
+                          *
                         </FieldLabel>
                         <Input
                           id={`${prefix}quantity`}
@@ -562,9 +566,7 @@ export function LineEditor({
                         )}
                       </Field>
                       {countedReceipt && (
-                        <Field
-                          data-invalid={!!errors[`${prefix}baseQuantity`]}
-                        >
+                        <Field data-invalid={!!errors[`${prefix}baseQuantity`]}>
                           <FieldLabel htmlFor={`${prefix}baseQuantity`}>
                             {t(ui('baseQuantity'))} · {baseName} *
                           </FieldLabel>
@@ -591,7 +593,8 @@ export function LineEditor({
                               {t(ui('receiptReferenceHint'), {
                                 unit: baseName,
                                 measured: material?.unitName ?? '',
-                                variance: sourceFor(line)?.variancePercent ?? '3',
+                                variance:
+                                  sourceFor(line)?.variancePercent ?? '3',
                               })}
                             </p>
                           )}
@@ -697,7 +700,7 @@ export function LineEditor({
                           id={`${prefix}unitPrice`}
                           inputMode='decimal'
                           value={line.unitPrice ?? ''}
-                          disabled={busy}
+                          disabled={busy || !unitPriceWritable}
                           onChange={(event) =>
                             updateField(
                               line,

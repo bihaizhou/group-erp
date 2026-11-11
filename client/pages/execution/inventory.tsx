@@ -7,6 +7,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { Plus } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { SupplyChainTable } from '#components/supply-chain-table';
@@ -23,6 +24,7 @@ import {
   RefreshButton,
   StaticSelect,
 } from './controls.js';
+import { useFieldAccess } from '../../hooks/use-field-access.js';
 import type { Choice, Page } from './model.js';
 export interface InventoryRow {
   id: string;
@@ -72,6 +74,9 @@ export default function InventoryPage() {
     reserve = useExecutionCan('warehouse.inventory', 'reserve'),
     release = useExecutionCan('warehouse.inventory', 'release'),
     reconcile = useExecutionCan('warehouse.inventory', 'reconcile'),
+    fieldAccess = useFieldAccess(),
+    balanceVisible = (field: string) =>
+      fieldAccess.access('warehouse.inventory.balance', field) !== 'hidden',
     view =
       ['balances', 'movements', 'reservations', 'reconcile'].find(
         (value) => value === params.get('view'),
@@ -281,27 +286,39 @@ export default function InventoryPage() {
               },
             ]
           : [
-              {
-                accessorKey: 'quantity',
-                header: t(ui('onHand')),
-                enableSorting: true,
-                cell: ({ row }: { row: { original: InventoryRow } }) =>
-                  quantity('quantity', row.original),
-              },
-              {
-                accessorKey: 'reservedQuantity',
-                header: t(ui('reservedQuantity')),
-                enableSorting: true,
-                cell: ({ row }: { row: { original: InventoryRow } }) =>
-                  quantity('reservedQuantity', row.original),
-              },
-              {
-                accessorKey: 'available',
-                header: t(ui('available')),
-                enableSorting: true,
-                cell: ({ row }: { row: { original: InventoryRow } }) =>
-                  quantity('available', row.original),
-              },
+              ...(balanceVisible('quantity')
+                ? [
+                    {
+                      accessorKey: 'quantity',
+                      header: t(ui('onHand')),
+                      enableSorting: true,
+                      cell: ({ row }: { row: { original: InventoryRow } }) =>
+                        quantity('quantity', row.original),
+                    },
+                  ]
+                : []),
+              ...(balanceVisible('reservedQuantity')
+                ? [
+                    {
+                      accessorKey: 'reservedQuantity',
+                      header: t(ui('reservedQuantity')),
+                      enableSorting: true,
+                      cell: ({ row }: { row: { original: InventoryRow } }) =>
+                        quantity('reservedQuantity', row.original),
+                    },
+                  ]
+                : []),
+              ...(balanceVisible('available')
+                ? [
+                    {
+                      accessorKey: 'available',
+                      header: t(ui('available')),
+                      enableSorting: true,
+                      cell: ({ row }: { row: { original: InventoryRow } }) =>
+                        quantity('available', row.original),
+                    },
+                  ]
+                : []),
             ]),
       ...(view === 'reconcile'
         ? [
@@ -431,6 +448,7 @@ export default function InventoryPage() {
             </>
           }
         />
+        <ReadOnlyNotice canManage={reserve.can || documentCreate.can} />
         {read.isPending ? (
           <Loading kind='table' />
         ) : !read.can ? (

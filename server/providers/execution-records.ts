@@ -19,7 +19,11 @@ import {
   executionWrite,
 } from './execution-access.js';
 import { businessDate } from './business-date.js';
-import { inventoryError as fail } from './inventory-quantity.js';
+import {
+  inventoryError as fail,
+  stockMicros,
+  stockQuantity,
+} from './inventory-quantity.js';
 import { materialIdFilter } from './material-filters.js';
 
 export const executionLineCollections = {
@@ -225,6 +229,9 @@ export class ExecutionRecords {
       linesRestricted: !canReadLines,
       ...(kind === 'purchaseOrders'
         ? { allocations: await this.allocationSources(c, id, p) }
+        : {}),
+      ...(kind === 'stockDocuments'
+        ? { demand: await this.demandSources(c, visible, lines, p) }
         : {}),
       review: await this.reviewContext(c, kind, id, p, undefined, 1),
       display: {
@@ -520,6 +527,88 @@ export class ExecutionRecords {
       });
     }
     return { restricted: false, items };
+  }
+  /**
+   * Which purchase requests this receipt (or other order-bound document)
+   * fulfils, and how much of each allocation arrives on this document.
+   */
+  private async demandSources(
+    c: DatabaseConnection,
+    visible: RepositoryRecord,
+    lines: RepositoryRecord[],
+    p: MaterialPolicies,
+  ) {
+    const orderId = text(visible.purchaseOrderId);
+    if (!orderId) return null;
+    if (!p.purchaseOrders?.read || !p.purchaseAllocations?.read) return null;
+    const order = await c.repository('purchaseOrders').findOne({
+        filter: { id: orderId },
+      }),
+      allocations = await c.repository('purchaseAllocations').findMany({
+        filter: { orderId, status: 'active' },
+        limit: 1001,
+      }),
+      orderLineIds = [
+        ...new Set(allocations.map((row) => text(row.orderLineId))),
+      ],
+      orderLines = orderLineIds.length
+        ? await c.repository('purchaseOrderLines').findMany({
+            filter: (f) => materialIdFilter(f, 'id', orderLineIds),
+            limit: 1001,
+          })
+        : [],
+      lineBase = new Map(
+        orderLines.map((line) => [
+          text(line.id),
+          stockMicros(text(line.baseQuantity)),
+        ]),
+      ),
+      materials = new Map(
+        orderLines.map((line) => [
+          text(line.id),
+          text(
+            (line.materialSnapshot as { name?: string } | null | undefined)
+              ?.name,
+          ),
+        ]),
+      ),
+      received = new Map<string, bigint>();
+    for (const line of lines) {
+      const orderLineId = text(line.purchaseOrderLineId),
+        quantity = stockMicros(text(line.baseQuantity)),
+        base = lineBase.get(orderLineId) ?? 0n;
+      if (!base || !quantity) continue;
+      for (const allocation of allocations) {
+        if (text(allocation.orderLineId) !== orderLineId) continue;
+        const id = text(allocation.id),
+          share =
+            (quantity * stockMicros(text(allocation.baseQuantity))) / base;
+        received.set(id, (received.get(id) ?? 0n) + share);
+      }
+    }
+    const codes = new Map<string, string>();
+    for (const requestId of new Set(
+      allocations.map((row) => text(row.requestId)),
+    )) {
+      const request = await c.repository('purchaseRequests').findOne({
+        filter: { id: requestId },
+      });
+      if (request) codes.set(requestId, text(request.code));
+    }
+    return {
+      order: { id: orderId, code: text(order?.code) },
+      mode: text(order?.demandMode) || null,
+      temporaryReason: order?.temporaryReason ?? null,
+      items: allocations.map((row) => ({
+        requestId: text(row.requestId),
+        requestCode: codes.get(text(row.requestId)) ?? null,
+        requestLineId: text(row.requestLineId),
+        orderLineId: text(row.orderLineId),
+        materialName: materials.get(text(row.orderLineId)) ?? null,
+        allocatedBaseQuantity: text(row.baseQuantity),
+        receivedBaseQuantity: stockQuantity(received.get(text(row.id)) ?? 0n),
+      })),
+    };
   }
   async audit(
     c: DatabaseConnection,

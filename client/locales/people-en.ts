@@ -333,6 +333,8 @@ export const people = {
     'JPEG, PNG or WebP, up to 5 MB. Save the employee record after upload.',
   photoAttached: 'Photo attached',
   fields: {
+    phone: 'Phone',
+    email: 'Email',
     currentStaffing: 'Current primary headcount',
     code: 'Code',
     name: 'Name',

@@ -304,6 +304,8 @@ export const people = {
   photoHint: '支持JPEG、PNG、WebP，最大5MB；上传后保存人员档案完成关联。',
   photoAttached: '已关联照片',
   fields: {
+    phone: '手机号',
+    email: '邮箱',
     currentStaffing: '当前主职人数',
     code: '编码',
     name: '名称',

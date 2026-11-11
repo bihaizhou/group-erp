@@ -56,6 +56,7 @@ import {
   purchasePage,
   purchaseMeta,
   purchaseView,
+  purchaseProgressView,
   purchaseListView,
   purchaseAuditView,
   purchaseOptionQuery,
@@ -445,6 +446,23 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
       async (c) =>
         c.json({
           data: await service.detail(
+            c.req.valid('param').id,
+            access(c).policies,
+          ),
+        }),
+    );
+    router.get(
+      '/requests/:id/progress',
+      allowed('read'),
+      describe(
+        'purchaseRequestProgress',
+        'Read ordered and received quantities per request line',
+        dataResponse(purchaseProgressView),
+      ),
+      apiValidator('param', purchaseParams),
+      async (c) =>
+        c.json({
+          data: await service.progress(
             c.req.valid('param').id,
             access(c).policies,
           ),

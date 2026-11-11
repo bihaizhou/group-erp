@@ -918,6 +918,92 @@ function FormBody({
               {field('notes', true)}
             </CardContent>
           </Card>
+          {config.kind === 'purchaseOrders' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t(ui('demandSource'))}</CardTitle>
+              </CardHeader>
+              <CardContent className='grid gap-4'>
+                <p className='text-sm text-muted-foreground'>
+                  {t(ui('demandSourceHint'))}
+                </p>
+                <RadioGroup
+                  value={draft.demandMode || ''}
+                  onValueChange={(value) =>
+                    update({
+                      ...draft,
+                      demandMode: value as Draft['demandMode'],
+                      temporaryReason:
+                        value === 'temporary' ? draft.temporaryReason : '',
+                    })
+                  }
+                  className='grid gap-3 md:grid-cols-2'
+                >
+                  <Label className='flex items-start gap-2 rounded-lg border p-4'>
+                    <RadioGroupItem value='request' />
+                    <span>
+                      <span className='block font-medium'>
+                        {t(ui('demandFromRequest'))}
+                      </span>
+                      <span className='block text-sm text-muted-foreground'>
+                        {t(ui('demandFromRequestHint'), {
+                          count: draft.lines.filter(
+                            (line) => (line.allocations?.length ?? 0) > 0,
+                          ).length,
+                        })}
+                      </span>
+                    </span>
+                  </Label>
+                  <Label className='flex items-start gap-2 rounded-lg border p-4'>
+                    <RadioGroupItem value='temporary' />
+                    <span>
+                      <span className='block font-medium'>
+                        {t(ui('demandTemporary'))}
+                      </span>
+                      <span className='block text-sm text-muted-foreground'>
+                        {t(ui('demandTemporaryHint'))}
+                      </span>
+                    </span>
+                  </Label>
+                </RadioGroup>
+                {errors.demandMode && (
+                  <FieldError>{t(ui(errors.demandMode))}</FieldError>
+                )}
+                {draft.demandMode === 'temporary' &&
+                  draft.lines.some(
+                    (line) => (line.allocations?.length ?? 0) > 0,
+                  ) && (
+                    <Alert variant='destructive'>
+                      <AlertDescription>
+                        {t(ui('demandTemporaryConflict'))}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                {draft.demandMode === 'temporary' && (
+                  <Field data-invalid={!!errors.temporaryReason}>
+                    <FieldLabel htmlFor='temporaryReason'>
+                      {t(ui('temporaryReason'))} *
+                    </FieldLabel>
+                    <Textarea
+                      id='temporaryReason'
+                      value={draft.temporaryReason}
+                      maxLength={600}
+                      placeholder={t(ui('temporaryReasonPlaceholder'))}
+                      onChange={(event) =>
+                        update({
+                          ...draft,
+                          temporaryReason: event.target.value,
+                        })
+                      }
+                    />
+                    {errors.temporaryReason && (
+                      <FieldError>{t(ui(errors.temporaryReason))}</FieldError>
+                    )}
+                  </Field>
+                )}
+              </CardContent>
+            </Card>
+          )}
           {source.error && (
             <ErrorNotice
               error={source.error}

@@ -138,6 +138,23 @@ export class ExecutionReviewService {
     if (operation === 'submit') {
       if (!lines.length && kind !== 'stockCounts')
         return fail('STOCK_LINES_INVALID', 'lines');
+      if (kind === 'purchaseOrders') {
+        const mode = text(head.demandMode),
+          reason = text(head.temporaryReason ?? '').trim(),
+          allocations = await c.repository('purchaseAllocations').findMany({
+            filter: { orderId: documentId, status: 'active' },
+            limit: 1001,
+          });
+        if (mode === 'temporary') {
+          if (reason.length < 5)
+            return fail('STOCK_DEMAND_REASON_REQUIRED', 'temporaryReason');
+          if (allocations.length)
+            return fail('STOCK_DEMAND_MODE_CONFLICT', 'demandMode');
+        } else if (mode === 'request') {
+          if (!allocations.length)
+            return fail('STOCK_DEMAND_ALLOCATION_REQUIRED', 'demandMode');
+        } else return fail('STOCK_DEMAND_MODE_REQUIRED', 'demandMode');
+      }
       const excludedActors = this.excluded(head, lines, actorId),
         candidates = await this.reviewers.resolve(
           c,

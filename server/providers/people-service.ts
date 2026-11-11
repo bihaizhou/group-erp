@@ -1,4 +1,5 @@
 import { businessDate } from './business-date.js';
+import { assertFieldsWritable, fieldPoliciesFor } from './field-access.js';
 import type { UserAdministrationService } from '@nocobase/app-plugin-authentication';
 import {
   PermissionSetLastAssignmentError,
@@ -308,6 +309,10 @@ export class PeopleService {
   ) {
     if (['employments', 'assignments'].includes(kind))
       return fail('PEOPLE_USE_CHANGE');
+    const fieldPolicies = await fieldPoliciesFor(this.db, {
+      type: 'user',
+      id: actor.id,
+    });
     return this.db.transaction(async (c) => {
       await this.lock(c);
       const repo = this.repo(c, kind, policies);
@@ -334,6 +339,16 @@ export class PeopleService {
         grade: null,
       } as unknown as PeopleRow;
       row.data = peopleDataSchemas[kind].parse(row.data);
+      if (kind === 'profiles') {
+        const nextGrade = (row.data as ProfileData).grade ?? null,
+          previousGrade = previous
+            ? ((previous.data as ProfileData | undefined)?.grade ?? null)
+            : null;
+        if (nextGrade !== previousGrade)
+          assertFieldsWritable(fieldPolicies, 'people.employee.grade', [
+            'grade',
+          ]);
+      }
       // Scope columns are derived from trusted parents, never accepted as arbitrary scope claims.
       let person: RepositoryRecord | null = null;
       if (row.personId) {

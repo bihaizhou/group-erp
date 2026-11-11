@@ -16,6 +16,7 @@ import { BackButton } from '#components/back-button';
 import { LongText } from '#components/long-text';
 import { Button } from '#components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '#components/ui/card';
+import { useFieldAccess } from '../../hooks/use-field-access.js';
 import { useAvailability, useCapabilities, useSupplierQuery } from './hooks.js';
 import { SupplierError, SupplierLoading, SupplierStatus } from './controls.js';
 import type { Choice } from './model.js';
@@ -39,6 +40,12 @@ export function Values({ values }: { values: [string, ReactNode][] }) {
   );
 }
 export default function SupplierDetail() {
+  const fieldAccess = useFieldAccess(),
+    registrationVisible =
+      fieldAccess.access(
+        'procurement.supplier.identity',
+        'registrationCode',
+      ) !== 'hidden';
   const { t } = useTranslation(),
     { partnerId } = useParams(),
     [params] = useSearchParams(),
@@ -105,7 +112,14 @@ export default function SupplierDetail() {
                     values={[
                       ['code', row.identity.code],
                       ['name', row.identity.name],
-                      ['registrationCode', row.identity.registrationCode],
+                      ...(registrationVisible
+                        ? [
+                            [
+                              'registrationCode',
+                              row.identity.registrationCode,
+                            ] as [string, string | null],
+                          ]
+                        : []),
                       [
                         'identityStatus',
                         <SupplierStatus

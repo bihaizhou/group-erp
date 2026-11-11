@@ -29,6 +29,7 @@ import {
 } from '#components/ui/field';
 import { randomUuid } from '#lib/random-id';
 import { useDiscardConfirm } from '../people/use-discard-confirm.js';
+import { useFieldAccess } from '../../hooks/use-field-access.js';
 import {
   useAvailability,
   useIdentity,
@@ -215,7 +216,13 @@ function SupplierFormBody({
     toaster = useToaster(),
     refresh = useSupplierRefresh(),
     message = useSupplierError(),
-    discard = useDiscardConfirm();
+    discard = useDiscardConfirm(),
+    fieldAccess = useFieldAccess(),
+    registrationLocked =
+      fieldAccess.access(
+        'procurement.supplier.identity',
+        'registrationCode',
+      ) !== 'write';
   const [draft, setDraft] = useState(() => initial(mode, row)),
     [baseline, setBaseline] = useState(() =>
       JSON.stringify(initial(mode, row)),
@@ -475,7 +482,11 @@ function SupplierFormBody({
           value={draft[key]}
           onChange={(e) => change(key, e.target.value)}
           maxLength={key === 'code' ? 64 : key === 'name' ? 200 : 128}
-          disabled={busy || loadingLatest}
+          disabled={
+            busy ||
+            loadingLatest ||
+            (key === 'registrationCode' && registrationLocked)
+          }
         />
       )}
       {key === 'reason' && (

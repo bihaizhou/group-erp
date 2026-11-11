@@ -94,6 +94,10 @@ const messages: Record<string, string> = {
   STOCK_EXECUTED_LINE_FROZEN: 'executedFrozen',
   STOCK_QUANTITY_BELOW_FULFILLED: 'belowFulfilled',
   STOCK_REQUEST_KEY_REUSED: 'requestKeyReused',
+  STOCK_DEMAND_MODE_REQUIRED: 'demandModeRequired',
+  STOCK_DEMAND_REASON_REQUIRED: 'demandReasonRequired',
+  STOCK_DEMAND_ALLOCATION_REQUIRED: 'demandAllocationRequired',
+  STOCK_DEMAND_MODE_CONFLICT: 'demandTemporaryConflict',
 };
 export function useExecutionError() {
   const { t } = useTranslation();

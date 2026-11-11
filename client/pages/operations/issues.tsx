@@ -6,6 +6,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { ReadOnlyNotice } from '#components/read-only-notice';
+import { useSettingsAccess } from '#hooks/use-settings-access';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { Textarea } from '#components/ui/textarea';
@@ -109,6 +111,7 @@ export default function OperationsIssuesPage() {
     },
   });
   const result = list.data?.data;
+  const access = useSettingsAccess('operations');
   const error = create.error ?? update.error ?? list.error;
   return (
     <PageContainer>
@@ -116,11 +119,17 @@ export default function OperationsIssuesPage() {
         title={t('operations.issues')}
         description={t('operations.issuesDescription')}
         actions={
-          <Button size='sm' onClick={() => setOpen(true)}>
-            <Plus className='mr-2 size-4' />
-            {t('operations.issueCreate')}
-          </Button>
+          access.canManage ? (
+            <Button size='sm' onClick={() => setOpen(true)}>
+              <Plus className='mr-2 size-4' />
+              {t('operations.issueCreate')}
+            </Button>
+          ) : null
         }
+      />
+      <ReadOnlyNotice
+        canManage={access.canManage}
+        canApprove={access.canApprove}
       />
       <div className='flex flex-wrap items-end gap-3'>
         <label className='grid gap-1 text-sm'>

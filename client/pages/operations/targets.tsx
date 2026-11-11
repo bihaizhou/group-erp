@@ -5,6 +5,8 @@ import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { ReadOnlyNotice } from '#components/read-only-notice';
+import { useSettingsAccess } from '#hooks/use-settings-access';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import {
@@ -62,59 +64,65 @@ export default function OperationsTargetsPage() {
     onError: (reason) =>
       setError(reason instanceof Error ? reason.message : String(reason)),
   });
+  const access = useSettingsAccess('operations');
   return (
     <PageContainer>
       <PageHeader
         title={t('operations.targets')}
         description={t('operations.targetsDescription')}
       />
+      <ReadOnlyNotice canManage={access.canManage} />
       <div className='mb-4 flex flex-wrap items-end gap-3'>
-        <label className='text-sm'>
-          <span className='mb-1 block text-muted-foreground'>
-            {t('operations.period')}
-          </span>
-          <Input
-            type='month'
-            value={period}
-            onChange={(event) => setPeriod(event.target.value)}
-          />
-        </label>
-        <label className='text-sm'>
-          <span className='mb-1 block text-muted-foreground'>
-            {t('operations.metric')}
-          </span>
-          <select
-            className='h-9 rounded-md border bg-background px-3'
-            value={metric}
-            onChange={(event) => {
-              setMetric(event.target.value as (typeof metrics)[number]);
-              setValue('');
-            }}
+        <fieldset className='contents' disabled={!access.canManage}>
+          <label className='text-sm'>
+            <span className='mb-1 block text-muted-foreground'>
+              {t('operations.period')}
+            </span>
+            <Input
+              type='month'
+              value={period}
+              onChange={(event) => setPeriod(event.target.value)}
+            />
+          </label>
+          <label className='text-sm'>
+            <span className='mb-1 block text-muted-foreground'>
+              {t('operations.metric')}
+            </span>
+            <select
+              className='h-9 rounded-md border bg-background px-3'
+              value={metric}
+              onChange={(event) => {
+                setMetric(event.target.value as (typeof metrics)[number]);
+                setValue('');
+              }}
+            >
+              {metrics.map((item) => (
+                <option key={item} value={item}>
+                  {t(`operations.metric_${item}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className='text-sm'>
+            <span className='mb-1 block text-muted-foreground'>
+              {t('operations.targetValue')}
+            </span>
+            <Input
+              inputMode='decimal'
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              placeholder='0'
+            />
+          </label>
+          <Button
+            disabled={
+              !access.canManage || !subjectId || !value.trim() || save.isPending
+            }
+            onClick={() => save.mutate()}
           >
-            {metrics.map((item) => (
-              <option key={item} value={item}>
-                {t(`operations.metric_${item}`)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className='text-sm'>
-          <span className='mb-1 block text-muted-foreground'>
-            {t('operations.targetValue')}
-          </span>
-          <Input
-            inputMode='decimal'
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            placeholder='0'
-          />
-        </label>
-        <Button
-          disabled={!subjectId || !value.trim() || save.isPending}
-          onClick={() => save.mutate()}
-        >
-          {t('operations.saveTarget')}
-        </Button>
+            {t('operations.saveTarget')}
+          </Button>
+        </fieldset>
       </div>
       {error ? <p className='mb-3 text-sm text-destructive'>{error}</p> : null}
       <Table>

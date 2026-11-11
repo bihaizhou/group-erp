@@ -129,6 +129,8 @@ export const orderContent = z
     deliveryTerms: note,
     notes: note,
     reason: z.string().trim().max(3000).default(''),
+    demandMode: z.enum(['request', 'temporary']).nullable().default(null),
+    temporaryReason: z.string().trim().max(600).nullable().default(null),
     lines: z.array(orderLineInput).min(1).max(100),
   })
   .refine(

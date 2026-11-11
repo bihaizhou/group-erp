@@ -13,6 +13,7 @@ import {
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Alert, AlertDescription } from '#components/ui/alert';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
@@ -361,6 +362,7 @@ export default function RequestsPage() {
             </>
           }
         />
+        <ReadOnlyNotice canManage={edit.can} />
         {identity.isPending ? (
           <Loading kind='table' />
         ) : identity.error ? (

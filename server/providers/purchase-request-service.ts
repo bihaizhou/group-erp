@@ -56,6 +56,7 @@ import {
   type PurchaseSettingsSave,
 } from './purchase-request-model.js';
 import { resolvePurchaseIdentity } from './purchase-identity.js';
+import { stockMicros, stockQuantity } from './inventory-quantity.js';
 import { buildPurchaseMerge } from './purchase-merge.js';
 import {
   purchaseLifecycle,
@@ -339,6 +340,120 @@ export class PurchaseRequestService {
   async detail(id: string, p: MaterialPolicies) {
     const c = this.db.connection();
     return this.view(c, await this.head(c, id, p), p);
+  }
+  /**
+   * Order and receipt progress per request line. Allocations record the
+   * order commitment; posted purchase receipts are apportioned back to the
+   * request line by the allocation share of the order line they belong to.
+   */
+  async progress(id: string, p: MaterialPolicies) {
+    const c = this.db.connection();
+    await this.head(c, id, p);
+    const lines = await this.lines(c, id, p),
+      rows = await c.repository('purchaseAllocations').findMany({
+        filter: (f) =>
+          f.and([
+            f.string('requestId').eq(id),
+            f.string('status').eq('active'),
+          ]),
+        limit: 10001,
+      });
+    const allocations = rows.filter(
+        (row) => text(row.requestId) === id && text(row.status) === 'active',
+      ),
+      orderLineIds = [
+        ...new Set(allocations.map((row) => text(row.orderLineId))),
+      ],
+      orderLines = orderLineIds.length
+        ? await c.repository('purchaseOrderLines').findMany({
+            filter: (f) => materialIdFilter(f, 'id', orderLineIds),
+            limit: 10001,
+          })
+        : [],
+      lineBase = new Map(
+        orderLines.map((line) => [
+          text(line.id),
+          stockMicros(text(line.baseQuantity)),
+        ]),
+      ),
+      orderIds = [...new Set(allocations.map((row) => text(row.orderId)))],
+      posted = orderIds.length
+        ? (
+            await c.repository('stockDocuments').findMany({
+              filter: (f) =>
+                f.and([
+                  materialIdFilter(f, 'purchaseOrderId', orderIds),
+                  f.string('status').eq('posted'),
+                ]),
+              limit: 10001,
+            })
+          ).filter((row) => text(row.kind) === 'purchaseReceipt')
+        : [],
+      receipts = posted.length
+        ? await c.repository('stockDocumentLines').findMany({
+            filter: (f) =>
+              materialIdFilter(
+                f,
+                'documentId',
+                posted.map((row) => text(row.id)),
+              ),
+            limit: 10001,
+          })
+        : [],
+      byOrderLine = new Map<string, typeof allocations>();
+    for (const allocation of allocations) {
+      const key = text(allocation.orderLineId);
+      byOrderLine.set(key, [...(byOrderLine.get(key) ?? []), allocation]);
+    }
+    const received = new Map<string, bigint>();
+    for (const line of receipts) {
+      const orderLineId = text(line.purchaseOrderLineId),
+        quantity = stockMicros(text(line.baseQuantity)),
+        base = lineBase.get(orderLineId) ?? 0n;
+      if (!base || !quantity) continue;
+      for (const allocation of byOrderLine.get(orderLineId) ?? []) {
+        const lineId = text(allocation.requestLineId),
+          share =
+            (quantity * stockMicros(text(allocation.baseQuantity))) / base;
+        received.set(lineId, (received.get(lineId) ?? 0n) + share);
+      }
+    }
+    const detail = lines.map((line) => {
+      const lineId = text(line.id),
+        ordered = allocations
+          .filter((row) => text(row.requestLineId) === lineId)
+          .reduce((sum, row) => sum + stockMicros(text(row.baseQuantity)), 0n);
+      return {
+        lineId,
+        baseQuantity: text(line.baseQuantity),
+        orderedBaseQuantity: stockQuantity(ordered),
+        receivedBaseQuantity: stockQuantity(received.get(lineId) ?? 0n),
+      };
+    });
+    return json({
+      requestId: id,
+      lines: detail,
+      totals: {
+        baseQuantity: stockQuantity(
+          detail.reduce(
+            (sum, line) => sum + stockMicros(line.baseQuantity),
+            0n,
+          ),
+        ),
+        orderedBaseQuantity: stockQuantity(
+          detail.reduce(
+            (sum, line) => sum + stockMicros(line.orderedBaseQuantity),
+            0n,
+          ),
+        ),
+        receivedBaseQuantity: stockQuantity(
+          detail.reduce(
+            (sum, line) => sum + stockMicros(line.receivedBaseQuantity),
+            0n,
+          ),
+        ),
+      },
+    });
   }
   async list(query: PurchaseQuery, actor: LifecycleActor, p: MaterialPolicies) {
     const c = this.db.connection();

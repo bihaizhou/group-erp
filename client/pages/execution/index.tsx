@@ -6,6 +6,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { MoreHorizontal, Plus } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import {
@@ -357,6 +358,7 @@ export default function ExecutionList() {
             </>
           }
         />
+        {read.can && <ReadOnlyNotice canManage={create.can} />}
         {read.isPending ? (
           <Loading kind='table' />
         ) : !read.can ? (

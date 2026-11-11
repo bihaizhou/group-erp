@@ -22,6 +22,7 @@ import type {
   Capabilities,
   Page,
   PurchaseIdentity,
+  PurchaseProgress,
   PurchaseRequest,
 } from './model.js';
 export const ui = (key: string) => `procurement.requestUi.${key}`;
@@ -60,6 +61,12 @@ export function usePurchaseQuery<T>(
 }
 export const useRequest = (id?: string) =>
   usePurchaseQuery<{ data: PurchaseRequest }>(`requests/${id}`, {}, !!id);
+export const useProgress = (id?: string) =>
+  usePurchaseQuery<{ data: PurchaseProgress }>(
+    `requests/${id}/progress`,
+    {},
+    !!id,
+  );
 export const usePurchaseIdentity = (enabled = true) =>
   usePurchaseQuery<{ data: PurchaseIdentity }>('requestIdentity', {}, enabled);
 export const useCapabilities = (id?: string) =>

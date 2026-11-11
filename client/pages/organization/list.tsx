@@ -19,6 +19,7 @@ import {
 import { StatusBadge } from '#components/status-badge';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { Label } from '#components/ui/label';
@@ -156,6 +157,7 @@ export default function OrgListPage({ kind }: { kind: OrgKind }) {
               : undefined
           }
         />
+        <ReadOnlyNotice canManage={canWrite} />
         <div className='flex flex-wrap items-center gap-2'>
           <Input
             ref={searchRef}

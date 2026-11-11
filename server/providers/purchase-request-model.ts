@@ -363,6 +363,22 @@ export const purchaseCapabilityView = z.object({
     }),
   ),
 });
+export const purchaseProgressView = z.object({
+  requestId: id,
+  lines: z.array(
+    z.object({
+      lineId: id,
+      baseQuantity: z.string(),
+      orderedBaseQuantity: z.string(),
+      receivedBaseQuantity: z.string(),
+    }),
+  ),
+  totals: z.object({
+    baseQuantity: z.string(),
+    orderedBaseQuantity: z.string(),
+    receivedBaseQuantity: z.string(),
+  }),
+});
 export const purchaseCompanyMeta = purchaseMeta.extend({
   businessDate: z.iso.date(),
   timeZone: z.string(),

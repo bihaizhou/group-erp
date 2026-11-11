@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom';
 import { PhotoField } from './photo-field.js';
 import { ApprovalPreview } from './approval-preview.js';
 import { useState, useRef, type FormEvent } from 'react';
+import { useFieldAccess } from '../../hooks/use-field-access.js';
 import { useTranslation } from '@nocobase/i18n/client';
 import {
   ApiClientError,
@@ -182,7 +183,10 @@ function RecordForm({
   footerTarget: HTMLElement | null;
   businessDate: string;
 }) {
-  const { t } = useTranslation(),
+  const fieldAccess = useFieldAccess(),
+    gradeWritable =
+      fieldAccess.access('people.employee.grade', 'grade') === 'write',
+    { t } = useTranslation(),
     api = useApiClient(),
     toaster = useToaster(),
     refresh = usePeopleRefresh(),
@@ -441,7 +445,7 @@ function RecordForm({
           <Input
             id={id}
             value={textValue(value ?? '')}
-            disabled={pending}
+            disabled={pending || (f.key === 'grade' && !gradeWritable)}
             type={f.type === 'number' ? 'number' : 'text'}
             min={f.min}
             max={f.max}

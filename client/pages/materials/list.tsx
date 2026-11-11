@@ -6,6 +6,7 @@ import { Link, Outlet, useLocation } from 'react-router';
 import { MoreHorizontal, Plus, PackageSearch, ArrowDownUp } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { ReadOnlyNotice } from '#components/read-only-notice';
 import { StatusBadge } from '#components/status-badge';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
@@ -213,6 +214,7 @@ export default function MaterialList() {
           </>
         }
       />
+      <ReadOnlyNotice canManage={write.can} />
       {options.isError && !retiredFilter ? (
         <ErrorNotice
           error={options.error}
