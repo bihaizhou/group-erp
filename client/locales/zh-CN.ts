@@ -29,6 +29,10 @@ const zhCN: AppResource = {
   ...fileUi,
   ...agentChat,
   'status.sessionExpired': '登录会话已结束，请重新登录后继续。',
+  common: {
+    readOnlyView: '只读：你可以查看本页内容，不能新增或修改。',
+    readOnlyFill: '只读：确认、审批与发布由负责人操作。',
+  },
   actions: { ...systemZhCN.actions, signInAgain: '重新登录' },
   // 侧边栏顶部的品牌标识；名称本身不随语言变化。
   brand: {

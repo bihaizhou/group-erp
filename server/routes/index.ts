@@ -20,6 +20,7 @@ import { hseRoutes } from './hse.js';
 import { productionRoutes } from './production.js';
 import { operationsRoutes } from './operations.js';
 import { positionPermissionRoutes } from './position-permissions.js';
+import { fieldPolicyRoutes } from './field-policies.js';
 import { assetRoutes } from './assets.js';
 import {
   supplyChainFileApiGuard,
@@ -53,6 +54,7 @@ const routes: readonly AppRouteContribution<Application>[] = [
   productionRoutes,
   operationsRoutes,
   positionPermissionRoutes,
+  fieldPolicyRoutes,
   assetRoutes,
   supplyChainFileApiGuard,
   supplyChainFileContentGuard,

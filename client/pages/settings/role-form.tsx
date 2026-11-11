@@ -41,6 +41,7 @@ import { BackButton } from '#components/back-button';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { PermissionEditor } from '#components/permission-editor';
+import { FieldPermissionEditor } from '#components/field-permission-editor';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { Label } from '#components/ui/label';
@@ -370,6 +371,12 @@ function RoleEditor(): ReactElement {
                   setDirty(true);
                 }}
               />
+              {!creating && key && (
+                <FieldPermissionEditor
+                  permissionSetKey={key}
+                  readOnly={!allowed || busy}
+                />
+              )}
               <div className='sticky bottom-0 flex justify-end gap-2 border-t bg-background py-4'>
                 <Button
                   variant='outline'

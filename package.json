@@ -62,6 +62,7 @@
     "dev": "nocobase dev",
     "build": "nocobase build",
     "start": "nocobase start",
+    "permissions:production-pages": "node scripts/apply-production-page-matrix.mjs",
     "check": "pnpm check:packages && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
     "fix": "pnpm lint:fix && pnpm format",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.server.json --noEmit",

@@ -212,6 +212,36 @@ const settings = {
   permissionReadOnlyHint: 'These permissions are read-only.',
   permissionManagedHint: 'This permission is managed by the application.',
   permissionSaveHint: 'Permission changes take effect after saving.',
+  fieldPermissions: 'Field permissions',
+  fieldPermissionsHint:
+    'Controls how each field behaves for this permission set. Fields without a rule stay writable, and page permissions still apply first.',
+  fieldPermissionSupplierIdentity:
+    'The supplier registration code. Hidden values are removed from the supplier detail and from the API response.',
+  fieldPermissionExecutionLines:
+    'Unit price and amount on purchase and sales document lines. Hidden values are removed from the document detail and from the API response.',
+  fieldPermissionInventory:
+    'Inventory quantities: on hand, reserved and available. A hidden column is removed from the page and from the API response.',
+  fieldPermissionProductionReport:
+    'Material lines on the production report: quantity, physical stock and book stock. Hidden fields are left out of the page; read-only fields are visible but locked.',
+  fieldPermissionPeopleContact:
+    'Employee phone and email. Hidden fields are stripped from the detail response and the read endpoint.',
+  fieldPermissionPeopleGrade:
+    'The employee level (1-5). Hidden hides the column on the employee list and talent card and rejects writes.',
+  fieldPermissionField: 'Field',
+  fieldAccess: {
+    hidden: 'Hidden',
+    readonly: 'Read-only',
+    write: 'Writable',
+  },
+  fieldAccessHint: {
+    hidden: 'Not shown',
+    readonly: 'Can read, cannot edit',
+    write: 'Can read and edit',
+  },
+  fieldPermissionsSave: 'Save field permissions',
+  fieldPermissionsSaved: 'Saved',
+  fieldPermissionsSaveFailed: 'Save failed, please retry',
+  fieldPermissionsLoadFailed: 'Could not load field permissions',
   permissionCategories: 'Permission categories',
   selectAllPermissions: 'All',
   dataRanges: 'Data ranges ({{count}})',

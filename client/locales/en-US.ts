@@ -31,6 +31,12 @@ const enUS = {
   ...fileUi,
   ...agentChat,
   'status.sessionExpired': 'Your session has ended. Sign in again to continue.',
+  common: {
+    readOnlyView:
+      'Read-only: you can view this page but cannot add or change anything.',
+    readOnlyFill:
+      'Read-only: confirming, approving and publishing are reserved for managers.',
+  },
   actions: { ...systemEnUS.actions, signInAgain: 'Sign in again' },
   // The shell's lockup. The name is the brand itself and stays in its own script in every language.
   brand: {

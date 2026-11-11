@@ -75,8 +75,8 @@ describe('app client routes', () => {
       ['/functions/procurement/requests', 'procurement/requestCompanies'],
       ['/functions/procurement/settings', 'procurement/settings/companies'],
       ['/functions/procurement/suppliers', 'procurement/supplierCompanies'],
-      ['/functions/production/daily', 'production/companies'],
       ['/functions/production/overview', 'production/companies'],
+      ['/functions/production/report', 'production/companies'],
       ['/functions/requisitions/overview', 'requisitions/requestCompanies'],
       ['/functions/requisitions/purposes', 'requisitions/purposeCompanies'],
       ['/functions/requisitions/requests', 'requisitions/requestCompanies'],
@@ -132,12 +132,11 @@ describe('app client routes', () => {
       { name: 'operations-targets', authorizedAs: 'operations-targets' },
       { name: 'materials-overview', authorizedAs: 'materials-overview' },
       { name: 'production-overview', authorizedAs: 'production-overview' },
-      { name: 'production-daily', authorizedAs: 'production-daily' },
+      { name: 'production-report', authorizedAs: 'production-report' },
       {
         name: 'production-schedules',
         authorizedAs: 'production-schedules',
       },
-      { name: 'production-attendance', authorizedAs: 'production-attendance' },
       {
         name: 'production-shift-reports',
         authorizedAs: 'production-shift-reports',
@@ -155,6 +154,34 @@ describe('app client routes', () => {
       { name: 'hse-incidents', authorizedAs: 'hse-incidents' },
       { name: 'hse-hazards', authorizedAs: 'hse-hazards' },
       { name: 'hse-certificates', authorizedAs: 'hse-certificates' },
+      { name: 'settingsUsers', authorizedAs: 'user:*' },
+      { name: 'settingsUserCreate', authorizedAs: 'user:*' },
+      { name: 'settingsUser', authorizedAs: 'user:*' },
+      { name: 'settingsUserEdit', authorizedAs: 'user:*' },
+      {
+        name: 'settingsRoles',
+        authorizedAs: 'settings:authorization.permission-sets',
+      },
+      {
+        name: 'settingsRoleCreate',
+        authorizedAs: 'settings:authorization.permission-sets',
+      },
+      {
+        name: 'settingsRoleEdit',
+        authorizedAs: 'settings:authorization.permission-sets',
+      },
+      {
+        name: 'settingsDefaultAccess',
+        authorizedAs: 'settings:authorization.default-access',
+      },
+      {
+        name: 'settingsDefaultAccessCreate',
+        authorizedAs: 'settings:authorization.default-access',
+      },
+      {
+        name: 'settingsDefaultAccessEdit',
+        authorizedAs: 'settings:authorization.default-access',
+      },
     ]);
     const materialRoutes = authorizations.filter((route) =>
       route.name.startsWith('warehouse-material'),

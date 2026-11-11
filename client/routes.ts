@@ -1,4 +1,5 @@
 import { peopleRoutes } from './pages/people/routes.js';
+import systemSettingsRoutes from './pages/settings/routes.js';
 import { functionModuleRoutes } from './module-manifest.js';
 import {
   Home,
@@ -181,6 +182,9 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
   },
 ]);
 
-const routes: readonly AppClientRouteContribution[] = [appRoutes];
+const routes: readonly AppClientRouteContribution[] = [
+  appRoutes,
+  systemSettingsRoutes,
+];
 
 export default routes;

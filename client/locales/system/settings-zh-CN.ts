@@ -196,6 +196,36 @@ const settings = {
   permissionReadOnlyHint: '当前权限配置为只读。',
   permissionManagedHint: '此权限由应用管理。',
   permissionSaveHint: '权限修改保存后生效。',
+  fieldPermissions: '字段权限',
+  fieldPermissionsHint:
+    '控制这个权限集在每个字段上的可见与可编辑程度；没有单独配置的字段保持可写，页面权限仍然先起作用。',
+  fieldPermissionSupplierIdentity:
+    '供应商的统一社会信用代码。隐藏后不会出现在供应商详情，接口也不再返回。',
+  fieldPermissionExecutionLines:
+    '采购/销售单据物料行的单价与金额。隐藏后不会出现在单据明细，接口也不再返回。',
+  fieldPermissionInventory:
+    '库存的数量字段：账面数量、预留数量、可用数量。隐藏的列不会出现在库存页，接口也不会返回该字段。',
+  fieldPermissionProductionReport:
+    '生产报表里的物料行：数量、期末实盘库存、账面库存。隐藏的字段不会出现在页面上，只读字段能看不能改。',
+  fieldPermissionPeopleContact:
+    '员工的手机号与邮箱。隐藏后明细不再返回，读取接口也会一并过滤。',
+  fieldPermissionPeopleGrade:
+    '员工的职级（1–5 级）。隐藏后员工列表与人才卡都不显示，写入也会被拒绝。',
+  fieldPermissionField: '字段',
+  fieldAccess: {
+    hidden: '隐藏',
+    readonly: '只读',
+    write: '可写',
+  },
+  fieldAccessHint: {
+    hidden: '看不到',
+    readonly: '能看不能改',
+    write: '能看能改',
+  },
+  fieldPermissionsSave: '保存字段权限',
+  fieldPermissionsSaved: '已保存',
+  fieldPermissionsSaveFailed: '保存失败，请重试',
+  fieldPermissionsLoadFailed: '字段权限加载失败',
   permissionCategories: '权限分类',
   selectAllPermissions: '全选',
   dataRanges: '数据范围（{{count}}）',
