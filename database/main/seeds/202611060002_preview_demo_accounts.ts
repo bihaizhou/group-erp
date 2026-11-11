@@ -28,7 +28,12 @@ type DemoAccount = {
   email: string;
   name: string;
   unit: string;
-  position: { code: string; name: string; permissionSets: string[] };
+  position: {
+    code: string;
+    name: string;
+    productionRole?: 'production' | 'support';
+    permissionSets: string[];
+  };
 };
 
 const accounts: DemoAccount[] = [
@@ -69,7 +74,67 @@ const accounts: DemoAccount[] = [
     email: 'planner@demo.local',
     name: '演示生产主管',
     unit: 'DEMO-UNIT-PRODUCTION',
-    position: { code: 'DEMO-POS-PLANNER', name: '生产主管', permissionSets: ['production-lead'] },
+    position: {
+      code: 'DEMO-POS-PLANNER',
+      name: '生产主管',
+      productionRole: 'production',
+      permissionSets: ['production-manager'],
+    },
+  },
+  {
+    email: 'shiftlead@demo.local',
+    name: '演示生产代班',
+    unit: 'DEMO-UNIT-PRODUCTION',
+    position: {
+      code: 'DEMO-POS-SHIFTLEAD',
+      name: '生产代班',
+      productionRole: 'production',
+      permissionSets: ['production-lead'],
+    },
+  },
+  {
+    email: 'viewer@demo.local',
+    name: '演示集团查看',
+    unit: 'DEMO-UNIT-PRODUCTION',
+    position: {
+      code: 'DEMO-POS-VIEWER',
+      name: '集团生产查看',
+      productionRole: 'production',
+      permissionSets: ['production-group-viewer'],
+    },
+  },
+  {
+    email: 'worker1@demo.local',
+    name: '张伟（演示）',
+    unit: 'DEMO-UNIT-PRODUCTION',
+    position: {
+      code: 'DEMO-POS-WORKER1',
+      name: '球磨工',
+      productionRole: 'production',
+      permissionSets: [],
+    },
+  },
+  {
+    email: 'worker2@demo.local',
+    name: '李强（演示）',
+    unit: 'DEMO-UNIT-PRODUCTION',
+    position: {
+      code: 'DEMO-POS-WORKER2',
+      name: '浮选工',
+      productionRole: 'production',
+      permissionSets: [],
+    },
+  },
+  {
+    email: 'reader@demo.local',
+    name: '演示只读查看',
+    unit: 'DEMO-UNIT-WAREHOUSE',
+    position: {
+      code: 'DEMO-POS-READER',
+      name: '仓库查看',
+      productionRole: 'support',
+      permissionSets: ['warehouse-stock-reader', 'procurement-supplier-reader'],
+    },
   },
   {
     email: 'hse@demo.local',
@@ -215,6 +280,7 @@ export default defineSeed({
           name: account.position.name,
           status: 'active',
           sort_order: 0,
+          production_role: account.position.productionRole ?? 'support',
           revision: 1,
           unit_id: unitIds.get(account.unit),
           created_at: now,
@@ -329,6 +395,206 @@ export default defineSeed({
           updated_at: now,
         } as Row)
         .execute();
+    }
+
+    // 生产报表页的演示数据：单元档案、物料清单与账面库存。
+    const productionUnitId = unitIds.get('DEMO-UNIT-PRODUCTION');
+    if (productionUnitId) {
+      const subjectId = String(subject.id);
+      const unitId = String(productionUnitId);
+      const createdBy = admin?.id ? String(admin.id) : 'seed';
+      const profile = await repository('prdUnitProfiles').findOne({
+        filter: { unitId },
+      });
+      if (!profile) {
+        await repository('prdUnitProfiles').createOne({
+          values: {
+            id: randomUUID(),
+            subjectId,
+            unitId,
+            lineCode: 'PRD-L1',
+            processType: '磁选+浮选',
+            designCapacityTpd: 1200,
+            commissionDate: '2024-06-01',
+            region: '华东',
+            status: 'active',
+            version: 1,
+            createdBy,
+            updatedBy: createdBy,
+            createdAt: now,
+            updatedAt: now,
+          },
+        });
+      }
+      const warehouse = await repository('warehouses').findOne({
+        filter: { code: 'WH1', subjectId },
+      });
+      const ton = await repository('measureUnits').findOne({
+        filter: { code: 'T' },
+      });
+      const ensureSku = async (name: string, code: string) => {
+        const existing = await repository('materialSkus').findOne({
+          filter: { code },
+        });
+        if (existing?.id) return String(existing.id);
+        if (!ton?.id) return null;
+        const materialName = await repository('materialNames').findOne({
+          filter: { code: `DEMO-${code}` },
+        });
+        const nameId = materialName?.id
+          ? String(materialName.id)
+          : randomUUID();
+        if (!materialName?.id)
+          await repository('materialNames').createOne({
+            values: {
+              id: nameId,
+              code: `DEMO-${code}`,
+              name,
+              notes: '',
+              status: 'active',
+              revision: 1,
+              lifecycleVersion: 1,
+              createdBy,
+              createdAt: now,
+              updatedAt: now,
+            },
+          });
+        const skuId = randomUUID();
+        await repository('materialSkus').createOne({
+          values: {
+            id: skuId,
+            code,
+            name,
+            materialNameId: nameId,
+            baseUnitId: String(ton.id),
+            managementMode: 'stock',
+            attributeValues: {},
+            identityKey: code,
+            searchText: `${name} ${code}`,
+            notes: '',
+            status: 'active',
+            revision: 1,
+            lifecycleVersion: 1,
+            createdBy,
+            createdAt: now,
+            updatedAt: now,
+          },
+        });
+        return skuId;
+      };
+      const slagSku = await ensureSku('炉渣', 'SLAG01');
+      const reagentSku = await ensureSku('浮选药剂', 'REAGENT01');
+      const metalSku = await repository('materialSkus').findOne({
+        filter: { code: 'METAL01' },
+      });
+      const sandSku = await repository('materialSkus').findOne({
+        filter: { code: 'SAND01' },
+      });
+      const materials = [
+        { skuId: slagSku, role: 'feedstock', warehouseId: null, sortOrder: 0 },
+        {
+          skuId: metalSku?.id ? String(metalSku.id) : null,
+          role: 'product',
+          warehouseId: warehouse?.id ? String(warehouse.id) : null,
+          sortOrder: 10,
+        },
+        {
+          skuId: sandSku?.id ? String(sandSku.id) : null,
+          role: 'byproduct',
+          warehouseId: warehouse?.id ? String(warehouse.id) : null,
+          sortOrder: 20,
+        },
+        {
+          skuId: reagentSku,
+          role: 'auxiliary',
+          warehouseId: null,
+          sortOrder: 30,
+        },
+      ];
+      for (const material of materials) {
+        if (!material.skuId) continue;
+        const existing = await repository('prdUnitMaterials').findOne({
+          filter: { unitId, skuId: material.skuId },
+        });
+        if (existing) continue;
+        await repository('prdUnitMaterials').createOne({
+          values: {
+            id: randomUUID(),
+            subjectId,
+            unitId,
+            skuId: material.skuId,
+            role: material.role,
+            defaultWarehouseId: material.warehouseId,
+            sortOrder: material.sortOrder,
+            status: 'active',
+            version: 1,
+            createdBy,
+            updatedBy: createdBy,
+            createdAt: now,
+            updatedAt: now,
+          },
+        });
+      }
+      if (warehouse?.id && ton?.id) {
+        for (const [skuId, quantity] of [
+          [metalSku?.id ? String(metalSku.id) : '', '40'],
+          [sandSku?.id ? String(sandSku.id) : '', '120'],
+        ] as const) {
+          if (!skuId) continue;
+          const existing = await repository('stockBalances').findOne({
+            filter: {
+              subjectId,
+              skuId,
+              warehouseId: String(warehouse.id),
+              quality: 'qualified',
+            },
+          });
+          if (existing) continue;
+          await repository('stockBalances').createOne({
+            values: {
+              id: randomUUID(),
+              dimensionKey: `${subjectId}:warehouse:${String(warehouse.id)}:${skuId}:qualified`,
+              subjectId,
+              skuId,
+              baseUnitId: String(ton.id),
+              warehouseId: String(warehouse.id),
+              quality: 'qualified',
+              quantity,
+              reservedQuantity: '0',
+              revision: 1,
+              nonce: randomUUID(),
+              updatedAt: now,
+            },
+          });
+        }
+      }
+      for (const [code, name] of [
+        ['CR-01', '一段破碎机'],
+        ['BM-01', '球磨机'],
+        ['FL-01', '浮选机'],
+      ] as const) {
+        const existing = await repository('prdEquipment').findOne({
+          filter: { subjectId, code },
+        });
+        if (existing) continue;
+        await repository('prdEquipment').createOne({
+          values: {
+            id: randomUUID(),
+            subjectId,
+            unitId,
+            code,
+            name,
+            category: 'production',
+            criticality: 'normal',
+            status: 'active',
+            version: 1,
+            createdBy,
+            updatedBy: createdBy,
+            createdAt: now,
+            updatedAt: now,
+          },
+        });
+      }
     }
   },
 });

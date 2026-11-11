@@ -2,6 +2,9 @@ node_modules/
 dist/
 coverage/
 
+# Scratch copy of the build used for local previews.
+/.preview/
+
 # Local configuration, including the generated secrets key.
 /config.yml
 /config.toml
