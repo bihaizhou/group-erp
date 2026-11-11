@@ -33,9 +33,8 @@ export const MODULE_DASHBOARD_ANCHORS = [
   {
     page: 'production-overview',
     anchors: [
-      'production-daily',
+      'production-report',
       'production-schedules',
-      'production-attendance',
       'production-shift-reports',
       'production-equipment',
       'production-maintenance-plans',

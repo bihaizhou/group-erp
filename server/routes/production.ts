@@ -18,10 +18,13 @@ import {
   describeRoute,
   type AppApiRouteContribution,
 } from '@nocobase/app-server/router';
+import { databaseManagerToken } from '@nocobase/db';
 import { createHash, randomUUID } from 'node:crypto';
 import { Hono, type Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { z } from 'zod';
+import { accessFor, fieldPoliciesFor } from '../providers/field-access.js';
+import { resourceFieldNames } from '../providers/field-catalog.js';
 import { warehouseCreate } from '../providers/execution-model.js';
 import { warehouseServiceToken } from '../providers/execution.js';
 import type { WarehouseAccess } from '../providers/warehouse-service.js';
@@ -50,6 +53,8 @@ import {
   overtimeInput,
   overtimeParams,
   overtimeQuery,
+  productionReportQuery,
+  productionReportSave,
   productionScheduleId,
   productionScheduleParams,
   productionScheduleSave,
@@ -108,9 +113,12 @@ function toApiError(error: ProductionError) {
   });
 }
 
+const materialResource = 'production.report.material';
+
 export const productionRoutes: AppApiRouteContribution<Application> =
   defineApiRoutes((app) => {
     const service = app.container.resolve(productionServiceToken);
+    const database = app.container.resolve(databaseManagerToken);
     const warehouse = app.container.resolve(warehouseServiceToken);
     const auth = app.container.resolve(authenticationToken);
     const authz = app.container.resolve(authorizationToken);
@@ -118,6 +126,8 @@ export const productionRoutes: AppApiRouteContribution<Application> =
     for (const path of [
       '/options',
       '/companies',
+      '/report-context',
+      '/report',
       '/attendance',
       '/setup',
       '/setup/:unitId',
@@ -206,6 +216,93 @@ export const productionRoutes: AppApiRouteContribution<Application> =
       ),
       async (c) =>
         c.json({ data: await service.options(actor(c), await scoped(c)) }),
+    );
+
+    router.get(
+      '/report-context',
+      allowed('read'),
+      describe(
+        'productionReportContext',
+        'Read the reporting identity and the shift in progress',
+        dataResponse(object),
+      ),
+      async (c) =>
+        c.json({
+          data: await service.reportContext(actor(c), await scoped(c)),
+        }),
+    );
+
+    router.get(
+      '/report',
+      allowed('read'),
+      describe(
+        'productionReport',
+        'Read one unit shift with attendance, downtime and overtime',
+        dataResponse(object),
+      ),
+      apiValidator('query', productionReportQuery),
+      async (c) => {
+        const data = await service.getReport(
+          actor(c),
+          c.req.valid('query'),
+          await scoped(c),
+        );
+        const policies = await fieldPoliciesFor(database, actor(c));
+        const hiddenFields = new Set(
+          (await resourceFieldNames(database, materialResource)).filter(
+            (field) =>
+              accessFor(policies, materialResource, field) === 'hidden',
+          ),
+        );
+        for (const line of data.report?.materials ?? []) {
+          for (const field of hiddenFields) {
+            const row = line as unknown as Record<string, unknown>;
+            if (!(field in row)) continue;
+            row[field] = field === 'quantity' ? '0' : null;
+          }
+        }
+        return c.json({ data });
+      },
+    );
+
+    router.put(
+      '/report',
+      allowed('manage'),
+      describe(
+        'productionReportSave',
+        'Submit a unit shift with its report, attendance, downtime and overtime',
+        dataResponse(object),
+      ),
+      apiValidator('json', productionReportSave),
+      async (c) => {
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(database, actor(c));
+        const quantityWritable =
+          accessFor(policies, materialResource, 'quantity') === 'write';
+        const stockWritable =
+          accessFor(policies, materialResource, 'stockQuantity') === 'write';
+        for (const line of input.report?.materials ?? []) {
+          if (!quantityWritable && line.quantity !== undefined) {
+            throw new ApiError({
+              status: 'PERMISSION_DENIED',
+              domain: 'production',
+              reason: 'FIELD_NOT_WRITABLE',
+              message: 'quantity is not writable for this account',
+            });
+          }
+          if (!stockWritable && line.stockQuantity !== undefined) {
+            throw new ApiError({
+              status: 'PERMISSION_DENIED',
+              domain: 'production',
+              reason: 'FIELD_NOT_WRITABLE',
+              message: 'stockQuantity is not writable for this account',
+            });
+          }
+        }
+        return c.json({
+          data: await service.submitReport(actor(c), input, await scoped(c)),
+        });
+      },
     );
 
     router.get(

@@ -14,6 +14,8 @@ import {
   CardTitle,
 } from '#components/ui/card';
 import { Input } from '#components/ui/input';
+import { useProductionAccess } from './access.js';
+import { ReadOnlyNotice } from '#components/read-only-notice';
 import type {
   MaintenancePlanType,
   ProductionEquipment,
@@ -35,6 +37,7 @@ export default function ProductionMaintenancePlansPage() {
   const { t } = useTranslation();
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const access = useProductionAccess();
   const [unitId, setUnitId] = useState('');
   const [notice, setNotice] = useState('');
   const [equipmentId, setEquipmentId] = useState('');
@@ -173,6 +176,10 @@ export default function ProductionMaintenancePlansPage() {
       {notice ? (
         <p className='mb-3 text-sm text-muted-foreground'>{notice}</p>
       ) : null}
+      <ReadOnlyNotice
+        canManage={access.canManage}
+        canApprove={access.canApprove}
+      />
       {!options.isPending && units.length === 0 ? (
         <Card className='mb-4 border-dashed'>
           <div className='px-6 py-5 text-sm text-muted-foreground'>
@@ -277,6 +284,7 @@ export default function ProductionMaintenancePlansPage() {
           <Button
             size='sm'
             disabled={
+              !access.canManage ||
               !selectedUnit ||
               !effectiveEquipmentId ||
               !name.trim() ||
@@ -340,7 +348,11 @@ export default function ProductionMaintenancePlansPage() {
                 <Button
                   size='sm'
                   variant='outline'
-                  disabled={plan.status !== 'active' || generateOrder.isPending}
+                  disabled={
+                    !access.canManage ||
+                    plan.status !== 'active' ||
+                    generateOrder.isPending
+                  }
                   onClick={() => generateOrder.mutate(plan)}
                 >
                   {plan.openOrderNo
@@ -352,7 +364,7 @@ export default function ProductionMaintenancePlansPage() {
                 <Button
                   size='sm'
                   variant='ghost'
-                  disabled={togglePlan.isPending}
+                  disabled={togglePlan.isPending || !access.canManage}
                   onClick={() => togglePlan.mutate(plan)}
                 >
                   {plan.status === 'active'

@@ -22,6 +22,8 @@ import {
   TableHeader,
   TableRow,
 } from '#components/ui/table';
+import { useProductionAccess } from './access.js';
+import { ReadOnlyNotice } from '#components/read-only-notice';
 import type {
   ProductionOptions,
   ProductionSchedulePayload,
@@ -36,6 +38,7 @@ export default function ProductionSchedulesPage() {
   const { t } = useTranslation();
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const access = useProductionAccess();
   const [unitId, setUnitId] = useState('');
   const [scheduleDate, setScheduleDate] = useState(today);
   const [shift, setShift] = useState<'day' | 'night'>('day');
@@ -101,9 +104,6 @@ export default function ProductionSchedulesPage() {
       void queryClient.invalidateQueries({
         queryKey: ['production-schedule'],
       });
-      void queryClient.invalidateQueries({
-        queryKey: ['production-attendance'],
-      });
     },
     onError: (error) =>
       setNotice(
@@ -121,9 +121,6 @@ export default function ProductionSchedulesPage() {
       setNotice(t('production.schedulePublishSuccess'));
       void queryClient.invalidateQueries({
         queryKey: ['production-schedule'],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ['production-attendance'],
       });
     },
     onError: (error) =>
@@ -217,6 +214,10 @@ export default function ProductionSchedulesPage() {
           {notice}
         </p>
       ) : null}
+      <ReadOnlyNotice
+        canManage={access.canManage}
+        canApprove={access.canApprove}
+      />
       {!selectedUnit ? (
         <Card>
           <CardHeader>
@@ -243,10 +244,20 @@ export default function ProductionSchedulesPage() {
                   ? t('production.schedulePublished')
                   : t('production.scheduleDraft')}
               </span>
-              <Button type='button' variant='outline' onClick={selectAll}>
+              <Button
+                type='button'
+                variant='outline'
+                disabled={!access.canManage}
+                onClick={selectAll}
+              >
                 {t('production.selectAll')}
               </Button>
-              <Button type='button' variant='outline' onClick={selectNone}>
+              <Button
+                type='button'
+                variant='outline'
+                disabled={!access.canManage}
+                onClick={selectNone}
+              >
                 {t('production.selectNone')}
               </Button>
             </div>
@@ -267,6 +278,7 @@ export default function ProductionSchedulesPage() {
                   <TableRow key={person.personId}>
                     <TableCell>
                       <Checkbox
+                        disabled={!access.canManage}
                         checked={isAssigned(person)}
                         onCheckedChange={(checked) =>
                           setPerson(person.personId, Boolean(checked))
@@ -292,13 +304,14 @@ export default function ProductionSchedulesPage() {
               <span>{t('production.notes')}</span>
               <Input
                 value={notes}
+                disabled={!access.canManage}
                 placeholder={data?.schedule?.notes ?? ''}
                 onChange={(event) => setNotes(event.target.value)}
               />
             </label>
             <Button
               type='button'
-              disabled={save.isPending || !selectedUnit}
+              disabled={save.isPending || !selectedUnit || !access.canManage}
               onClick={() => save.mutate()}
             >
               <Save className='size-4' />
@@ -309,6 +322,7 @@ export default function ProductionSchedulesPage() {
               variant='outline'
               disabled={
                 publish.isPending ||
+                !access.canApprove ||
                 !data?.schedule ||
                 data.schedule.status === 'published' ||
                 selectedCount === 0

@@ -44,11 +44,14 @@ type ShiftReport = {
   reportDate: string;
   shift: string;
   status: string;
-  processedQuantity: string;
-  metalQuantity: string;
-  sandQuantity: string;
   runtimeMinutes: number | string;
+  materials?: { role: string; quantity: string }[];
 };
+
+const processed = (row: ShiftReport) =>
+  (row.materials ?? [])
+    .filter((material) => material.role === 'feedstock')
+    .reduce((total, material) => total + Number(material.quantity || 0), 0);
 
 const sum = (
   rows: readonly ShiftReport[] | undefined,
@@ -103,9 +106,16 @@ export default function ProductionOverviewPage() {
 
   const totals = useMemo(
     () => ({
-      processed: round(sum(todayReports.data, 'processedQuantity')),
-      metal: round(sum(todayReports.data, 'metalQuantity')),
-      sand: round(sum(todayReports.data, 'sandQuantity')),
+      processed: round(
+        (todayReports.data ?? []).reduce(
+          (total, row) => total + processed(row),
+          0,
+        ),
+      ),
+      reports: todayReports.data?.length ?? 0,
+      confirmed:
+        todayReports.data?.filter((row) => row.status === 'confirmed').length ??
+        0,
       runtime: round(sum(todayReports.data, 'runtimeMinutes')),
     }),
     [todayReports.data],
@@ -164,16 +174,16 @@ export default function ProductionOverviewPage() {
               icon={ClipboardCheck}
             />
             <DashboardMetric
-              label={t('dashboard.production.metrics.metal')}
-              value={totals.metal}
+              label={t('dashboard.production.metrics.reports')}
+              value={totals.reports}
               isLoading={todayReports.isPending}
               icon={FileText}
             />
             <DashboardMetric
-              label={t('dashboard.production.metrics.sand')}
-              value={totals.sand}
+              label={t('dashboard.production.metrics.confirmed')}
+              value={totals.confirmed}
               isLoading={todayReports.isPending}
-              icon={FileText}
+              icon={ClipboardCheck}
             />
             <DashboardMetric
               label={t('dashboard.production.metrics.runtime')}
@@ -212,9 +222,7 @@ export default function ProductionOverviewPage() {
                 </TableCell>
                 <TableCell>{t(`production.shifts.${row.shift}`)}</TableCell>
                 <TableCell className='tabular-nums'>
-                  {Number(row.processedQuantity || 0).toLocaleString(
-                    i18n.language,
-                  )}
+                  {processed(row).toLocaleString(i18n.language)}
                 </TableCell>
                 <TableCell>
                   <DashboardStatus status={row.status} />
@@ -232,8 +240,8 @@ export default function ProductionOverviewPage() {
                 icon: FileText,
               },
               {
-                label: t('dashboard.production.todo.daily'),
-                to: '/functions/production/daily',
+                label: t('dashboard.production.todo.reportEntry'),
+                to: '/functions/production/report',
                 icon: ClipboardCheck,
               },
               {

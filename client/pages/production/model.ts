@@ -64,22 +64,29 @@ export type ProductionUnitProfile = {
   status: string;
 };
 
-export type ProductionOutputMapping = {
+export type ProductionMaterialRole =
+  'feedstock' | 'product' | 'byproduct' | 'auxiliary';
+
+export type ProductionUnitMaterial = {
   unitId: string;
-  outputType: 'metal' | 'sand';
   skuId: string;
   skuCode: string | null;
   skuName: string | null;
+  unit: string;
+  role: ProductionMaterialRole;
   defaultWarehouseId: string | null;
   warehouseName: string | null;
+  sortOrder: number;
+  status: string;
   notes: string | null;
+  bookQuantity?: string | null;
 };
 
 export type ProductionSetup = {
   units: ProductionSetupUnit[];
   profiles: ProductionUnitProfile[];
-  outputs: ProductionOutputMapping[];
-  skus: { id: string; code: string; name: string }[];
+  materials: ProductionUnitMaterial[];
+  skus: { id: string; code: string; name: string; unit: string }[];
   warehouses: { id: string; code: string; name: string; subjectId: string }[];
 };
 
@@ -209,6 +216,21 @@ export type ShiftReport = {
   updatedAt: string;
   inputs?: ShiftReportInputLine[];
   outputs?: ShiftReportOutput[];
+  materials?: ShiftReportMaterial[];
+};
+
+export type ShiftReportMaterial = {
+  id: string;
+  skuId: string;
+  skuCode: string | null;
+  skuName: string | null;
+  unit: string;
+  role: ProductionMaterialRole;
+  quantity: string;
+  stockQuantity: string | null;
+  bookQuantity: string | null;
+  stockDocumentId: string | null;
+  note: string | null;
 };
 
 export type ShiftReportPage = {
@@ -378,4 +400,62 @@ export type ProductionDowntime = {
 export type ProductionDowntimePage = {
   events: ProductionDowntime[];
   summary: { open: number; closed: number; minutes: number };
+};
+
+export type ProductionIdentityUnit = {
+  id: string;
+  code: string;
+  name: string;
+  positionId: string;
+  positionCode: string;
+  positionName: string;
+  primary: boolean;
+};
+
+export type ProductionIdentityReason =
+  'NO_EMPLOYEE' | 'NO_EMPLOYMENT' | 'NO_PRODUCTION_POSITION' | null;
+
+/** Who the signed-in account is, and which units that position may report for. */
+export type ProductionIdentity = {
+  employee: { id: string; code: string; name: string } | null;
+  company: { id: string; code: string; name: string } | null;
+  position: { id: string; code: string; name: string } | null;
+  units: ProductionIdentityUnit[];
+  today: string;
+  defaultUnitId: string | null;
+  reason: ProductionIdentityReason;
+};
+
+export type ProductionReportContext = {
+  readonly canManage: boolean;
+  identity: ProductionIdentity;
+  businessDate: string;
+  reportDate: string;
+  shift: 'day' | 'night';
+};
+
+export type ProductionMaintenance = {
+  id: string;
+  equipmentId: string;
+  equipmentName: string;
+  orderNo: string;
+  type: string;
+  priority: string;
+  status: string;
+  description: string;
+  assigneeName: string | null;
+  reportedAt: string;
+};
+
+export type ProductionReport = {
+  unit: { id: string; code: string; name: string; subjectId: string };
+  reportDate: string;
+  shift: 'day' | 'night';
+  materials: ProductionUnitMaterial[];
+  equipment: ProductionEquipment[];
+  maintenance: ProductionMaintenance[];
+  report: ShiftReport | null;
+  attendance: AttendanceRoster;
+  downtime: ProductionDowntimePage;
+  overtime: { records: ProductionOvertime[] };
 };

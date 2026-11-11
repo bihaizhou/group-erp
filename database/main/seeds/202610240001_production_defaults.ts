@@ -2,7 +2,7 @@ import { defineSeed, type SeedContext } from '@nocobase/db';
 import { encodeAuthorizationTitle } from '@nocobase/authorization/core';
 
 const pages = [
-  'production-attendance',
+  'production-report',
   'production-setup',
   'production-shift-reports',
 ];

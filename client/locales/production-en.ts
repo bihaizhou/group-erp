@@ -7,15 +7,15 @@ export const production = {
   maintenancePlansData: 'Maintenance plans',
   outputData: 'Output mappings',
   setupDescription:
-    'Maintain production attributes for each unit and map metal and sand outputs to material SKUs. Shift reports and inbound receipts use the same mappings.',
-  setupUnitPrecisionError:
-    'The output SKU base unit must be tonne with 6 decimal places. Change the base unit in Material Center or use a tonne-based SKU.',
+    'Keep the production attributes and material list of a unit: one row each for feedstock, product, byproduct and auxiliary; the shift report and receipt follow this list.',
   setupDuplicateSkuError:
-    'Metal and sand must use different SKUs. Select a separate material SKU for each.',
-  setupSkuConflictError:
-    'This SKU is already mapped to a different output type on another line. Choose another SKU.',
+    'Each material may appear once. Check for a duplicate selection.',
+  setupSkuNotFoundError:
+    'The selected material is inactive or missing. Pick another one.',
+  setupWarehouseError:
+    'The default warehouse must be an active warehouse of this company.',
   setupPolicy:
-    'Metal and sand must use different material SKUs. Each SKU base unit must be tonne with 6 decimal places; otherwise saving is rejected.',
+    'Materials come from the active SKUs in the material center. Product and byproduct rows may name a default warehouse; one report may only receive into a single warehouse.',
   setupFields: {
     lineCode: 'Line code',
     lineCodePlaceholder: 'e.g. L1',
@@ -35,18 +35,43 @@ export const production = {
     notes: 'Notes',
     notMapped: 'Not mapped',
     noWarehouse: 'None',
+    chooseMaterial: 'Choose a material',
+    role: 'Role',
   },
+  materialRoles: {
+    feedstock: 'Feedstock',
+    product: 'Product',
+    byproduct: 'Byproduct',
+    auxiliary: 'Auxiliary',
+  },
+  materialConfig: 'Material list',
+  materialConfigHint:
+    'Pick the materials this line handles from the material center and set each role; the shift report renders one row per material.',
+  materialAdd: 'Add material',
+  materialEmpty: 'No material configured yet.',
+  materialName: 'Material',
+  materialQuantity: 'Quantity',
+  materialStock: 'Physical stock',
+  materialBook: 'Book stock',
+  materialDifference: 'Difference',
+  remove: 'Remove',
+  reportNoMaterials:
+    'This unit has no material list yet. Configure it in the production unit setup first.',
   outputTypes: {
     metal: 'Scrap metal',
     sand: 'Sand aggregate',
   },
-  shiftReports: 'Shift reports',
-  shiftReportsTitle: 'Shift reports',
+  shiftReportMaterials: 'Materials',
+  shiftReports: 'Shift report records',
+  shiftReportsTitle: 'Shift report records',
   shiftReportsDescription:
-    'Record throughput, metal, sand and downtime by unit and shift; confirming freezes output quantities for warehouse and operations.',
+    'Review shift reports, confirm or void them, and draft warehouse receipts. New reports are entered on the production entry page.',
   shiftReportNew: 'New shift report',
   shiftReportNewDescription:
     'Enter actual shift data. Once confirmed, quantities are locked to keep warehouse and operations aligned.',
+  recordFilter: 'Filter',
+  shiftReportEntryHint:
+    'This page confirms, voids and receives reports; enter a new one in',
   reportDate: 'Production date',
   processedQuantity: 'Processed (t)',
   metalQuantity: 'Metal (t)',
@@ -280,11 +305,11 @@ export const production = {
   planResume: 'Resume',
   planUpdated: 'Plan updated.',
   planEmpty: 'No maintenance plans for this unit yet.',
-  overtime: 'Overtime',
+  overtime: 'Overtime approvals',
   downtimeData: 'Downtime events',
-  downtimeTitle: 'Production downtime',
+  downtimeTitle: 'Downtime records',
   downtimePageDescription:
-    'Record production downtime; close with a resolution. Operations reads counts and minutes only.',
+    'Review downtime events and close them with a recovery time and resolution. New events are entered on the production entry page.',
   downtimeFilter: 'Filter',
   downtimeFilterHint: 'View by production unit, date and status.',
   downtimeStatus: 'Status',
@@ -332,9 +357,9 @@ export const production = {
   overtimeNoUnits:
     'No production unit is available. Create a unit profile and output mapping first.',
   goProductionSetup: 'Go to unit profiles',
-  overtimeTitle: 'Production overtime',
+  overtimeTitle: 'Overtime approvals',
   overtimeDescription:
-    'Record overtime by production position and submit for production manager approval; HR reads the result only, no payroll calculation.',
+    'Review overtime requests and approve or reject them. Overtime is entered on the production entry page; HR reads the result only.',
   overtimeFilter: 'Filter',
   overtimeFilterHint: 'Filter by production unit, date and status.',
   overtimeAllStatuses: 'All statuses',
@@ -371,26 +396,54 @@ export const production = {
   overtimeStatus_rejected: 'Rejected',
   overtimeStatus_cancelled: 'Cancelled',
   actionFailed: 'Action failed. Please check and retry.',
-  daily: 'Production daily',
-  dailyDescription:
-    'Enter output, attendance, downtime and overtime for one shift. Each block saves independently; complete attendance before confirming.',
-  dailyContext: 'Current shift',
-  dailyNoUnits:
-    'No production unit is available for this company. Maintain units in setup first.',
-  dailyShiftReport: 'Production result',
-  dailyAttendance: 'Attendance',
-  dailyDowntime: 'Downtime',
-  dailyOvertime: 'Overtime',
-  dailyOpenFull: 'Open full page',
-  dailyReportStatus: 'Report status',
-  dailyReportMissing: 'No report for this shift yet. Fill and save.',
-  dailyReportConfirmed: 'Confirmed; quantities are locked.',
-  dailyAttendanceHint: 'Unrecorded attendance blocks report confirmation.',
-  dailyDowntimeHint:
-    'Only events dated today; use the full page for cross-shift events.',
-  dailyOvertimeHint: 'Overtime is registered by day, not by shift.',
-  dailySaved: 'Saved.',
-  dailySaveFailed: 'Save failed.',
+  reportTitle: 'Production report',
+  reportDescription:
+    'Record output, attendance, downtime and overtime for one shift. The company, position, reporter and shift come from the account and the system clock.',
+  reportIdentity: 'Reporting identity',
+  reportIdentityHint:
+    'Company, position and reporter come from the employee file and employment records; they are not selected here.',
+  reportCompany: 'Project company',
+  reportReporter: 'Reporter',
+  reportNoEmployee:
+    'This account has no active employee record, so it cannot report. Ask HR to complete the employee and employment records.',
+  reportNoPosition:
+    'This account has no production position, or the position is not marked as production, so it cannot report. Ask the production lead to adjust the position.',
+  reportShift: 'Current shift',
+  reportShiftHint:
+    'The unit, date and shift are derived from your account and the system clock; switch only when back-filling another shift.',
+  reportBackfill: 'Back-fill another shift',
+  reportBackfillReset: 'Back to the current shift',
+  reportBackfillHint:
+    'Back-filling: check the date and shift, and submit as usual.',
+  reportOutput: 'Shift result',
+  reportOutputHint:
+    'Empty quantities count as 0; confirmed quantities no longer change from this page.',
+  reportLocked:
+    'This report is confirmed or voided, so quantities are locked; downtime and overtime can still be added.',
+  reportAttendance: 'Shift attendance',
+  reportAttendanceHint:
+    'People come from the published schedule, or from primary production positions when no schedule exists. Unrecorded rows do not block saving.',
+  reportDowntime: 'Shift downtime',
+  reportDowntimeHint:
+    'Downtime is recorded per event; times are read as Beijing time.',
+  reportDowntimeExisting: 'Recorded downtime',
+  reportMaintenance: 'Shift equipment repair and maintenance',
+  reportMaintenanceHint:
+    'Faults found and maintenance completed during the shift are submitted with the report as maintenance orders and handled on the equipment page.',
+  reportMaintenanceExisting: 'Orders recorded this shift',
+  reportNoEquipment:
+    'This unit has no equipment yet. Add equipment on the equipment page first.',
+  maintenanceType: 'Type',
+  reportOvertime: 'Shift overtime',
+  reportOvertimeHint:
+    'Overtime is recorded per person and enters approval after submission.',
+  reportOvertimeExisting: 'Recorded overtime',
+  reportOvertimeSummary:
+    '{{people}} people and {{hours}} hours of overtime this shift (including hours entered above).',
+  reportAdd: 'Add',
+  reportReadOnly: 'Read-only: you can review this unit but not submit.',
+  reportSubmit: 'Submit',
+  reportSaved: 'Saved.',
   loading: 'Loading…',
   saveAttendance: 'Save attendance',
   overtimeType: 'Overtime type',

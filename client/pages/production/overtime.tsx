@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
-import { useCan } from '@nocobase/app-plugin-authorization/client';
+import { useProductionAccess } from './access.js';
+import { ReadOnlyNotice } from '#components/read-only-notice';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Clock3, Plus, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { Button } from '#components/ui/button';
@@ -15,21 +16,12 @@ import {
 } from '#components/ui/card';
 import { Input } from '#components/ui/input';
 import type {
-  OvertimeCompensation,
   OvertimeStatus,
-  OvertimeType,
   ProductionOptions,
   ProductionOvertime,
 } from './model.js';
 
 type OptionsResult = { data: ProductionOptions };
-type Candidate = {
-  personId: string;
-  personName: string;
-  positionId: string;
-  positionName: string;
-};
-type CandidatesResult = { data: { people: Candidate[] } };
 type OvertimeResult = { data: { records: ProductionOvertime[] } };
 
 const selectClass =
@@ -41,19 +33,11 @@ export default function ProductionOvertimePage() {
   const { t } = useTranslation();
   const api = useApiClient();
   const queryClient = useQueryClient();
-  const canApprove = useCan({
-    resource: { type: 'settings', id: 'production' },
-    action: 'approve',
-  }).can;
+  const access = useProductionAccess();
+  const canApprove = access.canApprove;
   const [unitId, setUnitId] = useState('');
   const [businessDate, setBusinessDate] = useState(() => today());
   const [status, setStatus] = useState<OvertimeStatus | ''>('');
-  const [personId, setPersonId] = useState('');
-  const [hours, setHours] = useState('1');
-  const [type, setType] = useState<OvertimeType>('temporary');
-  const [compensation, setCompensation] =
-    useState<OvertimeCompensation>('none');
-  const [reason, setReason] = useState('');
   const [notice, setNotice] = useState('');
   const [rejectingId, setRejectingId] = useState('');
   const [rejectReason, setRejectReason] = useState('');
@@ -66,22 +50,6 @@ export default function ProductionOvertimePage() {
   });
   const units = options.data?.data.units ?? [];
   const selectedUnit = unitId || units[0]?.id || '';
-
-  const candidates = useQuery({
-    retry: false,
-    enabled: Boolean(selectedUnit && businessDate),
-    queryKey: ['production-overtime-candidates', selectedUnit, businessDate],
-    queryFn: ({ signal }) =>
-      api.request<CandidatesResult>({
-        path: 'production/overtime/candidates',
-        query: { unitId: selectedUnit, businessDate },
-        signal,
-      }),
-  });
-  const people = candidates.data?.data.people ?? [];
-  const selectedPerson = people.some((row) => row.personId === personId)
-    ? personId
-    : (people[0]?.personId ?? '');
 
   const overtime = useQuery({
     retry: false,
@@ -106,30 +74,6 @@ export default function ProductionOvertimePage() {
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ['production-overtime'] });
   };
-
-  const createOvertime = useMutation({
-    retry: false,
-    mutationFn: () =>
-      api.request<{ data: ProductionOvertime }>({
-        path: 'production/overtime',
-        method: 'POST',
-        json: {
-          unitId: selectedUnit,
-          personId: selectedPerson,
-          businessDate,
-          hours: Number(hours),
-          type,
-          reason: reason.trim(),
-          compensation,
-        },
-      }),
-    onSuccess: () => {
-      setReason('');
-      setNotice(t('production.overtimeCreated'));
-      refresh();
-    },
-    onError: (error) => setNotice(error.message),
-  });
 
   const decide = useMutation({
     retry: false,
@@ -176,6 +120,10 @@ export default function ProductionOvertimePage() {
       {notice ? (
         <p className='mb-3 text-sm text-muted-foreground'>{notice}</p>
       ) : null}
+      <ReadOnlyNotice
+        canManage={access.canManage}
+        canApprove={access.canApprove}
+      />
       <Card className='mb-4'>
         <CardHeader>
           <CardTitle>{t('production.overtimeFilter')}</CardTitle>
@@ -187,10 +135,7 @@ export default function ProductionOvertimePage() {
           <select
             className={selectClass}
             value={selectedUnit}
-            onChange={(event) => {
-              setUnitId(event.target.value);
-              setPersonId('');
-            }}
+            onChange={(event) => setUnitId(event.target.value)}
           >
             {units.map((unit) => (
               <option key={unit.id} value={unit.id}>
@@ -260,98 +205,6 @@ export default function ProductionOvertimePage() {
           <div className='text-2xl font-semibold'>{rejected}</div>
         </div>
       </div>
-
-      <Card className='mb-4'>
-        <CardHeader>
-          <CardTitle className='flex items-center gap-2'>
-            <Clock3 className='size-4' />
-            {t('production.overtimeCreateTitle')}
-          </CardTitle>
-          <CardDescription>
-            {t('production.overtimeCreateHint')}
-          </CardDescription>
-        </CardHeader>
-        <div className='space-y-3 px-6 pb-6'>
-          {people.length === 0 ? (
-            <p className='text-sm text-muted-foreground'>
-              {t('production.overtimeNoPeople')}
-            </p>
-          ) : null}
-          <div className='grid gap-2 md:grid-cols-2 xl:grid-cols-3'>
-            <select
-              className={selectClass}
-              value={selectedPerson}
-              onChange={(event) => setPersonId(event.target.value)}
-            >
-              {people.map((person) => (
-                <option key={person.personId} value={person.personId}>
-                  {person.personName} · {person.positionName}
-                </option>
-              ))}
-            </select>
-            <Input
-              type='number'
-              min={0.5}
-              max={24}
-              step={0.5}
-              placeholder={t('production.overtimeHoursInput')}
-              value={hours}
-              onChange={(event) => setHours(event.target.value)}
-            />
-            <select
-              className={selectClass}
-              value={type}
-              onChange={(event) => setType(event.target.value as OvertimeType)}
-            >
-              <option value='planned'>
-                {t('production.overtimeType_planned')}
-              </option>
-              <option value='temporary'>
-                {t('production.overtimeType_temporary')}
-              </option>
-              <option value='holiday'>
-                {t('production.overtimeType_holiday')}
-              </option>
-            </select>
-            <select
-              className={selectClass}
-              value={compensation}
-              onChange={(event) =>
-                setCompensation(event.target.value as OvertimeCompensation)
-              }
-            >
-              <option value='none'>
-                {t('production.overtimeCompensation_none')}
-              </option>
-              <option value='time_off'>
-                {t('production.overtimeCompensation_time_off')}
-              </option>
-              <option value='pay'>
-                {t('production.overtimeCompensation_pay')}
-              </option>
-            </select>
-            <Input
-              className='md:col-span-2 xl:col-span-2'
-              placeholder={t('production.overtimeReason')}
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-            />
-          </div>
-          <Button
-            size='sm'
-            disabled={
-              !selectedUnit ||
-              !selectedPerson ||
-              !reason.trim() ||
-              createOvertime.isPending
-            }
-            onClick={() => createOvertime.mutate()}
-          >
-            <Plus className='mr-1 size-4' />
-            {t('production.overtimeSubmit')}
-          </Button>
-        </div>
-      </Card>
 
       <Card>
         <CardHeader>

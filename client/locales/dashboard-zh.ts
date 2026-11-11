@@ -185,8 +185,8 @@ export const dashboard = {
     noUnits: '这家公司还没有配置生产单元。',
     metrics: {
       processed: '今日处理量',
-      metal: '今日金属量',
-      sand: '今日砂石量',
+      reports: '今日班报',
+      confirmed: '今日已确认',
       runtime: '今日运行时长（分钟）',
     },
     recentReports: '最近班报',
@@ -195,7 +195,7 @@ export const dashboard = {
     todosDescription: '填报班报或打开生产计划。',
     todo: {
       report: '填报班报',
-      daily: '生产日报',
+      reportEntry: '生产报表',
       schedules: '生产排班',
       setup: '生产设置',
     },

@@ -9,7 +9,6 @@ import {
   PackagePlus,
   RefreshCw,
   RotateCcw,
-  Save,
   Trash2,
 } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
@@ -40,6 +39,8 @@ import {
   TableHeader,
   TableRow,
 } from '#components/ui/table';
+import { useProductionAccess } from './access.js';
+import { ReadOnlyNotice } from '#components/read-only-notice';
 import type {
   ProductionSetup,
   ShiftReport,
@@ -50,37 +51,23 @@ import type {
 const today = () => new Date().toISOString().slice(0, 10);
 type SetupResult = { data: ProductionSetup };
 type ListResult = { data: ShiftReportPage };
-type Form = {
-  reportDate: string;
-  shift: 'day' | 'night';
-  processedQuantity: string;
-  metalQuantity: string;
-  sandQuantity: string;
-  tailingsQuantity: string;
-  runtimeMinutes: string;
-  downtimeMinutes: string;
-  notes: string;
+const materialSummary = (row: ShiftReport) => {
+  const lines = (row.materials ?? [])
+    .filter((material) => Number(material.quantity) > 0)
+    .map(
+      (material) =>
+        `${material.skuName ?? material.skuCode ?? ''} ${material.quantity}${material.unit}`,
+    );
+  return lines.length ? lines.join('；') : '—';
 };
-const emptyForm = (): Form => ({
-  reportDate: today(),
-  shift: 'day',
-  processedQuantity: '',
-  metalQuantity: '',
-  sandQuantity: '',
-  tailingsQuantity: '0',
-  runtimeMinutes: '0',
-  downtimeMinutes: '0',
-  notes: '',
-});
-const quantity = (value: string) => value.trim() || '0';
 
 export default function ProductionShiftReportsPage() {
   const { t } = useTranslation();
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const access = useProductionAccess();
   const [unitId, setUnitId] = useState('');
   const [reportDate, setReportDate] = useState(today);
-  const [form, setForm] = useState<Form>(emptyForm);
   const [notice, setNotice] = useState('');
   const [voidingRow, setVoidingRow] = useState<ShiftReport | null>(null);
   const [inputsRow, setInputsRow] = useState<ShiftReport | null>(null);
@@ -91,11 +78,11 @@ export default function ProductionShiftReportsPage() {
     queryFn: ({ signal }) =>
       api.request<SetupResult>({ path: 'production/setup', signal }),
   });
-  const units = setup.data?.data.units ?? [];
-  const selectedUnit = unitId || units[0]?.id || '';
-  const mappings = (setup.data?.data.outputs ?? []).filter(
-    (output) => output.unitId === selectedUnit,
+  const profiles = setup.data?.data.profiles ?? [];
+  const units = (setup.data?.data.units ?? []).filter((unit) =>
+    profiles.some((profile) => profile.unitId === unit.id),
   );
+  const selectedUnit = unitId || units[0]?.id || '';
   const list = useQuery({
     retry: false,
     enabled: Boolean(selectedUnit),
@@ -113,43 +100,6 @@ export default function ProductionShiftReportsPage() {
       }),
   });
   const rows = list.data?.data.data ?? [];
-  const create = useMutation({
-    retry: false,
-    mutationFn: () =>
-      api.request<{ data: ShiftReport }>({
-        path: 'production/shift-reports',
-        method: 'POST',
-        json: {
-          unitId: selectedUnit,
-          reportDate: form.reportDate,
-          shift: form.shift,
-          processedQuantity: quantity(form.processedQuantity),
-          metalQuantity: quantity(form.metalQuantity),
-          sandQuantity: quantity(form.sandQuantity),
-          tailingsQuantity: quantity(form.tailingsQuantity),
-          runtimeMinutes: Number(form.runtimeMinutes) || 0,
-          downtimeMinutes: Number(form.downtimeMinutes) || 0,
-          notes: form.notes || null,
-        },
-      }),
-    onSuccess: () => {
-      setNotice(t('production.shiftReportSaved'));
-      setForm((current) => ({
-        ...emptyForm(),
-        reportDate: current.reportDate,
-        shift: current.shift,
-      }));
-      void queryClient.invalidateQueries({
-        queryKey: ['production-shift-reports', selectedUnit],
-      });
-    },
-    onError: (error) =>
-      setNotice(
-        error instanceof Error
-          ? error.message
-          : t('production.shiftReportSaveFailed'),
-      ),
-  });
   const confirm = useMutation({
     retry: false,
     mutationFn: (row: ShiftReport) =>
@@ -235,11 +185,6 @@ export default function ProductionShiftReportsPage() {
           : t('production.shiftReportReopenFailed'),
       ),
   });
-  const field = (key: keyof Form) => ({
-    value: form[key],
-    onChange: (event: { target: { value: string } }) =>
-      setForm((current) => ({ ...current, [key]: event.target.value })),
-  });
   return (
     <PageContainer>
       <PageHeader
@@ -260,154 +205,89 @@ export default function ProductionShiftReportsPage() {
           {notice}
         </p>
       ) : null}
-      <Card>
+      <ReadOnlyNotice
+        canManage={access.canManage}
+        canApprove={access.canApprove}
+      />
+      <Card className='mb-4'>
         <CardHeader>
-          <CardTitle>{t('production.shiftReportNew')}</CardTitle>
-          <CardDescription>
-            {t('production.shiftReportNewDescription')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className='space-y-4'>
-          <div className='grid gap-3 md:grid-cols-3'>
-            <label className='space-y-1 text-sm'>
-              <span>{t('production.unit')}</span>
-              <select
-                className='h-9 w-full rounded-md border bg-transparent px-3'
-                value={selectedUnit}
-                onChange={(event) => setUnitId(event.target.value)}
-              >
-                {units.map((unit) => (
-                  <option key={unit.id} value={unit.id}>
-                    {unit.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className='space-y-1 text-sm'>
-              <span>{t('production.reportDate')}</span>
-              <Input type='date' {...field('reportDate')} />
-            </label>
-            <label className='space-y-1 text-sm'>
-              <span>{t('production.shift')}</span>
-              <select
-                className='h-9 w-full rounded-md border bg-transparent px-3'
-                value={form.shift}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    shift: event.target.value as 'day' | 'night',
-                  }))
-                }
-              >
-                <option value='day'>{t('production.shiftDay')}</option>
-                <option value='night'>{t('production.shiftNight')}</option>
-              </select>
-            </label>
-          </div>
-          <div className='grid gap-3 md:grid-cols-4'>
-            {(
-              [
-                ['processedQuantity', 'processedQuantity'],
-                ['metalQuantity', 'metalQuantity'],
-                ['sandQuantity', 'sandQuantity'],
-                ['tailingsQuantity', 'tailingsQuantity'],
-              ] as const
-            ).map(([key, label]) => (
-              <label key={key} className='space-y-1 text-sm'>
-                <span>{t(`production.${label}`)}</span>
-                <Input type='number' min='0' step='0.001' {...field(key)} />
-              </label>
-            ))}
-          </div>
-          <div className='grid gap-3 md:grid-cols-3'>
-            <label className='space-y-1 text-sm'>
-              <span>{t('production.runtimeMinutes')}</span>
-              <Input
-                type='number'
-                min='0'
-                max='1440'
-                {...field('runtimeMinutes')}
-              />
-            </label>
-            <label className='space-y-1 text-sm'>
-              <span>{t('production.downtimeMinutes')}</span>
-              <Input
-                type='number'
-                min='0'
-                max='1440'
-                {...field('downtimeMinutes')}
-              />
-            </label>
-            <label className='space-y-1 text-sm'>
-              <span>{t('production.notes')}</span>
-              <Input {...field('notes')} />
-            </label>
-          </div>
-          {mappings.length ? (
-            <p className='text-xs text-muted-foreground'>
-              {t('production.outputMappingSummary', {
-                metal:
-                  mappings.find((item) => item.outputType === 'metal')
-                    ?.skuName ?? '-',
-                sand:
-                  mappings.find((item) => item.outputType === 'sand')
-                    ?.skuName ?? '-',
-              })}
-            </p>
-          ) : (
-            <p className='text-xs text-destructive'>
-              {t('production.outputMappingMissing')}
-            </p>
-          )}
-          <Button
-            disabled={!selectedUnit || create.isPending}
-            onClick={() => create.mutate()}
-          >
-            <Save className='size-4' />
-            {t('production.saveShiftReport')}
-          </Button>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('production.shiftReportList')}</CardTitle>
+          <CardTitle className='text-base'>
+            {t('production.recordFilter')}
+          </CardTitle>
           <CardDescription>
             {t('production.shiftReportListDescription')}
           </CardDescription>
         </CardHeader>
-        <CardContent className='space-y-3'>
+        <CardContent className='grid gap-3 sm:grid-cols-2'>
+          <label className='grid gap-1 text-sm'>
+            <span>{t('production.unit')}</span>
+            <select
+              className='h-9 w-full rounded-md border bg-transparent px-3'
+              value={selectedUnit}
+              onChange={(event) => setUnitId(event.target.value)}
+            >
+              {units.map((unit) => (
+                <option key={unit.id} value={unit.id}>
+                  {unit.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className='grid gap-1 text-sm'>
+            <span>{t('production.reportDate')}</span>
+            <Input
+              type='date'
+              value={reportDate}
+              onChange={(event) => setReportDate(event.target.value)}
+            />
+          </label>
+          <p className='text-xs text-muted-foreground sm:col-span-2'>
+            {t('production.shiftReportEntryHint')}{' '}
+            <Link
+              className='underline underline-offset-4'
+              to='/functions/production/report'
+            >
+              {t('production.reportTitle')}
+            </Link>
+          </p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className='space-y-3 pt-6'>
           <p className='text-xs text-muted-foreground'>
             {t('production.shiftReportInboundHint')}
           </p>
-          <Input
-            type='date'
-            className='max-w-48'
-            value={reportDate}
-            onChange={(event) => setReportDate(event.target.value)}
-          />
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>{t('production.reportDate')}</TableHead>
                 <TableHead>{t('production.shift')}</TableHead>
-                <TableHead>{t('production.processedQuantity')}</TableHead>
-                <TableHead>{t('production.metalQuantity')}</TableHead>
-                <TableHead>{t('production.sandQuantity')}</TableHead>
+                <TableHead>{t('production.shiftReportMaterials')}</TableHead>
                 <TableHead>{t('production.statusLabel')}</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((row) => {
-                const linked = row.outputs?.find(
-                  (output) => output.stockDocumentId,
+                const linked = [
+                  ...(row.outputs ?? []).map((output) => ({
+                    stockDocumentId: output.stockDocumentId,
+                    stockDocumentStatus: output.stockDocumentStatus,
+                  })),
+                  ...(row.materials ?? []).map((material) => ({
+                    stockDocumentId: material.stockDocumentId,
+                    stockDocumentStatus: null,
+                  })),
+                ].find((line) => line.stockDocumentId);
+                const hasActiveInbound = [
+                  ...(row.outputs ?? []),
+                  ...(row.materials ?? []),
+                ].some(
+                  (line) =>
+                    line.stockDocumentId &&
+                    (!('stockDocumentStatus' in line) ||
+                      line.stockDocumentStatus !== 'cancelled'),
                 );
-                const hasActiveInbound =
-                  row.outputs?.some(
-                    (output) =>
-                      output.stockDocumentId &&
-                      output.stockDocumentStatus !== 'cancelled',
-                  ) ?? false;
                 return (
                   <TableRow key={row.id}>
                     <TableCell>{row.reportDate}</TableCell>
@@ -416,9 +296,11 @@ export default function ProductionShiftReportsPage() {
                         ? t('production.shiftDay')
                         : t('production.shiftNight')}
                     </TableCell>
-                    <TableCell>{row.processedQuantity}</TableCell>
-                    <TableCell>{row.metalQuantity}</TableCell>
-                    <TableCell>{row.sandQuantity}</TableCell>
+                    <TableCell className='max-w-72 align-top'>
+                      <span className='line-clamp-2 text-sm'>
+                        {materialSummary(row)}
+                      </span>
+                    </TableCell>
                     <TableCell>
                       <div>
                         {t(`production.shiftReportStatus.${row.status}`)}
@@ -442,7 +324,7 @@ export default function ProductionShiftReportsPage() {
                           <Button
                             size='sm'
                             variant='outline'
-                            disabled={confirm.isPending}
+                            disabled={confirm.isPending || !access.canApprove}
                             onClick={() => confirm.mutate(row)}
                           >
                             <CheckCircle2 className='size-4' />
@@ -465,7 +347,7 @@ export default function ProductionShiftReportsPage() {
                           <Button
                             size='sm'
                             variant='outline'
-                            disabled={inbound.isPending}
+                            disabled={inbound.isPending || !access.canManage}
                             onClick={() => inbound.mutate(row)}
                           >
                             <PackagePlus className='size-4' />
@@ -476,6 +358,7 @@ export default function ProductionShiftReportsPage() {
                           <Button
                             size='sm'
                             variant='destructive'
+                            disabled={!access.canApprove}
                             onClick={() => {
                               setVoidingRow(row);
                               setVoidReason('');
@@ -489,7 +372,7 @@ export default function ProductionShiftReportsPage() {
                           <Button
                             size='sm'
                             variant='outline'
-                            disabled={reopen.isPending}
+                            disabled={reopen.isPending || !access.canApprove}
                             onClick={() => reopen.mutate(row)}
                           >
                             <RotateCcw className='size-4' />
@@ -510,7 +393,7 @@ export default function ProductionShiftReportsPage() {
               })}
               {!rows.length ? (
                 <TableRow>
-                  <TableCell colSpan={7} className='text-muted-foreground'>
+                  <TableCell colSpan={5} className='text-muted-foreground'>
                     {t('production.shiftReportEmpty')}
                   </TableCell>
                 </TableRow>

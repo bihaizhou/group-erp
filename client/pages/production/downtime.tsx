@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Clock, Plus, RefreshCw } from 'lucide-react';
+import { Clock, RefreshCw } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { Button } from '#components/ui/button';
@@ -13,18 +13,16 @@ import {
   CardTitle,
 } from '#components/ui/card';
 import { Input } from '#components/ui/input';
+import { useProductionAccess } from './access.js';
+import { ReadOnlyNotice } from '#components/read-only-notice';
 import type {
-  DowntimeCategory,
-  DowntimeImpact,
   DowntimeStatus,
   ProductionDowntime,
   ProductionDowntimePage,
-  ProductionEquipment,
   ProductionOptions,
 } from './model.js';
 
 type OptionsResult = { data: ProductionOptions };
-type EquipmentResult = { data: { equipment: ProductionEquipment[] } };
 type DowntimeResult = { data: ProductionDowntimePage };
 
 const selectClass =
@@ -39,15 +37,11 @@ export default function ProductionDowntimePage() {
   const { t } = useTranslation();
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const access = useProductionAccess();
   const [unitId, setUnitId] = useState('');
   const [date, setDate] = useState(() => today());
   const [status, setStatus] = useState<DowntimeStatus | ''>('');
   const [notice, setNotice] = useState('');
-  const [equipmentId, setEquipmentId] = useState('');
-  const [startedAt, setStartedAt] = useState(() => nowInput());
-  const [category, setCategory] = useState<DowntimeCategory>('equipment');
-  const [impact, setImpact] = useState<DowntimeImpact>('stop');
-  const [description, setDescription] = useState('');
   const [closingId, setClosingId] = useState('');
   const [endedAt, setEndedAt] = useState(() => nowInput());
   const [resolution, setResolution] = useState('');
@@ -60,19 +54,6 @@ export default function ProductionDowntimePage() {
   });
   const units = options.data?.data.units ?? [];
   const selectedUnit = unitId || units[0]?.id || '';
-
-  const equipment = useQuery({
-    retry: false,
-    enabled: Boolean(selectedUnit),
-    queryKey: ['production-equipment', selectedUnit],
-    queryFn: ({ signal }) =>
-      api.request<EquipmentResult>({
-        path: 'production/equipment',
-        query: { unitId: selectedUnit },
-        signal,
-      }),
-  });
-  const equipmentRows = equipment.data?.data.equipment ?? [];
 
   const events = useQuery({
     retry: false,
@@ -96,30 +77,6 @@ export default function ProductionDowntimePage() {
     void queryClient.invalidateQueries({ queryKey: ['production-downtime'] });
     void queryClient.invalidateQueries({ queryKey: ['operations-overview'] });
   };
-
-  const create = useMutation({
-    retry: false,
-    mutationFn: () =>
-      api.request<{ data: ProductionDowntime }>({
-        path: 'production/downtime-events',
-        method: 'POST',
-        json: {
-          unitId: selectedUnit,
-          equipmentId: equipmentId || null,
-          startedAt: new Date(startedAt).toISOString(),
-          category,
-          impact,
-          description: description.trim(),
-        },
-      }),
-    onSuccess: () => {
-      setDescription('');
-      setStartedAt(nowInput());
-      setNotice(t('production.downtimeCreated'));
-      refresh();
-    },
-    onError: (error) => setNotice(error.message),
-  });
 
   const close = useMutation({
     retry: false,
@@ -158,6 +115,11 @@ export default function ProductionDowntimePage() {
             {t('production.refresh')}
           </Button>
         }
+      />
+
+      <ReadOnlyNotice
+        canManage={access.canManage}
+        canApprove={access.canApprove}
       />
 
       <Card className='mb-4'>
@@ -253,101 +215,6 @@ export default function ProductionDowntimePage() {
         </Card>
       </div>
 
-      <Card className='mb-4'>
-        <CardHeader>
-          <CardTitle className='flex items-center gap-2 text-base'>
-            <Plus className='size-4' />
-            {t('production.downtimeCreate')}
-          </CardTitle>
-          <CardDescription>
-            {t('production.downtimeCreateHint')}
-          </CardDescription>
-        </CardHeader>
-        <div className='grid gap-3 px-6 pb-6 sm:grid-cols-2'>
-          <label className='grid gap-1 text-sm'>
-            <span>{t('production.equipmentName')}</span>
-            <select
-              className={selectClass}
-              value={equipmentId}
-              onChange={(event) => setEquipmentId(event.target.value)}
-            >
-              <option value=''>{t('production.downtimeNoEquipment')}</option>
-              {equipmentRows.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.code} {row.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className='grid gap-1 text-sm'>
-            <span>{t('production.downtimeStartedAt')}</span>
-            <Input
-              type='datetime-local'
-              value={startedAt}
-              onChange={(event) => setStartedAt(event.target.value)}
-            />
-          </label>
-          <label className='grid gap-1 text-sm'>
-            <span>{t('production.downtimeCategory')}</span>
-            <select
-              className={selectClass}
-              value={category}
-              onChange={(event) =>
-                setCategory(event.target.value as DowntimeCategory)
-              }
-            >
-              {[
-                'equipment',
-                'production',
-                'utility',
-                'material',
-                'quality',
-                'other',
-              ].map((key) => (
-                <option key={key} value={key}>
-                  {t(`production.downtimeCategory_${key}`)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className='grid gap-1 text-sm'>
-            <span>{t('production.downtimeImpact')}</span>
-            <select
-              className={selectClass}
-              value={impact}
-              onChange={(event) =>
-                setImpact(event.target.value as DowntimeImpact)
-              }
-            >
-              {['stop', 'speed_loss', 'other'].map((key) => (
-                <option key={key} value={key}>
-                  {t(`production.downtimeImpact_${key}`)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className='grid gap-1 text-sm sm:col-span-2'>
-            <span>{t('production.downtimeDescription')}</span>
-            <textarea
-              className={textareaClass}
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-            />
-          </label>
-          <div className='sm:col-span-2'>
-            <Button
-              disabled={
-                !selectedUnit || !description.trim() || create.isPending
-              }
-              onClick={() => create.mutate()}
-            >
-              <Plus className='mr-1 size-4' />
-              {t('production.downtimeSubmit')}
-            </Button>
-          </div>
-        </div>
-      </Card>
-
       {notice ? <p className='mb-4 text-sm'>{notice}</p> : null}
 
       <Card>
@@ -390,6 +257,8 @@ export default function ProductionDowntimePage() {
                     <td className='py-2 pr-3'>
                       {new Date(row.startedAt).toLocaleString('zh-CN', {
                         hour12: false,
+                        hourCycle: 'h23',
+                        timeZone: 'Asia/Shanghai',
                       })}
                     </td>
                     <td className='py-2 pr-3'>{row.equipmentName || '—'}</td>
@@ -406,6 +275,7 @@ export default function ProductionDowntimePage() {
                         <Button
                           variant='outline'
                           size='sm'
+                          disabled={!access.canManage}
                           onClick={() => {
                             setClosingId(row.id);
                             setEndedAt(nowInput());
@@ -453,7 +323,9 @@ export default function ProductionDowntimePage() {
             </label>
             <div className='flex gap-2 sm:col-span-2'>
               <Button
-                disabled={!resolution.trim() || close.isPending}
+                disabled={
+                  !resolution.trim() || close.isPending || !access.canManage
+                }
                 onClick={() => {
                   const row = rows.find((item) => item.id === closingId);
                   if (row) close.mutate(row);

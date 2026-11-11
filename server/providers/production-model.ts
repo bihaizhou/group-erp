@@ -237,10 +237,23 @@ export type DowntimeInput = z.infer<typeof downtimeInput>;
 export type DowntimeClose = z.infer<typeof downtimeClose>;
 export type DowntimeCancel = z.infer<typeof downtimeCancel>;
 
-export const productionOutputTypes = ['metal', 'sand'] as const;
-export type ProductionOutputType = (typeof productionOutputTypes)[number];
+export const productionMaterialRoles = [
+  'feedstock',
+  'product',
+  'byproduct',
+  'auxiliary',
+] as const;
+export type ProductionMaterialRole = (typeof productionMaterialRoles)[number];
 
 export const unitSetupParams = z.object({ unitId: z.string().uuid() });
+
+export const unitMaterialInput = z.strictObject({
+  skuId: z.string().uuid(),
+  role: z.enum(productionMaterialRoles),
+  defaultWarehouseId: z.string().uuid().nullable().optional(),
+  sortOrder: z.number().int().min(0).max(10000).default(0),
+  notes: nullableText(1000),
+});
 
 export const unitSetupInput = z.strictObject({
   lineCode: nullableText(64),
@@ -251,17 +264,7 @@ export const unitSetupInput = z.strictObject({
   gatewayKey: nullableText(100),
   fuxaPageKey: nullableText(200),
   status: z.enum(['active', 'inactive']).default('active'),
-  outputs: z
-    .array(
-      z.strictObject({
-        outputType: z.enum(productionOutputTypes),
-        skuId: z.string().uuid(),
-        defaultWarehouseId: z.string().uuid().nullable().optional(),
-        notes: nullableText(1000),
-      }),
-    )
-    .max(productionOutputTypes.length)
-    .default([]),
+  materials: z.array(unitMaterialInput).max(200).default([]),
 });
 
 export type AttendanceQuery = z.infer<typeof attendanceQuery>;
@@ -379,6 +382,68 @@ export const shiftReportInputParams = z.object({
 export const shiftReportInputDelete = z.strictObject({
   version: z.number().int().min(1),
 });
+
+/**
+ * The one-page shift entry: the shift report plus the roster, downtime and
+ * overtime registered for the same unit and shift. Everything is submitted
+ * together so the shift either lands completely or not at all.
+ */
+export const productionReportQuery = z.strictObject({
+  unitId: z.string().uuid(),
+  reportDate: z.iso.date(),
+  shift: z.enum(productionShifts),
+});
+
+export const productionReportMaterial = z.strictObject({
+  skuId: z.string().uuid(),
+  role: z.enum(productionMaterialRoles),
+  quantity: reportQuantity,
+  stockQuantity: reportQuantity.nullable().optional(),
+  note: nullableText(500),
+});
+
+const productionReportContent = z.strictObject({
+  version: z.number().int().min(1).optional(),
+  runtimeMinutes: z.number().int().min(0).max(1440).default(0),
+  downtimeMinutes: z.number().int().min(0).max(1440).default(0),
+  notes: nullableText(2000),
+  materials: z.array(productionReportMaterial).max(200).default([]),
+});
+
+export const productionReportDowntime = downtimeInput
+  .omit({ unitId: true })
+  .extend({ id: z.string().uuid() });
+
+export const productionReportOvertime = overtimeInput
+  .omit({ unitId: true, businessDate: true })
+  .extend({ id: z.string().uuid() });
+
+export const productionReportMaintenance = z.strictObject({
+  id: z.string().uuid(),
+  equipmentId: z.string().uuid(),
+  kind: z.enum(['repair', 'maintenance']).default('repair'),
+  description: z.string().trim().min(1).max(2000),
+  assigneeName: nullableText(100),
+});
+
+export const productionReportSave = z.strictObject({
+  unitId: z.string().uuid(),
+  reportDate: z.iso.date(),
+  shift: z.enum(productionShifts),
+  report: productionReportContent.optional(),
+  attendance: z.array(attendanceRecordInput).max(500).default([]),
+  downtime: z.array(productionReportDowntime).max(50).default([]),
+  overtime: z.array(productionReportOvertime).max(50).default([]),
+  maintenance: z.array(productionReportMaintenance).max(50).default([]),
+});
+
+export type ProductionReportQuery = z.infer<typeof productionReportQuery>;
+export type ProductionReportMaterial = z.infer<typeof productionReportMaterial>;
+export type ProductionReportMaintenance = z.infer<
+  typeof productionReportMaintenance
+>;
+export type ProductionReportSave = z.infer<typeof productionReportSave>;
+export type UnitMaterialInput = z.infer<typeof unitMaterialInput>;
 
 export type ShiftReportInput = z.infer<typeof shiftReportInput>;
 export type ShiftReportLineInput = z.infer<typeof shiftReportInputCreate>;

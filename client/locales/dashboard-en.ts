@@ -196,8 +196,8 @@ export const dashboard = {
     noUnits: 'No production unit is configured for this company yet.',
     metrics: {
       processed: 'Processed today',
-      metal: 'Metal today',
-      sand: 'Sand today',
+      reports: 'Shift reports today',
+      confirmed: 'Confirmed today',
       runtime: 'Runtime today (min)',
     },
     recentReports: 'Recent shift reports',
@@ -207,7 +207,7 @@ export const dashboard = {
     todosDescription: 'Record a shift or open production planning.',
     todo: {
       report: 'Record a shift report',
-      daily: 'Production daily',
+      reportEntry: 'Production report',
       schedules: 'Production schedules',
       setup: 'Production setup',
     },

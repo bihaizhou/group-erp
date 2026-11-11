@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import type { DatabaseManager, RepositoryRecord } from '@nocobase/db';
+import type {
+  DatabaseConnection,
+  DatabaseManager,
+  RepositoryRecord,
+} from '@nocobase/db';
 import { createServiceToken } from '@nocobase/service-provider';
+import { businessDate, businessShiftContext } from './business-date.js';
 import { currentCompanyForUser } from './company-identity.js';
+import { resolveProductionIdentity } from './production-identity.js';
 import type {
   AttendanceSave,
   AttendanceStatus,
@@ -16,6 +22,10 @@ import type {
   MaintenanceUpdate,
   OvertimeDecision,
   OvertimeInput,
+  ProductionReportMaterial,
+  ProductionReportMaintenance,
+  ProductionReportQuery,
+  ProductionReportSave,
   ProductionShift,
   ShiftReportInput,
   ShiftReportLineInput,
@@ -23,9 +33,10 @@ import type {
   ShiftReportQuery,
   ShiftReportUpdate,
   ShiftReportVoid,
+  UnitMaterialInput,
 } from './production-model.js';
 import { normalizeDecimal } from './material-model.js';
-import { stockMicros } from './inventory-quantity.js';
+import { stockMicros, stockQuantity } from './inventory-quantity.js';
 
 export const productionServiceToken = createServiceToken<ProductionService>(
   'group-erp/production',
@@ -83,6 +94,9 @@ const addDays = (date: string, days: number) => {
   return value.toISOString().slice(0, 10);
 };
 
+/** The manager and an open transaction expose the same repositories. */
+type WriteConnection = DatabaseManager | DatabaseConnection;
+
 export class ProductionService {
   constructor(
     private readonly database: DatabaseManager,
@@ -126,6 +140,92 @@ export class ProductionService {
     if (text(unit.subjectId) !== subjectId)
       throw new ProductionError('PRODUCTION_INVALID', 'UNIT_NOT_IN_COMPANY');
     return unit;
+  }
+
+  private async unitMaterials(
+    database: WriteConnection,
+    subjectId: string,
+    unitId: string,
+  ) {
+    const rows = await database.repository('prdUnitMaterials').findMany({
+      filter: { unitId, status: 'active' },
+      limit: 500,
+      sort: (sort) => [
+        sort.field('sortOrder').asc(),
+        sort.field('createdAt').asc(),
+      ],
+    });
+    const skuIds = [...new Set(rows.map((row) => text(row.skuId)))];
+    const skus = skuIds.length
+      ? await database.repository('materialSkus').findMany({
+          filter: (f) => f.or(skuIds.map((id) => f.string('id').eq(id))),
+          limit: 500,
+        })
+      : [];
+    const unitIds = [
+      ...new Set(skus.map((row) => text(row.baseUnitId)).filter(Boolean)),
+    ];
+    const measureUnits = unitIds.length
+      ? await database.repository('measureUnits').findMany({
+          filter: (f) => f.or(unitIds.map((id) => f.string('id').eq(id))),
+          limit: 500,
+        })
+      : [];
+    const warehouseIds = [
+      ...new Set(
+        rows
+          .map((row) => text(row.defaultWarehouseId))
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const warehouses = warehouseIds.length
+      ? await database.repository('warehouses').findMany({
+          filter: (f) => f.or(warehouseIds.map((id) => f.string('id').eq(id))),
+          limit: 500,
+        })
+      : [];
+    const skuById = new Map(skus.map((row) => [text(row.id), row] as const));
+    const unitName = new Map(
+      measureUnits.map((row) => [text(row.id), text(row.name)] as const),
+    );
+    const warehouseById = new Map(
+      warehouses.map((row) => [text(row.id), row] as const),
+    );
+    return await Promise.all(
+      rows.map(async (row) => {
+        const sku = skuById.get(text(row.skuId));
+        const skuId = text(row.skuId);
+        const warehouseId = text(row.defaultWarehouseId) || null;
+        let bookQuantity: string | null = null;
+        if (warehouseId) {
+          const balances = await database.repository('stockBalances').findMany({
+            filter: { subjectId, skuId, warehouseId },
+            limit: 200,
+          });
+          bookQuantity = stockQuantity(
+            balances.reduce(
+              (sum, balance) => sum + stockMicros(text(balance.quantity)),
+              0n,
+            ),
+          );
+        }
+        return {
+          id: text(row.id),
+          unitId,
+          subjectId,
+          skuId,
+          skuCode: text(sku?.code),
+          skuName: text(sku?.name),
+          unit: unitName.get(text(sku?.baseUnitId)) ?? '',
+          role: text(row.role),
+          defaultWarehouseId: warehouseId,
+          warehouseName: text(warehouseById.get(warehouseId ?? '')?.name),
+          sortOrder: number(row.sortOrder),
+          notes: text(row.notes) || null,
+          bookQuantity,
+        };
+      }),
+    );
   }
 
   private current(row: Row, on: string) {
@@ -194,11 +294,15 @@ export class ProductionService {
         ...(scopeFilter ? { filter: scopeFilter } : {}),
         limit: 10000,
       });
-    const outputs = await this.database
-      .repository('prdOutputMappings')
+    const materials = await this.database
+      .repository('prdUnitMaterials')
       .findMany({
         ...(scopeFilter ? { filter: scopeFilter } : {}),
         limit: 10000,
+        sort: (sort) => [
+          sort.field('sortOrder').asc(),
+          sort.field('createdAt').asc(),
+        ],
       });
     const skus = await this.database.repository('materialSkus').findMany({
       filter: { status: 'active' },
@@ -213,7 +317,20 @@ export class ProductionService {
       limit: 5000,
       sort: (sort) => [sort.field('name').asc()],
     });
+    const measureUnitIds = [
+      ...new Set(skus.map((row) => text(row.baseUnitId)).filter(Boolean)),
+    ];
+    const measureUnits = measureUnitIds.length
+      ? await this.database.repository('measureUnits').findMany({
+          filter: (f) =>
+            f.or(measureUnitIds.map((id) => f.string('id').eq(id))),
+          limit: 5000,
+        })
+      : [];
     const skuById = new Map(skus.map((row) => [text(row.id), row] as const));
+    const measureUnitName = new Map(
+      measureUnits.map((row) => [text(row.id), text(row.name)] as const),
+    );
     const warehouseById = new Map(
       warehouses.map((row) => [text(row.id), row] as const),
     );
@@ -238,17 +355,20 @@ export class ProductionService {
         fuxaPageKey: text(row.fuxaPageKey) || null,
         status: text(row.status) || 'active',
       })),
-      outputs: outputs.map((row) => {
+      materials: materials.map((row) => {
         const sku = skuById.get(text(row.skuId));
         const warehouse = warehouseById.get(text(row.defaultWarehouseId));
         return {
           unitId: text(row.unitId),
-          outputType: text(row.outputType),
           skuId: text(row.skuId),
           skuCode: text(sku?.code),
           skuName: text(sku?.name),
+          unit: measureUnitName.get(text(sku?.baseUnitId)) ?? '',
+          role: text(row.role),
           defaultWarehouseId: text(row.defaultWarehouseId) || null,
           warehouseName: text(warehouse?.name),
+          sortOrder: number(row.sortOrder),
+          status: text(row.status) || 'active',
           notes: text(row.notes) || null,
         };
       }),
@@ -256,6 +376,7 @@ export class ProductionService {
         id: text(row.id),
         code: text(row.code),
         name: text(row.name),
+        unit: measureUnitName.get(text(row.baseUnitId)) ?? '',
       })),
       warehouses: warehouses.map((row) => ({
         id: text(row.id),
@@ -278,12 +399,7 @@ export class ProductionService {
       gatewayKey?: string | null;
       fuxaPageKey?: string | null;
       status: 'active' | 'inactive';
-      outputs: {
-        outputType: string;
-        skuId: string;
-        defaultWarehouseId?: string | null;
-        notes?: string | null;
-      }[];
+      materials: UnitMaterialInput[];
     },
     scope: ProductionScope,
   ) {
@@ -299,32 +415,19 @@ export class ProductionService {
     if (!subjectId) throw new ProductionError('PRODUCTION_INVALID');
     await this.assertUnit(subjectId, unitId);
     const seen = new Set<string>();
-    const skuTypes = new Map<string, string>();
-    for (const output of input.outputs) {
-      if (seen.has(output.outputType))
-        throw new ProductionError('PRODUCTION_INVALID', 'DUPLICATE_OUTPUT');
-      seen.add(output.outputType);
-      const previousType = skuTypes.get(output.skuId);
-      if (previousType)
-        throw new ProductionError('PRODUCTION_INVALID', 'OUTPUT_SKU_DUPLICATE');
-      skuTypes.set(output.skuId, output.outputType);
+    for (const material of input.materials) {
+      if (seen.has(material.skuId))
+        throw new ProductionError('PRODUCTION_INVALID', 'DUPLICATE_MATERIAL');
+      seen.add(material.skuId);
       const sku = await this.database.repository('materialSkus').findOne({
-        filter: { id: output.skuId, status: 'active' },
+        filter: { id: material.skuId, status: 'active' },
       });
       if (!sku)
         throw new ProductionError('PRODUCTION_INVALID', 'SKU_NOT_FOUND');
-      const baseUnit = await this.database
-        .repository('measureUnits')
-        .findOne({ filter: { id: text(sku.baseUnitId) } });
-      if (!baseUnit || number(baseUnit.precision) < 6)
-        throw new ProductionError(
-          'PRODUCTION_INVALID',
-          'OUTPUT_UNIT_PRECISION',
-        );
-      if (output.defaultWarehouseId) {
+      if (material.defaultWarehouseId) {
         const warehouse = await this.database.repository('warehouses').findOne({
           filter: {
-            id: output.defaultWarehouseId,
+            id: material.defaultWarehouseId,
             subjectId,
             status: 'active',
           },
@@ -335,15 +438,6 @@ export class ProductionService {
             'WAREHOUSE_NOT_FOUND',
           );
       }
-    }
-    const existing = await this.database
-      .repository('prdOutputMappings')
-      .findMany({ filter: { subjectId }, limit: 10000 });
-    for (const mapping of existing) {
-      if (text(mapping.unitId) === unitId) continue;
-      const desired = skuTypes.get(text(mapping.skuId));
-      if (desired && desired !== text(mapping.outputType))
-        throw new ProductionError('PRODUCTION_INVALID', 'OUTPUT_SKU_CONFLICT');
     }
     const now = new Date().toISOString();
     await this.database.transaction(async (c) => {
@@ -384,19 +478,20 @@ export class ProductionService {
           } as never,
         });
       }
-      const outputs = c.repository('prdOutputMappings');
-      await outputs.deleteMany({ filter: { unitId } });
-      for (const output of input.outputs) {
-        await outputs.createOne({
+      const materials = c.repository('prdUnitMaterials');
+      await materials.deleteMany({ filter: { unitId } });
+      for (const material of input.materials) {
+        await materials.createOne({
           values: {
             id: randomUUID(),
             subjectId,
             unitId,
-            outputType: output.outputType,
-            skuId: output.skuId,
-            defaultWarehouseId: output.defaultWarehouseId ?? null,
-            notes: output.notes ?? null,
+            skuId: material.skuId,
+            role: material.role,
+            defaultWarehouseId: material.defaultWarehouseId ?? null,
+            sortOrder: material.sortOrder,
             status: 'active',
+            notes: material.notes ?? null,
             version: 1,
             createdBy: principal.id,
             updatedBy: principal.id,
@@ -410,6 +505,7 @@ export class ProductionService {
   }
 
   private async productionPeople(
+    database: WriteConnection,
     unitId: string,
     subjectId: string,
     onDate: string,
@@ -421,7 +517,7 @@ export class ProductionService {
       positionName: string;
     }[]
   > {
-    const positions = await this.database.repository('orgPositions').findMany({
+    const positions = await database.repository('orgPositions').findMany({
       filter: {
         unitId,
         status: 'active',
@@ -432,13 +528,13 @@ export class ProductionService {
     });
     if (!positions.length) return [];
 
-    const assignments = await this.database
+    const assignments = await database
       .repository('personnelAssignments')
       .findMany({
         filter: { subjectId },
         limit: 100000,
       });
-    const employees = await this.database
+    const employees = await database
       .repository('personnelEmployees')
       .findMany({ filter: { status: 'active' }, limit: 100000 });
     const employeeNames = new Map(
@@ -504,6 +600,7 @@ export class ProductionService {
       .repository('orgSubjects')
       .findOne({ filter: { id: subjectId } });
     const people = await this.productionPeople(
+      this.database,
       input.unitId,
       subjectId,
       input.workDate,
@@ -629,7 +726,21 @@ export class ProductionService {
     );
     if (!subjectId) throw new ProductionError('PRODUCTION_INVALID');
     await this.assertUnit(subjectId, input.unitId);
-    const positions = await this.database.repository('orgPositions').findMany({
+    await this.writeAttendance(this.database, principal, subjectId, input);
+    return this.roster(principal, input, scope);
+  }
+
+  /**
+   * Replace the attendance of one shift. A record that is no longer submitted
+   * is removed, so correcting a roster cannot leave a stale entry behind.
+   */
+  private async writeAttendance(
+    connection: WriteConnection,
+    principal: ProductionPrincipal,
+    subjectId: string,
+    input: Pick<AttendanceSave, 'unitId' | 'workDate' | 'shift' | 'records'>,
+  ) {
+    const positions = await connection.repository('orgPositions').findMany({
       filter: {
         unitId: input.unitId,
         status: 'active',
@@ -638,7 +749,7 @@ export class ProductionService {
       limit: 10000,
     });
     const positionIds = new Set(positions.map((row) => text(row.id)));
-    const assignments = await this.database
+    const assignments = await connection
       .repository('personnelAssignments')
       .findMany({ filter: { subjectId }, limit: 100000 });
     const personPositions = new Map<string, string>();
@@ -677,7 +788,7 @@ export class ProductionService {
           'PRODUCTION_INVALID',
           'OVERTIME_CONTENT_REQUIRED',
         );
-      const existing = await this.database
+      const existing = await connection
         .repository('prdAttendanceRecords')
         .findOne({
           filter: (f) =>
@@ -700,7 +811,7 @@ export class ProductionService {
         overtimeContent: record.overtimeContent ?? null,
       };
       if (existing) {
-        await this.database.repository('prdAttendanceRecords').updateOne({
+        await connection.repository('prdAttendanceRecords').updateOne({
           filter: { id: text(existing.id) },
           values: {
             ...values,
@@ -710,7 +821,7 @@ export class ProductionService {
           } as never,
         });
       } else {
-        await this.database.repository('prdAttendanceRecords').createOne({
+        await connection.repository('prdAttendanceRecords').createOne({
           values: {
             ...values,
             id: randomUUID(),
@@ -723,7 +834,584 @@ export class ProductionService {
         });
       }
     }
-    return this.roster(principal, input, scope);
+    const submitted = new Set(input.records.map((record) => record.personId));
+    const current = await connection
+      .repository('prdAttendanceRecords')
+      .findMany({
+        filter: (f) =>
+          f.and([
+            f.string('unitId').eq(input.unitId),
+            f.date('workDate').on(input.workDate),
+            f.string('shift').eq(input.shift),
+          ]),
+        limit: 1000,
+      });
+    for (const row of current)
+      if (!submitted.has(text(row.personId)))
+        await connection
+          .repository('prdAttendanceRecords')
+          .deleteOne({ filter: { id: text(row.id) } });
+  }
+
+  /** Identity and defaults for the single production reporting page. */
+  async reportContext(principal: ProductionPrincipal, scope: ProductionScope) {
+    const identity = await resolveProductionIdentity(
+      this.database,
+      this.timeZone,
+      principal,
+    );
+    const current = businessShiftContext(this.timeZone);
+    return {
+      identity,
+      businessDate: identity.today,
+      reportDate: current.reportDate,
+      shift: current.shift,
+      canManage: scope.manage,
+    };
+  }
+
+  async getReport(
+    principal: ProductionPrincipal,
+    query: ProductionReportQuery,
+    scope: ProductionScope,
+  ) {
+    const unit = await this.findUnit(query.unitId);
+    const subjectId = text(unit.subjectId);
+    const resolved = await this.resolveSubject(principal, subjectId, scope);
+    if (resolved) await this.assertUnit(resolved, query.unitId);
+    const row = await this.database.repository('prdShiftReports').findOne({
+      filter: (f) =>
+        f.and([
+          f.string('unitId').eq(query.unitId),
+          f.date('reportDate').on(query.reportDate),
+          f.string('shift').eq(query.shift),
+        ]),
+    });
+    const report = row ? await this.shiftReportDetail(row) : null;
+    const [attendance, downtime, overtime, equipment] = await Promise.all([
+      this.roster(
+        principal,
+        {
+          unitId: query.unitId,
+          workDate: query.reportDate,
+          shift: query.shift,
+        },
+        scope,
+      ),
+      this.listDowntimeEvents(
+        principal,
+        { unitId: query.unitId, date: query.reportDate },
+        scope,
+      ),
+      this.listOvertime(
+        principal,
+        { unitId: query.unitId, businessDate: query.reportDate },
+        scope,
+      ),
+      this.listEquipment(principal, { unitId: query.unitId }, scope),
+    ]);
+    return {
+      unit: {
+        id: text(unit.id),
+        code: text(unit.code),
+        name: text(unit.name),
+        subjectId,
+      },
+      reportDate: query.reportDate,
+      shift: query.shift,
+      materials: await this.unitMaterials(
+        this.database,
+        subjectId,
+        query.unitId,
+      ),
+      equipment: equipment.equipment.filter(
+        (item) => item.status !== 'retired',
+      ),
+      maintenance: await this.reportMaintenance(
+        subjectId,
+        query.unitId,
+        query.reportDate,
+      ),
+      report,
+      attendance,
+      downtime,
+      overtime,
+    };
+  }
+
+  /**
+   * One transaction for everything the shift lead records: the shift report,
+   * the attendance roster, the downtime log and overtime requests. The rows
+   * carry client generated ids so a retried submission stays idempotent.
+   */
+  async submitReport(
+    principal: ProductionPrincipal,
+    input: ProductionReportSave,
+    scope: ProductionScope,
+  ) {
+    if (!scope.manage)
+      throw new ProductionError('PRODUCTION_FORBIDDEN', 'PERMISSION_DENIED');
+    if (input.reportDate > businessDate(this.timeZone))
+      throw new ProductionError('PRODUCTION_INVALID', 'REPORT_DATE_FUTURE');
+    const unit = await this.findUnit(input.unitId);
+    const subjectId = await this.resolveSubject(
+      principal,
+      text(unit.subjectId),
+      scope,
+      true,
+    );
+    if (!subjectId) throw new ProductionError('PRODUCTION_INVALID');
+    await this.assertUnit(subjectId, input.unitId);
+    const identity = await resolveProductionIdentity(
+      this.database,
+      this.timeZone,
+      principal,
+    );
+    const assigned = identity.units.find((item) => item.id === input.unitId);
+    if (!scope.readAll && !assigned)
+      throw new ProductionError('PRODUCTION_FORBIDDEN', 'UNIT_NOT_ASSIGNED');
+    await this.database.transaction(async (connection) => {
+      if (input.report)
+        await this.writeShiftReport(
+          connection,
+          principal,
+          subjectId,
+          input,
+          assigned?.positionId ?? null,
+        );
+      await this.writeAttendance(connection, principal, subjectId, {
+        unitId: input.unitId,
+        workDate: input.reportDate,
+        shift: input.shift,
+        records: input.attendance,
+      });
+      for (const row of input.downtime)
+        await this.writeDowntime(
+          connection,
+          principal,
+          subjectId,
+          input.unitId,
+          row,
+        );
+      for (const row of input.overtime)
+        await this.writeOvertime(
+          connection,
+          principal,
+          subjectId,
+          input.unitId,
+          input.reportDate,
+          row,
+        );
+      for (const row of input.maintenance)
+        await this.writeMaintenance(
+          connection,
+          principal,
+          subjectId,
+          input.unitId,
+          input.reportDate,
+          row,
+        );
+    });
+    return this.getReport(
+      principal,
+      {
+        unitId: input.unitId,
+        reportDate: input.reportDate,
+        shift: input.shift,
+      },
+      scope,
+    );
+  }
+
+  private async writeShiftReport(
+    connection: DatabaseConnection,
+    principal: ProductionPrincipal,
+    subjectId: string,
+    input: ProductionReportSave,
+    positionId: string | null,
+  ) {
+    const content = input.report!;
+    const existing = await connection.repository('prdShiftReports').findOne({
+      filter: (f) =>
+        f.and([
+          f.string('unitId').eq(input.unitId),
+          f.date('reportDate').on(input.reportDate),
+          f.string('shift').eq(input.shift),
+        ]),
+    });
+    const values = {
+      runtimeMinutes: content.runtimeMinutes,
+      downtimeMinutes: content.downtimeMinutes,
+      notes: content.notes ?? null,
+    };
+    let reportId: string;
+    if (existing) {
+      if (text(existing.status) !== 'draft')
+        throw new ProductionError('PRODUCTION_INVALID', 'REPORT_NOT_DRAFT');
+      if (!content.version)
+        throw new ProductionError(
+          'PRODUCTION_INVALID',
+          'REPORT_VERSION_REQUIRED',
+        );
+      if (number(existing.version) !== content.version)
+        throw new ProductionError('PRODUCTION_CONFLICT');
+      const result = await connection.repository('prdShiftReports').updateOne({
+        filter: { id: text(existing.id), version: content.version },
+        values: {
+          ...values,
+          version: content.version + 1,
+          updatedBy: principal.id,
+          updatedAt: new Date().toISOString(),
+        } as never,
+      });
+      if (!result.record) throw new ProductionError('PRODUCTION_CONFLICT');
+      reportId = text(existing.id);
+    } else {
+      if (content.version)
+        throw new ProductionError('PRODUCTION_NOT_FOUND', 'REPORT_NOT_FOUND');
+      reportId = randomUUID();
+      const now = new Date().toISOString();
+      await connection.repository('prdShiftReports').createOne({
+        values: {
+          id: reportId,
+          subjectId,
+          unitId: input.unitId,
+          reportDate: input.reportDate,
+          shift: input.shift,
+          status: 'draft',
+          ...values,
+          processedQuantity: '0',
+          metalQuantity: '0',
+          sandQuantity: '0',
+          tailingsQuantity: '0',
+          confirmedBy: null,
+          confirmedAt: null,
+          enteredBy: principal.id,
+          enteredByPositionId: positionId,
+          sourceChannel: 'manual',
+          version: 1,
+          createdBy: principal.id,
+          updatedBy: principal.id,
+          createdAt: now,
+          updatedAt: now,
+        } as never,
+      });
+    }
+    await this.writeReportMaterials(
+      connection,
+      principal,
+      subjectId,
+      input.unitId,
+      reportId,
+      content.materials,
+    );
+  }
+
+  /**
+   * One row per configured material. The physical count is what the shift lead
+   * typed; the book quantity is the stock balance at submission time, so the
+   * report keeps the difference it showed even after the warehouse moves.
+   */
+  private async writeReportMaterials(
+    connection: DatabaseConnection,
+    principal: ProductionPrincipal,
+    subjectId: string,
+    unitId: string,
+    reportId: string,
+    materials: ProductionReportMaterial[],
+  ) {
+    const repository = connection.repository('prdShiftReportMaterials');
+    await repository.deleteMany({ filter: { reportId } });
+    if (!materials.length) return;
+    const configs = await this.unitMaterials(connection, subjectId, unitId);
+    const configBySku = new Map(
+      configs.map((row) => [row.skuId, row] as const),
+    );
+    const now = new Date().toISOString();
+    for (const material of materials) {
+      const config = configBySku.get(material.skuId);
+      if (!config)
+        throw new ProductionError(
+          'PRODUCTION_INVALID',
+          'MATERIAL_NOT_CONFIGURED',
+        );
+      let bookQuantity: string | null = null;
+      if (config.defaultWarehouseId) {
+        const balances = await connection.repository('stockBalances').findMany({
+          filter: {
+            subjectId,
+            skuId: material.skuId,
+            warehouseId: config.defaultWarehouseId,
+          },
+          limit: 200,
+        });
+        const total = balances.reduce(
+          (sum, row) => sum + stockMicros(text(row.quantity)),
+          0n,
+        );
+        bookQuantity = stockQuantity(total);
+      }
+      await repository.createOne({
+        values: {
+          id: randomUUID(),
+          reportId,
+          subjectId,
+          unitId,
+          skuId: material.skuId,
+          role: material.role,
+          quantity: normalizeDecimal(material.quantity),
+          stockQuantity:
+            material.stockQuantity === null ||
+            material.stockQuantity === undefined
+              ? null
+              : normalizeDecimal(material.stockQuantity),
+          bookQuantity,
+          note: material.note ?? '',
+          version: 1,
+          createdBy: principal.id,
+          updatedBy: principal.id,
+          createdAt: now,
+          updatedAt: now,
+        } as never,
+      });
+    }
+  }
+
+  private async writeDowntime(
+    connection: WriteConnection,
+    principal: ProductionPrincipal,
+    subjectId: string,
+    unitId: string,
+    input: Omit<DowntimeInput, 'unitId'> & { id?: string },
+  ) {
+    if (input.equipmentId) {
+      const equipment = await connection
+        .repository('prdEquipment')
+        .findOne({ filter: { id: input.equipmentId } });
+      if (!equipment)
+        throw new ProductionError(
+          'PRODUCTION_NOT_FOUND',
+          'EQUIPMENT_NOT_FOUND',
+        );
+      if (text(equipment.unitId) !== unitId)
+        throw new ProductionError(
+          'PRODUCTION_INVALID',
+          'EQUIPMENT_NOT_IN_UNIT',
+        );
+    }
+    const id = input.id ?? randomUUID();
+    if (input.id) {
+      const existing = await connection
+        .repository('prdDowntimeEvents')
+        .findOne({ filter: { id } });
+      if (existing) {
+        if (text(existing.unitId) !== unitId)
+          throw new ProductionError(
+            'PRODUCTION_INVALID',
+            'DOWNTIME_ID_CONFLICT',
+          );
+        return existing;
+      }
+    }
+    const startedAt = this.parseInstant(input.startedAt, 'STARTED_AT_INVALID');
+    const now = new Date().toISOString();
+    const eventNo = `DT-${this.localDate(startedAt).replaceAll(
+      '-',
+      '',
+    )}-${id.slice(0, 4).toUpperCase()}`;
+    await connection.repository('prdDowntimeEvents').createOne({
+      values: {
+        id,
+        subjectId,
+        unitId,
+        equipmentId: input.equipmentId ?? null,
+        eventNo,
+        startedAt,
+        endedAt: null,
+        durationMinutes: 0,
+        category: input.category,
+        impact: input.impact,
+        status: 'open',
+        description: input.description,
+        resolution: null,
+        reportedBy: principal.id,
+        closedBy: null,
+        version: 1,
+        createdBy: principal.id,
+        updatedBy: principal.id,
+        createdAt: now,
+        updatedAt: now,
+      } as never,
+    });
+    return (await connection
+      .repository('prdDowntimeEvents')
+      .findOne({ filter: { id } }))!;
+  }
+
+  private async writeOvertime(
+    connection: WriteConnection,
+    principal: ProductionPrincipal,
+    subjectId: string,
+    unitId: string,
+    onDate: string,
+    input: Omit<OvertimeInput, 'unitId' | 'businessDate'> & { id?: string },
+  ) {
+    const id = input.id ?? randomUUID();
+    if (input.id) {
+      const existing = await connection
+        .repository('prdOvertimeRequests')
+        .findOne({ filter: { id } });
+      if (existing) {
+        if (text(existing.unitId) !== unitId)
+          throw new ProductionError(
+            'PRODUCTION_INVALID',
+            'OVERTIME_ID_CONFLICT',
+          );
+        return existing;
+      }
+    }
+    const people = await this.productionPeople(
+      connection,
+      unitId,
+      subjectId,
+      onDate,
+    );
+    const person = people.find((row) => row.personId === input.personId);
+    if (!person)
+      throw new ProductionError('PRODUCTION_INVALID', 'PERSON_NOT_ON_POSITION');
+    const now = new Date().toISOString();
+    const requestNo = `OT-${onDate.replaceAll('-', '')}-${id
+      .slice(0, 4)
+      .toUpperCase()}`;
+    await connection.repository('prdOvertimeRequests').createOne({
+      values: {
+        id,
+        subjectId,
+        unitId,
+        personId: input.personId,
+        positionId: person.positionId,
+        businessDate: onDate,
+        requestNo,
+        hours: input.hours.toFixed(2),
+        type: input.type,
+        reason: input.reason,
+        compensation: input.compensation,
+        status: 'submitted',
+        approverId: null,
+        approverName: null,
+        decidedAt: null,
+        rejectReason: null,
+        version: 1,
+        createdBy: principal.id,
+        updatedBy: principal.id,
+        createdAt: now,
+        updatedAt: now,
+      } as never,
+    });
+    return (await connection
+      .repository('prdOvertimeRequests')
+      .findOne({ filter: { id } }))!;
+  }
+
+  private async writeMaintenance(
+    connection: DatabaseConnection,
+    principal: ProductionPrincipal,
+    subjectId: string,
+    unitId: string,
+    reportDate: string,
+    input: ProductionReportMaintenance,
+  ) {
+    const existing = await connection
+      .repository('prdMaintenanceOrders')
+      .findOne({ filter: { id: input.id } });
+    if (existing) {
+      if (text(existing.unitId) !== unitId)
+        throw new ProductionError(
+          'PRODUCTION_INVALID',
+          'MAINTENANCE_ID_CONFLICT',
+        );
+      return existing;
+    }
+    const equipment = await connection
+      .repository('prdEquipment')
+      .findOne({ filter: { id: input.equipmentId } });
+    if (!equipment)
+      throw new ProductionError('PRODUCTION_NOT_FOUND', 'EQUIPMENT_NOT_FOUND');
+    if (text(equipment.unitId) !== unitId)
+      throw new ProductionError('PRODUCTION_INVALID', 'EQUIPMENT_NOT_IN_UNIT');
+    if (text(equipment.status) === 'retired')
+      throw new ProductionError('PRODUCTION_INVALID', 'EQUIPMENT_RETIRED');
+    const now = new Date().toISOString();
+    const reportedAt = new Date(`${reportDate}T08:00:00+08:00`).toISOString();
+    const orderNo = `MO-${reportDate.replaceAll('-', '')}-${input.id
+      .slice(0, 4)
+      .toUpperCase()}`;
+    await connection.repository('prdMaintenanceOrders').createOne({
+      values: {
+        id: input.id,
+        subjectId,
+        unitId,
+        equipmentId: input.equipmentId,
+        planId: null,
+        orderNo,
+        type: input.kind === 'maintenance' ? 'preventive' : 'repair',
+        priority: 'normal',
+        status: 'reported',
+        reportedBy: principal.id,
+        reportedAt,
+        assigneeName: input.assigneeName ?? null,
+        description: input.description,
+        cause: null,
+        solution: null,
+        startedAt: null,
+        finishedAt: null,
+        downtimeMinutes: 0,
+        version: 1,
+        createdBy: principal.id,
+        updatedBy: principal.id,
+        createdAt: now,
+        updatedAt: now,
+      } as never,
+    });
+    return (await connection
+      .repository('prdMaintenanceOrders')
+      .findOne({ filter: { id: input.id } }))!;
+  }
+
+  private async reportMaintenance(
+    subjectId: string,
+    unitId: string,
+    reportDate: string,
+  ) {
+    const rows = await this.database
+      .repository('prdMaintenanceOrders')
+      .findMany({
+        filter: (f) =>
+          f.and([
+            f.string('subjectId').eq(subjectId),
+            f.string('unitId').eq(unitId),
+          ]),
+        limit: 1000,
+        sort: (sort) => [sort.field('reportedAt').desc()],
+      });
+    const todays = rows.filter(
+      (row) => this.localDate(row.reportedAt) === reportDate,
+    );
+    const equipmentIds = [
+      ...new Set(todays.map((row) => text(row.equipmentId))),
+    ];
+    const equipment = equipmentIds.length
+      ? await this.database.repository('prdEquipment').findMany({
+          filter: (f) => f.or(equipmentIds.map((id) => f.string('id').eq(id))),
+          limit: 1000,
+        })
+      : [];
+    const names = new Map(
+      equipment.map((row) => [text(row.id), text(row.name)] as const),
+    );
+    return todays.map((row) =>
+      this.maintenanceView(row, names.get(text(row.equipmentId)) ?? ''),
+    );
   }
 
   async getSchedule(
@@ -774,6 +1462,7 @@ export class ProductionService {
     const subjectId = text(unit.subjectId);
     await this.resolveSubject(principal, subjectId, scope);
     const candidates = await this.productionPeople(
+      this.database,
       input.unitId,
       subjectId,
       input.scheduleDate,
@@ -856,7 +1545,7 @@ export class ProductionService {
     id: string,
     scope: ProductionScope,
   ) {
-    if (!scope.manage)
+    if (!scope.approve)
       throw new ProductionError('PRODUCTION_FORBIDDEN', 'PERMISSION_DENIED');
     const row = await this.database
       .repository('prdSchedules')
@@ -1560,7 +2249,12 @@ export class ProductionService {
     scheduleDate: string,
     shift: ProductionShift,
   ) {
-    const people = await this.productionPeople(unitId, subjectId, scheduleDate);
+    const people = await this.productionPeople(
+      this.database,
+      unitId,
+      subjectId,
+      scheduleDate,
+    );
     const assignments = row
       ? await this.database
           .repository('prdScheduleAssignments')
@@ -1726,11 +2420,62 @@ export class ProductionService {
     const documentStatus = new Map(
       documents.map((document) => [text(document.id), text(document.status)]),
     );
+    const materialRows = await this.database
+      .repository('prdShiftReportMaterials')
+      .findMany({ filter: { reportId: text(row.id) }, limit: 200 });
+    const materialSkuIds = [
+      ...new Set(materialRows.map((material) => text(material.skuId))),
+    ];
+    const materialSkus = materialSkuIds.length
+      ? await this.database.repository('materialSkus').findMany({
+          filter: (f) =>
+            f.or(materialSkuIds.map((id) => f.string('id').eq(id))),
+          limit: 200,
+        })
+      : [];
+    const materialUnitIds = [
+      ...new Set(
+        materialSkus.map((sku) => text(sku.baseUnitId)).filter(Boolean),
+      ),
+    ];
+    const materialUnits = materialUnitIds.length
+      ? await this.database.repository('measureUnits').findMany({
+          filter: (f) =>
+            f.or(materialUnitIds.map((id) => f.string('id').eq(id))),
+          limit: 200,
+        })
+      : [];
+    const skuName = new Map(
+      materialSkus.map((sku) => [text(sku.id), sku] as const),
+    );
+    const unitName = new Map(
+      materialUnits.map(
+        (measure) => [text(measure.id), text(measure.name)] as const,
+      ),
+    );
     return {
       ...this.reportView(row),
       unitName: text(unit?.name),
       subjectName: text(subject?.name),
       inputs: reportInputs,
+      materials: materialRows
+        .map((material) => {
+          const sku = skuName.get(text(material.skuId));
+          return {
+            id: text(material.id),
+            skuId: text(material.skuId),
+            skuCode: text(sku?.code),
+            skuName: text(sku?.name),
+            unit: unitName.get(text(sku?.baseUnitId)) ?? '',
+            role: text(material.role),
+            quantity: text(material.quantity),
+            stockQuantity: text(material.stockQuantity) || null,
+            bookQuantity: text(material.bookQuantity) || null,
+            stockDocumentId: text(material.stockDocumentId) || null,
+            note: text(material.note) || null,
+          };
+        })
+        .sort((left, right) => left.role.localeCompare(right.role)),
       outputs: outputs.map((output) => ({
         id: text(output.id),
         outputType: text(output.outputType),
@@ -2259,7 +3004,7 @@ export class ProductionService {
     version: number,
     scope: ProductionScope,
   ) {
-    if (!scope.manage)
+    if (!scope.approve)
       throw new ProductionError('PRODUCTION_FORBIDDEN', 'PERMISSION_DENIED');
     const row = await this.database
       .repository('prdShiftReports')
@@ -2369,7 +3114,7 @@ export class ProductionService {
     input: ShiftReportVoid,
     scope: ProductionScope,
   ) {
-    if (!scope.manage)
+    if (!scope.approve)
       throw new ProductionError('PRODUCTION_FORBIDDEN', 'PERMISSION_DENIED');
     const row = await this.database
       .repository('prdShiftReports')
@@ -2473,7 +3218,7 @@ export class ProductionService {
     version: number,
     scope: ProductionScope,
   ) {
-    if (!scope.manage)
+    if (!scope.approve)
       throw new ProductionError('PRODUCTION_FORBIDDEN', 'PERMISSION_DENIED');
     const row = await this.database
       .repository('prdShiftReports')
@@ -2522,18 +3267,29 @@ export class ProductionService {
     const report = await this.getShiftReport(principal, id, scope);
     if (report.status !== 'confirmed')
       throw new ProductionError('PRODUCTION_INVALID', 'REPORT_NOT_CONFIRMED');
-    if (!report.outputs.length)
-      throw new ProductionError('PRODUCTION_INVALID', 'OUTPUT_REQUIRED');
+    const configs = await this.unitMaterials(
+      this.database,
+      report.subjectId,
+      report.unitId,
+    );
+    const configBySku = new Map(configs.map((row) => [row.skuId, row]));
+    const materialLines = report.materials.filter(
+      (material) =>
+        (material.role === 'product' || material.role === 'byproduct') &&
+        stockMicros(material.quantity) > 0n,
+    );
     const documentIds = [
       ...new Set(
-        report.outputs
-          .map((output) => output.stockDocumentId)
-          .filter((documentId): documentId is string => Boolean(documentId)),
+        [
+          ...materialLines.map((material) => material.stockDocumentId),
+          ...report.outputs.map((output) => output.stockDocumentId),
+        ].filter((documentId): documentId is string => Boolean(documentId)),
       ),
     ];
     if (documentIds.length) {
       if (
         documentIds.length !== 1 ||
+        materialLines.some((material) => !material.stockDocumentId) ||
         report.outputs.some((output) => !output.stockDocumentId)
       )
         throw new ProductionError('PRODUCTION_CONFLICT', 'INBOUND_EXISTS');
@@ -2549,15 +3305,36 @@ export class ProductionService {
         );
       return { report, lines: [], documentId: text(existing.id) };
     }
-    const warehouses = new Set(
-      report.outputs.map((output) => output.warehouseId),
-    );
-    if (warehouses.size !== 1 || warehouses.has(null))
-      throw new ProductionError(
-        'PRODUCTION_INVALID',
-        'OUTPUT_WAREHOUSE_MISMATCH',
-      );
-    const lines = [];
+    const lines: {
+      materialId?: string;
+      outputId?: string;
+      skuId: string;
+      warehouseId: string;
+      quantity: string;
+      unitId: string;
+    }[] = [];
+    for (const material of materialLines) {
+      const config = configBySku.get(material.skuId);
+      const warehouseId = config?.defaultWarehouseId;
+      if (!warehouseId)
+        throw new ProductionError(
+          'PRODUCTION_INVALID',
+          'OUTPUT_WAREHOUSE_MISSING',
+        );
+      const sku = await this.database
+        .repository('materialSkus')
+        .findOne({ filter: { id: material.skuId } });
+      const unitId = text(sku?.baseUnitId);
+      if (!sku || !unitId)
+        throw new ProductionError('PRODUCTION_INVALID', 'OUTPUT_UNIT_MISSING');
+      lines.push({
+        materialId: material.id,
+        skuId: material.skuId,
+        warehouseId,
+        quantity: material.quantity,
+        unitId,
+      });
+    }
     for (const output of report.outputs) {
       if (!output.warehouseId)
         throw new ProductionError(
@@ -2578,6 +3355,14 @@ export class ProductionService {
         unitId,
       });
     }
+    if (!lines.length)
+      throw new ProductionError('PRODUCTION_INVALID', 'OUTPUT_REQUIRED');
+    const warehouses = new Set(lines.map((line) => line.warehouseId));
+    if (warehouses.size !== 1)
+      throw new ProductionError(
+        'PRODUCTION_INVALID',
+        'OUTPUT_WAREHOUSE_MISMATCH',
+      );
     return { report, lines, documentId: null };
   }
 
@@ -2614,7 +3399,10 @@ export class ProductionService {
       const outputs = await c
         .repository('prdShiftReportOutputs')
         .findMany({ filter: { reportId }, limit: 20 });
-      if (!outputs.length)
+      const materials = await c
+        .repository('prdShiftReportMaterials')
+        .findMany({ filter: { reportId }, limit: 200 });
+      if (!outputs.length && !materials.length)
         throw new ProductionError('PRODUCTION_INVALID', 'OUTPUT_REQUIRED');
       const now = new Date().toISOString();
       for (const output of outputs) {
@@ -2624,6 +3412,20 @@ export class ProductionService {
         if (!linked)
           await c.repository('prdShiftReportOutputs').updateOne({
             filter: { id: text(output.id) },
+            values: {
+              stockDocumentId: documentId,
+              updatedBy: principal.id,
+              updatedAt: now,
+            } as never,
+          });
+      }
+      for (const material of materials) {
+        const linked = text(material.stockDocumentId);
+        if (linked && linked !== documentId)
+          throw new ProductionError('PRODUCTION_CONFLICT', 'INBOUND_EXISTS');
+        if (!linked)
+          await c.repository('prdShiftReportMaterials').updateOne({
+            filter: { id: text(material.id) },
             values: {
               stockDocumentId: documentId,
               updatedBy: principal.id,
@@ -2718,57 +3520,20 @@ export class ProductionService {
     if (!scope.manage)
       throw new ProductionError('PRODUCTION_FORBIDDEN', 'PERMISSION_DENIED');
     const unit = await this.findUnit(input.unitId);
-    const subjectId = text(unit.subjectId);
-    await this.resolveSubject(principal, subjectId, scope, true);
-    if (input.equipmentId) {
-      const equipment = await this.database
-        .repository('prdEquipment')
-        .findOne({ filter: { id: input.equipmentId } });
-      if (!equipment)
-        throw new ProductionError(
-          'PRODUCTION_NOT_FOUND',
-          'EQUIPMENT_NOT_FOUND',
-        );
-      if (text(equipment.unitId) !== input.unitId)
-        throw new ProductionError(
-          'PRODUCTION_INVALID',
-          'EQUIPMENT_NOT_IN_UNIT',
-        );
-    }
-    const startedAt = this.parseInstant(input.startedAt, 'STARTED_AT_INVALID');
-    const now = new Date().toISOString();
-    const id = randomUUID();
-    const eventNo = `DT-${this.localDate(startedAt).replaceAll(
-      '-',
-      '',
-    )}-${id.slice(0, 4).toUpperCase()}`;
-    await this.database.repository('prdDowntimeEvents').createOne({
-      values: {
-        id,
-        subjectId,
-        unitId: input.unitId,
-        equipmentId: input.equipmentId ?? null,
-        eventNo,
-        startedAt,
-        endedAt: null,
-        durationMinutes: 0,
-        category: input.category,
-        impact: input.impact,
-        status: 'open',
-        description: input.description,
-        resolution: null,
-        reportedBy: principal.id,
-        closedBy: null,
-        version: 1,
-        createdBy: principal.id,
-        updatedBy: principal.id,
-        createdAt: now,
-        updatedAt: now,
-      } as never,
-    });
-    const row = (await this.database
-      .repository('prdDowntimeEvents')
-      .findOne({ filter: { id } }))!;
+    const subjectId = await this.resolveSubject(
+      principal,
+      text(unit.subjectId),
+      scope,
+      true,
+    );
+    if (!subjectId) throw new ProductionError('PRODUCTION_INVALID');
+    const row = await this.writeDowntime(
+      this.database,
+      principal,
+      subjectId,
+      input.unitId,
+      input,
+    );
     return this.downtimeView(row, text(unit.name), '');
   }
 
@@ -2960,6 +3725,7 @@ export class ProductionService {
     const subjectId = text(unit.subjectId);
     await this.resolveSubject(principal, subjectId, scope);
     const people = await this.productionPeople(
+      this.database,
       input.unitId,
       subjectId,
       input.businessDate,
@@ -3026,51 +3792,23 @@ export class ProductionService {
     if (!scope.manage)
       throw new ProductionError('PRODUCTION_FORBIDDEN', 'PERMISSION_DENIED');
     const unit = await this.findUnit(input.unitId);
-    const subjectId = text(unit.subjectId);
-    await this.resolveSubject(principal, subjectId, scope, true);
-    const people = await this.productionPeople(
-      input.unitId,
-      subjectId,
-      input.businessDate,
+    const subjectId = await this.resolveSubject(
+      principal,
+      text(unit.subjectId),
+      scope,
+      true,
     );
-    const person = people.find((row) => row.personId === input.personId);
-    if (!person)
-      throw new ProductionError('PRODUCTION_INVALID', 'PERSON_NOT_ON_POSITION');
-    const id = randomUUID();
-    const now = new Date().toISOString();
-    const requestNo = `OT-${input.businessDate.replaceAll('-', '')}-${id
-      .slice(0, 4)
-      .toUpperCase()}`;
-    await this.database.repository('prdOvertimeRequests').createOne({
-      values: {
-        id,
-        subjectId,
-        unitId: input.unitId,
-        personId: input.personId,
-        positionId: person.positionId,
-        businessDate: input.businessDate,
-        requestNo,
-        hours: input.hours.toFixed(2),
-        type: input.type,
-        reason: input.reason,
-        compensation: input.compensation,
-        status: 'submitted',
-        approverId: null,
-        approverName: null,
-        decidedAt: null,
-        rejectReason: null,
-        version: 1,
-        createdBy: principal.id,
-        updatedBy: principal.id,
-        createdAt: now,
-        updatedAt: now,
-      } as never,
-    });
+    if (!subjectId) throw new ProductionError('PRODUCTION_INVALID');
+    const row = await this.writeOvertime(
+      this.database,
+      principal,
+      subjectId,
+      input.unitId,
+      input.businessDate,
+      input,
+    );
     const names = await this.overtimeNames();
-    const row = await this.database
-      .repository('prdOvertimeRequests')
-      .findOne({ filter: { id } });
-    return this.overtimeView(row!, names);
+    return this.overtimeView(row, names);
   }
 
   async decideOvertime(

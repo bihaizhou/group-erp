@@ -148,7 +148,7 @@ export const workbenchModules: readonly WorkbenchModule[] = [
     ClipboardCheck,
     [
       ['production-overview', '/functions/production/overview'],
-      ['production-attendance', '/functions/production/attendance'],
+      ['production-report', '/functions/production/report'],
       ['production-setup', '/functions/production/setup'],
       ['production-shift-reports', '/functions/production/shift-reports'],
     ],

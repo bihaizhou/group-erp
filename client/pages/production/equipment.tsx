@@ -21,6 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from '#components/ui/table';
+import { useProductionAccess } from './access.js';
+import { ReadOnlyNotice } from '#components/read-only-notice';
 import type {
   ProductionEquipment,
   ProductionMaintenanceOrder,
@@ -39,6 +41,7 @@ export default function ProductionEquipmentPage() {
   const { t } = useTranslation();
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const access = useProductionAccess();
   const [unitId, setUnitId] = useState('');
   const [notice, setNotice] = useState('');
   const [code, setCode] = useState('');
@@ -204,6 +207,10 @@ export default function ProductionEquipmentPage() {
       {notice ? (
         <p className='mb-3 text-sm text-muted-foreground'>{notice}</p>
       ) : null}
+      <ReadOnlyNotice
+        canManage={access.canManage}
+        canApprove={access.canApprove}
+      />
       <Card className='mb-4'>
         <CardHeader>
           <CardTitle>{t('production.equipmentFilter')}</CardTitle>
@@ -272,6 +279,7 @@ export default function ProductionEquipmentPage() {
               size='sm'
               disabled={
                 !selectedUnit ||
+                !access.canManage ||
                 !code.trim() ||
                 !name.trim() ||
                 createEquipment.isPending
@@ -383,6 +391,7 @@ export default function ProductionEquipmentPage() {
             <Button
               size='sm'
               disabled={
+                !access.canManage ||
                 !effectiveEquipmentId ||
                 !description.trim() ||
                 createOrder.isPending
@@ -414,6 +423,7 @@ export default function ProductionEquipmentPage() {
                       <Button
                         size='sm'
                         variant='outline'
+                        disabled={!access.canManage}
                         onClick={() => move(order, 'in_progress')}
                       >
                         {t('production.startRepair')}
@@ -434,6 +444,7 @@ export default function ProductionEquipmentPage() {
                         />
                         <Button
                           size='sm'
+                          disabled={!access.canManage}
                           onClick={() => move(order, 'completed')}
                         >
                           {t('production.completeRepair')}
@@ -445,6 +456,7 @@ export default function ProductionEquipmentPage() {
                       <Button
                         size='sm'
                         variant='ghost'
+                        disabled={!access.canManage}
                         onClick={() => move(order, 'cancelled')}
                       >
                         {t('production.cancelOrder')}
