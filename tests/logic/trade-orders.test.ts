@@ -174,6 +174,8 @@ test('approved purchase demand splits into bounded orders; frozen independent re
   await f.orderRules('purchaseOrders');
   const content = (quantity: string) => {
     const value = f.orderContent(quantity);
+    value.demandMode = 'request';
+    value.temporaryReason = null;
     value.lines[0].allocations = [
       {
         requestId: demand.id,

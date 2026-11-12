@@ -181,7 +181,7 @@ test('builds a production roster from HR positions and records attendance', asyn
       commissionDate: '2024-06-01',
       region: 'North',
       status: 'active',
-      outputs: [],
+      materials: [],
     },
     'PUT',
   );
@@ -198,9 +198,9 @@ test('builds a production roster from HR positions and records attendance', asyn
     `/production/setup/${unit.id}`,
     {
       status: 'active',
-      outputs: [
+      materials: [
         {
-          outputType: 'metal',
+          role: 'product',
           skuId: randomUUID(),
         },
       ],
@@ -246,7 +246,7 @@ test('builds a production roster from HR positions and records attendance', asyn
     { version: draft.version },
   );
   expect(missingMapping.status).toBe(400);
-  expect(await missingMapping.text()).toContain('OUTPUT_MAPPING_MISSING');
+  expect(await missingMapping.text()).toContain('OUTPUT_REQUIRED');
 
   const schedule = await admin.fetch(
     `/production/schedules?unitId=${unit.id}&scheduleDate=${workDate}&shift=day`,

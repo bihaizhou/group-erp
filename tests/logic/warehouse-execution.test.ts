@@ -138,6 +138,8 @@ test('posts partial purchase receipt/inspection/return, protects original quanti
   let source = await f.requestFire(demand, 'submit');
   source = await f.requestFire(source, 'approve', f.reviewer.session);
   const orderContent = f.orderContent('10');
+  orderContent.demandMode = 'request';
+  orderContent.temporaryReason = null;
   orderContent.lines[0].unitPrice = '19.90';
   orderContent.lines[0].allocations = [
     {
@@ -288,6 +290,8 @@ test('sales reservations consume their own held stock, protect other orders, and
   await f.orderRules('salesOrders');
   const makeOrder = async (quantity: string) => {
     const content = f.orderContent(quantity);
+    delete content.demandMode;
+    delete content.temporaryReason;
     let row = await f.create('/sales/orders', {
       content,
       requestKey: randomUUID(),
@@ -1226,6 +1230,8 @@ test('counts steel sheets in stock while pricing the purchase in tonnes through 
       baseQuantity,
     });
     content.lines[0].unitPrice = '4200';
+    content.demandMode = 'request';
+    content.temporaryReason = null;
     content.lines[0].allocations = [
       {
         requestId: request.id,

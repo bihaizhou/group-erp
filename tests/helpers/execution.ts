@@ -100,6 +100,8 @@ export const executionFixture = async (...args: Parameters<typeof fixture>) => {
     deliveryTerms: 'Partial delivery allowed',
     notes: 'Quantity verification',
     reason: '',
+    demandMode: 'temporary',
+    temporaryReason: 'Test fixture: no purchase request covers this demand.',
     lines: [line(quantity)],
   });
   const rules = async (

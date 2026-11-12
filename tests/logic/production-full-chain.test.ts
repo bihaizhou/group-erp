@@ -68,6 +68,30 @@ test('runs company -> schedule -> attendance -> shift report -> inbound draft ->
     expect(response.status).toBe(200);
     sandSku = (await response.json()).data;
   }
+  const oreName = await f.create('/materials/names', {
+    name: `Test ore material ${randomUUID().slice(0, 6)}`,
+    templateId: f.m.template.id,
+  });
+  let oreSku = await f.create('/materials/skus', {
+    name: 'Test ore SKU',
+    materialNameId: oreName.id,
+    baseUnitId: String(ton!.id),
+    managementMode: 'stock',
+    attributeValues: { model: 'ORE' },
+  });
+  for (const action of ['submit', 'approve'] as const) {
+    const response = await send(
+      action === 'submit' ? f.admin : f.reviewer.session,
+      `/materials/skus/${oreSku.id}/${action}`,
+      {
+        version: oreSku.lifecycleVersion,
+        requestKey: randomUUID(),
+        reason: 'Full-chain ore SKU',
+      },
+    );
+    expect(response.status).toBe(200);
+    oreSku = (await response.json()).data;
+  }
   await f.create('/materials/subjectSettings', {
     name: 'Test sand admission',
     subjectId: f.a.id,
@@ -98,8 +122,8 @@ test('runs company -> schedule -> attendance -> shift report -> inbound draft ->
   });
 
   const setupBody = (
-    outputs: {
-      outputType: string;
+    materials: {
+      role: string;
       skuId: string;
       defaultWarehouseId: string;
       notes: string;
@@ -111,41 +135,35 @@ test('runs company -> schedule -> attendance -> shift report -> inbound draft ->
     commissionDate: '2020-01-01',
     region: 'test',
     status: 'active',
-    outputs,
+    materials,
   });
-  const precision = await send(
+  const missing = await send(
     f.admin,
     `/production/setup/${f.unit.id}`,
     setupBody([
       {
-        outputType: 'metal',
-        skuId: f.m.sku.id,
+        role: 'product',
+        skuId: randomUUID(),
         defaultWarehouseId: f.warehouse.id,
-        notes: 'precision check',
+        notes: 'unknown sku',
       },
     ]),
     'PUT',
   );
-  expect(precision.status).toBe(400);
-  expect(JSON.stringify(await precision.json())).toContain(
-    'OUTPUT_UNIT_PRECISION',
-  );
-  await db.repository('materialSkus').updateOne({
-    filter: { id: f.m.sku.id },
-    values: { baseUnitId: String(ton!.id) },
-  });
+  expect(missing.status).toBe(400);
+  expect(JSON.stringify(await missing.json())).toContain('SKU_NOT_FOUND');
   const duplicate = await send(
     f.admin,
     `/production/setup/${f.unit.id}`,
     setupBody([
       {
-        outputType: 'metal',
+        role: 'product',
         skuId: f.m.sku.id,
         defaultWarehouseId: f.warehouse.id,
         notes: 'duplicate metal',
       },
       {
-        outputType: 'sand',
+        role: 'byproduct',
         skuId: f.m.sku.id,
         defaultWarehouseId: f.warehouse.id,
         notes: 'duplicate sand',
@@ -155,19 +173,28 @@ test('runs company -> schedule -> attendance -> shift report -> inbound draft ->
   );
   expect(duplicate.status).toBe(400);
   expect(JSON.stringify(await duplicate.json())).toContain(
-    'OUTPUT_SKU_DUPLICATE',
+    'DUPLICATE_MATERIAL',
   );
+  await db.repository('materialSkus').updateOne({
+    filter: { id: f.m.sku.id },
+    values: { baseUnitId: String(ton!.id) },
+  });
   const setup = await call(
     `/production/setup/${f.unit.id}`,
     setupBody([
       {
-        outputType: 'metal',
+        role: 'feedstock',
+        skuId: oreSku.id,
+        notes: 'test ore',
+      },
+      {
+        role: 'product',
         skuId: f.m.sku.id,
         defaultWarehouseId: f.warehouse.id,
         notes: 'test metal',
       },
       {
-        outputType: 'sand',
+        role: 'byproduct',
         skuId: sandSku.id,
         defaultWarehouseId: f.warehouse.id,
         notes: 'test sand',
@@ -179,10 +206,10 @@ test('runs company -> schedule -> attendance -> shift report -> inbound draft ->
     expect.objectContaining({ unitId: f.unit.id }),
   );
   expect(
-    setup.outputs.filter(
-      (output: { unitId?: string }) => output.unitId === f.unit.id,
+    setup.materials.filter(
+      (material: { unitId?: string }) => material.unitId === f.unit.id,
     ),
-  ).toHaveLength(2);
+  ).toHaveLength(3);
 
   const workDate = '2026-10-21';
   const savedSchedule = await call(
@@ -227,18 +254,29 @@ test('runs company -> schedule -> attendance -> shift report -> inbound draft ->
   );
   expect(attendance.summary).toMatchObject({ present: 1, overtimeMinutes: 60 });
 
-  const draft = await call('/production/shift-reports', {
-    unitId: f.unit.id,
-    reportDate: workDate,
-    shift: 'day',
-    processedQuantity: '100',
-    metalQuantity: '2.5',
-    sandQuantity: '70',
-    tailingsQuantity: '27.5',
-    runtimeMinutes: 600,
-    downtimeMinutes: 60,
-    notes: 'full-chain shift report',
-  });
+  const draftResponse = await call(
+    '/production/report',
+    {
+      unitId: f.unit.id,
+      reportDate: workDate,
+      shift: 'day',
+      report: {
+        runtimeMinutes: 600,
+        downtimeMinutes: 60,
+        notes: 'full-chain shift report',
+        materials: [
+          { skuId: oreSku.id, role: 'feedstock', quantity: '100' },
+          { skuId: f.m.sku.id, role: 'product', quantity: '2.5' },
+          { skuId: sandSku.id, role: 'byproduct', quantity: '70' },
+        ],
+      },
+      attendance: [],
+      downtime: [],
+      overtime: [],
+    },
+    'PUT',
+  );
+  const draft = draftResponse.report;
   const now = new Date().toISOString();
   const issueRequestId = randomUUID();
   const issueLineId = randomUUID();
@@ -510,18 +548,28 @@ test('runs company -> schedule -> attendance -> shift report -> inbound draft ->
 
   // Correction path: a confirmed report can be voided before any active
   // receipt exists, reopened, corrected and confirmed again.
-  const correctionDraft = await call('/production/shift-reports', {
-    unitId: f.unit.id,
-    reportDate: '2026-10-20',
-    shift: 'night',
-    processedQuantity: '90',
-    metalQuantity: '2',
-    sandQuantity: '60',
-    tailingsQuantity: '28',
-    runtimeMinutes: 540,
-    downtimeMinutes: 60,
-    notes: 'correction before inbound',
-  });
+  const correctionDraftResponse = await call(
+    '/production/report',
+    {
+      unitId: f.unit.id,
+      reportDate: '2026-10-20',
+      shift: 'night',
+      report: {
+        runtimeMinutes: 540,
+        downtimeMinutes: 60,
+        notes: 'correction before inbound',
+        materials: [
+          { skuId: f.m.sku.id, role: 'product', quantity: '2' },
+          { skuId: sandSku.id, role: 'byproduct', quantity: '60' },
+        ],
+      },
+      attendance: [],
+      downtime: [],
+      overtime: [],
+    },
+    'PUT',
+  );
+  const correctionDraft = correctionDraftResponse.report;
   const correctionConfirmed = await call(
     `/production/shift-reports/${correctionDraft.id}/confirm`,
     { version: correctionDraft.version },
@@ -542,20 +590,29 @@ test('runs company -> schedule -> attendance -> shift report -> inbound draft ->
     { version: voided.version },
   );
   expect(reopened.status).toBe('draft');
-  const corrected = await call(
-    `/production/shift-reports/${correctionDraft.id}`,
+  const correctedResponse = await call(
+    '/production/report',
     {
-      version: reopened.version,
-      processedQuantity: '92',
-      metalQuantity: '2.1',
-      sandQuantity: '61',
-      tailingsQuantity: '28.9',
-      runtimeMinutes: 540,
-      downtimeMinutes: 60,
-      notes: 'corrected before inbound',
+      unitId: f.unit.id,
+      reportDate: '2026-10-20',
+      shift: 'night',
+      report: {
+        version: reopened.version,
+        runtimeMinutes: 540,
+        downtimeMinutes: 60,
+        notes: 'corrected before inbound',
+        materials: [
+          { skuId: f.m.sku.id, role: 'product', quantity: '2.1' },
+          { skuId: sandSku.id, role: 'byproduct', quantity: '61' },
+        ],
+      },
+      attendance: [],
+      downtime: [],
+      overtime: [],
     },
     'PUT',
   );
+  const corrected = correctedResponse.report;
   const reconfirmed = await call(
     `/production/shift-reports/${correctionDraft.id}/confirm`,
     { version: corrected.version },
