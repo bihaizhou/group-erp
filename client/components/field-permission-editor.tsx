@@ -5,24 +5,17 @@ import {
 } from './field-permission-policies.js';
 
 /**
- * Grant ladder: 可见 ⊂ 只读 ⊂ 写入. The editor renders one checkbox per
- * rung; checking a rung checks every rung below it, unchecking one drops
- * every rung above it. Nothing checked means the field is hidden.
+ * Grant ladder: 可见 ⊂ 写入. The editor renders one checkbox per rung;
+ * checking 写入 also checks 可见, unchecking 写入 falls back to 可见.
+ * Nothing checked means the field is hidden.
  */
-const GRANTS = ['visible', 'readonly', 'write'] as const;
+const GRANTS = ['visible', 'write'] as const;
 type GrantLevel = (typeof GRANTS)[number];
 
 const rank = (level: FieldAccess | undefined): number =>
-  level === 'visible'
-    ? 1
-    : level === 'readonly'
-      ? 2
-      : level === 'write'
-        ? 3
-        : 0;
+  level === 'visible' ? 1 : level === 'write' ? 2 : 0;
 
-const rankOf = (option: GrantLevel): number =>
-  option === 'visible' ? 1 : option === 'readonly' ? 2 : 3;
+const rankOf = (option: GrantLevel): number => (option === 'visible' ? 1 : 2);
 
 /**
  * Field-level access for one page of one permission set. Fully controlled: the
@@ -152,15 +145,7 @@ function FieldPermissionTable({
                   onChange(
                     resource.resource,
                     field.field,
-                    checked ? 'readonly' : 'write',
-                  );
-                  return;
-                }
-                if (option === 'readonly') {
-                  onChange(
-                    resource.resource,
-                    field.field,
-                    checked ? 'visible' : 'readonly',
+                    checked ? 'visible' : 'write',
                   );
                   return;
                 }
@@ -176,7 +161,7 @@ function FieldPermissionTable({
                   {GRANTS.map((option) => {
                     const checked = currentRank >= rankOf(option);
                     // A field the page can never edit has no write option;
-                    // it can only stay hidden or be made visible/read-only.
+                    // it can only stay hidden or be made visible.
                     const disabled =
                       readOnly ||
                       (option === 'write' && field.writable === false);

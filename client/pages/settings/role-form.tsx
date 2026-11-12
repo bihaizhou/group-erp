@@ -174,7 +174,7 @@ function RoleEditor(): ReactElement {
   const roleKey = keyDraft ?? initial?.key ?? '';
   const grants = grantsDraft ?? initial?.grants ?? [];
   /**
-   * The grant ladder stores only explicit grants (visible/readonly/write);
+   * The grant ladder stores only explicit grants (visible/write);
    * `hidden` exists client-side as a marker for "explicitly cleared" so the
    * draft can override a legacy set whose default is write. The sentinel row
    * ($default.legacy) marks sets from before the ladder and is never a field.
@@ -182,7 +182,13 @@ function RoleEditor(): ReactElement {
   const legacyDefault = fieldPolicies.data?.data.legacyDefault ?? false;
   const resolveLevel = (
     access: FieldAccess | undefined,
-  ): FieldAccess | undefined => (access === 'hidden' ? undefined : access);
+  ): FieldAccess | undefined => {
+    if (access === 'hidden') return undefined;
+    // Rows written by the old three-rung editor meant the same as visible;
+    // the migration rewrites them, this just guards against stale reads.
+    if ((access as unknown as string) === 'readonly') return 'visible';
+    return access;
+  };
   const fieldBaseline = useMemo(() => {
     const levels: Record<string, FieldAccess> = {};
     for (const policy of fieldPolicies.data?.data.policies ?? []) {
@@ -217,9 +223,10 @@ function RoleEditor(): ReactElement {
     setFieldDraft((current) => {
       const next = { ...current };
       if (target === undefined) {
-        // Clearing a field whose default is write needs an explicit marker;
-        // otherwise dropping the draft key would fall back to write again.
-        if (fallback === 'write') next[levelKey] = 'hidden';
+        // Clearing a field needs an explicit marker whenever it would
+        // otherwise still show from its fallback (the legacy default or a
+        // stored grant); otherwise dropping the draft key is enough.
+        if (fallback !== undefined) next[levelKey] = 'hidden';
         else delete next[levelKey];
       } else if (target === fallback) {
         delete next[levelKey];
@@ -238,7 +245,7 @@ function RoleEditor(): ReactElement {
       .map((resource) => resource.resource)
       .sort((left, right) => right.length - left.length);
     for (const [levelKey, access] of Object.entries(fieldDraft)) {
-      if (access !== 'visible' && access !== 'readonly') continue;
+      if (access !== 'visible') continue;
       const resource = resourceIds.find((id) => levelKey.startsWith(`${id}.`));
       if (resource) resources.add(resource);
     }

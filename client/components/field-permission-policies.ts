@@ -17,7 +17,7 @@ export interface FieldPermissionResource {
   fields: CatalogField[];
 }
 
-export type FieldAccess = 'hidden' | 'visible' | 'readonly' | 'write';
+export type FieldAccess = 'hidden' | 'visible' | 'write';
 
 export interface FieldPolicy {
   resource: string;
@@ -33,7 +33,7 @@ export const fieldPolicyKey = (resource: string, field: string) =>
  * covers every catalog field, so saving one page can never erase another
  * page's policies. `undefined` (and the client-only `hidden` marker) mean
  * "not granted", which the server treats as hidden; only explicit grants
- * (visible/readonly/write) are stored — an unchecked field stays unchecked.
+ * (visible/write) are stored — an unchecked field stays unchecked.
  */
 export function buildFieldPolicies(
   resources: readonly FieldPermissionResource[],

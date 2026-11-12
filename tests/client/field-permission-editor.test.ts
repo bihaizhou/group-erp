@@ -29,7 +29,7 @@ describe('field permission policies', () => {
       buildFieldPolicies(resources, (resource, field) =>
         fieldPolicyKey(resource, field) ===
         fieldPolicyKey('production.report.material', 'bookQuantity')
-          ? 'readonly'
+          ? 'visible'
           : field === 'quantity'
             ? 'visible'
             : 'write',
@@ -43,7 +43,7 @@ describe('field permission policies', () => {
       {
         resource: 'production.report.material',
         field: 'bookQuantity',
-        access: 'readonly',
+        access: 'visible',
       },
       {
         resource: 'warehouse.inventory.balance',
@@ -73,7 +73,7 @@ describe('field permission policies', () => {
   });
 
   it('covers every catalog resource so one page cannot erase another', () => {
-    const policies = buildFieldPolicies(resources, () => 'readonly');
+    const policies = buildFieldPolicies(resources, () => 'visible');
     expect(policies).toHaveLength(3);
     expect(policies.map((policy) => policy.resource)).toContain(
       'warehouse.inventory.balance',
@@ -85,14 +85,14 @@ describe('field permission policies', () => {
       field === 'quantity'
         ? 'visible'
         : field === 'bookQuantity'
-          ? 'readonly'
+          ? 'visible'
           : field === 'available'
             ? 'write'
             : undefined,
     );
     expect(policies.map((policy) => policy.access)).toEqual([
       'visible',
-      'readonly',
+      'visible',
       'write',
     ]);
   });

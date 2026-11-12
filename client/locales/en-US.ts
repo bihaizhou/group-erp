@@ -40,10 +40,10 @@ const enUS = {
   actions: { ...systemEnUS.actions, signInAgain: 'Sign in again' },
   permissionGuide: {
     rolesDescription:
-      'Every page is configured through its fields: open a page and tick Visible, Read-only or Writable per field; unticked fields stay hidden. Back-office permissions live in the Administration tab. Save once.',
+      'Every page is configured through its fields: open a page and tick "Visible" or "Writable" per field; unticked fields stay hidden. Back-office permissions live in the Administration tab. Save once.',
     pages: 'Pages & Fields',
     pageHint:
-      'Open a page and tick permissions per field: Visible, Read-only and Writable cascade upward; unticked means hidden. A green dot marks pages with field settings.',
+      'Open a page and tick permissions per field: "Writable" implies "Visible", unticking "Writable" falls back to "Visible"; unticked means hidden. A green dot marks pages with field settings.',
     admin: 'Administration',
     adminHint: 'Manage roles, default access, users and account security.',
     saveHint:
@@ -56,7 +56,7 @@ const enUS = {
     openFor: 'Configure {{page}}',
     title: '{{page}} · Fields',
     description:
-      'Tick "Visible" for a field to appear; ticking "Read-only" also ticks Visible; ticking "Writable" ticks both below. Nothing ticked means the field stays hidden. A greyed-out "Writable" means the field can never be edited. Close when done; changes are saved with the role.',
+      'Tick "Visible" for a field to appear (view only); ticking "Writable" also ticks Visible. Nothing ticked means the field stays hidden. A greyed-out "Writable" means the field can never be edited. Close when done; changes are saved with the role.',
     accessible: 'Access granted',
     configured: 'Fields configured',
     sharedPages: 'These fields also apply to: {{pages}}',
@@ -67,7 +67,6 @@ const enUS = {
     stagedHint: 'Changes are staged and apply when you save below.',
     done: 'Done',
     levelVisible: 'Visible',
-    levelReadonly: 'Read-only',
     levelWrite: 'Writable',
   },
   fieldCatalog: {

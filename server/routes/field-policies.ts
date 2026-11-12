@@ -24,7 +24,7 @@ import { fieldCatalog } from '../providers/field-catalog.js';
 
 type Env = AuthEnv & AuthorizationEnv;
 
-const access = z.enum(['hidden', 'visible', 'readonly', 'write']);
+const access = z.enum(['hidden', 'visible', 'write']);
 
 const asText = (value: unknown): string =>
   typeof value === 'string' ? value : '';
@@ -156,7 +156,7 @@ export const fieldPolicyRoutes: AppApiRouteContribution<Application> =
           .map((row) => ({
             resource: asText(row.resource),
             field: asText(row.field),
-            access: row.access as 'hidden' | 'visible' | 'readonly' | 'write',
+            access: row.access as 'hidden' | 'visible' | 'write',
           }))
           .filter((row) => row.resource && row.field);
         const legacyDefault = policies.some(

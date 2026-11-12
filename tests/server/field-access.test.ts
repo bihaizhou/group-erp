@@ -14,7 +14,7 @@ const policies: FieldPolicyView[] = [
   {
     resource: 'production.report.material',
     field: 'stockQuantity',
-    access: 'readonly',
+    access: 'visible',
   },
   {
     resource: 'production.report.material',
@@ -30,7 +30,7 @@ describe('field access', () => {
     ).toBe('hidden');
     expect(
       accessFor(policies, 'production.report.material', 'stockQuantity'),
-    ).toBe('readonly');
+    ).toBe('visible');
     expect(accessFor(policies, 'production.report.material', 'quantity')).toBe(
       'write',
     );
@@ -75,7 +75,7 @@ describe('field access', () => {
           {
             resource: 'warehouse.inventory.balance',
             field: 'reservedQuantity',
-            access: 'readonly',
+            access: 'visible',
           },
         ],
         'warehouse.inventory.balance',

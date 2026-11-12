@@ -3,13 +3,10 @@ import type { DatabaseManager } from '@nocobase/db';
 import { fieldCatalog, type FieldCatalogEntry } from './field-catalog.js';
 
 /**
- * Grant ladder: hidden ⊂ visible ⊂ readonly ⊂ write. `visible` and
- * `readonly` are interchangeable for enforcement (both block writes and
- * both show the field); the ladder only exists so admins see a natural
- * checkbox cascade in the editor. `hidden` never leaves the server: the
- * absence of a policy means hidden under the new model.
+ * Grant ladder: hidden ⊂ visible ⊂ write. `hidden` never leaves the
+ * server: the absence of a policy means hidden under the new model.
  */
-export type FieldAccess = 'hidden' | 'visible' | 'readonly' | 'write';
+export type FieldAccess = 'hidden' | 'visible' | 'write';
 
 export interface FieldPolicyView {
   resource: string;
@@ -25,7 +22,6 @@ export interface FieldAccessPrincipal {
 const precedence: Record<FieldAccess, number> = {
   hidden: 0,
   visible: 1,
-  readonly: 1,
   write: 2,
 };
 
@@ -33,10 +29,7 @@ const asText = (value: unknown): string =>
   typeof value === 'string' ? value : '';
 
 const isAccess = (value: unknown): value is FieldAccess =>
-  value === 'hidden' ||
-  value === 'visible' ||
-  value === 'readonly' ||
-  value === 'write';
+  value === 'hidden' || value === 'visible' || value === 'write';
 
 /**
  * Model markers. Every permission set starts out legacy: an absent policy
