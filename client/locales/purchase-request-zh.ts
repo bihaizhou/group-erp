@@ -80,6 +80,8 @@ export const requestUi = {
   emptyTitle: '暂无采购申请',
   emptyHint: '新建申请，记录本公司的采购需求。',
   emptyReadOnly: '请联系有申请职责的同事创建申请。',
+  superAdminHint:
+    '系统管理员可以查看所有公司的申请；新建申请需要员工档案与岗位，请使用业务账号。',
   noResults: '没有匹配的申请',
   noResultsHint: '清除筛选或调整搜索条件。',
   actionsFor: '采购申请“{{code}}”的操作',

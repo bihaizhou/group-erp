@@ -1,4 +1,5 @@
 import { ApiClientError } from '@nocobase/app-client';
+import { useCan } from '@nocobase/app-plugin-authorization/client';
 import { AccessDenied } from '#components/access-denied';
 import { useEffect } from 'react';
 import { Link, Outlet, useLocation, useResolvedPath } from 'react-router';
@@ -63,6 +64,7 @@ export default function RequestsPage() {
     create = usePurchaseCan('create'),
     edit = usePurchaseCan('update'),
     identity = usePurchaseIdentity(),
+    unrestricted = useCan('unrestricted'),
     currentCompany = useCurrentCompany();
   const hasPosition =
     !!identity.data?.data.employee &&
@@ -347,7 +349,11 @@ export default function RequestsPage() {
                   </Button>
                 </>
               ) : null}
-              {tab === 'list' && create.can && rows && (total > 0 || hasFilters)
+              {tab === 'list' &&
+              create.can &&
+              hasPosition &&
+              rows &&
+              (total > 0 || hasFilters)
                 ? newButton
                 : null}
               {tab === 'list' ? (
@@ -363,6 +369,11 @@ export default function RequestsPage() {
           }
         />
         <ReadOnlyNotice canManage={edit.can} />
+        {unrestricted.can && !hasPosition ? (
+          <Alert>
+            <AlertDescription>{t(ui('superAdminHint'))}</AlertDescription>
+          </Alert>
+        ) : null}
         {identity.isPending ? (
           <Loading kind='table' />
         ) : identity.error ? (
@@ -370,7 +381,7 @@ export default function RequestsPage() {
             error={identity.error}
             retry={() => void identity.refetch()}
           />
-        ) : !hasPosition ? (
+        ) : !hasPosition && !unrestricted.can ? (
           <Alert variant='destructive'>
             <AlertDescription>
               {t(ui('noProcurementPositionHint'))}
@@ -487,7 +498,9 @@ export default function RequestsPage() {
                     {t(ui(create.can ? 'emptyHint' : 'emptyReadOnly'))}
                   </EmptyDescription>
                 </EmptyHeader>
-                {create.can && <EmptyContent>{newButton}</EmptyContent>}
+                {create.can && hasPosition && (
+                  <EmptyContent>{newButton}</EmptyContent>
+                )}
               </Empty>
             ) : (
               <div

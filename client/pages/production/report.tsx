@@ -391,6 +391,7 @@ export default function ProductionReportPage() {
     );
 
   const contextData = context.data?.data;
+  const superAdmin = !!contextData?.identity?.superAdmin;
 
   if (context.error)
     return (
@@ -409,7 +410,7 @@ export default function ProductionReportPage() {
 
   if (!contextData) return null;
 
-  if (!identity?.employee)
+  if (!identity?.employee && !identity?.superAdmin)
     return (
       <PageContainer>
         <PageHeader title={title} />
@@ -433,7 +434,7 @@ export default function ProductionReportPage() {
       </PageContainer>
     );
 
-  const readOnly = !contextData.canManage;
+  const readOnly = !contextData.canManage || superAdmin;
   const locked =
     readOnly || Boolean(data?.report && data.report.status !== 'draft');
   const existingDowntime = data?.downtime.events ?? [];
@@ -489,12 +490,18 @@ export default function ProductionReportPage() {
             <div className='text-xs text-muted-foreground'>
               {t('production.reportReporter')}
             </div>
-            <div className='text-sm font-medium'>{identity.employee.name}</div>
+            <div className='text-sm font-medium'>
+              {identity.employee?.name ?? '—'}
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      <ReadOnlyNotice canManage={contextData.canManage} canApprove={false} />
+      <ReadOnlyNotice
+        canManage={contextData.canManage && !superAdmin}
+        canApprove={false}
+        hint={superAdmin ? t('production.superAdminView') : undefined}
+      />
 
       <Card>
         <CardHeader>
@@ -1082,7 +1089,7 @@ export default function ProductionReportPage() {
           </Card>
 
           <div className='flex flex-wrap items-center gap-3'>
-            {contextData.canManage ? (
+            {!readOnly ? (
               <Button disabled={save.isPending} onClick={() => save.mutate()}>
                 <Save className='size-4' />
                 {save.isPending

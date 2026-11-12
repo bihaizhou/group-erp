@@ -410,6 +410,8 @@ export type ProductionIdentityUnit = {
   positionCode: string;
   positionName: string;
   primary: boolean;
+  subjectId?: string;
+  subjectName?: string;
 };
 
 export type ProductionIdentityReason =
@@ -424,6 +426,7 @@ export type ProductionIdentity = {
   today: string;
   defaultUnitId: string | null;
   reason: ProductionIdentityReason;
+  superAdmin?: boolean;
 };
 
 export type ProductionReportContext = {

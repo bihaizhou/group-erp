@@ -87,6 +87,8 @@ export const requestUi = {
   emptyTitle: 'No purchase requests yet',
   emptyHint: 'Create a request to record your company’s purchasing needs.',
   emptyReadOnly: 'Ask a requester to create a purchase request.',
+  superAdminHint:
+    'Administrators can review every company’s requests. Creating one needs an employee position — use a business account.',
   noResults: 'No matching requests',
   noResultsHint: 'Clear the filters or change your search.',
   actionsFor: 'Actions for purchase request "{{code}}"',
