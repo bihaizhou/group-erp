@@ -11,12 +11,13 @@ export interface FieldPermissionResource {
   fields: CatalogField[];
 }
 
-export type FieldAccess = 'hidden' | 'readonly' | 'write';
+/** `auto` leaves a field unstored so the default field access applies. */
+export type FieldAccess = 'auto' | 'hidden' | 'readonly' | 'write';
 
 export interface FieldPolicy {
   resource: string;
   field: string;
-  access: FieldAccess;
+  access: Exclude<FieldAccess, 'auto'>;
 }
 
 export const fieldPolicyKey = (resource: string, field: string) =>
@@ -25,19 +26,24 @@ export const fieldPolicyKey = (resource: string, field: string) =>
 /**
  * Turn the editor's current levels into the policy payload. The payload covers
  * every catalog field, so saving one page can never erase another page's
- * policies; `write` is the default and is not stored.
+ * policies; `auto` and `write` are defaults and are not stored.
  */
 export function buildFieldPolicies(
   resources: readonly FieldPermissionResource[],
   levelOf: (resource: string, field: string) => FieldAccess,
 ): FieldPolicy[] {
-  return resources
-    .flatMap((resource) =>
-      resource.fields.map((field) => ({
-        resource: resource.resource,
-        field: field.field,
-        access: levelOf(resource.resource, field.field),
-      })),
-    )
-    .filter((policy) => policy.access !== 'write');
+  const policies: FieldPolicy[] = [];
+  for (const resource of resources) {
+    for (const field of resource.fields) {
+      const access = levelOf(resource.resource, field.field);
+      if (access === 'hidden' || access === 'readonly') {
+        policies.push({
+          resource: resource.resource,
+          field: field.field,
+          access,
+        });
+      }
+    }
+  }
+  return policies;
 }

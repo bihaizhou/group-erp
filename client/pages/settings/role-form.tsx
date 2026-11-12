@@ -63,14 +63,15 @@ import {
   pageIdFromPermissionRow,
   pagesForFieldResource,
 } from './field-permission-pages.js';
-import { SlidersHorizontalIcon } from 'lucide-react';
 import { Button } from '#components/ui/button';
+import { Checkbox } from '#components/ui/checkbox';
 import { Input } from '#components/ui/input';
 import { Label } from '#components/ui/label';
 import { Badge } from '#components/ui/badge';
 import { ConfirmAction, SettingsError, SettingsLoading } from './shared.js';
 import { configurePermissionScopes } from './permission-filters.js';
 import {
+  permissionRowId,
   permissionSections,
   unconfiguredFilter,
   setPermissions,
@@ -178,7 +179,7 @@ function RoleEditor(): ReactElement {
   const fieldLevel = (resource: string, field: string): FieldAccess =>
     fieldDraft[fieldPolicyKey(resource, field)] ??
     fieldBaseline[fieldPolicyKey(resource, field)] ??
-    'write';
+    'auto';
   const setFieldLevel = (
     resource: string,
     field: string,
@@ -187,7 +188,7 @@ function RoleEditor(): ReactElement {
     const levelKey = fieldPolicyKey(resource, field);
     setFieldDraft((current) => {
       const next = { ...current };
-      if (access === (fieldBaseline[levelKey] ?? 'write')) {
+      if (access === (fieldBaseline[levelKey] ?? 'auto')) {
         delete next[levelKey];
       } else {
         next[levelKey] = access;
@@ -195,6 +196,24 @@ function RoleEditor(): ReactElement {
       return next;
     });
   };
+  const configuredPages = useMemo(() => {
+    const resources = new Set<string>();
+    for (const policy of fieldPolicies.data?.data.policies ?? []) {
+      resources.add(policy.resource);
+    }
+    const resourceIds = (fieldCatalog.data?.data.resources ?? [])
+      .map((resource) => resource.resource)
+      .sort((left, right) => right.length - left.length);
+    for (const levelKey of Object.keys(fieldDraft)) {
+      const resource = resourceIds.find((id) => levelKey.startsWith(`${id}.`));
+      if (resource) resources.add(resource);
+    }
+    const pages = new Set<string>();
+    for (const resource of resources) {
+      for (const pageId of pagesForFieldResource(resource)) pages.add(pageId);
+    }
+    return pages;
+  }, [fieldPolicies.data, fieldDraft, fieldCatalog.data]);
   const catalog = useMemo(() => {
     if (!options.data) return undefined;
     const pages = pagePermissionResources(
@@ -372,6 +391,28 @@ function RoleEditor(): ReactElement {
     );
   }, [fieldPage, pageLabels]);
 
+  const pageAccessRowId = fieldPage
+    ? permissionRowId({ type: 'page', id: fieldPage.id }, 'access')
+    : undefined;
+  const pageAccessible = Boolean(
+    fieldPage &&
+    grants.some(
+      (grant) =>
+        grant.resource.type === 'page' &&
+        grant.resource.id === fieldPage.id &&
+        grant.actions.some((action) => action.action === 'access'),
+    ),
+  );
+  const togglePageAccess = (enabled: boolean) => {
+    if (!catalog || !pageAccessRowId) return;
+    setGrantsDraft((current) =>
+      setPermissions(current ?? grants, catalog, [
+        { id: pageAccessRowId, enabled },
+      ]),
+    );
+    setDirty(true);
+  };
+
   return (
     <RouteChildPage>
       <PageContainer>
@@ -486,35 +527,19 @@ function RoleEditor(): ReactElement {
                 <PermissionEditor
                   sections={sections}
                   readOnly={!allowed || busy}
-                  renderNavigationExtra={(node) => {
+                  onNavigationOpen={(node) => {
                     const pageId = pageIdFromPermissionRow(node.rowId);
-                    const resources = fieldResourcesForPage(pageId);
-                    if (!pageId || resources.length === 0) return null;
-                    return (
-                      <Button
-                        type='button'
-                        variant='outline'
-                        size='sm'
-                        className='h-7 gap-1.5 px-2 text-xs'
-                        aria-label={t('fieldPermission.openFor', {
-                          page: node.label,
-                        })}
-                        onClick={() =>
-                          setFieldPage({
-                            id: pageId,
-                            label: node.label,
-                            path: node.path,
-                            resources,
-                          })
-                        }
-                      >
-                        <SlidersHorizontalIcon
-                          className='size-3.5'
-                          aria-hidden
-                        />
-                        {t('fieldPermission.open')}
-                      </Button>
-                    );
+                    if (!pageId) return;
+                    setFieldPage({
+                      id: pageId,
+                      label: node.label,
+                      path: node.path,
+                      resources: fieldResourcesForPage(pageId),
+                    });
+                  }}
+                  navigationConfigured={(node) => {
+                    const pageId = pageIdFromPermissionRow(node.rowId);
+                    return pageId ? configuredPages.has(pageId) : false;
                   }}
                   labels={{
                     dataRanges: (count) => t('settings.dataRanges', { count }),
@@ -544,6 +569,10 @@ function RoleEditor(): ReactElement {
                       t('settings.expandPermissionGroup', { name }),
                     collapseGroup: (name) =>
                       t('settings.collapsePermissionGroup', { name }),
+                    openPage: (name) =>
+                      t('fieldPermission.openFor', { page: name }),
+                    fieldsConfigured: t('fieldPermission.configured'),
+                    accessGranted: t('fieldPermission.accessible'),
                   }}
                   onEnabledChange={(id, enabled) => {
                     if (!catalog) return;
@@ -587,7 +616,7 @@ function RoleEditor(): ReactElement {
                     if (!open) setFieldPage(undefined);
                   }}
                 >
-                  <SheetContent className='data-[side=right]:sm:max-w-3xl gap-0 flex flex-col'>
+                  <SheetContent className='data-[side=right]:sm:max-w-4xl gap-0 flex flex-col'>
                     <SheetHeader className='border-b pr-12'>
                       <SheetTitle>
                         {t('fieldPermission.title', {
@@ -606,6 +635,31 @@ function RoleEditor(): ReactElement {
                       </SheetDescription>
                     </SheetHeader>
                     <div className='min-h-0 flex-1 overflow-y-auto p-4'>
+                      <div className='mb-5 rounded-md border bg-muted/30 p-3'>
+                        <div className='flex items-start gap-3'>
+                          <Checkbox
+                            id='page-access'
+                            className='mt-0.5'
+                            checked={pageAccessible}
+                            disabled={!allowed || busy}
+                            aria-describedby='page-access-hint'
+                            onCheckedChange={(checked) =>
+                              togglePageAccess(checked === true)
+                            }
+                          />
+                          <div className='grid gap-1'>
+                            <Label htmlFor='page-access'>
+                              {t('fieldPermission.pageAccess')}
+                            </Label>
+                            <p
+                              id='page-access-hint'
+                              className='text-xs text-muted-foreground'
+                            >
+                              {t('fieldPermission.pageAccessHint')}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
                       <PageFieldPermissionEditor
                         resources={(
                           fieldCatalog.data?.data.resources ?? []

@@ -936,4 +936,31 @@ describe('compact permission controls', () => {
       screen.queryByRole('button', { name: 'Fields for Unknown page' }),
     ).not.toBeInTheDocument();
   });
+
+  it('opens page rows instead of toggling checkboxes and marks configured fields', async () => {
+    const user = userEvent.setup();
+    const open = vi.fn();
+    render(
+      <PermissionEditor
+        sections={[treeSection]}
+        onEnabledChange={vi.fn()}
+        onLevelChange={vi.fn()}
+        onNavigationOpen={open}
+        navigationConfigured={(node) => node.label === 'Books'}
+      />,
+    );
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: /Configure Books/ }));
+    expect(open).toHaveBeenCalledWith(
+      expect.objectContaining({ label: 'Books', rowId: 'books' }),
+    );
+    expect(
+      screen.getByRole('button', {
+        name: /Configure Books, Access granted, Fields configured/,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole('button', { name: /Access granted/ }),
+    ).toHaveLength(2);
+  });
 });

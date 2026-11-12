@@ -36,9 +36,9 @@ const zhCN: AppResource = {
   actions: { ...systemZhCN.actions, signInAgain: '重新登录' },
   permissionGuide: {
     rolesDescription:
-      '先勾选页面，再点行尾“字段权限”设置字段；后台管理权限在“后台管理”标签里。保存一次即可。',
+      '点击页面设置访问和字段权限；后台管理权限在“后台管理”标签里。保存一次即可。',
     pageHint:
-      '勾选页面后，点行尾“字段权限”设置该页字段；页面和字段会一起保存。',
+      '点击页面进入设置：可授权访问，也可配置该页面的字段；绿点表示已配置字段。改完一起保存。',
     admin: '后台管理',
     adminHint:
       '管理角色、默认范围、用户与账号安全等系统功能；普通业务页面请在上面的“页面访问”里勾选。',
@@ -48,13 +48,18 @@ const zhCN: AppResource = {
     rolesLink: '去角色与权限配置',
   },
   fieldPermission: {
-    open: '字段权限',
-    openFor: '配置“{{page}}”的字段权限',
-    title: '{{page}} · 字段权限',
+    openFor: '配置“{{page}}”',
+    title: '{{page}} · 页面与字段',
     description:
-      '这里只列出属于该页面的字段。改完关闭即可，修改会和角色一起保存。',
+      '先设置页面访问，再设置字段权限。改完关闭即可，修改会和角色一起保存。',
+    pageAccess: '允许访问此页面',
+    pageAccessHint: '未授权时，该页面和字段配置都不会生效。',
+    accessible: '可访问',
+    configured: '已配置字段权限',
+    auto: '自动',
+    autoHint: '默认可写',
     sharedPages: '这些字段同时作用于：{{pages}}',
-    empty: '该页面没有可单独配置的字段。',
+    empty: '该页面没有可单独配置的字段，可只设置页面访问。',
     loading: '正在加载字段权限…',
     loadFailed: '字段权限加载失败。',
     readOnly: '只读：你可以查看但不能修改字段权限。',

@@ -40,9 +40,9 @@ const enUS = {
   actions: { ...systemEnUS.actions, signInAgain: 'Sign in again' },
   permissionGuide: {
     rolesDescription:
-      'Pick pages, then use “Field permissions” on a row for its fields. Administration permissions live under “Administration”. One save applies everything.',
+      'Open a page to set its access and field permissions. Administration permissions live under “Administration”. One save applies everything.',
     pageHint:
-      'Check a page, then use “Field permissions” at the end of its row. Pages and fields are saved together.',
+      'Open a page to grant access and configure its fields; a green dot means fields are configured. Everything is saved together.',
     admin: 'Administration',
     adminHint:
       'System settings, users, roles and permission configuration. Business pages belong under “Page access” above.',
@@ -53,13 +53,19 @@ const enUS = {
     rolesLink: 'Configure pages and fields in Roles',
   },
   fieldPermission: {
-    open: 'Field permissions',
-    openFor: 'Configure field permissions for {{page}}',
-    title: '{{page}} · Field permissions',
+    openFor: 'Configure {{page}}',
+    title: '{{page}} · Page and fields',
     description:
-      'Only fields that belong to this page are listed. Close when done; changes are saved with the role.',
+      'Set page access first, then its field permissions. Close when done; changes are saved with the role.',
+    pageAccess: 'Allow access to this page',
+    pageAccessHint:
+      'Without access, this page and its field permissions have no effect.',
+    accessible: 'Access granted',
+    configured: 'Fields configured',
+    auto: 'Auto',
+    autoHint: 'Default write',
     sharedPages: 'These fields also apply to: {{pages}}',
-    empty: 'This page has no configurable fields.',
+    empty: 'This page has no standalone fields; you can still set its access.',
     loading: 'Loading field permissions…',
     loadFailed: 'Could not load field permissions.',
     readOnly: 'Read-only: you can view but not change field permissions.',

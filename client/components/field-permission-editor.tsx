@@ -5,7 +5,7 @@ import {
   type FieldPermissionResource,
 } from './field-permission-policies.js';
 
-const LEVELS: readonly FieldAccess[] = ['hidden', 'readonly', 'write'];
+const LEVELS: readonly FieldAccess[] = ['auto', 'hidden', 'readonly', 'write'];
 
 /**
  * Field-level access for one page of one permission set. Fully controlled: the
@@ -92,6 +92,14 @@ function FieldPermissionTable({
   onChange: (resource: string, field: string, access: FieldAccess) => void;
 }) {
   const { t } = useTranslation();
+  const levelLabel = (level: FieldAccess) =>
+    level === 'auto'
+      ? t('fieldPermission.auto')
+      : t(`settings.fieldAccess.${level}`);
+  const levelHint = (level: FieldAccess) =>
+    level === 'auto'
+      ? t('fieldPermission.autoHint')
+      : t(`settings.fieldAccessHint.${level}`);
   return (
     <div className='space-y-2'>
       <div>
@@ -108,8 +116,8 @@ function FieldPermissionTable({
                 {t('settings.fieldPermissionField')}
               </th>
               {LEVELS.map((level) => (
-                <th key={level} className='px-3 py-2 text-left font-medium'>
-                  {t(`settings.fieldAccess.${level}`)}
+                <th key={level} className='px-2 py-2 text-left font-medium'>
+                  {levelLabel(level)}
                 </th>
               ))}
             </tr>
@@ -123,8 +131,8 @@ function FieldPermissionTable({
                     {field.titleKey ? t(field.titleKey) : field.label}
                   </td>
                   {LEVELS.map((option) => (
-                    <td key={option} className='px-3 py-2'>
-                      <label className='inline-flex cursor-pointer items-center gap-2'>
+                    <td key={option} className='px-2 py-2'>
+                      <label className='inline-flex cursor-pointer items-center gap-1.5'>
                         <input
                           type='radio'
                           name={fieldPolicyKey(resource.resource, field.field)}
@@ -134,8 +142,8 @@ function FieldPermissionTable({
                             onChange(resource.resource, field.field, option)
                           }
                         />
-                        <span className='text-xs text-muted-foreground'>
-                          {t(`settings.fieldAccessHint.${option}`)}
+                        <span className='text-xs whitespace-nowrap text-muted-foreground'>
+                          {levelHint(option)}
                         </span>
                       </label>
                     </td>
