@@ -34,26 +34,32 @@ const zhCN: AppResource = {
     readOnlyFill: '只读：确认、审批与发布由负责人操作。',
   },
   actions: { ...systemZhCN.actions, signInAgain: '重新登录' },
+  permissionGuide: {
+    rolesDescription:
+      '先勾选页面，再点行尾“字段权限”设置字段；后台管理权限在“后台管理”标签里。保存一次即可。',
+    pageHint:
+      '勾选页面后，点行尾“字段权限”设置该页字段；页面和字段会一起保存。',
+    admin: '后台管理',
+    adminHint:
+      '管理角色、默认范围、用户与账号安全等系统功能；普通业务页面请在上面的“页面访问”里勾选。',
+    saveHint: '页面、字段和后台权限会在点“保存”后一起生效。',
+    defaultAccessNote:
+      '这里只补充已有操作权限的用户能访问哪些记录，不控制页面与字段；页面和字段权限请到角色里配置。',
+    rolesLink: '去角色与权限配置',
+  },
   fieldPermission: {
     open: '字段权限',
     openFor: '配置“{{page}}”的字段权限',
-    pageHint:
-      '先配置页面访问，再点页面右侧的“字段权限”，设置该页面里每个字段的可见与可编辑程度。',
-    createHint:
-      '保存角色后，可在每个页面右侧的“字段权限”中配置该页面的字段权限。',
     title: '{{page}} · 字段权限',
     description:
-      '这里只列出属于该页面的字段。字段权限按页面保存并立即生效；页面访问权限随角色一起保存。',
+      '这里只列出属于该页面的字段。改完关闭即可，修改会和角色一起保存。',
     sharedPages: '这些字段同时作用于：{{pages}}',
     empty: '该页面没有可单独配置的字段。',
     loading: '正在加载字段权限…',
     loadFailed: '字段权限加载失败。',
     readOnly: '只读：你可以查看但不能修改字段权限。',
-    save: '保存字段权限',
-    saving: '正在保存…',
-    saveHint: '字段权限单独保存，不影响上方尚未保存的页面权限。',
-    saved: '已保存',
-    saveFailed: '保存失败，请重试。',
+    stagedHint: '修改会暂存，点页面下方的“保存”后生效。',
+    done: '完成',
   },
   // 侧边栏顶部的品牌标识；名称本身不随语言变化。
   brand: {

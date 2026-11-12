@@ -1,16 +1,18 @@
 import { FeedbackForm } from '#components/feedback-form';
 import { useAuthentication } from '@nocobase/app-plugin-authentication/client';
-import { useSubmission } from '@nocobase/app-client';
+import {
+  ApiClientError,
+  useApiClient,
+  useClientApplication,
+  useSubmission,
+  useToaster,
+} from '@nocobase/app-client';
+import { useQuery } from '@tanstack/react-query';
 import {
   useSettingsLeave,
   useSettingsData,
   useRolePermission,
 } from './hooks.js';
-import {
-  ApiClientError,
-  useClientApplication,
-  useToaster,
-} from '@nocobase/app-client';
 import { useTranslation } from '@nocobase/i18n/client';
 import {
   useAuthorizationClient,
@@ -42,6 +44,13 @@ import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { PermissionEditor } from '#components/permission-editor';
 import { PageFieldPermissionEditor } from '#components/field-permission-editor';
+import {
+  buildFieldPolicies,
+  fieldPolicyKey,
+  type FieldAccess,
+  type FieldPermissionResource,
+  type FieldPolicy,
+} from '#components/field-permission-policies';
 import {
   Sheet,
   SheetContent,
@@ -80,6 +89,7 @@ function RoleEditor(): ReactElement {
   const creating = !key;
   const { t } = useTranslation();
   const app = useClientApplication();
+  const api = useApiClient();
   const authz = useAuthorizationClient();
   const toaster = useToaster();
   const navigate = useNavigate();
@@ -104,12 +114,33 @@ function RoleEditor(): ReactElement {
   const options = useSettingsData<{ data: AuthorizationOptionsResponse }>(
     'authorization/permissionSets/options',
   );
+  const fieldCatalog = useQuery({
+    retry: false,
+    queryKey: ['field-policy-catalog'],
+    queryFn: ({ signal }) =>
+      api.request<{ data: { resources: FieldPermissionResource[] } }>({
+        path: 'field-policies/catalog',
+        signal,
+      }),
+  });
+  const fieldPolicies = useQuery({
+    retry: false,
+    enabled: Boolean(key),
+    queryKey: ['field-policies', key],
+    queryFn: ({ signal }) =>
+      api.request<{ data: { policies: FieldPolicy[] } }>({
+        path: 'field-policies',
+        query: { permissionSetKey: key },
+        signal,
+      }),
+  });
   const canCreate = useRolePermission('create');
   const canUpdate = useRolePermission('update');
   const [nameDraft, setNameDraft] = useState<string>();
   const [keyDraft, setKeyDraft] = useState<string>();
   const [grantsDraft, setGrantsDraft] = useState<readonly PermissionGrant[]>();
   const [dirty, setDirty] = useState(false);
+  const [fieldDraft, setFieldDraft] = useState<Record<string, FieldAccess>>({});
   const [editingScope, setEditingScope] = useState<string>();
   const [fieldPage, setFieldPage] = useState<FieldPermissionPageTarget>();
   const { session } = useAuthentication();
@@ -118,7 +149,9 @@ function RoleEditor(): ReactElement {
   });
   const [requestBusy, setRequestBusy] = useState(false);
   const busy = requestBusy || submission.submitting;
-  const leave = useSettingsLeave(dirty, busy);
+  const fieldDirty = Object.keys(fieldDraft).length > 0;
+  const hasChanges = dirty || fieldDirty;
+  const leave = useSettingsLeave(hasChanges, busy);
   const [error, setError] = useState<unknown>();
 
   const [reloadConfirm, setReloadConfirm] = useState(false);
@@ -135,6 +168,33 @@ function RoleEditor(): ReactElement {
   const name = nameDraft ?? (initial ? text(initial.title ?? initial.key) : '');
   const roleKey = keyDraft ?? initial?.key ?? '';
   const grants = grantsDraft ?? initial?.grants ?? [];
+  const fieldBaseline = useMemo(() => {
+    const levels: Record<string, FieldAccess> = {};
+    for (const policy of fieldPolicies.data?.data.policies ?? []) {
+      levels[fieldPolicyKey(policy.resource, policy.field)] = policy.access;
+    }
+    return levels;
+  }, [fieldPolicies.data]);
+  const fieldLevel = (resource: string, field: string): FieldAccess =>
+    fieldDraft[fieldPolicyKey(resource, field)] ??
+    fieldBaseline[fieldPolicyKey(resource, field)] ??
+    'write';
+  const setFieldLevel = (
+    resource: string,
+    field: string,
+    access: FieldAccess,
+  ) => {
+    const levelKey = fieldPolicyKey(resource, field);
+    setFieldDraft((current) => {
+      const next = { ...current };
+      if (access === (fieldBaseline[levelKey] ?? 'write')) {
+        delete next[levelKey];
+      } else {
+        next[levelKey] = access;
+      }
+      return next;
+    });
+  };
   const catalog = useMemo(() => {
     if (!options.data) return undefined;
     const pages = pagePermissionResources(
@@ -158,6 +218,7 @@ function RoleEditor(): ReactElement {
     search: location.search,
   };
   const originalRevisionRef = useRef<string | undefined>(undefined);
+  const createdKeyRef = useRef<string | undefined>(undefined);
   const save = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -179,26 +240,47 @@ function RoleEditor(): ReactElement {
       setError(undefined);
       setKeyConflict(false);
       try {
+        const targetKey = createdKeyRef.current ?? key;
+        const isCreate = !targetKey;
         originalRevisionRef.current ??= request.data?.data.revision;
         const input = {
           key: roleKey,
           title:
-            !creating && initial && nameDraft === undefined
+            !isCreate && initial && nameDraft === undefined
               ? initial.title
               : name.trim(),
           grants,
-          ...(!creating && request.data?.data.revision
+          ...(!isCreate && request.data?.data.revision
             ? { expectedRevision: originalRevisionRef.current }
             : {}),
         };
         const saved = await submission.run(
-          { key, creating, input },
+          { key: targetKey, creating: isCreate, input },
           (idempotencyKey) =>
-            creating
+            isCreate
               ? authz.createPermissionSet(input, idempotencyKey)
-              : authz.updatePermissionSet(key, input, idempotencyKey),
+              : authz.updatePermissionSet(
+                  targetKey ?? roleKey,
+                  input,
+                  idempotencyKey,
+                ),
         );
         if (!saved) return;
+        if (isCreate) createdKeyRef.current = roleKey;
+        if (fieldDirty) {
+          await api.request({
+            path: 'field-policies',
+            method: 'PUT',
+            json: {
+              permissionSetKey: roleKey,
+              policies: buildFieldPolicies(
+                fieldCatalog.data?.data.resources ?? [],
+                fieldLevel,
+              ),
+            },
+          });
+          setFieldDraft({});
+        }
         setDirty(false);
         parent.reload();
         toaster.show({ type: 'success', title: t('settings.saved', { name }) });
@@ -238,18 +320,22 @@ function RoleEditor(): ReactElement {
           setDirty(true);
         },
         !allowed || busy,
-      ).map((section) =>
-        section.id === 'pages'
-          ? {
-              ...section,
-              description: t(
-                creating
-                  ? 'fieldPermission.createHint'
-                  : 'fieldPermission.pageHint',
-              ),
-            }
-          : section,
-      )
+      ).map((section) => {
+        if (section.id === 'pages') {
+          return {
+            ...section,
+            description: t('permissionGuide.pageHint'),
+          };
+        }
+        if (section.id === 'configuration') {
+          return {
+            ...section,
+            title: t('permissionGuide.admin'),
+            description: t('permissionGuide.adminHint'),
+          };
+        }
+        return section;
+      })
     : [];
 
   /** Labels exactly as the page tree renders them, used for shared-resource notes. */
@@ -292,9 +378,9 @@ function RoleEditor(): ReactElement {
         <BackButton to={closeTo}>{t('settings.roles')}</BackButton>
         <PageHeader
           title={t(creating ? 'settings.newRole' : 'settings.editRole')}
-          description={t('settings.rolesDescription')}
+          description={t('permissionGuide.rolesDescription')}
           actions={
-            dirty ? (
+            hasChanges ? (
               <Badge variant='secondary'>{t('settings.unsaved')}</Badge>
             ) : undefined
           }
@@ -395,7 +481,7 @@ function RoleEditor(): ReactElement {
                   </p>
                 )}
                 <p className='text-xs text-muted-foreground'>
-                  {t('settings.permissionSaveHint')}
+                  {t('permissionGuide.saveHint')}
                 </p>
                 <PermissionEditor
                   sections={sections}
@@ -403,8 +489,7 @@ function RoleEditor(): ReactElement {
                   renderNavigationExtra={(node) => {
                     const pageId = pageIdFromPermissionRow(node.rowId);
                     const resources = fieldResourcesForPage(pageId);
-                    if (creating || !key || !pageId || resources.length === 0)
-                      return null;
+                    if (!pageId || resources.length === 0) return null;
                     return (
                       <Button
                         type='button'
@@ -489,20 +574,20 @@ function RoleEditor(): ReactElement {
                     {t('settings.cancel')}
                   </Button>
                   {allowed && (
-                    <Button type='submit' disabled={busy || !dirty}>
+                    <Button type='submit' disabled={busy || !hasChanges}>
                       {t(busy ? 'settings.saving' : 'settings.save')}
                     </Button>
                   )}
                 </div>
               </FeedbackForm>
-              {fieldPage && key && (
+              {fieldPage && (
                 <Sheet
                   open
                   onOpenChange={(open) => {
                     if (!open) setFieldPage(undefined);
                   }}
                 >
-                  <SheetContent className='data-[side=right]:sm:max-w-3xl gap-0'>
+                  <SheetContent className='data-[side=right]:sm:max-w-3xl gap-0 flex flex-col'>
                     <SheetHeader className='border-b pr-12'>
                       <SheetTitle>
                         {t('fieldPermission.title', {
@@ -522,12 +607,33 @@ function RoleEditor(): ReactElement {
                     </SheetHeader>
                     <div className='min-h-0 flex-1 overflow-y-auto p-4'>
                       <PageFieldPermissionEditor
-                        key={fieldPage.id}
-                        permissionSetKey={key}
-                        resourceIds={fieldPage.resources}
+                        resources={(
+                          fieldCatalog.data?.data.resources ?? []
+                        ).filter((resource) =>
+                          fieldPage.resources.includes(resource.resource),
+                        )}
+                        levelOf={fieldLevel}
+                        onChange={setFieldLevel}
                         sharedPages={sharedPages}
                         readOnly={!allowed || busy}
+                        loading={
+                          fieldCatalog.isPending ||
+                          (Boolean(key) && fieldPolicies.isPending)
+                        }
+                        failed={fieldCatalog.isError || fieldPolicies.isError}
                       />
+                    </div>
+                    <div className='flex flex-wrap items-center justify-between gap-3 border-t p-4'>
+                      <span className='text-xs text-muted-foreground'>
+                        {t('fieldPermission.stagedHint')}
+                      </span>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        onClick={() => setFieldPage(undefined)}
+                      >
+                        {t('fieldPermission.done')}
+                      </Button>
                     </div>
                   </SheetContent>
                 </Sheet>
@@ -546,6 +652,7 @@ function RoleEditor(): ReactElement {
             setNameDraft(undefined);
             setKeyDraft(undefined);
             setGrantsDraft(undefined);
+            setFieldDraft({});
             setDirty(false);
             setError(undefined);
             setReloadConfirm(false);

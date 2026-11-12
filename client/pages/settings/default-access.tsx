@@ -353,6 +353,17 @@ export default function DefaultAccessPage(): ReactElement {
         tab='default-access'
         actions={canShowCreate ? create : undefined}
       >
+        <Alert>
+          <AlertDescription className='flex flex-wrap items-center gap-x-3 gap-y-1'>
+            <span>{t('permissionGuide.defaultAccessNote')}</span>
+            <Link
+              className='font-medium underline underline-offset-4'
+              to='../roles'
+            >
+              {t('permissionGuide.rolesLink')}
+            </Link>
+          </AlertDescription>
+        </Alert>
         <div className='flex flex-wrap items-center gap-2'>
           <Input
             ref={searchRef}

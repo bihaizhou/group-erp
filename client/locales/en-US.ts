@@ -38,26 +38,33 @@ const enUS = {
       'Read-only: confirming, approving and publishing are reserved for managers.',
   },
   actions: { ...systemEnUS.actions, signInAgain: 'Sign in again' },
+  permissionGuide: {
+    rolesDescription:
+      'Pick pages, then use “Field permissions” on a row for its fields. Administration permissions live under “Administration”. One save applies everything.',
+    pageHint:
+      'Check a page, then use “Field permissions” at the end of its row. Pages and fields are saved together.',
+    admin: 'Administration',
+    adminHint:
+      'System settings, users, roles and permission configuration. Business pages belong under “Page access” above.',
+    saveHint:
+      'Page, field and administration changes take effect when you save.',
+    defaultAccessNote:
+      'This only extends which records users with existing operation access can reach. It does not control pages or fields; configure those on the role.',
+    rolesLink: 'Configure pages and fields in Roles',
+  },
   fieldPermission: {
     open: 'Field permissions',
     openFor: 'Configure field permissions for {{page}}',
-    pageHint:
-      'Page access comes first. Use “Field permissions” on a page to decide which of its fields this role can see or edit.',
-    createHint:
-      'Save the role first; then configure each page’s fields from its “Field permissions” button.',
     title: '{{page}} · Field permissions',
     description:
-      'Only fields that belong to this page are listed. Field permissions are saved per page and take effect immediately; page access is saved with the role.',
+      'Only fields that belong to this page are listed. Close when done; changes are saved with the role.',
     sharedPages: 'These fields also apply to: {{pages}}',
     empty: 'This page has no configurable fields.',
     loading: 'Loading field permissions…',
     loadFailed: 'Could not load field permissions.',
     readOnly: 'Read-only: you can view but not change field permissions.',
-    save: 'Save field permissions',
-    saving: 'Saving…',
-    saveHint: 'Saved separately from the unsaved page permissions above.',
-    saved: 'Saved',
-    saveFailed: 'Save failed. Try again.',
+    stagedHint: 'Changes are staged and apply when you save the role below.',
+    done: 'Done',
   },
   // The shell's lockup. The name is the brand itself and stays in its own script in every language.
   brand: {
