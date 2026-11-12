@@ -40,9 +40,9 @@ const enUS = {
   actions: { ...systemEnUS.actions, signInAgain: 'Sign in again' },
   permissionGuide: {
     rolesDescription:
-      'Open a page to set its access and field permissions. Administration permissions live under “Administration”. One save applies everything.',
+      'Configure fields by page; a page with field settings is granted automatically. Back-office permissions live in the Back office tab. Save once.',
     pageHint:
-      'Open a page to grant access and configure its fields; a green dot means fields are configured. Everything is saved together.',
+      'Open a page with fields to configure them. A green dot means fields are configured; pages without fields use the switch on the right for access.',
     admin: 'Administration',
     adminHint:
       'System settings, users, roles and permission configuration. Business pages belong under “Page access” above.',
@@ -54,22 +54,20 @@ const enUS = {
   },
   fieldPermission: {
     openFor: 'Configure {{page}}',
-    title: '{{page}} · Page and fields',
+    title: '{{page}} · Fields',
     description:
-      'Set page access first, then its field permissions. Close when done; changes are saved with the role.',
-    pageAccess: 'Allow access to this page',
-    pageAccessHint:
-      'Without access, this page and its field permissions have no effect.',
+      'Only editable fields on this page are listed. Close when done; changes are saved with the role.',
+    openAccessFor: 'Allow access to {{page}}',
+    accessLabel: 'Access',
     accessible: 'Access granted',
     configured: 'Fields configured',
     auto: 'Auto',
-    autoHint: 'Default write',
     sharedPages: 'These fields also apply to: {{pages}}',
-    empty: 'This page has no standalone fields; you can still set its access.',
+    empty: 'This page has no configurable fields.',
     loading: 'Loading field permissions…',
     loadFailed: 'Could not load field permissions.',
     readOnly: 'Read-only: you can view but not change field permissions.',
-    stagedHint: 'Changes are staged and apply when you save the role below.',
+    stagedHint: 'Changes are staged and apply when you save below.',
     done: 'Done',
   },
   // The shell's lockup. The name is the brand itself and stays in its own script in every language.

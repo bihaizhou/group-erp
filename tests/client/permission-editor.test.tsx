@@ -937,6 +937,43 @@ describe('compact permission controls', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('keeps page access on the row when a page has no configurable fields', async () => {
+    const user = userEvent.setup();
+    const open = vi.fn();
+    const access = vi.fn();
+    render(
+      <PermissionEditor
+        sections={[treeSection]}
+        onEnabledChange={vi.fn()}
+        onLevelChange={vi.fn()}
+        onNavigationOpen={open}
+        navigationConfigurable={(node) => node.label === 'Catalog'}
+        navigationConfigured={(node) => node.label === 'Books'}
+        onNavigationAccessChange={access}
+      />,
+    );
+    expect(
+      screen.queryByRole('button', { name: /Configure Books/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Configure Catalog/ }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole('switch')).toHaveLength(3);
+    await user.click(
+      screen.getByRole('switch', { name: /Allow access to Review loans/ }),
+    );
+    expect(access).toHaveBeenCalledWith(
+      expect.objectContaining({ rowId: 'review' }),
+      true,
+    );
+    const booksSwitches = screen.getAllByRole('switch', {
+      name: /Allow access to Books, Fields/,
+    });
+    expect(booksSwitches.length).toBeGreaterThan(0);
+    for (const item of booksSwitches)
+      expect(item).toHaveAttribute('aria-disabled', 'true');
+  });
+
   it('opens page rows instead of toggling checkboxes and marks configured fields', async () => {
     const user = userEvent.setup();
     const open = vi.fn();

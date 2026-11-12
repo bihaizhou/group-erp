@@ -96,18 +96,9 @@ function FieldPermissionTable({
     level === 'auto'
       ? t('fieldPermission.auto')
       : t(`settings.fieldAccess.${level}`);
-  const levelHint = (level: FieldAccess) =>
-    level === 'auto'
-      ? t('fieldPermission.autoHint')
-      : t(`settings.fieldAccessHint.${level}`);
   return (
     <div className='space-y-2'>
-      <div>
-        <p className='text-sm font-medium'>{t(resource.titleKey)}</p>
-        <p className='text-xs text-muted-foreground'>
-          {t(resource.descriptionKey)}
-        </p>
-      </div>
+      <p className='text-sm font-medium'>{t(resource.titleKey)}</p>
       <div className='overflow-hidden rounded-md border'>
         <table className='w-full text-sm'>
           <thead className='bg-muted/40 text-xs text-muted-foreground'>
@@ -116,7 +107,10 @@ function FieldPermissionTable({
                 {t('settings.fieldPermissionField')}
               </th>
               {LEVELS.map((level) => (
-                <th key={level} className='px-2 py-2 text-left font-medium'>
+                <th
+                  key={level}
+                  className='w-20 px-2 py-2 text-center font-medium'
+                >
                   {levelLabel(level)}
                 </th>
               ))}
@@ -131,21 +125,18 @@ function FieldPermissionTable({
                     {field.titleKey ? t(field.titleKey) : field.label}
                   </td>
                   {LEVELS.map((option) => (
-                    <td key={option} className='px-2 py-2'>
-                      <label className='inline-flex cursor-pointer items-center gap-1.5'>
-                        <input
-                          type='radio'
-                          name={fieldPolicyKey(resource.resource, field.field)}
-                          checked={level === option}
-                          disabled={readOnly}
-                          onChange={() =>
-                            onChange(resource.resource, field.field, option)
-                          }
-                        />
-                        <span className='text-xs whitespace-nowrap text-muted-foreground'>
-                          {levelHint(option)}
-                        </span>
-                      </label>
+                    <td key={option} className='px-2 py-2 text-center'>
+                      <input
+                        type='radio'
+                        className='size-4 cursor-pointer accent-primary'
+                        name={fieldPolicyKey(resource.resource, field.field)}
+                        aria-label={`${field.titleKey ? t(field.titleKey) : field.label} · ${levelLabel(option)}`}
+                        checked={level === option}
+                        disabled={readOnly}
+                        onChange={() =>
+                          onChange(resource.resource, field.field, option)
+                        }
+                      />
                     </td>
                   ))}
                 </tr>

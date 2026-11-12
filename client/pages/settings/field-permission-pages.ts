@@ -8,7 +8,14 @@
  * the role editor rather than failing silently at runtime.
  */
 export const pageFieldResources: Readonly<Record<string, readonly string[]>> = {
-  'production-report': ['production.report.material'],
+  'production-report': [
+    'production.report.material',
+    'production.report.shift',
+    'production.report.attendance',
+    'production.report.downtime',
+    'production.report.maintenance',
+    'production.report.overtime',
+  ],
   'procurement-suppliers': ['procurement.supplier.identity'],
   'procurement-orders': ['execution.document.line'],
   'sales-orders': ['execution.document.line'],

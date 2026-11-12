@@ -62,6 +62,7 @@
   --auth-brand-highlight: #8ca9ff;
   --auth-brand-muted: #b8c4df;
   --status-success: rgb(21 112 70);
+  --status-success-bright: #22c55e;
   --status-success-background: rgb(236 249 241);
   --status-warning: rgb(150 79 10);
   --status-warning-background: rgb(255 246 229);
@@ -107,6 +108,7 @@
   --brand-wordmark-via: #c6f1d6;
   --brand-wordmark-to: #8ade5f;
   --status-success: rgb(119 216 160);
+  --status-success-bright: #4ade80;
   --status-success-background: rgb(23 49 37);
   --status-warning: rgb(242 190 103);
   --status-warning-background: rgb(57 43 24);

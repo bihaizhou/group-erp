@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '#components/ui/select';
 import { Checkbox } from '#components/ui/checkbox';
+import { Switch } from '#components/ui/switch';
 import { LongTextPreview } from '#components/long-text';
 import {
   Empty,
@@ -133,8 +134,10 @@ export interface PermissionEditorLabels {
   readonly expandGroup?: (name: string) => string;
   readonly collapseGroup?: (name: string) => string;
   readonly openPage?: (name: string) => string;
+  readonly openAccess?: (name: string) => string;
   readonly fieldsConfigured?: string;
   readonly accessGranted?: string;
+  readonly accessLabel?: string;
   readonly selectAll?: string;
   readonly dataRanges?: (count: number) => string;
   readonly scopeExplanation?: string;
@@ -169,6 +172,15 @@ export interface PermissionEditorProps {
   readonly navigationConfigured?: (
     node: PermissionEditorNavigationNode,
   ) => boolean;
+  /** Pages without writable fields open no editor; their access switch stays. */
+  readonly navigationConfigurable?: (
+    node: PermissionEditorNavigationNode,
+  ) => boolean;
+  /** Toggles page access from the row without opening the page editor. */
+  readonly onNavigationAccessChange?: (
+    node: PermissionEditorNavigationNode,
+    enabled: boolean,
+  ) => void;
 }
 
 const DEFAULT_LABELS: Required<PermissionEditorLabels> = {
@@ -192,8 +204,10 @@ const DEFAULT_LABELS: Required<PermissionEditorLabels> = {
   expandGroup: (name) => `Expand ${name}`,
   collapseGroup: (name) => `Collapse ${name}`,
   openPage: (name) => `Configure ${name}`,
+  openAccess: (name) => `Allow access to ${name}`,
   fieldsConfigured: 'Fields configured',
   accessGranted: 'Access granted',
+  accessLabel: 'Access',
   selectAll: 'All',
   dataRanges: (count) => `Data ranges (${count})`,
   scopeExplanation:
@@ -300,14 +314,21 @@ function PermissionPageRow({
   node,
   row,
   configured,
+  configurable,
   labels,
   onOpen,
+  onAccessChange,
 }: {
   readonly node: PermissionEditorNavigationNode;
   readonly row: PermissionEditorRow;
   readonly configured: boolean;
+  readonly configurable: boolean;
   readonly labels: Required<PermissionEditorLabels>;
   readonly onOpen: (node: PermissionEditorNavigationNode) => void;
+  readonly onAccessChange?: (
+    node: PermissionEditorNavigationNode,
+    enabled: boolean,
+  ) => void;
 }): ReactElement {
   const state = [
     row.enabled ? labels.accessGranted : undefined,
@@ -315,24 +336,16 @@ function PermissionPageRow({
   ]
     .filter(Boolean)
     .join(', ');
-  return (
-    <button
-      type='button'
-      data-slot='permission-page-row'
-      aria-label={
-        state
-          ? `${labels.openPage(node.label)}, ${state}`
-          : labels.openPage(node.label)
-      }
-      onClick={() => onOpen(node)}
-      className='group flex w-full min-w-0 items-start gap-2 rounded-md px-2 py-2 text-left transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
-    >
+  const content = (
+    <>
       <span
         aria-hidden
         title={configured ? labels.fieldsConfigured : undefined}
         className={cn(
-          'mt-2 size-2 shrink-0 rounded-full',
-          configured ? 'bg-success' : 'bg-transparent',
+          'mt-2 size-2.5 shrink-0 rounded-full',
+          configured
+            ? 'bg-success-bright ring-2 ring-success-bright/25'
+            : 'bg-transparent',
         )}
       />
       <span className='grid min-w-0 flex-1 gap-1'>
@@ -345,11 +358,6 @@ function PermissionPageRow({
               {node.path}
             </code>
           )}
-          {row.enabled && (
-            <span className='text-xs text-muted-foreground'>
-              {labels.accessGranted}
-            </span>
-          )}
         </span>
         {node.hint && (
           <span className='text-xs leading-5 text-muted-foreground'>
@@ -357,11 +365,45 @@ function PermissionPageRow({
           </span>
         )}
       </span>
-      <ChevronRightIcon
-        aria-hidden
-        className='mt-1 size-4 shrink-0 text-muted-foreground'
-      />
-    </button>
+    </>
+  );
+  return (
+    <div className='group flex w-full min-w-0 items-start gap-2 rounded-md px-2 py-2 transition-colors hover:bg-hover'>
+      {configurable ? (
+        <button
+          type='button'
+          data-slot='permission-page-row'
+          aria-label={
+            state
+              ? `${labels.openPage(node.label)}, ${state}`
+              : labels.openPage(node.label)
+          }
+          onClick={() => onOpen(node)}
+          className='flex min-w-0 flex-1 items-start gap-2 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+        >
+          {content}
+        </button>
+      ) : (
+        <div className='flex min-w-0 flex-1 items-start gap-2'>{content}</div>
+      )}
+      {onAccessChange && !configurable && (
+        <div className='flex shrink-0 items-center gap-2 pt-1.5 text-xs text-muted-foreground'>
+          <span>{labels.accessLabel}</span>
+          <Switch
+            checked={row.enabled || configured}
+            disabled={configured}
+            aria-label={`${labels.openAccess(node.label)}${configured ? `, ${labels.fieldsConfigured}` : ''}`}
+            onCheckedChange={(checked) => onAccessChange(node, checked)}
+          />
+        </div>
+      )}
+      {configurable && (
+        <ChevronRightIcon
+          aria-hidden
+          className='mt-1 size-4 shrink-0 text-muted-foreground'
+        />
+      )}
+    </div>
   );
 }
 
@@ -377,6 +419,8 @@ function PermissionNavigation({
   renderNavigationExtra,
   onNavigationOpen,
   navigationConfigured,
+  navigationConfigurable,
+  onNavigationAccessChange,
   ...rowProps
 }: {
   readonly nodes: readonly PermissionEditorNavigationNode[];
@@ -395,6 +439,13 @@ function PermissionNavigation({
   readonly navigationConfigured?: (
     node: PermissionEditorNavigationNode,
   ) => boolean;
+  readonly navigationConfigurable?: (
+    node: PermissionEditorNavigationNode,
+  ) => boolean;
+  readonly onNavigationAccessChange?: (
+    node: PermissionEditorNavigationNode,
+    enabled: boolean,
+  ) => void;
 } & Omit<
   Parameters<typeof PermissionRow>[0],
   'row' | 'controlId' | 'presentation'
@@ -442,8 +493,10 @@ function PermissionNavigation({
                       node={node}
                       row={row}
                       configured={navigationConfigured?.(node) ?? false}
+                      configurable={navigationConfigurable?.(node) ?? true}
                       labels={rowProps.labels}
                       onOpen={onNavigationOpen}
+                      onAccessChange={onNavigationAccessChange}
                     />
                   ) : (
                     <PermissionRow
@@ -503,6 +556,8 @@ function PermissionNavigation({
                   renderNavigationExtra={renderNavigationExtra}
                   onNavigationOpen={onNavigationOpen}
                   navigationConfigured={navigationConfigured}
+                  navigationConfigurable={navigationConfigurable}
+                  onNavigationAccessChange={onNavigationAccessChange}
                 />
               </div>
             )}
@@ -799,6 +854,8 @@ export function PermissionEditor({
   renderNavigationExtra,
   onNavigationOpen,
   navigationConfigured,
+  navigationConfigurable,
+  onNavigationAccessChange,
 }: PermissionEditorProps): ReactElement {
   const words = { ...DEFAULT_LABELS, ...labels };
   const [selected, setSelected] = useState(sections[0]?.id ?? '');
@@ -1050,6 +1107,8 @@ export function PermissionEditor({
                       renderNavigationExtra={renderNavigationExtra}
                       onNavigationOpen={onNavigationOpen}
                       navigationConfigured={navigationConfigured}
+                      navigationConfigurable={navigationConfigurable}
+                      onNavigationAccessChange={onNavigationAccessChange}
                       section={section}
                       prefix={`${id}-${section.id}`}
                       collapsed={collapsed}

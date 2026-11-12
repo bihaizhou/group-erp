@@ -53,6 +53,7 @@
   --color-hover: var(--hover);
   --color-destructive: var(--destructive);
   --color-success: var(--status-success);
+  --color-success-bright: var(--status-success-bright);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

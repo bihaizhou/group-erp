@@ -36,12 +36,12 @@ const zhCN: AppResource = {
   actions: { ...systemZhCN.actions, signInAgain: '重新登录' },
   permissionGuide: {
     rolesDescription:
-      '点击页面设置访问和字段权限；后台管理权限在“后台管理”标签里。保存一次即可。',
+      '点击页面配置字段；有字段配置的页面会自动允许访问。后台管理权限在“后台管理”标签里。保存一次即可。',
     pageHint:
-      '点击页面进入设置：可授权访问，也可配置该页面的字段；绿点表示已配置字段。改完一起保存。',
+      '点击有字段的页面配置字段；绿点表示已配置字段。没有可配置字段的页面用右侧开关控制访问。改完一起保存。',
     admin: '后台管理',
     adminHint:
-      '管理角色、默认范围、用户与账号安全等系统功能；普通业务页面请在上面的“页面访问”里勾选。',
+      '管理角色、默认范围、用户与账号安全等系统功能；普通业务页面请在上面的“页面访问”里配置。',
     saveHint: '页面、字段和后台权限会在点“保存”后一起生效。',
     defaultAccessNote:
       '这里只补充已有操作权限的用户能访问哪些记录，不控制页面与字段；页面和字段权限请到角色里配置。',
@@ -49,21 +49,20 @@ const zhCN: AppResource = {
   },
   fieldPermission: {
     openFor: '配置“{{page}}”',
-    title: '{{page}} · 页面与字段',
+    title: '{{page}} · 字段',
     description:
-      '先设置页面访问，再设置字段权限。改完关闭即可，修改会和角色一起保存。',
-    pageAccess: '允许访问此页面',
-    pageAccessHint: '未授权时，该页面和字段配置都不会生效。',
+      '只列出这个页面可编辑的字段。改完关闭即可，修改会和角色一起保存。',
+    openAccessFor: '允许访问“{{page}}”',
+    accessLabel: '访问',
     accessible: '可访问',
     configured: '已配置字段权限',
     auto: '自动',
-    autoHint: '默认可写',
     sharedPages: '这些字段同时作用于：{{pages}}',
-    empty: '该页面没有可单独配置的字段，可只设置页面访问。',
+    empty: '该页面没有可配置的字段。',
     loading: '正在加载字段权限…',
     loadFailed: '字段权限加载失败。',
     readOnly: '只读：你可以查看但不能修改字段权限。',
-    stagedHint: '修改会暂存，点页面下方的“保存”后生效。',
+    stagedHint: '修改会暂存，点下方“保存”后生效。',
     done: '完成',
   },
   // 侧边栏顶部的品牌标识；名称本身不随语言变化。

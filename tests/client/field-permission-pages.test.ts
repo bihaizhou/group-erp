@@ -10,6 +10,11 @@ describe('field permission page ownership', () => {
   it('gives each page only the field resources it actually renders', () => {
     expect(fieldResourcesForPage('production-report')).toEqual([
       'production.report.material',
+      'production.report.shift',
+      'production.report.attendance',
+      'production.report.downtime',
+      'production.report.maintenance',
+      'production.report.overtime',
     ]);
     expect(fieldResourcesForPage('procurement-suppliers')).toEqual([
       'procurement.supplier.identity',
@@ -22,6 +27,7 @@ describe('field permission page ownership', () => {
       'warehouse.inventory.balance',
     ]);
     expect(fieldResourcesForPage('settings-roles')).toEqual([]);
+    expect(fieldResourcesForPage('production-overview')).toEqual([]);
     expect(fieldResourcesForPage(undefined)).toEqual([]);
   });
 

@@ -42,7 +42,10 @@ import { RouteChildPage } from '#components/route-child-page';
 import { BackButton } from '#components/back-button';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
-import { PermissionEditor } from '#components/permission-editor';
+import {
+  PermissionEditor,
+  type PermissionEditorNavigationNode,
+} from '#components/permission-editor';
 import { PageFieldPermissionEditor } from '#components/field-permission-editor';
 import {
   buildFieldPolicies,
@@ -64,7 +67,6 @@ import {
   pagesForFieldResource,
 } from './field-permission-pages.js';
 import { Button } from '#components/ui/button';
-import { Checkbox } from '#components/ui/checkbox';
 import { Input } from '#components/ui/input';
 import { Label } from '#components/ui/label';
 import { Badge } from '#components/ui/badge';
@@ -249,7 +251,14 @@ function RoleEditor(): ReactElement {
         form.querySelector<HTMLInputElement>('input:invalid')?.focus();
         return;
       }
-      const incomplete = unconfiguredFilter(grants);
+      const configuredPageGrants = [...configuredPages].map((pageId) => ({
+        id: permissionRowId({ type: 'page', id: pageId }, 'access'),
+        enabled: true,
+      }));
+      const effectiveGrants = configuredPageGrants.length
+        ? setPermissions(grants, catalog, configuredPageGrants)
+        : grants;
+      const incomplete = unconfiguredFilter(effectiveGrants);
       if (incomplete) {
         setEditingScope(incomplete);
         return;
@@ -268,7 +277,7 @@ function RoleEditor(): ReactElement {
             !isCreate && initial && nameDraft === undefined
               ? initial.title
               : name.trim(),
-          grants,
+          grants: effectiveGrants,
           ...(!isCreate && request.data?.data.revision
             ? { expectedRevision: originalRevisionRef.current }
             : {}),
@@ -391,23 +400,39 @@ function RoleEditor(): ReactElement {
     );
   }, [fieldPage, pageLabels]);
 
-  const pageAccessRowId = fieldPage
-    ? permissionRowId({ type: 'page', id: fieldPage.id }, 'access')
-    : undefined;
-  const pageAccessible = Boolean(
-    fieldPage &&
-    grants.some(
-      (grant) =>
-        grant.resource.type === 'page' &&
-        grant.resource.id === fieldPage.id &&
-        grant.actions.some((action) => action.action === 'access'),
-    ),
-  );
-  const togglePageAccess = (enabled: boolean) => {
-    if (!catalog || !pageAccessRowId) return;
+  const grantPageAccess = (pageId: string | undefined) => {
+    if (!catalog || !pageId) return;
     setGrantsDraft((current) =>
       setPermissions(current ?? grants, catalog, [
-        { id: pageAccessRowId, enabled },
+        {
+          id: permissionRowId({ type: 'page', id: pageId }, 'access'),
+          enabled: true,
+        },
+      ]),
+    );
+    setDirty(true);
+  };
+  const changeFieldLevel = (
+    resource: string,
+    field: string,
+    access: FieldAccess,
+  ) => {
+    setFieldLevel(resource, field, access);
+    if (access !== 'auto' && fieldPage) grantPageAccess(fieldPage.id);
+  };
+  const setPageAccess = (
+    node: PermissionEditorNavigationNode,
+    enabled: boolean,
+  ) => {
+    const pageId = pageIdFromPermissionRow(node.rowId);
+    if (!pageId || !catalog) return;
+    if (!enabled && configuredPages.has(pageId)) return;
+    setGrantsDraft((current) =>
+      setPermissions(current ?? grants, catalog, [
+        {
+          id: permissionRowId({ type: 'page', id: pageId }, 'access'),
+          enabled,
+        },
       ]),
     );
     setDirty(true);
@@ -541,6 +566,13 @@ function RoleEditor(): ReactElement {
                     const pageId = pageIdFromPermissionRow(node.rowId);
                     return pageId ? configuredPages.has(pageId) : false;
                   }}
+                  navigationConfigurable={(node) => {
+                    const pageId = pageIdFromPermissionRow(node.rowId);
+                    return pageId
+                      ? fieldResourcesForPage(pageId).length > 0
+                      : false;
+                  }}
+                  onNavigationAccessChange={setPageAccess}
                   labels={{
                     dataRanges: (count) => t('settings.dataRanges', { count }),
                     scopeExplanation: t('settings.scopeExplanation'),
@@ -571,8 +603,11 @@ function RoleEditor(): ReactElement {
                       t('settings.collapsePermissionGroup', { name }),
                     openPage: (name) =>
                       t('fieldPermission.openFor', { page: name }),
+                    openAccess: (name) =>
+                      t('fieldPermission.openAccessFor', { page: name }),
                     fieldsConfigured: t('fieldPermission.configured'),
                     accessGranted: t('fieldPermission.accessible'),
+                    accessLabel: t('fieldPermission.accessLabel'),
                   }}
                   onEnabledChange={(id, enabled) => {
                     if (!catalog) return;
@@ -635,31 +670,6 @@ function RoleEditor(): ReactElement {
                       </SheetDescription>
                     </SheetHeader>
                     <div className='min-h-0 flex-1 overflow-y-auto p-4'>
-                      <div className='mb-5 rounded-md border bg-muted/30 p-3'>
-                        <div className='flex items-start gap-3'>
-                          <Checkbox
-                            id='page-access'
-                            className='mt-0.5'
-                            checked={pageAccessible}
-                            disabled={!allowed || busy}
-                            aria-describedby='page-access-hint'
-                            onCheckedChange={(checked) =>
-                              togglePageAccess(checked === true)
-                            }
-                          />
-                          <div className='grid gap-1'>
-                            <Label htmlFor='page-access'>
-                              {t('fieldPermission.pageAccess')}
-                            </Label>
-                            <p
-                              id='page-access-hint'
-                              className='text-xs text-muted-foreground'
-                            >
-                              {t('fieldPermission.pageAccessHint')}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
                       <PageFieldPermissionEditor
                         resources={(
                           fieldCatalog.data?.data.resources ?? []
@@ -667,7 +677,7 @@ function RoleEditor(): ReactElement {
                           fieldPage.resources.includes(resource.resource),
                         )}
                         levelOf={fieldLevel}
-                        onChange={setFieldLevel}
+                        onChange={changeFieldLevel}
                         sharedPages={sharedPages}
                         readOnly={!allowed || busy}
                         loading={
