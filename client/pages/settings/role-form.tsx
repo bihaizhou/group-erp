@@ -356,7 +356,11 @@ function RoleEditor(): ReactElement {
         );
         if (!saved) return;
         if (isCreate) createdKeyRef.current = roleKey;
-        if (fieldDirty) {
+        // A newly created role has no field policies at all, which the server
+        // still treats as "allow everything". Save explicitly (possibly with
+        // an empty list) so the role enters the ladder model where nothing
+        // checked really means nothing granted.
+        if (fieldDirty || isCreate) {
           await api.request({
             path: 'field-policies',
             method: 'PUT',

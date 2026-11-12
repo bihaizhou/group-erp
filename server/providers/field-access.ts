@@ -39,12 +39,15 @@ const isAccess = (value: unknown): value is FieldAccess =>
   value === 'write';
 
 /**
- * Sentinels mark permission sets created before the grant ladder existed.
- * For those sets an absent policy still means writable; for sets without a
- * sentinel an absent policy means hidden (deny by default).
+ * Model markers. Every permission set starts out legacy: an absent policy
+ * means writable (default allow). The first explicit save of field policies
+ * writes a `$default.model` marker row, switching the set to the ladder model
+ * where an absent policy means hidden (deny by default). The `$default.legacy`
+ * row is written by the migration for pre-existing sets and only pins the
+ * editor's initial display; it is removed by the first explicit save.
  */
 const SENTINEL_RESOURCE = '$default';
-const SENTINEL_FIELD = 'legacy';
+const MODEL_FIELD = 'model';
 
 const catalogCache = new WeakMap<
   DatabaseManager,
@@ -64,8 +67,9 @@ const catalogFor = (
 /**
  * Effective field access for one account: every policy that belongs to one of
  * its permission sets, merged most-permissive-wins. Fields without a policy
- * are hidden (deny by default) unless the account still carries a legacy
- * permission set, where an absent policy stays writable.
+ * stay writable (default allow) unless at least one of the account's sets has
+ * switched to the ladder model, in which case every catalog field without a
+ * policy becomes hidden (deny by default).
  */
 export async function fieldPoliciesFor(
   database: DatabaseManager,
@@ -95,7 +99,7 @@ export async function fieldPoliciesFor(
       ),
     limit: 2000,
   });
-  const legacySets = new Set<string>();
+  let ladderModel = false;
   const merged = new Map<string, FieldPolicyView>();
   for (const row of policies) {
     const access = row.access;
@@ -103,8 +107,10 @@ export async function fieldPoliciesFor(
     const resource = asText(row.resource);
     const field = asText(row.field);
     if (!resource || !field) continue;
-    if (resource === SENTINEL_RESOURCE && field === SENTINEL_FIELD) {
-      legacySets.add(asText(row.permissionSetKey));
+    if (resource === SENTINEL_RESOURCE) {
+      if (field === MODEL_FIELD) {
+        ladderModel = true;
+      }
       continue;
     }
     const key = `${resource}.${field}`;
@@ -113,8 +119,8 @@ export async function fieldPoliciesFor(
       merged.set(key, { resource, field, access });
     }
   }
-  if (legacySets.size > 0) return [...merged.values()];
-  // New model: every catalog field is hidden unless explicitly granted.
+  if (!ladderModel) return [...merged.values()];
+  // Ladder model: every catalog field is hidden unless explicitly granted.
   const catalog = await catalogFor(database);
   for (const entry of catalog) {
     for (const item of entry.fields) {

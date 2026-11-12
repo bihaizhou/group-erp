@@ -164,9 +164,7 @@ export const fieldPolicyRoutes: AppApiRouteContribution<Application> =
         );
         return c.json({
           data: {
-            policies: policies.filter(
-              (row) => !(row.resource === '$default' && row.field === 'legacy'),
-            ),
+            policies: policies.filter((row) => !(row.resource === '$default')),
             legacyDefault,
           },
         });
@@ -194,8 +192,15 @@ export const fieldPolicyRoutes: AppApiRouteContribution<Application> =
           filter: { permissionSetKey },
           limit: 500,
         });
+        // The first explicit save switches the set to the ladder model:
+        // an absent policy then means hidden. The marker row itself is
+        // excluded from reads and effective merges.
+        const items = [
+          ...policies,
+          { resource: '$default', field: 'model', access: 'visible' as const },
+        ];
         const nextKeys = new Set(
-          policies.map((item) => `${item.resource}.${item.field}`),
+          items.map((item) => `${item.resource}.${item.field}`),
         );
         for (const row of existing) {
           const key = `${asText(row.resource)}.${asText(row.field)}`;
@@ -205,7 +210,7 @@ export const fieldPolicyRoutes: AppApiRouteContribution<Application> =
               .deleteOne({ filter: { id: asText(row.id) } });
           }
         }
-        for (const item of policies) {
+        for (const item of items) {
           const current = existing.find(
             (row) =>
               asText(row.resource) === item.resource &&
@@ -240,7 +245,11 @@ export const fieldPolicyRoutes: AppApiRouteContribution<Application> =
             });
           }
         }
-        return c.json({ data: { policies } });
+        return c.json({
+          data: {
+            policies: items.filter((item) => item.resource !== '$default'),
+          },
+        });
       },
     );
 
