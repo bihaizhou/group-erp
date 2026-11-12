@@ -16,7 +16,11 @@ export interface FieldCatalogResource {
   readonly descriptionKey: string;
   /** Fields that are structural rather than content, never offered. */
   readonly exclude?: readonly string[];
-  /** When set, only these fields are offered, in this order. */
+  /**
+   * Curated fields, offered first in this order. Other collection fields
+   * that have a UI title (new content fields added later) are appended
+   * automatically, so the permission editor stays in sync with the page.
+   */
   readonly only?: readonly string[];
   /** Fields for pages without a backing collection (dashboards, settings). */
   readonly manual?: readonly { field: string; titleKey: string }[];
@@ -1491,7 +1495,29 @@ const collectionFields = async (
         .map((name) => available.find((field) => String(field.name) === name))
         .filter(Boolean) as typeof available)
     : available;
-  return picked.map((field) => {
+  // Fields configured in the UI carry a title; append any such field that
+  // is not listed yet, so content fields added later show up in the
+  // permission editor automatically. Untitled columns (foreign keys,
+  // internal links) and relation fields stay out.
+  const pickedNames = new Set(picked.map((field) => String(field.name)));
+  const relationTypes = new Set([
+    'belongsTo',
+    'hasOne',
+    'hasMany',
+    'belongsToMany',
+  ]);
+  const titledExtras = resource.only
+    ? available.filter((field) => {
+        if (pickedNames.has(String(field.name))) return false;
+        const type = (field as { type?: unknown }).type;
+        if (typeof type === 'string' && relationTypes.has(type)) {
+          return false;
+        }
+        const title = (field as { title?: unknown }).title;
+        return typeof title === 'string' && title.trim().length > 0;
+      })
+    : [];
+  return [...picked, ...titledExtras].map((field) => {
     const title = (field as { title?: unknown }).title;
     return {
       field: String(field.name),

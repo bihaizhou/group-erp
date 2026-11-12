@@ -139,13 +139,18 @@ function FieldPermissionTable({
                       readOnly ||
                       (option === 'write' && field.writable === false);
                     return (
-                      <td key={option} className='px-2 py-2 text-center'>
+                      <td
+                        key={option}
+                        className={`px-2 py-2 text-center ${
+                          disabled ? 'bg-muted/40' : ''
+                        }`}
+                      >
                         <input
                           type='radio'
-                          className={`size-4 accent-primary ${
+                          className={`size-4 ${
                             disabled
-                              ? 'cursor-not-allowed opacity-40'
-                              : 'cursor-pointer'
+                              ? 'cursor-not-allowed [accent-color:var(--muted-foreground)]'
+                              : 'cursor-pointer accent-primary'
                           }`}
                           name={fieldPolicyKey(resource.resource, field.field)}
                           aria-label={`${fieldLabel} · ${levelLabel(option)}`}
