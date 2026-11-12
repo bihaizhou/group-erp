@@ -907,4 +907,33 @@ describe('compact permission controls', () => {
     ).toBeChecked();
     expect(change).not.toHaveBeenCalled();
   });
+  it('renders caller extras only on page rows, not on grouping rows', () => {
+    render(
+      <PermissionEditor
+        sections={[treeSection]}
+        onEnabledChange={vi.fn()}
+        onLevelChange={vi.fn()}
+        renderNavigationExtra={(node) =>
+          node.rowId ? (
+            <button type='button'>Fields for {node.label}</button>
+          ) : null
+        }
+      />,
+    );
+    expect(
+      screen.getByRole('button', { name: 'Fields for Catalog' }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Fields for Books' }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Fields for Review loans' }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Fields for Library' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Fields for Unknown page' }),
+    ).not.toBeInTheDocument();
+  });
 });

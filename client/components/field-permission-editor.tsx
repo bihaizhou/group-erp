@@ -38,15 +38,20 @@ const LEVELS: readonly FieldAccess[] = ['hidden', 'readonly', 'write'];
 const keyOf = (resource: string, field: string) => `${resource}.${field}`;
 
 /**
- * Field-level access for one permission set. Sits beside the page/action matrix
- * so an administrator decides, in one place, what a role may enter and what it
- * may only read.
+ * Field-level access for one page of one permission set. The host opens this
+ * from the page's row in the permission tree, so the page title and path above
+ * the sheet explain why these fields are grouped together.
  */
-export function FieldPermissionEditor({
+export function PageFieldPermissionEditor({
   permissionSetKey,
+  resourceIds,
+  sharedPages = {},
   readOnly = false,
 }: {
   permissionSetKey: string;
+  resourceIds: readonly string[];
+  /** Other pages rendering the same resource; editing here changes them too. */
+  sharedPages?: Readonly<Record<string, readonly string[]>>;
   readOnly?: boolean;
 }) {
   const api = useApiClient();
@@ -75,6 +80,9 @@ export function FieldPermissionEditor({
       }),
   });
   const resources = catalog.data?.data.resources ?? [];
+  const visible = resources.filter((resource) =>
+    resourceIds.includes(resource.resource),
+  );
 
   const stored = Object.fromEntries(
     (query.data?.data.policies ?? []).map((policy) => [
@@ -86,6 +94,8 @@ export function FieldPermissionEditor({
   const save = useMutation({
     retry: false,
     mutationFn: () => {
+      // Send the complete catalog so saving one page cannot erase another
+      // page's field policies.
       const policies = resources
         .flatMap((resource) =>
           resource.fields.map((field) => ({
@@ -125,62 +135,81 @@ export function FieldPermissionEditor({
     }));
   };
 
+  const loading = query.isPending || catalog.isPending;
+  const failed = query.isError || catalog.isError;
+  const ready = query.isSuccess && catalog.isSuccess;
+
   return (
-    <section className='space-y-4 rounded-lg border p-4'>
-      <div className='space-y-1'>
-        <h3 className='text-sm font-medium'>
-          {t('settings.fieldPermissions')}
-        </h3>
+    <div className='space-y-5'>
+      {readOnly && (
         <p className='text-xs text-muted-foreground'>
-          {t('settings.fieldPermissionsHint')}
+          {t('fieldPermission.readOnly')}
         </p>
-      </div>
-      {query.isPending && (
-        <p className='text-sm text-muted-foreground'>{t('settings.loading')}</p>
       )}
-      {query.error && (
+      {loading && (
+        <p className='text-sm text-muted-foreground'>
+          {t('fieldPermission.loading')}
+        </p>
+      )}
+      {failed && (
         <p className='text-sm text-destructive'>
-          {t('settings.fieldPermissionsLoadFailed')}
+          {t('fieldPermission.loadFailed')}
         </p>
       )}
-      {catalog.error && (
-        <p className='text-sm text-destructive'>
-          {t('settings.fieldPermissionsLoadFailed')}
+      {!loading && !failed && visible.length === 0 && (
+        <p className='text-sm text-muted-foreground'>
+          {t('fieldPermission.empty')}
         </p>
       )}
-      {resources.map((resource) => (
-        <FieldPermissionTable
-          key={resource.resource}
-          resource={resource}
-          levelOf={levelOf}
-          readOnly={readOnly}
-          onChange={setLevel}
-        />
-      ))}
-      <div className='flex items-center gap-3'>
-        <Button
-          type='button'
-          disabled={readOnly || save.isPending || resources.length === 0}
-          onClick={() => save.mutate()}
-        >
-          {t(
-            save.isPending
-              ? 'settings.saving'
-              : 'settings.fieldPermissionsSave',
-          )}
-        </Button>
-        {status === 'saved' && (
+      {visible.map((resource) => {
+        const others = sharedPages[resource.resource] ?? [];
+        return (
+          <section key={resource.resource} className='space-y-2'>
+            <FieldPermissionTable
+              resource={resource}
+              levelOf={levelOf}
+              readOnly={readOnly}
+              onChange={setLevel}
+            />
+            {others.length > 0 && (
+              <p className='text-xs text-muted-foreground'>
+                {t('fieldPermission.sharedPages', {
+                  pages: others.join(', '),
+                })}
+              </p>
+            )}
+          </section>
+        );
+      })}
+      {visible.length > 0 && (
+        <div className='flex flex-wrap items-center gap-x-3 gap-y-2 border-t pt-4'>
+          <Button
+            type='button'
+            disabled={readOnly || !ready || save.isPending}
+            onClick={() => save.mutate()}
+          >
+            {t(
+              save.isPending
+                ? 'fieldPermission.saving'
+                : 'fieldPermission.save',
+            )}
+          </Button>
           <span className='text-xs text-muted-foreground'>
-            {t('settings.fieldPermissionsSaved')}
+            {t('fieldPermission.saveHint')}
           </span>
-        )}
-        {status === 'error' && (
-          <span className='text-xs text-destructive'>
-            {t('settings.fieldPermissionsSaveFailed')}
-          </span>
-        )}
-      </div>
-    </section>
+          {status === 'saved' && (
+            <span className='text-xs text-muted-foreground'>
+              {t('fieldPermission.saved')}
+            </span>
+          )}
+          {status === 'error' && (
+            <span className='text-xs text-destructive'>
+              {t('fieldPermission.saveFailed')}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

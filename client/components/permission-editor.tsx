@@ -150,6 +150,13 @@ export interface PermissionEditorProps {
   ) => void;
   readonly onLevelChange: (rowId: string, level: string) => void;
   readonly labels?: Partial<PermissionEditorLabels> | undefined;
+  /**
+   * An optional action beside a page row. The host owns what it means; the
+   * editor only places it where the page and its granted actions are visible.
+   */
+  readonly renderNavigationExtra?: (
+    node: PermissionEditorNavigationNode,
+  ) => ReactNode;
 }
 
 const DEFAULT_LABELS: Required<PermissionEditorLabels> = {
@@ -283,6 +290,7 @@ function PermissionNavigation({
   onDisclosure,
   nested = false,
   counts,
+  renderNavigationExtra,
   ...rowProps
 }: {
   readonly nodes: readonly PermissionEditorNavigationNode[];
@@ -294,6 +302,9 @@ function PermissionNavigation({
   readonly nested?: boolean;
   readonly counts?:
     ReadonlyMap<string, { enabled: number; total: number }> | undefined;
+  readonly renderNavigationExtra?: (
+    node: PermissionEditorNavigationNode,
+  ) => ReactNode;
 } & Omit<
   Parameters<typeof PermissionRow>[0],
   'row' | 'controlId' | 'presentation'
@@ -363,6 +374,11 @@ function PermissionNavigation({
                   )}
                 </div>
               )}
+              {row && renderNavigationExtra && (
+                <div className='shrink-0 self-start pt-0.5'>
+                  {renderNavigationExtra(node)}
+                </div>
+              )}
               {!nested && !row && counts?.has(node.id) && (
                 <span className='ml-auto shrink-0 px-2 py-1.5 text-xs text-muted-foreground'>
                   {rowProps.labels.summary(
@@ -384,6 +400,7 @@ function PermissionNavigation({
                   onDisclosure={onDisclosure}
                   nested
                   counts={counts}
+                  renderNavigationExtra={renderNavigationExtra}
                 />
               </div>
             )}
@@ -677,6 +694,7 @@ export function PermissionEditor({
   onEnabledChange,
   onLevelChange,
   labels,
+  renderNavigationExtra,
 }: PermissionEditorProps): ReactElement {
   const words = { ...DEFAULT_LABELS, ...labels };
   const [selected, setSelected] = useState(sections[0]?.id ?? '');
@@ -925,6 +943,7 @@ export function PermissionEditor({
                   {section.navigation ? (
                     <PermissionNavigationSection
                       {...rowProps}
+                      renderNavigationExtra={renderNavigationExtra}
                       section={section}
                       prefix={`${id}-${section.id}`}
                       collapsed={collapsed}

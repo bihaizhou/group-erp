@@ -41,7 +41,20 @@ import { BackButton } from '#components/back-button';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { PermissionEditor } from '#components/permission-editor';
-import { FieldPermissionEditor } from '#components/field-permission-editor';
+import { PageFieldPermissionEditor } from '#components/field-permission-editor';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '#components/ui/sheet';
+import {
+  fieldResourcesForPage,
+  pageIdFromPermissionRow,
+  pagesForFieldResource,
+} from './field-permission-pages.js';
+import { SlidersHorizontalIcon } from 'lucide-react';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { Label } from '#components/ui/label';
@@ -54,6 +67,13 @@ import {
   setPermissions,
   setScope,
 } from './permissions-model.js';
+
+interface FieldPermissionPageTarget {
+  readonly id: string;
+  readonly label: string;
+  readonly path?: string | undefined;
+  readonly resources: readonly string[];
+}
 
 function RoleEditor(): ReactElement {
   const { key } = useParams();
@@ -91,6 +111,7 @@ function RoleEditor(): ReactElement {
   const [grantsDraft, setGrantsDraft] = useState<readonly PermissionGrant[]>();
   const [dirty, setDirty] = useState(false);
   const [editingScope, setEditingScope] = useState<string>();
+  const [fieldPage, setFieldPage] = useState<FieldPermissionPageTarget>();
   const { session } = useAuthentication();
   const submission = useSubmission({
     scope: `${session?.user.id}:settings:role:${key}`,
@@ -217,8 +238,54 @@ function RoleEditor(): ReactElement {
           setDirty(true);
         },
         !allowed || busy,
+      ).map((section) =>
+        section.id === 'pages'
+          ? {
+              ...section,
+              description: t(
+                creating
+                  ? 'fieldPermission.createHint'
+                  : 'fieldPermission.pageHint',
+              ),
+            }
+          : section,
       )
     : [];
+
+  /** Labels exactly as the page tree renders them, used for shared-resource notes. */
+  const pageLabels = useMemo(() => {
+    const labels = new Map<string, string>();
+    const pages = pagePermissionResources(
+      app.runtime.routes,
+      pagePermissionTitles,
+      (path) => t('settings.unnamedPage', { path }),
+    );
+    for (const page of pages) {
+      labels.set(
+        page.id,
+        typeof page.title === 'string'
+          ? page.title
+          : t(page.title.key, {
+              ns: page.title.ns,
+              defaultValue: page.title.defaultValue ?? page.title.key,
+            }),
+      );
+    }
+    return labels;
+  }, [app, t]);
+
+  const sharedPages = useMemo(() => {
+    if (!fieldPage) return {};
+    return Object.fromEntries(
+      fieldPage.resources.map((resource) => [
+        resource,
+        pagesForFieldResource(resource)
+          .filter((pageId) => pageId !== fieldPage.id)
+          .map((pageId) => pageLabels.get(pageId) ?? pageId),
+      ]),
+    );
+  }, [fieldPage, pageLabels]);
+
   return (
     <RouteChildPage>
       <PageContainer>
@@ -246,152 +313,226 @@ function RoleEditor(): ReactElement {
         ) : (
           !request.error &&
           !options.error && (
-            <FeedbackForm
-              submitting={busy}
-              error={error}
-              errorContent={<SettingsError error={error} inline />}
-              onSubmit={(event) => void save(event)}
-              noValidate
-              className='flex flex-col gap-6'
-            >
-              <div className='grid gap-4 sm:grid-cols-2'>
-                <div className='flex flex-col gap-2'>
-                  <Label htmlFor='role-key'>{t('settings.key')} *</Label>
-                  <Input
-                    id='role-key'
-                    name='key'
-                    required
-                    value={roleKey}
-                    disabled={!creating || !allowed || busy}
-                    aria-invalid={keyConflict || (submitted && !roleKey.trim())}
-                    aria-errormessage={
-                      keyConflict || (submitted && !roleKey.trim())
-                        ? 'role-key-error'
-                        : undefined
-                    }
-                    onChange={(event) => {
-                      setKeyConflict(false);
-                      setKeyDraft(event.target.value);
-                      setDirty(true);
-                    }}
-                  />
-                  {(keyConflict || (submitted && !roleKey.trim())) && (
-                    <p id='role-key-error' className='text-xs text-destructive'>
-                      {t(
-                        keyConflict
-                          ? 'settings.keyConflict'
-                          : 'settings.required',
-                      )}
-                    </p>
-                  )}
+            <>
+              <FeedbackForm
+                submitting={busy}
+                error={error}
+                errorContent={<SettingsError error={error} inline />}
+                onSubmit={(event) => void save(event)}
+                noValidate
+                className='flex flex-col gap-6'
+              >
+                <div className='grid gap-4 sm:grid-cols-2'>
+                  <div className='flex flex-col gap-2'>
+                    <Label htmlFor='role-key'>{t('settings.key')} *</Label>
+                    <Input
+                      id='role-key'
+                      name='key'
+                      required
+                      value={roleKey}
+                      disabled={!creating || !allowed || busy}
+                      aria-invalid={
+                        keyConflict || (submitted && !roleKey.trim())
+                      }
+                      aria-errormessage={
+                        keyConflict || (submitted && !roleKey.trim())
+                          ? 'role-key-error'
+                          : undefined
+                      }
+                      onChange={(event) => {
+                        setKeyConflict(false);
+                        setKeyDraft(event.target.value);
+                        setDirty(true);
+                      }}
+                    />
+                    {(keyConflict || (submitted && !roleKey.trim())) && (
+                      <p
+                        id='role-key-error'
+                        className='text-xs text-destructive'
+                      >
+                        {t(
+                          keyConflict
+                            ? 'settings.keyConflict'
+                            : 'settings.required',
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  <div className='flex flex-col gap-2'>
+                    <Label htmlFor='role-name'>
+                      {t('settings.roleName')} *
+                    </Label>
+                    <Input
+                      id='role-name'
+                      name='title'
+                      required
+                      value={name}
+                      disabled={!allowed || busy}
+                      aria-invalid={submitted && !name.trim()}
+                      aria-errormessage={
+                        submitted && !name.trim()
+                          ? 'role-name-error'
+                          : undefined
+                      }
+                      onChange={(event) => {
+                        setNameDraft(event.target.value);
+                        setDirty(true);
+                      }}
+                    />
+                    {submitted && !name.trim() && (
+                      <p
+                        id='role-name-error'
+                        className='text-xs text-destructive'
+                      >
+                        {t('settings.required')}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className='flex flex-col gap-2'>
-                  <Label htmlFor='role-name'>{t('settings.roleName')} *</Label>
-                  <Input
-                    id='role-name'
-                    name='title'
-                    required
-                    value={name}
-                    disabled={!allowed || busy}
-                    aria-invalid={submitted && !name.trim()}
-                    aria-errormessage={
-                      submitted && !name.trim() ? 'role-name-error' : undefined
-                    }
-                    onChange={(event) => {
-                      setNameDraft(event.target.value);
-                      setDirty(true);
-                    }}
-                  />
-                  {submitted && !name.trim() && (
-                    <p
-                      id='role-name-error'
-                      className='text-xs text-destructive'
-                    >
-                      {t('settings.required')}
-                    </p>
-                  )}
-                </div>
-              </div>
-              {request.data?.data.protection && (
-                <p className='text-sm text-muted-foreground'>
-                  {t('settings.protectedHint')}
-                </p>
-              )}
-              <p className='text-xs text-muted-foreground'>
-                {t('settings.permissionSaveHint')}
-              </p>
-              <PermissionEditor
-                sections={sections}
-                readOnly={!allowed || busy}
-                labels={{
-                  dataRanges: (count) => t('settings.dataRanges', { count }),
-                  scopeExplanation: t('settings.scopeExplanation'),
-                  scopeHintFor: (name) => t('settings.scopeHintFor', { name }),
-                  levelFor: (name) => t('settings.levelFor', { name }),
-                  search: t('settings.permissionSearch'),
-                  enabledOnly: t('settings.enabledOnly'),
-                  granted: t('settings.permissionGranted'),
-                  ungranted: t('settings.permissionUngranted'),
-                  selectAll: t('settings.permissionAll'),
-                  authorizationStatus: t('settings.permissionStatus'),
-                  clearSearch: t('settings.permissionClearSearch'),
-                  collapseAll: t('settings.permissionCollapseAll'),
-                  expandAll: t('settings.permissionExpandAll'),
-                  summary: (enabled, total) =>
-                    t('settings.permissionSummary', { enabled, total }),
-                  clear: t('settings.clear'),
-                  empty: t('settings.noPermissions'),
-                  emptyDescription: t('settings.permissionEmptyHint'),
-                  readOnly: t('settings.permissionReadOnlyHint'),
-                  managedPermission: t('settings.permissionManagedHint'),
-                  noResults: t('settings.noResults'),
-                  navigation: t('settings.permissionCategories'),
-                  expandGroup: (name) =>
-                    t('settings.expandPermissionGroup', { name }),
-                  collapseGroup: (name) =>
-                    t('settings.collapsePermissionGroup', { name }),
-                }}
-                onEnabledChange={(id, enabled) => {
-                  if (!catalog) return;
-                  setGrantsDraft((current) =>
-                    setPermissions(current ?? grants, catalog, [
-                      { id, enabled },
-                    ]),
-                  );
-                  setDirty(true);
-                }}
-                onLevelChange={(id, value) => {
-                  if (value === 'customFilter') {
-                    setEditingScope(id);
-                    return;
-                  }
-                  setGrantsDraft((current) =>
-                    setScope(current ?? grants, id, value),
-                  );
-                  setDirty(true);
-                }}
-              />
-              {!creating && key && (
-                <FieldPermissionEditor
-                  permissionSetKey={key}
-                  readOnly={!allowed || busy}
-                />
-              )}
-              <div className='sticky bottom-0 flex justify-end gap-2 border-t bg-background py-4'>
-                <Button
-                  variant='outline'
-                  disabled={busy}
-                  onClick={() => void navigate(closeTo)}
-                >
-                  {t('settings.cancel')}
-                </Button>
-                {allowed && (
-                  <Button type='submit' disabled={busy || !dirty}>
-                    {t(busy ? 'settings.saving' : 'settings.save')}
-                  </Button>
+                {request.data?.data.protection && (
+                  <p className='text-sm text-muted-foreground'>
+                    {t('settings.protectedHint')}
+                  </p>
                 )}
-              </div>
-            </FeedbackForm>
+                <p className='text-xs text-muted-foreground'>
+                  {t('settings.permissionSaveHint')}
+                </p>
+                <PermissionEditor
+                  sections={sections}
+                  readOnly={!allowed || busy}
+                  renderNavigationExtra={(node) => {
+                    const pageId = pageIdFromPermissionRow(node.rowId);
+                    const resources = fieldResourcesForPage(pageId);
+                    if (creating || !key || !pageId || resources.length === 0)
+                      return null;
+                    return (
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        className='h-7 gap-1.5 px-2 text-xs'
+                        aria-label={t('fieldPermission.openFor', {
+                          page: node.label,
+                        })}
+                        onClick={() =>
+                          setFieldPage({
+                            id: pageId,
+                            label: node.label,
+                            path: node.path,
+                            resources,
+                          })
+                        }
+                      >
+                        <SlidersHorizontalIcon
+                          className='size-3.5'
+                          aria-hidden
+                        />
+                        {t('fieldPermission.open')}
+                      </Button>
+                    );
+                  }}
+                  labels={{
+                    dataRanges: (count) => t('settings.dataRanges', { count }),
+                    scopeExplanation: t('settings.scopeExplanation'),
+                    scopeHintFor: (name) =>
+                      t('settings.scopeHintFor', { name }),
+                    levelFor: (name) => t('settings.levelFor', { name }),
+                    search: t('settings.permissionSearch'),
+                    enabledOnly: t('settings.enabledOnly'),
+                    granted: t('settings.permissionGranted'),
+                    ungranted: t('settings.permissionUngranted'),
+                    selectAll: t('settings.permissionAll'),
+                    authorizationStatus: t('settings.permissionStatus'),
+                    clearSearch: t('settings.permissionClearSearch'),
+                    collapseAll: t('settings.permissionCollapseAll'),
+                    expandAll: t('settings.permissionExpandAll'),
+                    summary: (enabled, total) =>
+                      t('settings.permissionSummary', { enabled, total }),
+                    clear: t('settings.clear'),
+                    empty: t('settings.noPermissions'),
+                    emptyDescription: t('settings.permissionEmptyHint'),
+                    readOnly: t('settings.permissionReadOnlyHint'),
+                    managedPermission: t('settings.permissionManagedHint'),
+                    noResults: t('settings.noResults'),
+                    navigation: t('settings.permissionCategories'),
+                    expandGroup: (name) =>
+                      t('settings.expandPermissionGroup', { name }),
+                    collapseGroup: (name) =>
+                      t('settings.collapsePermissionGroup', { name }),
+                  }}
+                  onEnabledChange={(id, enabled) => {
+                    if (!catalog) return;
+                    setGrantsDraft((current) =>
+                      setPermissions(current ?? grants, catalog, [
+                        { id, enabled },
+                      ]),
+                    );
+                    setDirty(true);
+                  }}
+                  onLevelChange={(id, value) => {
+                    if (value === 'customFilter') {
+                      setEditingScope(id);
+                      return;
+                    }
+                    setGrantsDraft((current) =>
+                      setScope(current ?? grants, id, value),
+                    );
+                    setDirty(true);
+                  }}
+                />
+                <div className='sticky bottom-0 flex justify-end gap-2 border-t bg-background py-4'>
+                  <Button
+                    variant='outline'
+                    disabled={busy}
+                    onClick={() => void navigate(closeTo)}
+                  >
+                    {t('settings.cancel')}
+                  </Button>
+                  {allowed && (
+                    <Button type='submit' disabled={busy || !dirty}>
+                      {t(busy ? 'settings.saving' : 'settings.save')}
+                    </Button>
+                  )}
+                </div>
+              </FeedbackForm>
+              {fieldPage && key && (
+                <Sheet
+                  open
+                  onOpenChange={(open) => {
+                    if (!open) setFieldPage(undefined);
+                  }}
+                >
+                  <SheetContent className='data-[side=right]:sm:max-w-3xl gap-0'>
+                    <SheetHeader className='border-b pr-12'>
+                      <SheetTitle>
+                        {t('fieldPermission.title', {
+                          page: fieldPage.label,
+                        })}
+                      </SheetTitle>
+                      <SheetDescription className='space-y-1'>
+                        {fieldPage.path && (
+                          <code className='block text-xs [overflow-wrap:anywhere]'>
+                            {fieldPage.path}
+                          </code>
+                        )}
+                        <span className='block'>
+                          {t('fieldPermission.description')}
+                        </span>
+                      </SheetDescription>
+                    </SheetHeader>
+                    <div className='min-h-0 flex-1 overflow-y-auto p-4'>
+                      <PageFieldPermissionEditor
+                        key={fieldPage.id}
+                        permissionSetKey={key}
+                        resourceIds={fieldPage.resources}
+                        sharedPages={sharedPages}
+                        readOnly={!allowed || busy}
+                      />
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              )}
+            </>
           )
         )}
         {leave.dialog}
