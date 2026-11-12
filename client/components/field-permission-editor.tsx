@@ -5,7 +5,7 @@ import {
   type FieldPermissionResource,
 } from './field-permission-policies.js';
 
-const LEVELS: readonly FieldAccess[] = ['auto', 'hidden', 'readonly', 'write'];
+const LEVELS: readonly FieldAccess[] = ['hidden', 'readonly', 'write'];
 
 /**
  * Field-level access for one page of one permission set. Fully controlled: the
@@ -92,10 +92,7 @@ function FieldPermissionTable({
   onChange: (resource: string, field: string, access: FieldAccess) => void;
 }) {
   const { t } = useTranslation();
-  const levelLabel = (level: FieldAccess) =>
-    level === 'auto'
-      ? t('fieldPermission.auto')
-      : t(`settings.fieldAccess.${level}`);
+  const levelLabel = (level: FieldAccess) => t(`settings.fieldAccess.${level}`);
   return (
     <div className='space-y-2'>
       <p className='text-sm font-medium'>{t(resource.titleKey)}</p>

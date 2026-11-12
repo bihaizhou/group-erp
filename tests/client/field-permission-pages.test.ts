@@ -18,27 +18,42 @@ describe('field permission page ownership', () => {
     ]);
     expect(fieldResourcesForPage('procurement-suppliers')).toEqual([
       'procurement.supplier.identity',
+      'procurement.supplier.base',
     ]);
     expect(fieldResourcesForPage('people-employees')).toEqual([
+      'people.employee',
       'people.employee.contact',
       'people.employee.grade',
     ]);
     expect(fieldResourcesForPage('warehouse-inventory')).toEqual([
       'warehouse.inventory.balance',
     ]);
+    expect(fieldResourcesForPage('production-overview')).toEqual([
+      'production.overview',
+    ]);
+    expect(fieldResourcesForPage('hse-overview')).toEqual(['hse.overview']);
+    expect(fieldResourcesForPage('warehouse-material-history')).toEqual([
+      'materials.history',
+    ]);
+    expect(fieldResourcesForPage('requisitions-requests')).toEqual([
+      'issue.request',
+      'issue.request.line',
+    ]);
+    expect(fieldResourcesForPage('people-approval-settings')).toEqual([
+      'people.approvalSettings',
+    ]);
     expect(fieldResourcesForPage('settings-roles')).toEqual([]);
-    expect(fieldResourcesForPage('production-overview')).toEqual([]);
     expect(fieldResourcesForPage(undefined)).toEqual([]);
   });
 
   it('finds every page sharing one resource in navigation order', () => {
     expect(pagesForFieldResource('execution.document.line')).toEqual([
-      'procurement-orders',
       'sales-orders',
       'warehouse-inbounds',
       'warehouse-outbounds',
       'warehouse-transfers',
       'warehouse-counts',
+      'procurement-orders',
     ]);
     expect(pagesForFieldResource('people.employee.grade')).toEqual([
       'people-employees',

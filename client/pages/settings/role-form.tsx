@@ -181,7 +181,7 @@ function RoleEditor(): ReactElement {
   const fieldLevel = (resource: string, field: string): FieldAccess =>
     fieldDraft[fieldPolicyKey(resource, field)] ??
     fieldBaseline[fieldPolicyKey(resource, field)] ??
-    'auto';
+    'write';
   const setFieldLevel = (
     resource: string,
     field: string,
@@ -190,7 +190,7 @@ function RoleEditor(): ReactElement {
     const levelKey = fieldPolicyKey(resource, field);
     setFieldDraft((current) => {
       const next = { ...current };
-      if (access === (fieldBaseline[levelKey] ?? 'auto')) {
+      if (access === (fieldBaseline[levelKey] ?? 'write')) {
         delete next[levelKey];
       } else {
         next[levelKey] = access;
@@ -251,12 +251,41 @@ function RoleEditor(): ReactElement {
         form.querySelector<HTMLInputElement>('input:invalid')?.focus();
         return;
       }
-      const configuredPageGrants = [...configuredPages].map((pageId) => ({
+      const pageIds = new Set<string>();
+      for (const section of sections) {
+        if (section.id !== 'pages') continue;
+        if (section.navigation) {
+          const walk = (nodes: readonly PermissionEditorNavigationNode[]) => {
+            for (const node of nodes) {
+              const pageId = pageIdFromPermissionRow(node.rowId);
+              if (pageId) pageIds.add(pageId);
+              if (node.children) walk(node.children);
+            }
+          };
+          walk(section.navigation);
+        }
+        for (const group of section.groups) {
+          for (const row of group.rows) {
+            const pageId = pageIdFromPermissionRow(row.id);
+            if (pageId) pageIds.add(pageId);
+          }
+        }
+      }
+      // 页面树的来源是 pagePermissionResources；把未出现在 sections
+      // 分组里的页面（仅存在于导航节点的页面）也纳入，确保全部业务页面授权。
+      for (const page of pagePermissionResources(
+        app.runtime.routes,
+        pagePermissionTitles,
+        (path) => t('settings.unnamedPage', { path }),
+      )) {
+        pageIds.add(page.id);
+      }
+      const pageGrants = [...pageIds].map((pageId) => ({
         id: permissionRowId({ type: 'page', id: pageId }, 'access'),
         enabled: true,
       }));
-      const effectiveGrants = configuredPageGrants.length
-        ? setPermissions(grants, catalog, configuredPageGrants)
+      const effectiveGrants = pageGrants.length
+        ? setPermissions(grants, catalog, pageGrants)
         : grants;
       const incomplete = unconfiguredFilter(effectiveGrants);
       if (incomplete) {
@@ -418,24 +447,7 @@ function RoleEditor(): ReactElement {
     access: FieldAccess,
   ) => {
     setFieldLevel(resource, field, access);
-    if (access !== 'auto' && fieldPage) grantPageAccess(fieldPage.id);
-  };
-  const setPageAccess = (
-    node: PermissionEditorNavigationNode,
-    enabled: boolean,
-  ) => {
-    const pageId = pageIdFromPermissionRow(node.rowId);
-    if (!pageId || !catalog) return;
-    if (!enabled && configuredPages.has(pageId)) return;
-    setGrantsDraft((current) =>
-      setPermissions(current ?? grants, catalog, [
-        {
-          id: permissionRowId({ type: 'page', id: pageId }, 'access'),
-          enabled,
-        },
-      ]),
-    );
-    setDirty(true);
+    if (access !== 'write' && fieldPage) grantPageAccess(fieldPage.id);
   };
 
   return (
@@ -566,13 +578,6 @@ function RoleEditor(): ReactElement {
                     const pageId = pageIdFromPermissionRow(node.rowId);
                     return pageId ? configuredPages.has(pageId) : false;
                   }}
-                  navigationConfigurable={(node) => {
-                    const pageId = pageIdFromPermissionRow(node.rowId);
-                    return pageId
-                      ? fieldResourcesForPage(pageId).length > 0
-                      : false;
-                  }}
-                  onNavigationAccessChange={setPageAccess}
                   labels={{
                     dataRanges: (count) => t('settings.dataRanges', { count }),
                     scopeExplanation: t('settings.scopeExplanation'),
@@ -603,11 +608,8 @@ function RoleEditor(): ReactElement {
                       t('settings.collapsePermissionGroup', { name }),
                     openPage: (name) =>
                       t('fieldPermission.openFor', { page: name }),
-                    openAccess: (name) =>
-                      t('fieldPermission.openAccessFor', { page: name }),
                     fieldsConfigured: t('fieldPermission.configured'),
                     accessGranted: t('fieldPermission.accessible'),
-                    accessLabel: t('fieldPermission.accessLabel'),
                   }}
                   onEnabledChange={(id, enabled) => {
                     if (!catalog) return;

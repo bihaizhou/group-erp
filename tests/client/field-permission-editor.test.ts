@@ -24,14 +24,14 @@ const resources: FieldPermissionResource[] = [
 ];
 
 describe('field permission policies', () => {
-  it('stores only overrides, leaving auto and write unstored', () => {
+  it('stores only overrides, leaving write unstored', () => {
     expect(
       buildFieldPolicies(resources, (resource, field) =>
         fieldPolicyKey(resource, field) ===
         fieldPolicyKey('production.report.material', 'bookQuantity')
           ? 'hidden'
           : field === 'quantity'
-            ? 'auto'
+            ? 'write'
             : 'write',
       ),
     ).toEqual([
