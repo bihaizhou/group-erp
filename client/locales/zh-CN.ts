@@ -37,6 +37,7 @@ const zhCN: AppResource = {
   permissionGuide: {
     rolesDescription:
       '所有页面统一按字段配置权限：点开页面，为每个字段选择隐藏、只读或可写。后台管理权限在“后台管理”标签里。保存一次即可。',
+    pages: '页面与字段',
     pageHint:
       '点击页面为它的字段设置权限；绿点表示该页面已有字段配置。保存后字段权限即生效。',
     admin: '后台管理',

@@ -41,6 +41,7 @@ const enUS = {
   permissionGuide: {
     rolesDescription:
       'Every page is configured through its fields: open a page and set each field to Hidden, Read-only or Writable. Back-office permissions live in the Administration tab. Save once.',
+    pages: 'Pages & Fields',
     pageHint:
       'Open a page to configure its fields. A green dot marks pages with field settings. Field permissions apply once saved.',
     admin: 'Administration',

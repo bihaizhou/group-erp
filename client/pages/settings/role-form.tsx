@@ -381,6 +381,7 @@ function RoleEditor(): ReactElement {
         if (section.id === 'pages') {
           return {
             ...section,
+            title: t('permissionGuide.pages'),
             description: t('permissionGuide.pageHint'),
           };
         }
