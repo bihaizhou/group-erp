@@ -19,12 +19,12 @@ const resources: FieldPermissionResource[] = [
     resource: 'warehouse.inventory.balance',
     titleKey: 'execution.inventory',
     descriptionKey: 'execution.inventoryHint',
-    fields: [{ field: 'available', label: '可用数量' }],
+    fields: [{ field: 'available', label: '可用数量', writable: false }],
   },
 ];
 
 describe('field permission policies', () => {
-  it('stores only overrides, leaving write unstored', () => {
+  it('stores restrictions and leaves unset fields unstored', () => {
     expect(
       buildFieldPolicies(resources, (resource, field) =>
         fieldPolicyKey(resource, field) ===
@@ -32,7 +32,7 @@ describe('field permission policies', () => {
           ? 'hidden'
           : field === 'quantity'
             ? 'write'
-            : 'write',
+            : undefined,
       ),
     ).toEqual([
       {
@@ -41,6 +41,10 @@ describe('field permission policies', () => {
         access: 'hidden',
       },
     ]);
+  });
+
+  it('does not store an explicit write: unchecked means default', () => {
+    expect(buildFieldPolicies(resources, () => 'write')).toEqual([]);
   });
 
   it('covers every catalog resource so one page cannot erase another', () => {
@@ -52,12 +56,12 @@ describe('field permission policies', () => {
   });
 
   it('keeps hidden and readonly levels distinct', () => {
-    const policies = buildFieldPolicies(resources, (resource, field) =>
+    const policies = buildFieldPolicies(resources, (_resource, field) =>
       field === 'quantity'
         ? 'hidden'
         : field === 'available'
           ? 'readonly'
-          : 'write',
+          : undefined,
     );
     expect(policies).toEqual([
       {
@@ -71,5 +75,10 @@ describe('field permission policies', () => {
         access: 'readonly',
       },
     ]);
+  });
+
+  it('passes the writable flag through for the editor to grey out', () => {
+    expect(resources[1].fields[0].writable).toBe(false);
+    expect(resources[0].fields[0].writable).toBeUndefined();
   });
 });

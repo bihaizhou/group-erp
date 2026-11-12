@@ -2,6 +2,12 @@ export interface CatalogField {
   field: string;
   titleKey?: string;
   label: string;
+  /**
+   * False when the page renders the value but users can never edit it
+   * directly (computed values, workflow status, auto numbers, audits). The
+   * permission editor greys out the write option for such fields.
+   */
+  writable?: boolean;
 }
 
 export interface FieldPermissionResource {
@@ -23,19 +29,21 @@ export const fieldPolicyKey = (resource: string, field: string) =>
   `${resource}.${field}`;
 
 /**
- * Turn the editor's current levels into the policy payload. The payload covers
- * every catalog field, so saving one page can never erase another page's
- * policies; `write` is the default and is not stored.
+ * Turn the editor's current levels into the policy payload. The payload
+ * covers every catalog field, so saving one page can never erase another
+ * page's policies. `undefined` and `write` mean "not configured": the
+ * field follows the page default (writable), so only hidden/readonly
+ * restrictions are stored — an unchecked field stays unchecked.
  */
 export function buildFieldPolicies(
   resources: readonly FieldPermissionResource[],
-  levelOf: (resource: string, field: string) => FieldAccess,
+  levelOf: (resource: string, field: string) => FieldAccess | undefined,
 ): FieldPolicy[] {
   const policies: FieldPolicy[] = [];
   for (const resource of resources) {
     for (const field of resource.fields) {
       const access = levelOf(resource.resource, field.field);
-      if (access !== 'write') {
+      if (access && access !== 'write') {
         policies.push({
           resource: resource.resource,
           field: field.field,

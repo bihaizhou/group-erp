@@ -56,7 +56,7 @@ const enUS = {
     openFor: 'Configure {{page}}',
     title: '{{page}} · Fields',
     description:
-      'Fields on this page, each settable to Hidden, Read-only or Writable. Close when done; changes are saved with the role.',
+      'Fields on this page, each settable to Hidden, Read-only or Writable; unchecked fields follow the default. A greyed-out "Writable" means the field can never be edited, so only Hidden or Read-only apply. Close when done; changes are saved with the role.',
     accessible: 'Access granted',
     configured: 'Fields configured',
     sharedPages: 'These fields also apply to: {{pages}}',

@@ -24,6 +24,17 @@ export interface FieldCatalogResource {
   readonly labels?: Readonly<Record<string, string>>;
   /** Values computed by the API rather than stored in the collection. */
   readonly computed?: readonly { field: string; titleKey: string }[];
+  /**
+   * Fields the page renders but users can never edit directly (workflow
+   * status, auto numbers, snapshots, audit data). The permission editor
+   * greys out the write option for these fields.
+   */
+  readonly readonlyFields?: readonly string[];
+  /**
+   * Whether manual fields are writable; dashboards and audit pages set this
+   * to false so every offered field drops the write option.
+   */
+  readonly manualWritable?: boolean;
 }
 
 export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
@@ -215,6 +226,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'procurement.supplier.identity',
     collection: 'businessPartners',
+    readonlyFields: ['status'],
     titleKey: 'procurement.identity',
     descriptionKey: 'settings.fieldPermissionSupplierIdentity',
     exclude: [
@@ -332,6 +344,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'warehouse.inventory.balance',
     collection: 'stockBalances',
+    readonlyFields: ['reservedQuantity'],
     titleKey: 'execution.inventory',
     descriptionKey: 'settings.fieldPermissionInventory',
     exclude: [
@@ -358,17 +371,25 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'production.overview',
     titleKey: 'dashboard.production.title',
+    manualWritable: false,
     descriptionKey: 'fieldPermission.description',
     manual: [
-      { field: 'processed', titleKey: 'dashboard.production.metrics.processed' },
+      {
+        field: 'processed',
+        titleKey: 'dashboard.production.metrics.processed',
+      },
       { field: 'reports', titleKey: 'dashboard.production.metrics.reports' },
-      { field: 'confirmed', titleKey: 'dashboard.production.metrics.confirmed' },
+      {
+        field: 'confirmed',
+        titleKey: 'dashboard.production.metrics.confirmed',
+      },
       { field: 'runtime', titleKey: 'dashboard.production.metrics.runtime' },
     ],
   },
   {
     resource: 'production.schedule',
     collection: 'prdSchedules',
+    readonlyFields: ['status'],
     titleKey: 'production.scheduleTitle',
     descriptionKey: 'fieldPermission.description',
     only: ['scheduleDate', 'shift', 'status', 'notes'],
@@ -382,6 +403,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'production.shiftReport',
     collection: 'prdShiftReports',
+    readonlyFields: ['status'],
     titleKey: 'production.shiftReports',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -412,6 +434,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'production.equipment',
     collection: 'prdEquipment',
+    readonlyFields: ['status'],
     titleKey: 'production.equipment',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -438,6 +461,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'production.plan',
     collection: 'prdMaintenancePlans',
+    readonlyFields: ['status'],
     titleKey: 'production.maintenancePlans',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -462,6 +486,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'production.downtime',
     collection: 'prdDowntimeEvents',
+    readonlyFields: ['status', 'durationMinutes'],
     titleKey: 'production.downtimeTitle',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -488,6 +513,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'production.overtime',
     collection: 'prdOvertimeRequests',
+    readonlyFields: ['status', 'requestNo', 'approverName'],
     titleKey: 'production.overtimeTitle',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -550,6 +576,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'hse.overview',
     titleKey: 'hse.overview',
+    manualWritable: false,
     descriptionKey: 'fieldPermission.description',
     manual: [
       { field: 'incidentsOpen', titleKey: 'hse.metrics.incidentsOpen' },
@@ -566,6 +593,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'hse.incident',
     collection: 'hseIncidents',
+    readonlyFields: ['status', 'incidentNo'],
     titleKey: 'hse.incidents',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -600,6 +628,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'hse.hazard',
     collection: 'hseHazards',
+    readonlyFields: ['status'],
     titleKey: 'hse.hazards',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -628,6 +657,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'hse.certificate',
     collection: 'hseCertificates',
+    readonlyFields: ['status'],
     titleKey: 'hse.certificates',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -654,6 +684,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'operations.overview',
     titleKey: 'operations.overview',
+    manualWritable: false,
     descriptionKey: 'fieldPermission.description',
     manual: [
       { field: 'processed', titleKey: 'operations.processed' },
@@ -665,6 +696,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'operations.issue',
     collection: 'opsIssues',
+    readonlyFields: ['status', 'code'],
     titleKey: 'operations.issues',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -708,30 +740,45 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'people.overview',
     titleKey: 'people.overview',
+    manualWritable: false,
     descriptionKey: 'fieldPermission.description',
     manual: [
       { field: 'activePeople', titleKey: 'people.metrics.activePeople' },
       { field: 'profiles', titleKey: 'people.metrics.profiles' },
       { field: 'evaluations', titleKey: 'people.metrics.evaluations' },
-      { field: 'developmentPlans', titleKey: 'people.metrics.developmentPlans' },
+      {
+        field: 'developmentPlans',
+        titleKey: 'people.metrics.developmentPlans',
+      },
       { field: 'workforcePlans', titleKey: 'people.metrics.workforcePlans' },
     ],
   },
   {
     resource: 'people.personnelOverview',
     titleKey: 'people.personnel',
+    manualWritable: false,
     descriptionKey: 'fieldPermission.description',
     manual: [
       { field: 'activePeople', titleKey: 'people.metrics.activePeople' },
       { field: 'profiles', titleKey: 'people.metrics.profiles' },
       { field: 'evaluations', titleKey: 'people.metrics.evaluations' },
-      { field: 'developmentPlans', titleKey: 'people.metrics.developmentPlans' },
+      {
+        field: 'developmentPlans',
+        titleKey: 'people.metrics.developmentPlans',
+      },
       { field: 'workforcePlans', titleKey: 'people.metrics.workforcePlans' },
     ],
   },
   {
     resource: 'people.history',
     collection: 'peopleAudit',
+    readonlyFields: [
+      'operation',
+      'actorName',
+      'reason',
+      'beforeValue',
+      'afterValue',
+    ],
     titleKey: 'people.history',
     descriptionKey: 'fieldPermission.description',
     only: ['operation', 'actorName', 'reason', 'beforeValue', 'afterValue'],
@@ -746,6 +793,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'people.approvals',
     collection: 'peopleApprovalTasks',
+    readonlyFields: ['title', 'mode', 'status', 'decidedAt'],
     titleKey: 'people.approvals',
     descriptionKey: 'fieldPermission.description',
     only: ['title', 'mode', 'status', 'decidedAt'],
@@ -769,6 +817,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'people.assets',
     collection: 'assets',
+    readonlyFields: ['status'],
     titleKey: 'assets.title',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -799,6 +848,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'people.employee',
     collection: 'personnelEmployees',
+    readonlyFields: ['status'],
     titleKey: 'people.employees',
     descriptionKey: 'fieldPermission.description',
     only: ['code', 'name', 'status'],
@@ -811,6 +861,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'people.employment',
     collection: 'personnelEmployments',
+    readonlyFields: ['status'],
     titleKey: 'people.employments',
     descriptionKey: 'fieldPermission.description',
     only: ['code', 'name', 'status'],
@@ -823,6 +874,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'people.assignment',
     collection: 'personnelAssignments',
+    readonlyFields: ['status'],
     titleKey: 'people.assignments',
     descriptionKey: 'fieldPermission.description',
     only: ['code', 'name', 'status'],
@@ -835,6 +887,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'people.change',
     collection: 'personnelChanges',
+    readonlyFields: ['status'],
     titleKey: 'people.changes',
     descriptionKey: 'fieldPermission.description',
     only: ['code', 'name', 'status'],
@@ -847,6 +900,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'people.dimension',
     collection: 'hrDimensions',
+    readonlyFields: ['status'],
     titleKey: 'people.dimensions',
     descriptionKey: 'fieldPermission.description',
     only: ['code', 'name', 'status'],
@@ -859,6 +913,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'people.model',
     collection: 'hrModels',
+    readonlyFields: ['status'],
     titleKey: 'people.models',
     descriptionKey: 'fieldPermission.description',
     only: ['code', 'name', 'status'],
@@ -871,6 +926,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'people.profile',
     collection: 'hrProfiles',
+    readonlyFields: ['status'],
     titleKey: 'people.profiles',
     descriptionKey: 'fieldPermission.description',
     only: ['code', 'name', 'status'],
@@ -883,6 +939,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'people.evaluation',
     collection: 'hrEvaluations',
+    readonlyFields: ['status'],
     titleKey: 'people.evaluations',
     descriptionKey: 'fieldPermission.description',
     only: ['code', 'name', 'status'],
@@ -895,6 +952,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'people.developmentPlan',
     collection: 'hrDevelopmentPlans',
+    readonlyFields: ['status'],
     titleKey: 'people.developmentPlans',
     descriptionKey: 'fieldPermission.description',
     only: ['code', 'name', 'status'],
@@ -907,6 +965,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'people.workforcePlan',
     collection: 'hrWorkforcePlans',
+    readonlyFields: ['status'],
     titleKey: 'people.workforcePlans',
     descriptionKey: 'fieldPermission.description',
     only: ['code', 'name', 'status'],
@@ -919,9 +978,13 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'materials.overview',
     titleKey: 'dashboard.materials.title',
+    manualWritable: false,
     descriptionKey: 'fieldPermission.description',
     manual: [
-      { field: 'activeSkus', titleKey: 'dashboard.materials.metrics.activeSkus' },
+      {
+        field: 'activeSkus',
+        titleKey: 'dashboard.materials.metrics.activeSkus',
+      },
       { field: 'names', titleKey: 'dashboard.materials.metrics.names' },
       { field: 'templates', titleKey: 'dashboard.materials.metrics.templates' },
       {
@@ -1046,6 +1109,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'materials.request',
     collection: 'materialRequests',
+    readonlyFields: ['status'],
     titleKey: 'materials.kinds.requests',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -1098,6 +1162,13 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'materials.history',
     collection: 'materialAudit',
+    readonlyFields: [
+      'operation',
+      'actorName',
+      'reason',
+      'beforeValue',
+      'afterValue',
+    ],
     titleKey: 'materials.history',
     descriptionKey: 'fieldPermission.description',
     only: ['operation', 'actorName', 'reason', 'beforeValue', 'afterValue'],
@@ -1112,10 +1183,14 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'sales.overview',
     titleKey: 'dashboard.sales.title',
+    manualWritable: false,
     descriptionKey: 'fieldPermission.description',
     manual: [
       { field: 'orders', titleKey: 'dashboard.sales.metrics.orders' },
-      { field: 'pendingOrders', titleKey: 'dashboard.sales.metrics.pendingOrders' },
+      {
+        field: 'pendingOrders',
+        titleKey: 'dashboard.sales.metrics.pendingOrders',
+      },
       {
         field: 'approvedOrders',
         titleKey: 'dashboard.sales.metrics.approvedOrders',
@@ -1126,6 +1201,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'warehouse.overview',
     titleKey: 'dashboard.warehouse.title',
+    manualWritable: false,
     descriptionKey: 'fieldPermission.description',
     manual: [
       {
@@ -1149,6 +1225,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'procurement.overview',
     titleKey: 'dashboard.procurement.title',
+    manualWritable: false,
     descriptionKey: 'fieldPermission.description',
     manual: [
       { field: 'orders', titleKey: 'dashboard.procurement.metrics.orders' },
@@ -1160,15 +1237,22 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
         field: 'approvedRequests',
         titleKey: 'dashboard.procurement.metrics.approvedRequests',
       },
-      { field: 'suppliers', titleKey: 'dashboard.procurement.metrics.suppliers' },
+      {
+        field: 'suppliers',
+        titleKey: 'dashboard.procurement.metrics.suppliers',
+      },
     ],
   },
   {
     resource: 'requisitions.overview',
     titleKey: 'dashboard.requisitions.title',
+    manualWritable: false,
     descriptionKey: 'fieldPermission.description',
     manual: [
-      { field: 'requests', titleKey: 'dashboard.requisitions.metrics.requests' },
+      {
+        field: 'requests',
+        titleKey: 'dashboard.requisitions.metrics.requests',
+      },
       { field: 'pending', titleKey: 'dashboard.requisitions.metrics.pending' },
       { field: 'open', titleKey: 'dashboard.requisitions.metrics.open' },
       { field: 'issued', titleKey: 'dashboard.requisitions.metrics.issued' },
@@ -1177,6 +1261,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'sales.customer',
     collection: 'businessPartners',
+    readonlyFields: ['status'],
     titleKey: 'execution.customers',
     descriptionKey: 'fieldPermission.description',
     only: ['code', 'name', 'registrationCode', 'status'],
@@ -1190,6 +1275,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'procurement.supplier.base',
     collection: 'businessPartners',
+    readonlyFields: ['status'],
     titleKey: 'procurement.suppliers',
     descriptionKey: 'fieldPermission.description',
     only: ['code', 'name', 'registrationCode', 'status'],
@@ -1203,6 +1289,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'execution.document',
     collection: 'stockDocuments',
+    readonlyFields: ['status', 'code'],
     titleKey: 'execution.executionDocuments',
     descriptionKey: 'fieldPermission.description',
     only: ['code', 'occurredOn', 'reason', 'notes', 'status'],
@@ -1217,6 +1304,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'purchase.request',
     collection: 'purchaseRequests',
+    readonlyFields: ['status', 'code'],
     titleKey: 'purchase-request.title',
     descriptionKey: 'fieldPermission.description',
     only: ['code', 'usage', 'neededOn', 'notes', 'status'],
@@ -1231,6 +1319,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'purchase.request.line',
     collection: 'purchaseRequestLines',
+    readonlyFields: ['lineNo', 'baseQuantity'],
     titleKey: 'purchase-request.lines',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -1270,6 +1359,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'issue.request',
     collection: 'materialIssueRequests',
+    readonlyFields: ['status', 'code'],
     titleKey: 'requisitions.issue.title',
     descriptionKey: 'fieldPermission.description',
     only: ['code', 'usage', 'neededOn', 'notes', 'status'],
@@ -1284,6 +1374,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'issue.request.line',
     collection: 'materialIssueRequestLines',
+    readonlyFields: ['lineNo', 'baseQuantity'],
     titleKey: 'issue-request.lines',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -1373,6 +1464,8 @@ export interface FieldCatalogEntry {
     readonly field: string;
     readonly titleKey?: string;
     readonly label: string;
+    /** False when the field can never be edited; write option is greyed out. */
+    readonly writable: boolean;
   }[];
 }
 
@@ -1412,13 +1505,18 @@ export async function fieldCatalog(
 ): Promise<FieldCatalogEntry[]> {
   return Promise.all(
     FIELD_CATALOG_RESOURCES.map(async (resource) => {
+      const readonlyFields = new Set(resource.readonlyFields ?? []);
       const stored = resource.manual
         ? resource.manual.map((entry) => ({
             field: entry.field,
             label: entry.field,
             titleKey: entry.titleKey,
+            writable: resource.manualWritable ?? true,
           }))
-        : await collectionFields(database, resource);
+        : (await collectionFields(database, resource)).map((field) => ({
+            ...field,
+            writable: !readonlyFields.has(field.field),
+          }));
       const fields = stored.map((field) => ({
         ...field,
         titleKey:
@@ -1431,6 +1529,7 @@ export async function fieldCatalog(
             field: computed.field,
             label: computed.field,
             titleKey: computed.titleKey,
+            writable: false,
           });
         }
       }

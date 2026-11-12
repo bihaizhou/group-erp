@@ -22,8 +22,13 @@ export function PageFieldPermissionEditor({
   failed = false,
 }: {
   resources: readonly FieldPermissionResource[];
-  levelOf: (resource: string, field: string) => FieldAccess;
-  onChange: (resource: string, field: string, access: FieldAccess) => void;
+  /** `undefined` means not configured: the field follows the page default. */
+  levelOf: (resource: string, field: string) => FieldAccess | undefined;
+  onChange: (
+    resource: string,
+    field: string,
+    access: FieldAccess | undefined,
+  ) => void;
   /** Other pages rendering the same resource; editing here changes them too. */
   sharedPages?: Readonly<Record<string, readonly string[]>>;
   readOnly?: boolean;
@@ -87,9 +92,13 @@ function FieldPermissionTable({
   onChange,
 }: {
   resource: FieldPermissionResource;
-  levelOf: (resource: string, field: string) => FieldAccess;
+  levelOf: (resource: string, field: string) => FieldAccess | undefined;
   readOnly: boolean;
-  onChange: (resource: string, field: string, access: FieldAccess) => void;
+  onChange: (
+    resource: string,
+    field: string,
+    access: FieldAccess | undefined,
+  ) => void;
 }) {
   const { t } = useTranslation();
   const levelLabel = (level: FieldAccess) => t(`settings.fieldAccess.${level}`);
@@ -116,26 +125,50 @@ function FieldPermissionTable({
           <tbody>
             {resource.fields.map((field) => {
               const level = levelOf(resource.resource, field.field);
+              const fieldLabel = field.titleKey
+                ? t(field.titleKey)
+                : field.label;
               return (
                 <tr key={field.field} className='border-t'>
-                  <td className='px-3 py-2'>
-                    {field.titleKey ? t(field.titleKey) : field.label}
-                  </td>
-                  {LEVELS.map((option) => (
-                    <td key={option} className='px-2 py-2 text-center'>
-                      <input
-                        type='radio'
-                        className='size-4 cursor-pointer accent-primary'
-                        name={fieldPolicyKey(resource.resource, field.field)}
-                        aria-label={`${field.titleKey ? t(field.titleKey) : field.label} · ${levelLabel(option)}`}
-                        checked={level === option}
-                        disabled={readOnly}
-                        onChange={() =>
-                          onChange(resource.resource, field.field, option)
-                        }
-                      />
-                    </td>
-                  ))}
+                  <td className='px-3 py-2'>{fieldLabel}</td>
+                  {LEVELS.map((option) => {
+                    const checked = level === option;
+                    // A field the page can never edit has no write option;
+                    // it can only be hidden or forced read-only.
+                    const disabled =
+                      readOnly ||
+                      (option === 'write' && field.writable === false);
+                    return (
+                      <td key={option} className='px-2 py-2 text-center'>
+                        <input
+                          type='radio'
+                          className={`size-4 accent-primary ${
+                            disabled
+                              ? 'cursor-not-allowed opacity-40'
+                              : 'cursor-pointer'
+                          }`}
+                          name={fieldPolicyKey(resource.resource, field.field)}
+                          aria-label={`${fieldLabel} · ${levelLabel(option)}`}
+                          checked={checked}
+                          disabled={disabled}
+                          onChange={() =>
+                            onChange(resource.resource, field.field, option)
+                          }
+                          onClick={() => {
+                            // Clicking the selected level clears it back to
+                            // "not configured" (page default).
+                            if (checked && !disabled) {
+                              onChange(
+                                resource.resource,
+                                field.field,
+                                undefined,
+                              );
+                            }
+                          }}
+                        />
+                      </td>
+                    );
+                  })}
                 </tr>
               );
             })}

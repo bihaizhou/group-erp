@@ -50,6 +50,7 @@ const catalogResponse = z.object({
           field: z.string(),
           titleKey: z.string().optional(),
           label: z.string(),
+          writable: z.boolean(),
         }),
       ),
     }),

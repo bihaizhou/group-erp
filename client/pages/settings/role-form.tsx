@@ -174,23 +174,28 @@ function RoleEditor(): ReactElement {
   const fieldBaseline = useMemo(() => {
     const levels: Record<string, FieldAccess> = {};
     for (const policy of fieldPolicies.data?.data.policies ?? []) {
+      // `write` is the default and is never stored anymore; ignore any
+      // legacy stored write policies so those fields show unchecked.
+      if (policy.access === 'write') continue;
       levels[fieldPolicyKey(policy.resource, policy.field)] = policy.access;
     }
     return levels;
   }, [fieldPolicies.data]);
-  const fieldLevel = (resource: string, field: string): FieldAccess =>
+  const fieldLevel = (
+    resource: string,
+    field: string,
+  ): FieldAccess | undefined =>
     fieldDraft[fieldPolicyKey(resource, field)] ??
-    fieldBaseline[fieldPolicyKey(resource, field)] ??
-    'write';
+    fieldBaseline[fieldPolicyKey(resource, field)];
   const setFieldLevel = (
     resource: string,
     field: string,
-    access: FieldAccess,
+    access: FieldAccess | undefined,
   ) => {
     const levelKey = fieldPolicyKey(resource, field);
     setFieldDraft((current) => {
       const next = { ...current };
-      if (access === (fieldBaseline[levelKey] ?? 'write')) {
+      if (access === undefined || access === fieldBaseline[levelKey]) {
         delete next[levelKey];
       } else {
         next[levelKey] = access;
@@ -430,25 +435,12 @@ function RoleEditor(): ReactElement {
     );
   }, [fieldPage, pageLabels]);
 
-  const grantPageAccess = (pageId: string | undefined) => {
-    if (!catalog || !pageId) return;
-    setGrantsDraft((current) =>
-      setPermissions(current ?? grants, catalog, [
-        {
-          id: permissionRowId({ type: 'page', id: pageId }, 'access'),
-          enabled: true,
-        },
-      ]),
-    );
-    setDirty(true);
-  };
   const changeFieldLevel = (
     resource: string,
     field: string,
-    access: FieldAccess,
+    access: FieldAccess | undefined,
   ) => {
     setFieldLevel(resource, field, access);
-    if (access !== 'write' && fieldPage) grantPageAccess(fieldPage.id);
   };
 
   return (
