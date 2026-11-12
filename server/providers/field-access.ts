@@ -1,7 +1,15 @@
 import { ApiError } from '@nocobase/app-server/router';
 import type { DatabaseManager } from '@nocobase/db';
+import { fieldCatalog, type FieldCatalogEntry } from './field-catalog.js';
 
-export type FieldAccess = 'hidden' | 'readonly' | 'write';
+/**
+ * Grant ladder: hidden ⊂ visible ⊂ readonly ⊂ write. `visible` and
+ * `readonly` are interchangeable for enforcement (both block writes and
+ * both show the field); the ladder only exists so admins see a natural
+ * checkbox cascade in the editor. `hidden` never leaves the server: the
+ * absence of a policy means hidden under the new model.
+ */
+export type FieldAccess = 'hidden' | 'visible' | 'readonly' | 'write';
 
 export interface FieldPolicyView {
   resource: string;
@@ -16,6 +24,7 @@ export interface FieldAccessPrincipal {
 
 const precedence: Record<FieldAccess, number> = {
   hidden: 0,
+  visible: 1,
   readonly: 1,
   write: 2,
 };
@@ -24,12 +33,39 @@ const asText = (value: unknown): string =>
   typeof value === 'string' ? value : '';
 
 const isAccess = (value: unknown): value is FieldAccess =>
-  value === 'hidden' || value === 'readonly' || value === 'write';
+  value === 'hidden' ||
+  value === 'visible' ||
+  value === 'readonly' ||
+  value === 'write';
+
+/**
+ * Sentinels mark permission sets created before the grant ladder existed.
+ * For those sets an absent policy still means writable; for sets without a
+ * sentinel an absent policy means hidden (deny by default).
+ */
+const SENTINEL_RESOURCE = '$default';
+const SENTINEL_FIELD = 'legacy';
+
+const catalogCache = new WeakMap<
+  DatabaseManager,
+  Promise<FieldCatalogEntry[]>
+>();
+const catalogFor = (
+  database: DatabaseManager,
+): Promise<FieldCatalogEntry[]> => {
+  let cached = catalogCache.get(database);
+  if (!cached) {
+    cached = fieldCatalog(database);
+    catalogCache.set(database, cached);
+  }
+  return cached;
+};
 
 /**
  * Effective field access for one account: every policy that belongs to one of
  * its permission sets, merged most-permissive-wins. Fields without a policy
- * stay writable, so pages that never opt in behave exactly as before.
+ * are hidden (deny by default) unless the account still carries a legacy
+ * permission set, where an absent policy stays writable.
  */
 export async function fieldPoliciesFor(
   database: DatabaseManager,
@@ -51,7 +87,7 @@ export async function fieldPoliciesFor(
     assignments.map((row) => asText(row.permissionSetKey)).filter(Boolean),
   );
   sets.delete('');
-  if (!sets.size) return [];
+  if (!sets.size || sets.has('root')) return [];
   const policies = await database.repository('appFieldPolicies').findMany({
     filter: (filter) =>
       filter.or(
@@ -59,6 +95,7 @@ export async function fieldPoliciesFor(
       ),
     limit: 2000,
   });
+  const legacySets = new Set<string>();
   const merged = new Map<string, FieldPolicyView>();
   for (const row of policies) {
     const access = row.access;
@@ -66,10 +103,29 @@ export async function fieldPoliciesFor(
     const resource = asText(row.resource);
     const field = asText(row.field);
     if (!resource || !field) continue;
+    if (resource === SENTINEL_RESOURCE && field === SENTINEL_FIELD) {
+      legacySets.add(asText(row.permissionSetKey));
+      continue;
+    }
     const key = `${resource}.${field}`;
     const current = merged.get(key);
     if (!current || precedence[access] > precedence[current.access]) {
       merged.set(key, { resource, field, access });
+    }
+  }
+  if (legacySets.size > 0) return [...merged.values()];
+  // New model: every catalog field is hidden unless explicitly granted.
+  const catalog = await catalogFor(database);
+  for (const entry of catalog) {
+    for (const item of entry.fields) {
+      const key = `${entry.resource}.${item.field}`;
+      if (!merged.has(key)) {
+        merged.set(key, {
+          resource: entry.resource,
+          field: item.field,
+          access: 'hidden',
+        });
+      }
     }
   }
   return [...merged.values()];

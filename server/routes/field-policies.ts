@@ -24,7 +24,7 @@ import { fieldCatalog } from '../providers/field-catalog.js';
 
 type Env = AuthEnv & AuthorizationEnv;
 
-const access = z.enum(['hidden', 'readonly', 'write']);
+const access = z.enum(['hidden', 'visible', 'readonly', 'write']);
 
 const asText = (value: unknown): string =>
   typeof value === 'string' ? value : '';
@@ -38,6 +38,8 @@ const response = z.object({
     }),
   ),
 });
+
+const listResponse = response.extend({ legacyDefault: z.boolean() });
 
 const catalogResponse = z.object({
   resources: z.array(
@@ -136,7 +138,7 @@ export const fieldPolicyRoutes: AppApiRouteContribution<Application> =
         tags: ['Authorization'],
         summary: 'Read the field policies of one permission set',
         operationId: 'getFieldPolicies',
-        responses: { '200': dataResponse(response) },
+        responses: { '200': dataResponse(listResponse) },
       }),
       apiValidator('query', listQuery),
       async (c) => {
@@ -150,15 +152,22 @@ export const fieldPolicyRoutes: AppApiRouteContribution<Application> =
             sort.field('field').asc(),
           ],
         });
+        const policies = rows
+          .map((row) => ({
+            resource: asText(row.resource),
+            field: asText(row.field),
+            access: row.access as 'hidden' | 'visible' | 'readonly' | 'write',
+          }))
+          .filter((row) => row.resource && row.field);
+        const legacyDefault = policies.some(
+          (row) => row.resource === '$default' && row.field === 'legacy',
+        );
         return c.json({
           data: {
-            policies: rows
-              .map((row) => ({
-                resource: asText(row.resource),
-                field: asText(row.field),
-                access: row.access as 'hidden' | 'readonly' | 'write',
-              }))
-              .filter((row) => row.resource && row.field),
+            policies: policies.filter(
+              (row) => !(row.resource === '$default' && row.field === 'legacy'),
+            ),
+            legacyDefault,
           },
         });
       },

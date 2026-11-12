@@ -131,7 +131,9 @@ function RoleEditor(): ReactElement {
     enabled: Boolean(key),
     queryKey: ['field-policies', key],
     queryFn: ({ signal }) =>
-      api.request<{ data: { policies: FieldPolicy[] } }>({
+      api.request<{
+        data: { policies: FieldPolicy[]; legacyDefault: boolean };
+      }>({
         path: 'field-policies',
         query: { permissionSetKey: key },
         signal,
@@ -171,12 +173,19 @@ function RoleEditor(): ReactElement {
   const name = nameDraft ?? (initial ? text(initial.title ?? initial.key) : '');
   const roleKey = keyDraft ?? initial?.key ?? '';
   const grants = grantsDraft ?? initial?.grants ?? [];
+  /**
+   * The grant ladder stores only explicit grants (visible/readonly/write);
+   * `hidden` exists client-side as a marker for "explicitly cleared" so the
+   * draft can override a legacy set whose default is write. The sentinel row
+   * ($default.legacy) marks sets from before the ladder and is never a field.
+   */
+  const legacyDefault = fieldPolicies.data?.data.legacyDefault ?? false;
+  const resolveLevel = (
+    access: FieldAccess | undefined,
+  ): FieldAccess | undefined => (access === 'hidden' ? undefined : access);
   const fieldBaseline = useMemo(() => {
     const levels: Record<string, FieldAccess> = {};
     for (const policy of fieldPolicies.data?.data.policies ?? []) {
-      // `write` is the default and is never stored anymore; ignore any
-      // legacy stored write policies so those fields show unchecked.
-      if (policy.access === 'write') continue;
       levels[fieldPolicyKey(policy.resource, policy.field)] = policy.access;
     }
     return levels;
@@ -184,21 +193,38 @@ function RoleEditor(): ReactElement {
   const fieldLevel = (
     resource: string,
     field: string,
-  ): FieldAccess | undefined =>
-    fieldDraft[fieldPolicyKey(resource, field)] ??
-    fieldBaseline[fieldPolicyKey(resource, field)];
+  ): FieldAccess | undefined => {
+    const levelKey = fieldPolicyKey(resource, field);
+    const draft = fieldDraft[levelKey];
+    if (draft !== undefined) return resolveLevel(draft);
+    const baseline = fieldBaseline[levelKey];
+    if (baseline !== undefined) return resolveLevel(baseline);
+    return legacyDefault ? 'write' : undefined;
+  };
   const setFieldLevel = (
     resource: string,
     field: string,
     access: FieldAccess | undefined,
   ) => {
     const levelKey = fieldPolicyKey(resource, field);
+    const fallback: FieldAccess | undefined =
+      fieldBaseline[levelKey] !== undefined
+        ? resolveLevel(fieldBaseline[levelKey])
+        : legacyDefault
+          ? 'write'
+          : undefined;
+    const target = resolveLevel(access);
     setFieldDraft((current) => {
       const next = { ...current };
-      if (access === undefined || access === fieldBaseline[levelKey]) {
+      if (target === undefined) {
+        // Clearing a field whose default is write needs an explicit marker;
+        // otherwise dropping the draft key would fall back to write again.
+        if (fallback === 'write') next[levelKey] = 'hidden';
+        else delete next[levelKey];
+      } else if (target === fallback) {
         delete next[levelKey];
       } else {
-        next[levelKey] = access;
+        next[levelKey] = target;
       }
       return next;
     });
@@ -206,12 +232,13 @@ function RoleEditor(): ReactElement {
   const configuredPages = useMemo(() => {
     const resources = new Set<string>();
     for (const policy of fieldPolicies.data?.data.policies ?? []) {
-      resources.add(policy.resource);
+      if (policy.access !== 'write') resources.add(policy.resource);
     }
     const resourceIds = (fieldCatalog.data?.data.resources ?? [])
       .map((resource) => resource.resource)
       .sort((left, right) => right.length - left.length);
-    for (const levelKey of Object.keys(fieldDraft)) {
+    for (const [levelKey, access] of Object.entries(fieldDraft)) {
+      if (access !== 'visible' && access !== 'readonly') continue;
       const resource = resourceIds.find((id) => levelKey.startsWith(`${id}.`));
       if (resource) resources.add(resource);
     }

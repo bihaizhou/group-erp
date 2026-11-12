@@ -1,11 +1,28 @@
 import { useTranslation } from '@nocobase/i18n/client';
 import {
-  fieldPolicyKey,
   type FieldAccess,
   type FieldPermissionResource,
 } from './field-permission-policies.js';
 
-const LEVELS: readonly FieldAccess[] = ['hidden', 'readonly', 'write'];
+/**
+ * Grant ladder: 可见 ⊂ 只读 ⊂ 写入. The editor renders one checkbox per
+ * rung; checking a rung checks every rung below it, unchecking one drops
+ * every rung above it. Nothing checked means the field is hidden.
+ */
+const GRANTS = ['visible', 'readonly', 'write'] as const;
+type GrantLevel = (typeof GRANTS)[number];
+
+const rank = (level: FieldAccess | undefined): number =>
+  level === 'visible'
+    ? 1
+    : level === 'readonly'
+      ? 2
+      : level === 'write'
+        ? 3
+        : 0;
+
+const rankOf = (option: GrantLevel): number =>
+  option === 'visible' ? 1 : option === 'readonly' ? 2 : 3;
 
 /**
  * Field-level access for one page of one permission set. Fully controlled: the
@@ -22,7 +39,7 @@ export function PageFieldPermissionEditor({
   failed = false,
 }: {
   resources: readonly FieldPermissionResource[];
-  /** `undefined` means not configured: the field follows the page default. */
+  /** `undefined` means not granted: the field is hidden for this role. */
   levelOf: (resource: string, field: string) => FieldAccess | undefined;
   onChange: (
     resource: string,
@@ -101,7 +118,8 @@ function FieldPermissionTable({
   ) => void;
 }) {
   const { t } = useTranslation();
-  const levelLabel = (level: FieldAccess) => t(`settings.fieldAccess.${level}`);
+  const levelLabel = (level: GrantLevel) =>
+    t(`fieldPermission.level${level.charAt(0).toUpperCase()}${level.slice(1)}`);
   return (
     <div className='space-y-2'>
       <p className='text-sm font-medium'>{t(resource.titleKey)}</p>
@@ -112,7 +130,7 @@ function FieldPermissionTable({
               <th className='px-3 py-2 text-left font-medium'>
                 {t('settings.fieldPermissionField')}
               </th>
-              {LEVELS.map((level) => (
+              {GRANTS.map((level) => (
                 <th
                   key={level}
                   className='w-20 px-2 py-2 text-center font-medium'
@@ -125,16 +143,40 @@ function FieldPermissionTable({
           <tbody>
             {resource.fields.map((field) => {
               const level = levelOf(resource.resource, field.field);
+              const currentRank = rank(level);
               const fieldLabel = field.titleKey
                 ? t(field.titleKey)
                 : field.label;
+              const toggle = (option: GrantLevel, checked: boolean) => {
+                if (option === 'write') {
+                  onChange(
+                    resource.resource,
+                    field.field,
+                    checked ? 'readonly' : 'write',
+                  );
+                  return;
+                }
+                if (option === 'readonly') {
+                  onChange(
+                    resource.resource,
+                    field.field,
+                    checked ? 'visible' : 'readonly',
+                  );
+                  return;
+                }
+                onChange(
+                  resource.resource,
+                  field.field,
+                  checked ? undefined : 'visible',
+                );
+              };
               return (
                 <tr key={field.field} className='border-t'>
                   <td className='px-3 py-2'>{fieldLabel}</td>
-                  {LEVELS.map((option) => {
-                    const checked = level === option;
+                  {GRANTS.map((option) => {
+                    const checked = currentRank >= rankOf(option);
                     // A field the page can never edit has no write option;
-                    // it can only be hidden or forced read-only.
+                    // it can only stay hidden or be made visible/read-only.
                     const disabled =
                       readOnly ||
                       (option === 'write' && field.writable === false);
@@ -146,30 +188,16 @@ function FieldPermissionTable({
                         }`}
                       >
                         <input
-                          type='radio'
+                          type='checkbox'
                           className={`size-4 ${
                             disabled
                               ? 'cursor-not-allowed [accent-color:var(--muted-foreground)]'
                               : 'cursor-pointer accent-primary'
                           }`}
-                          name={fieldPolicyKey(resource.resource, field.field)}
                           aria-label={`${fieldLabel} · ${levelLabel(option)}`}
                           checked={checked}
                           disabled={disabled}
-                          onChange={() =>
-                            onChange(resource.resource, field.field, option)
-                          }
-                          onClick={() => {
-                            // Clicking the selected level clears it back to
-                            // "not configured" (page default).
-                            if (checked && !disabled) {
-                              onChange(
-                                resource.resource,
-                                field.field,
-                                undefined,
-                              );
-                            }
-                          }}
+                          onChange={() => toggle(option, checked)}
                         />
                       </td>
                     );

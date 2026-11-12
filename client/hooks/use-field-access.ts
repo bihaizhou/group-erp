@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useApiClient } from '@nocobase/app-client';
 
-export type FieldAccess = 'hidden' | 'readonly' | 'write';
+export type FieldAccess = 'hidden' | 'visible' | 'readonly' | 'write';
 
 interface FieldPoliciesResponse {
   data: {

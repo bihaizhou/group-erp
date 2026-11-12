@@ -24,27 +24,52 @@ const resources: FieldPermissionResource[] = [
 ];
 
 describe('field permission policies', () => {
-  it('stores restrictions and leaves unset fields unstored', () => {
+  it('stores every explicit grant on the ladder', () => {
+    expect(
+      buildFieldPolicies(resources, (resource, field) =>
+        fieldPolicyKey(resource, field) ===
+        fieldPolicyKey('production.report.material', 'bookQuantity')
+          ? 'readonly'
+          : field === 'quantity'
+            ? 'visible'
+            : 'write',
+      ),
+    ).toEqual([
+      {
+        resource: 'production.report.material',
+        field: 'quantity',
+        access: 'visible',
+      },
+      {
+        resource: 'production.report.material',
+        field: 'bookQuantity',
+        access: 'readonly',
+      },
+      {
+        resource: 'warehouse.inventory.balance',
+        field: 'available',
+        access: 'write',
+      },
+    ]);
+  });
+
+  it('never stores hidden or unset fields: unticked means no grant', () => {
     expect(
       buildFieldPolicies(resources, (resource, field) =>
         fieldPolicyKey(resource, field) ===
         fieldPolicyKey('production.report.material', 'bookQuantity')
           ? 'hidden'
           : field === 'quantity'
-            ? 'write'
-            : undefined,
+            ? undefined
+            : 'write',
       ),
     ).toEqual([
       {
-        resource: 'production.report.material',
-        field: 'bookQuantity',
-        access: 'hidden',
+        resource: 'warehouse.inventory.balance',
+        field: 'available',
+        access: 'write',
       },
     ]);
-  });
-
-  it('does not store an explicit write: unchecked means default', () => {
-    expect(buildFieldPolicies(resources, () => 'write')).toEqual([]);
   });
 
   it('covers every catalog resource so one page cannot erase another', () => {
@@ -55,25 +80,20 @@ describe('field permission policies', () => {
     );
   });
 
-  it('keeps hidden and readonly levels distinct', () => {
+  it('keeps the ladder levels distinct', () => {
     const policies = buildFieldPolicies(resources, (_resource, field) =>
       field === 'quantity'
-        ? 'hidden'
-        : field === 'available'
+        ? 'visible'
+        : field === 'bookQuantity'
           ? 'readonly'
-          : undefined,
+          : field === 'available'
+            ? 'write'
+            : undefined,
     );
-    expect(policies).toEqual([
-      {
-        resource: 'production.report.material',
-        field: 'quantity',
-        access: 'hidden',
-      },
-      {
-        resource: 'warehouse.inventory.balance',
-        field: 'available',
-        access: 'readonly',
-      },
+    expect(policies.map((policy) => policy.access)).toEqual([
+      'visible',
+      'readonly',
+      'write',
     ]);
   });
 
