@@ -205,7 +205,7 @@ export class OperationsService {
         },
         limit: 5000,
       }),
-      this.database.repository('prdOutputMappings').findMany({
+      this.database.repository('prdUnitMaterials').findMany({
         filter: {
           status: 'active',
           ...(subjectId ? { subjectId } : {}),
@@ -345,7 +345,10 @@ export class OperationsService {
     const skuTypes = new Map<string, string>();
     for (const mapping of mappings) {
       const skuId = text(mapping.skuId);
-      if (skuId) skuTypes.set(skuId, text(mapping.outputType));
+      const role = text(mapping.role);
+      if (!skuId) continue;
+      if (role === 'product') skuTypes.set(skuId, 'metal');
+      else if (role === 'byproduct') skuTypes.set(skuId, 'sand');
     }
     let stockMetal = 0n;
     let stockSand = 0n;

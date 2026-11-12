@@ -89,6 +89,8 @@ export const executionColumns: Record<string, string[]> = {
     'partnerSnapshot',
     'totalAmount',
     'supersedesId',
+    'demandMode',
+    'temporaryReason',
   ],
   salesOrders: [
     ...common,

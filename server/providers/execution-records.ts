@@ -763,6 +763,10 @@ export class ExecutionRecords {
     actor: LifecycleActor,
     p: MaterialPolicies,
   ) {
+    if (kind !== 'purchaseOrders') {
+      delete content.demandMode;
+      delete content.temporaryReason;
+    }
     const now = new Date(),
       prefix = {
         purchaseOrders: 'PO',

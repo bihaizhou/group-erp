@@ -1175,6 +1175,21 @@ export class ProductionService {
         } as never,
       });
     }
+    const totals = new Map<string, bigint>();
+    for (const material of materials) {
+      const micros = stockMicros(material.quantity);
+      totals.set(material.role, (totals.get(material.role) ?? 0n) + micros);
+    }
+    await connection.repository('prdShiftReports').updateOne({
+      filter: { id: reportId },
+      values: {
+        processedQuantity: stockQuantity(totals.get('feedstock') ?? 0n),
+        metalQuantity: stockQuantity(totals.get('product') ?? 0n),
+        sandQuantity: stockQuantity(totals.get('byproduct') ?? 0n),
+        updatedBy: principal.id,
+        updatedAt: now,
+      } as never,
+    });
   }
 
   private async writeDowntime(
@@ -3017,27 +3032,37 @@ export class ProductionService {
         'PRODUCTION_CONFLICT',
         text(row.status) === 'draft' ? 'VERSION_CONFLICT' : 'REPORT_NOT_DRAFT',
       );
-    const mappings = await this.database
-      .repository('prdOutputMappings')
-      .findMany({
-        filter: { unitId: text(row.unitId), status: 'active' },
-        limit: 10,
-      });
-    const byType = new Map(
-      mappings.map((mapping) => [text(mapping.outputType), mapping] as const),
+    const configs = await this.unitMaterials(
+      this.database,
+      text(row.subjectId),
+      text(row.unitId),
     );
-    const outputs = [
-      ['metal', text(row.metalQuantity)],
-      ['sand', text(row.sandQuantity)],
-    ] as const;
-    const selected = outputs.filter(([, quantity]) => quantity !== '0');
+    const configBySku = new Map(
+      configs.map((config) => [config.skuId, config]),
+    );
+    const materialRows = await this.database
+      .repository('prdShiftReportMaterials')
+      .findMany({ filter: { reportId: id }, limit: 200 });
+    const selected = materialRows
+      .filter(
+        (material) =>
+          (text(material.role) === 'product' ||
+            text(material.role) === 'byproduct') &&
+          stockMicros(text(material.quantity)) > 0n,
+      )
+      .map((material) => ({
+        outputType: text(material.role) === 'product' ? 'metal' : 'sand',
+        quantity: text(material.quantity),
+        skuId: text(material.skuId),
+        warehouseId: configBySku.get(text(material.skuId))?.defaultWarehouseId,
+      }));
     if (!selected.length)
       throw new ProductionError('PRODUCTION_INVALID', 'OUTPUT_REQUIRED');
-    for (const [outputType] of selected)
-      if (!byType.has(outputType))
+    for (const output of selected)
+      if (!output.warehouseId)
         throw new ProductionError(
           'PRODUCTION_INVALID',
-          'OUTPUT_MAPPING_MISSING',
+          'OUTPUT_WAREHOUSE_MISSING',
         );
     const inputRows = await this.database
       .repository('prdShiftReportInputs')
@@ -3082,18 +3107,17 @@ export class ProductionService {
         await c
           .repository('prdShiftReportOutputs')
           .deleteOne({ filter: { id: text(output.id) } });
-      for (const [outputType, quantity] of selected) {
-        const mapping = byType.get(outputType)!;
+      for (const output of selected) {
         await c.repository('prdShiftReportOutputs').createOne({
           values: {
             id: randomUUID(),
             reportId: id,
             subjectId: text(row.subjectId),
             unitId: text(row.unitId),
-            outputType,
-            skuId: text(mapping.skuId),
-            warehouseId: text(mapping.defaultWarehouseId) || null,
-            quantity: normalizeDecimal(quantity),
+            outputType: output.outputType,
+            skuId: output.skuId,
+            warehouseId: output.warehouseId ?? null,
+            quantity: normalizeDecimal(output.quantity),
             stockDocumentId: null,
             version: 1,
             createdBy: principal.id,
@@ -3335,7 +3359,7 @@ export class ProductionService {
         unitId,
       });
     }
-    for (const output of report.outputs) {
+    for (const output of materialLines.length ? [] : report.outputs) {
       if (!output.warehouseId)
         throw new ProductionError(
           'PRODUCTION_INVALID',
