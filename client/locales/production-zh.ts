@@ -412,8 +412,6 @@ export const production = {
   reportOvertimeSummary:
     '本班加班 {{people}} 人、合计 {{hours}} 小时（含上方已填小时）。',
   reportAdd: '添加',
-  superAdminView:
-    '系统管理员可以查看任意公司的生产报表；填报请使用对应的员工账号。',
   reportReadOnly: '只读账号：可以查看本单元填报，不能提交。',
   reportSubmit: '提交报表',
   reportSaved: '已保存。',

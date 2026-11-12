@@ -13,4 +13,5 @@
 - 官方同步 Skills 不写项目经验；项目经验写 docs 和本规则。
 
 - 人事/人才相关修改先读经验文档的“人事与人力资源验收：失败分类与防复发”。构建完成后再启动浏览器验收，禁止同一 dist 同时构建与截图；覆盖页测试按当前层定位，保留底层 inert。新增失败先分类和记录根因，不无依据反复重跑。
+- 字段权限按页面组织，页面与字段资源的归属集中在 `client/pages/settings/field-permission-pages.ts`；保存某个页面的字段策略时必须提交完整 catalog（默认 write）再过滤，避免抹掉其他页面的策略。预览环境是 `.preview/app` 的独立副本，`pnpm build` 后必须同步 `.preview/app/client` 并重启，否则浏览器仍加载旧资产。
 - 本工具各执行会话的 PID 空间相互隔离，官方数据库测试工具会按主机/PID 清理过期 schema。同一个PostgreSQL验证库或同一个SQLite测试目录的应用测试/长驻fixture必须跨会话串行，先确认上一进程退出；`--maxWorkers=1` 只约束当前进程。重启探针保留的schema清理前不要另起同库测试。SQLite需并行时使用官方NOCOBASE_TEST_DB_SQLITE_DIRECTORY指定不同目录；不能共享默认目录。详见 [采购专项记录](../../docs/采购A2.2隔离PostgreSQL验证.md)。

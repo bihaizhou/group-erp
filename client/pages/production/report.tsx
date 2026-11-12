@@ -391,7 +391,6 @@ export default function ProductionReportPage() {
     );
 
   const contextData = context.data?.data;
-  const superAdmin = !!contextData?.identity?.superAdmin;
 
   if (context.error)
     return (
@@ -434,7 +433,7 @@ export default function ProductionReportPage() {
       </PageContainer>
     );
 
-  const readOnly = !contextData.canManage || superAdmin;
+  const readOnly = !contextData.canManage;
   const locked =
     readOnly || Boolean(data?.report && data.report.status !== 'draft');
   const existingDowntime = data?.downtime.events ?? [];
@@ -497,11 +496,7 @@ export default function ProductionReportPage() {
         </CardContent>
       </Card>
 
-      <ReadOnlyNotice
-        canManage={contextData.canManage && !superAdmin}
-        canApprove={false}
-        hint={superAdmin ? t('production.superAdminView') : undefined}
-      />
+      <ReadOnlyNotice canManage={contextData.canManage} canApprove={false} />
 
       <Card>
         <CardHeader>

@@ -441,8 +441,6 @@ export const production = {
   reportOvertimeSummary:
     '{{people}} people and {{hours}} hours of overtime this shift (including hours entered above).',
   reportAdd: 'Add',
-  superAdminView:
-    'Administrators can review any company’s production report. Use the employee account to fill one in.',
   reportReadOnly: 'Read-only: you can review this unit but not submit.',
   reportSubmit: 'Submit',
   reportSaved: 'Saved.',

@@ -967,9 +967,6 @@ export class ProductionService {
       this.timeZone,
       principal,
     );
-    // Root accounts review every company but do not report on behalf of staff.
-    if (identity.superAdmin)
-      throw new ProductionError('PRODUCTION_FORBIDDEN', 'SUPER_ADMIN_READONLY');
     const assigned = identity.units.find((item) => item.id === input.unitId);
     if (!scope.readAll && !assigned)
       throw new ProductionError('PRODUCTION_FORBIDDEN', 'UNIT_NOT_ASSIGNED');
