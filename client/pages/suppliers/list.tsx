@@ -59,6 +59,18 @@ import {
   type Availability,
   type Choice,
 } from './model.js';
+const COLUMN_WIDTHS: Record<string, string> = {
+  name: 'min-w-44',
+  code: 'min-w-24',
+  registrationCode: 'min-w-28',
+  scopeMatch: 'min-w-24',
+  identityStatus: 'min-w-28',
+  supplierStatus: 'min-w-28',
+  companyStatus: 'min-w-28',
+  effectiveStatus: 'min-w-32',
+  updatedAt: 'min-w-40',
+};
+
 export default function SupplierList() {
   const { rootPath, role: partnerRole } = usePartnerConfig();
   const { t, i18n } = useTranslation(),
@@ -269,6 +281,7 @@ export default function SupplierList() {
                           ].map((key) => (
                             <TableHead
                               key={key}
+                              className={COLUMN_WIDTHS[key]}
                               aria-sort={
                                 ['updatedAt', 'code', 'name'].includes(key)
                                   ? orderBy.replace(/^-/u, '') === key

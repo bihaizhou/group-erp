@@ -47,6 +47,7 @@ export function RoleList({
     () => [
       {
         accessorKey: 'title',
+        meta: { className: 'w-[38%]' },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={labels.name} />
         ),
@@ -62,6 +63,7 @@ export function RoleList({
       },
       {
         accessorKey: 'key',
+        meta: { className: 'w-[44%]' },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={labels.key} />
         ),
@@ -77,6 +79,7 @@ export function RoleList({
       {
         accessorKey: 'protected',
         enableSorting: false,
+        meta: { className: 'w-[18%]' },
         header: labels.type,
         cell: ({ row }) => (
           <Badge variant='secondary'>

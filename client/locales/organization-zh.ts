@@ -201,6 +201,10 @@ export const erp = {
     '人事事务办理，以及运营、采购、安环、财务、设备技术等职能。',
   developmentDescription: '项目拓展、投资决策、建设、验收与运营移交。',
   open: '进入组织架构',
-  boundary:
-    '组织架构维护组织和岗位；职能平台的人事维护人员与任职，人力资源负责集团规划与人才发展。',
+  organizationBoundary:
+    '维护组织主体、单元、岗位与板块；组织变动会同步到人员任职与数据权限。',
+  hrBoundary: '集团层面的规划与评价入口；各公司的人事事务在职能平台办理。',
+  functionsBoundary: '各公司职能平台的统一入口；数据按公司与岗位范围隔离。',
+  developmentBoundary: '项目拓展、投资决策与运营移交将在后续版本开放。',
+  plannedHint: '该模块上线后将在此展示入口。',
 };

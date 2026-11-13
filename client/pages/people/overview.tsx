@@ -90,24 +90,39 @@ export default function PeopleOverviewPage() {
             </CardHeader>
             <CardContent className='flex flex-col gap-4'>
               {result.companies.length ? (
-                result.companies.map((company) => (
-                  <div
-                    key={company.subjectId}
-                    className='flex flex-wrap items-center justify-between gap-3 border-b pb-3 last:border-0'
-                  >
-                    <span className='text-sm font-medium'>
-                      {options.data?.data.orgSubjects?.rows.find(
-                        (r) => r.id === company.subjectId,
-                      )?.name ?? company.subjectId}
-                    </span>
-                    <span className='text-sm text-muted-foreground'>
-                      {t('people.companyCounts', {
-                        primary: company.primary,
-                        partTime: company.partTime,
-                      })}
-                    </span>
+                <>
+                  <div className='flex items-center justify-between gap-3 border-b pb-2 text-xs text-muted-foreground'>
+                    <span>{t('people.companyColumn')}</span>
+                    <div className='flex gap-x-6 pr-1'>
+                      <span className='w-16 text-right'>
+                        {t('people.primaryColumn')}
+                      </span>
+                      <span className='w-16 text-right'>
+                        {t('people.partTimeColumn')}
+                      </span>
+                    </div>
                   </div>
-                ))
+                  {result.companies.map((company) => (
+                    <div
+                      key={company.subjectId}
+                      className='flex flex-wrap items-center justify-between gap-3 border-b pb-3 last:border-0'
+                    >
+                      <span className='text-sm font-medium'>
+                        {options.data?.data.orgSubjects?.rows.find(
+                          (r) => r.id === company.subjectId,
+                        )?.name ?? company.subjectId}
+                      </span>
+                      <div className='flex gap-x-6 pr-1 text-sm tabular-nums text-muted-foreground'>
+                        <span className='w-16 text-right'>
+                          {company.primary}
+                        </span>
+                        <span className='w-16 text-right'>
+                          {company.partTime}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </>
               ) : (
                 <p className='text-sm text-muted-foreground'>
                   {t('people.noAssignmentData')}
@@ -133,7 +148,7 @@ export default function PeopleOverviewPage() {
                 {['dimensions', 'models', 'profiles'].map((kind) => (
                   <Link
                     key={kind}
-                    className='text-sm text-primary hover:underline'
+                    className='rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted'
                     to={`/human-resources/${kind}`}
                   >
                     {t(`people.${kind}`)}
@@ -152,7 +167,7 @@ export default function PeopleOverviewPage() {
                 {['developmentPlans', 'workforcePlans'].map((kind) => (
                   <Link
                     key={kind}
-                    className='text-sm text-primary hover:underline'
+                    className='rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted'
                     to={`/human-resources/${kind}`}
                   >
                     {t(`people.${kind}`)}

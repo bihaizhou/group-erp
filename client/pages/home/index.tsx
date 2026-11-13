@@ -16,6 +16,13 @@ import { StatusBadge } from '#components/status-badge';
 import { accessKey, useModuleAccess } from '../../hooks/use-module-access.js';
 import { homeChecks, homeModules } from '../../modules/catalog.js';
 
+const boundaryKeys: Record<string, string> = {
+  organization: 'erp.organizationBoundary',
+  hr: 'erp.hrBoundary',
+  functions: 'erp.functionsBoundary',
+  development: 'erp.developmentBoundary',
+};
+
 export default function HomePage() {
   const { t } = useTranslation(),
     { allowed } = useModuleAccess(homeChecks),
@@ -36,7 +43,7 @@ export default function HomePage() {
         {modules.map((module) => {
           const Icon = module.icon;
           return (
-            <Card key={module.id}>
+            <Card key={module.id} className='flex flex-col'>
               <CardHeader>
                 <div className='mb-2 flex items-center justify-between gap-2'>
                   <Icon className='size-5 text-primary' />
@@ -47,9 +54,13 @@ export default function HomePage() {
                 <CardTitle>{t(module.titleKey)}</CardTitle>
                 <CardDescription>{t(module.descriptionKey)}</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className='flex-1'>
                 <p className='text-sm text-muted-foreground'>
-                  {module.path ? t('erp.boundary') : t('erp.planned')}
+                  {t(
+                    module.path
+                      ? (boundaryKeys[module.id] ?? 'erp.plannedHint')
+                      : 'erp.plannedHint',
+                  )}
                 </p>
               </CardContent>
               {module.path && module.can ? (

@@ -257,7 +257,7 @@ export const production = {
     '按周期生成点检/保养工单，完工后自动顺延下次到期日。',
   planNoUnit: '还没有可用的生产单元，先建立生产单元档案和产出映射。',
   planGoSetup: '去生产单元档案',
-  planFilter: '筛选',
+  planFilter: '生产单元',
   planFilterHint: '先选择生产单元。',
   planCreateTitle: '新建保养计划',
   planCreateHint: '到期后生成工单；工单完工后按周期顺延。',

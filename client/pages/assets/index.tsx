@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { ReadOnlyNotice } from '#components/read-only-notice';
@@ -205,17 +205,28 @@ export default function AssetsPage() {
         title={t('assets.title')}
         description={t('assets.description')}
         actions={
-          canManage ? (
+          <div className='flex items-center gap-2'>
             <Button
-              onClick={() => {
-                setForm(emptyForm(subjectId));
-                setOpen(true);
-              }}
+              variant='outline'
+              size='icon'
+              aria-label={t('assets.refresh')}
+              title={t('assets.refresh')}
+              onClick={() => void list.refetch()}
             >
-              <Plus />
-              {t('assets.create')}
+              <RefreshCw className='size-4' />
             </Button>
-          ) : undefined
+            {canManage ? (
+              <Button
+                onClick={() => {
+                  setForm(emptyForm(subjectId));
+                  setOpen(true);
+                }}
+              >
+                <Plus />
+                {t('assets.create')}
+              </Button>
+            ) : null}
+          </div>
         }
       />
       <ReadOnlyNotice canManage={canManage} canApprove={canApprove} />
@@ -261,13 +272,6 @@ export default function AssetsPage() {
             ))}
           </select>
         </label>
-        <Button
-          className='sm:ml-auto'
-          variant='outline'
-          onClick={() => void list.refetch()}
-        >
-          {t('assets.refresh')}
-        </Button>
       </div>
       {error ? (
         <p className='mb-4 text-sm text-destructive'>{String(error)}</p>

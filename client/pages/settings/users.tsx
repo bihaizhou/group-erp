@@ -364,12 +364,14 @@ export default function UsersPage(): ReactElement {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('settings.name')} />
         ),
+        meta: { className: 'w-[20%]' },
         enableHiding: false,
         cell: ({ row }) => <UserName user={row.original} />,
       },
       {
         accessorKey: 'email',
         header: t('settings.email'),
+        meta: { className: 'w-[26%]' },
         enableSorting: false,
         cell: ({ row }) => (
           <span className='block max-w-64 truncate' title={row.original.email}>
@@ -380,6 +382,7 @@ export default function UsersPage(): ReactElement {
       {
         id: 'status',
         header: t('settings.status'),
+        meta: { className: 'w-[12%]' },
         enableSorting: false,
         cell: ({ row }) => (
           <StatusBadge tone={row.original.disabledAt ? 'neutral' : 'success'}>
@@ -394,6 +397,7 @@ export default function UsersPage(): ReactElement {
       {
         id: 'roles',
         header: t('settings.assignedRoles'),
+        meta: { className: 'w-[26%]' },
         enableSorting: false,
         cell: ({ row }) =>
           Object.entries(row.original.roleScopes)
@@ -412,7 +416,10 @@ export default function UsersPage(): ReactElement {
       },
       {
         id: 'actions',
-        header: () => <span className='sr-only'>{t('settings.actions')}</span>,
+        header: () => (
+          <span className='block text-right'>{t('settings.actions')}</span>
+        ),
+        meta: { className: 'w-[16%]' },
         enableSorting: false,
         cell: ({ row }) => <UserActions user={row.original} reload={reload} />,
       },
@@ -459,7 +466,10 @@ export default function UsersPage(): ReactElement {
             value={status}
             onValueChange={(value) => update('status', String(value))}
           >
-            <SelectTrigger aria-label={t('settings.status')}>
+            <SelectTrigger
+              className='w-full sm:w-36'
+              aria-label={t('settings.status')}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent className='w-auto max-w-[min(var(--container-sm),var(--available-width))] min-w-(--anchor-width) [&_[data-slot=select-item]>:first-child]:whitespace-normal'>

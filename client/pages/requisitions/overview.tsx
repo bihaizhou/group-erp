@@ -156,7 +156,7 @@ export default function RequisitionsOverviewPage() {
         >
           {recentRequests.data?.map((row) => (
             <TableRow key={row.id}>
-              <TableCell className='font-medium'></TableCell>
+              <TableCell className='font-medium'>{row.code}</TableCell>
               <TableCell>{row.display?.requester?.name ?? '—'}</TableCell>
               <TableCell>
                 <DashboardStatus status={row.status} />

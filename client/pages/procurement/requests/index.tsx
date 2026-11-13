@@ -395,9 +395,20 @@ export default function RequestsPage() {
           actions={
             <>
               {merge.can ? (
-                <>
+                <div
+                  role='tablist'
+                  className='inline-flex items-center gap-1 rounded-lg border border-input bg-muted/40 p-0.5'
+                >
                   <Button
-                    variant={tab === 'list' ? 'default' : 'outline'}
+                    role='tab'
+                    aria-selected={tab === 'list'}
+                    size='sm'
+                    variant='ghost'
+                    className={
+                      tab === 'list'
+                        ? 'bg-background shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }
                     onClick={() =>
                       updateParams((p) => {
                         p.delete('tab');
@@ -408,7 +419,15 @@ export default function RequestsPage() {
                     {t(ui('title'))}
                   </Button>
                   <Button
-                    variant={tab === 'merge' ? 'default' : 'outline'}
+                    role='tab'
+                    aria-selected={tab === 'merge'}
+                    size='sm'
+                    variant='ghost'
+                    className={
+                      tab === 'merge'
+                        ? 'bg-background shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }
                     onClick={() =>
                       updateParams((p) => {
                         p.set('tab', 'merge');
@@ -418,7 +437,7 @@ export default function RequestsPage() {
                   >
                     {t(ui('mergedList'))}
                   </Button>
-                </>
+                </div>
               ) : null}
               {tab === 'list' &&
               create.can &&
@@ -476,10 +495,10 @@ export default function RequestsPage() {
                 aria-label={t(ui('search'))}
                 placeholder={t(ui('search'))}
                 maxLength={200}
-                className='w-full sm:max-w-sm'
+                className='w-full sm:max-w-xs'
               />
               {readAll.can ? (
-                <div className='w-full sm:w-40'>
+                <div className='w-full sm:w-36'>
                   <PurchaseSelect
                     label={t(ui('company'))}
                     value={group ? 'all' : subjectId}
@@ -496,7 +515,7 @@ export default function RequestsPage() {
                   />
                 </div>
               ) : null}
-              <div className='w-full sm:w-auto'>
+              <div className='w-full sm:w-36'>
                 <PurchaseSelect
                   label={t(ui('reviewState'))}
                   value={status || 'all'}
@@ -510,7 +529,7 @@ export default function RequestsPage() {
                   onChange={(v) => change('status', v === 'all' ? '' : v)}
                 />
               </div>
-              <div className='w-full sm:w-40'>
+              <div className='w-full sm:w-36'>
                 <PurchaseSelect
                   label={t(ui('identificationState'))}
                   value={identification || 'all'}
@@ -523,7 +542,7 @@ export default function RequestsPage() {
                   }
                 />
               </div>
-              <div className='w-full sm:w-40'>
+              <div className='w-full sm:w-36'>
                 <PurchaseSelect
                   label={t(ui('allRequests'))}
                   value={query.mine}

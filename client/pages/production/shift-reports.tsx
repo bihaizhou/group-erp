@@ -215,9 +215,6 @@ export default function ProductionShiftReportsPage() {
           <CardTitle className='text-base'>
             {t('production.recordFilter')}
           </CardTitle>
-          <CardDescription>
-            {t('production.shiftReportListDescription')}
-          </CardDescription>
         </CardHeader>
         <CardContent className='flex flex-wrap items-end gap-3'>
           <label className='grid gap-1 text-sm sm:w-44'>

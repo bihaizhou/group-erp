@@ -273,7 +273,7 @@ export const production = {
   planNoUnit:
     'No production unit is available yet. Create a unit profile and output mapping first.',
   planGoSetup: 'Go to unit setup',
-  planFilter: 'Filter',
+  planFilter: 'Production unit',
   planFilterHint: 'Select a production unit first.',
   planCreateTitle: 'New maintenance plan',
   planCreateHint:

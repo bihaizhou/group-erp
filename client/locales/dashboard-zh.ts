@@ -28,6 +28,7 @@ export const dashboard = {
     closed: '已关闭',
   },
   common: {
+    materialCode: '物料编码',
     code: '单号',
     name: '名称',
     status: '状态',

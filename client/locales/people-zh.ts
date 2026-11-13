@@ -255,6 +255,9 @@ export const people = {
   companyDistribution: '公司人员配置',
   companyDistributionDescription:
     '截至 {{date}}，主职与兼职分别统计，集团人数按人员去重。',
+  companyColumn: '公司',
+  primaryColumn: '主职（人）',
+  partTimeColumn: '兼职（项）',
   companyCounts: '主职 {{primary}} 人 · 兼职 {{partTime}} 项',
   noAssignmentData: '尚无有效任职数据，请先在人事模块办理入职或任职。',
   talentFoundation: '人才基础',

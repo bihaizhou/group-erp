@@ -15,6 +15,12 @@ import {
 import { Input } from '#components/ui/input';
 import { nativeSelectClass } from '#components/native-controls';
 import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from '#components/ui/empty';
+import {
   Table,
   TableBody,
   TableCell,
@@ -491,9 +497,16 @@ export default function ProductionEquipmentPage() {
                 </div>
               ))}
               {orderRows.length === 0 ? (
-                <p className='text-sm text-muted-foreground'>
-                  {t('production.maintenanceEmpty')}
-                </p>
+                <Empty className='min-h-32 border border-dashed'>
+                  <EmptyHeader>
+                    <EmptyMedia variant='icon'>
+                      <Wrench />
+                    </EmptyMedia>
+                    <EmptyDescription>
+                      {t('production.maintenanceEmpty')}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
               ) : null}
             </div>
           </div>

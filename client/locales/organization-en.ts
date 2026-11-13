@@ -219,6 +219,13 @@ export const erp = {
   developmentDescription:
     'Project development, investment decisions, construction and handover.',
   open: 'Open organization',
-  boundary:
-    'Organization owns structures and positions. Personnel in the functional platform owns people and assignments; HR owns group planning and talent development.',
+  organizationBoundary:
+    'Maintains subjects, units, positions and segments; changes flow into assignments and data scope.',
+  hrBoundary:
+    'Group-level planning and evaluation; each company runs its HR operations in the function platform.',
+  functionsBoundary:
+    'One entry to every company function platform; data stays scoped by company and position.',
+  developmentBoundary:
+    'Project expansion, investment decisions and handover arrive in a later release.',
+  plannedHint: 'This module will appear here once it is available.',
 };

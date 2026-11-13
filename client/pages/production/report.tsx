@@ -3,7 +3,6 @@ import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Save, Trash2 } from 'lucide-react';
-import { CompanyIdentity } from '#components/company-scope';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { useFieldAccess } from '#hooks/use-field-access';
 import { PageContainer } from '#components/page-container';
@@ -472,16 +471,20 @@ export default function ProductionReportPage() {
             <div className='text-xs text-muted-foreground'>
               {t('production.reportCompany')}
             </div>
-            <CompanyIdentity
-              company={identity.company}
-              hint={t('companyScope.fromIdentity')}
-            />
+            <div className='truncate text-sm font-medium'>
+              {[identity.company?.code, identity.company?.name]
+                .filter(Boolean)
+                .join(' · ') || '—'}
+            </div>
+            <div className='text-xs text-muted-foreground'>
+              {t('companyScope.fromIdentity')}
+            </div>
           </div>
           <div className='space-y-1'>
             <div className='text-xs text-muted-foreground'>
               {t('production.position')}
             </div>
-            <div className='text-sm font-medium'>
+            <div className='truncate text-sm font-medium'>
               {activeUnit?.positionName ?? identity.position?.name ?? '—'}
             </div>
             <div className='text-xs text-muted-foreground'>
@@ -492,7 +495,7 @@ export default function ProductionReportPage() {
             <div className='text-xs text-muted-foreground'>
               {t('production.reportReporter')}
             </div>
-            <div className='text-sm font-medium'>
+            <div className='truncate text-sm font-medium'>
               {identity.employee?.name ?? '—'}
             </div>
           </div>
@@ -623,21 +626,21 @@ export default function ProductionReportPage() {
                             {t('production.materialName')}
                           </th>
                           {seeQuantity ? (
-                            <th className='px-3 py-2'>
+                            <th className='w-36 px-3 py-2'>
                               {t('production.materialQuantity')}
                             </th>
                           ) : null}
                           {seeStock ? (
-                            <th className='px-3 py-2'>
+                            <th className='w-36 px-3 py-2'>
                               {t('production.materialStock')}
                             </th>
                           ) : null}
                           {seeBook ? (
                             <>
-                              <th className='px-3 py-2'>
+                              <th className='w-24 px-3 py-2'>
                                 {t('production.materialBook')}
                               </th>
-                              <th className='px-3 py-2'>
+                              <th className='w-20 px-3 py-2'>
                                 {t('production.materialDifference')}
                               </th>
                             </>
@@ -1206,7 +1209,7 @@ function OvertimeComposer({
   return (
     <div className='space-y-2 rounded-md border p-3'>
       <div className='grid gap-2 sm:grid-cols-4'>
-        <label className='space-y-1 text-sm'>
+        <label className='min-w-0 space-y-1 text-sm'>
           <span>{t('production.person')}</span>
           <select
             className={nativeSelectClass}
@@ -1231,7 +1234,7 @@ function OvertimeComposer({
             onChange={(event) => setHours(event.target.value)}
           />
         </label>
-        <label className='space-y-1 text-sm'>
+        <label className='min-w-0 space-y-1 text-sm'>
           <span>{t('production.overtimeType')}</span>
           <select
             className={nativeSelectClass}
@@ -1288,7 +1291,7 @@ function MaintenanceComposer({
   return (
     <div className='space-y-2 rounded-md border p-3'>
       <div className='grid gap-2 sm:grid-cols-4'>
-        <label className='space-y-1 text-sm'>
+        <label className='min-w-0 space-y-1 text-sm'>
           <span>{t('production.equipmentName')}</span>
           <select
             className={nativeSelectClass}
@@ -1302,7 +1305,7 @@ function MaintenanceComposer({
             ))}
           </select>
         </label>
-        <label className='space-y-1 text-sm'>
+        <label className='min-w-0 space-y-1 text-sm'>
           <span>{t('production.maintenanceType')}</span>
           <select
             className={nativeSelectClass}
@@ -1319,18 +1322,19 @@ function MaintenanceComposer({
             </option>
           </select>
         </label>
-        <label className='space-y-1 text-sm sm:col-span-2'>
-          <span>{t('production.faultDescription')}</span>
-          <Input
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-          />
-        </label>
-        <label className='space-y-1 text-sm sm:col-span-2'>
+        <label className='min-w-0 space-y-1 text-sm'>
           <span>{t('production.assignee')}</span>
           <Input
             value={assigneeName}
             onChange={(event) => setAssigneeName(event.target.value)}
+            maxLength={100}
+          />
+        </label>
+        <label className='space-y-1 text-sm sm:col-span-4'>
+          <span>{t('production.faultDescription')}</span>
+          <Input
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
           />
         </label>
       </div>

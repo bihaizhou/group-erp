@@ -159,6 +159,11 @@ function DashboardCardError({
 }
 
 /** Card with a title, an optional "view all" action and a table body. */
+const COLUMN_WIDTHS: Record<number, readonly string[]> = {
+  4: ['w-[38%]', 'w-[30%]', 'w-[16%]', 'w-[16%]'],
+  5: ['w-[30%]', 'w-[24%]', 'w-[14%]', 'w-[16%]', 'w-[16%]'],
+};
+
 export function DashboardTableCard({
   title,
   description,
@@ -199,8 +204,17 @@ export function DashboardTableCard({
           <Table>
             <TableHeader>
               <TableRow>
-                {columns.map((column) => (
-                  <TableHead key={column}>{column}</TableHead>
+                {columns.map((column, index) => (
+                  <TableHead
+                    key={column}
+                    className={
+                      index === columns.length - 1
+                        ? 'text-right'
+                        : COLUMN_WIDTHS[columns.length]?.[index]
+                    }
+                  >
+                    {column}
+                  </TableHead>
                 ))}
               </TableRow>
             </TableHeader>
@@ -221,11 +235,20 @@ export function DashboardTableCard({
             {t('dashboard.empty')}
           </p>
         ) : (
-          <Table>
+          <Table className='[&_td:last-child]:text-right'>
             <TableHeader>
               <TableRow>
-                {columns.map((column) => (
-                  <TableHead key={column}>{column}</TableHead>
+                {columns.map((column, index) => (
+                  <TableHead
+                    key={column}
+                    className={
+                      index === columns.length - 1
+                        ? 'text-right'
+                        : COLUMN_WIDTHS[columns.length]?.[index]
+                    }
+                  >
+                    {column}
+                  </TableHead>
                 ))}
               </TableRow>
             </TableHeader>
@@ -289,8 +312,11 @@ export function DashboardTodoCard({
                     </span>
                   ) : null}
                 </span>
-                {typeof item.count === 'number' ? (
-                  <span className='text-sm tabular-nums text-muted-foreground'>
+                {typeof item.count === 'number' && item.count > 0 ? (
+                  <span
+                    className='rounded-md bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground'
+                    aria-label={`${item.label} ${item.count}`}
+                  >
                     {item.count}
                   </span>
                 ) : null}

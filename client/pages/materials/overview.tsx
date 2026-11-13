@@ -146,7 +146,7 @@ export default function MaterialsOverviewPage() {
             title={t('dashboard.materials.recentSkus')}
             description={t('dashboard.materials.recentSkusDescription')}
             columns={[
-              t('dashboard.common.code'),
+              t('dashboard.common.materialCode'),
               t('dashboard.common.name'),
               t('dashboard.common.status'),
               t('dashboard.common.date'),

@@ -28,6 +28,7 @@ export const dashboard = {
     closed: 'Closed',
   },
   common: {
+    materialCode: 'Material code',
     code: 'Number',
     name: 'Name',
     status: 'Status',

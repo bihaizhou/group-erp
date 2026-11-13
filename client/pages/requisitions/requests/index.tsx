@@ -421,9 +421,9 @@ export default function RequestsPage() {
                 aria-label={t(ui('search'))}
                 placeholder={t(ui('search'))}
                 maxLength={200}
-                className='w-full sm:max-w-sm'
+                className='w-full sm:max-w-xs'
               />
-              <div className='w-full sm:w-auto'>
+              <div className='w-full sm:w-36'>
                 <IssueSelect
                   label={t(ui('reviewState'))}
                   value={status || 'all'}
@@ -440,7 +440,7 @@ export default function RequestsPage() {
                   onChange={(v) => change('status', v === 'all' ? '' : v)}
                 />
               </div>
-              <div className='w-full sm:w-auto'>
+              <div className='w-full sm:w-36'>
                 <IssueSelect
                   label={t(ui('identificationState'))}
                   value={identification || 'all'}
@@ -453,7 +453,7 @@ export default function RequestsPage() {
                   }
                 />
               </div>
-              <div className='w-full sm:w-auto'>
+              <div className='w-full sm:w-36'>
                 <IssueSelect
                   label={t(ui('allRequests'))}
                   value={query.mine}

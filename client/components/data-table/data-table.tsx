@@ -30,6 +30,12 @@ import {
 } from '#components/ui/table';
 import { cn } from 'cn';
 
+type ColumnMeta = { readonly className?: string };
+
+function columnMetaClass(meta: unknown): string | undefined {
+  return (meta as ColumnMeta | undefined)?.className;
+}
+
 export interface DataTableProps<TData, TValue = unknown> {
   readonly columns: ColumnDef<TData, TValue>[];
   readonly data: readonly TData[];
@@ -203,6 +209,7 @@ export function DataTable<TData, TValue = unknown>({
                   <TableHead
                     key={header.id}
                     colSpan={header.colSpan}
+                    className={columnMetaClass(header.column.columnDef.meta)}
                     aria-sort={
                       header.column.getCanSort()
                         ? header.column.getIsSorted() === 'asc'
@@ -245,7 +252,10 @@ export function DataTable<TData, TValue = unknown>({
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
+                      <TableCell
+                        key={cell.id}
+                        className={columnMetaClass(cell.column.columnDef.meta)}
+                      >
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),

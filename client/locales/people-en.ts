@@ -278,6 +278,9 @@ export const people = {
   companyDistribution: 'Workforce by company',
   companyDistributionDescription:
     'As of {{date}}. Primary and additional assignments are separate; group headcount is deduplicated.',
+  companyColumn: 'Company',
+  primaryColumn: 'Primary',
+  partTimeColumn: 'Part-time',
   companyCounts:
     '{{primary}} primary employees · {{partTime}} additional assignments',
   noAssignmentData:

@@ -21,6 +21,7 @@ const systemSettingsRoutes: AppClientRouteContribution = defineAppRoutes([
         name: 'settingsIndex',
         path: '',
         auth: 'required',
+        breadcrumb: { title: 'settingsHub.title' },
         componentLoader: () => import('./overview.js'),
       },
       {

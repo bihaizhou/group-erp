@@ -270,7 +270,9 @@ export default function ProductionSchedulesPage() {
                   <TableHead className='w-16'>
                     {t('production.assigned')}
                   </TableHead>
-                  <TableHead>{t('production.person')}</TableHead>
+                  <TableHead className='w-1/2'>
+                    {t('production.person')}
+                  </TableHead>
                   <TableHead>{t('production.position')}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -312,6 +314,7 @@ export default function ProductionSchedulesPage() {
             </label>
             <Button
               type='button'
+              className='sm:ml-auto'
               disabled={save.isPending || !selectedUnit || !access.canManage}
               onClick={() => save.mutate()}
             >
