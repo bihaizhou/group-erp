@@ -260,3 +260,12 @@ DOM 复测(Playwright 探针,1440px 视口,zh-CN + en-US):
 - 复测：状态=草稿 → 请求变为 `submitted=false&status=draft&mine=true`；有草稿时列表出现行并可勾选、批量提交弹窗正常；无草稿时显示「没有匹配的申请 / 清除筛选」。
 - 动作弹窗抽查：资产「分配保管人」（保管人下拉 + 备注）、资产「申请报废」（原因必填）、生产排班「发布排班」（无二次确认，确认后行内提示「排班已发布」并把按钮置灰）——均正常。
 - 为验证这些状态，测试库新增：资产 AST-UI-1（在库，无法删除，只能后续报废）、今日排班（2 人，已发布）、一张已取消的测试采购申请 PR-20261113-0BB06E…。
+
+## 十九、确认班报 500：产出类型按角色推断
+
+- 现象：填报并保存当班生产结果后，在「班报记录」点「确认班报」，页面顶部只出现一行英文 `Internal server error.`，报告仍是草稿。
+- 服务端日志：`SqliteError: UNIQUE constraint failed: prd_shift_report_outputs.report_id, prd_shift_report_outputs.output_type`（POST /api/production/shift-reports/:id/confirm，500）。
+- 根因：确认时把报工明细的产出类型按「角色」推断（product→metal、byproduct→sand）。一个单元同时产出金属与砂料时，两行都是 product，都被推断成 metal，插入第二条时撞唯一索引。单元档案里本来就有「产出映射」（sku → metal/sand），应以它为准。
+- 修复：server/providers/production-service.ts 的 confirmShiftReport 读取 `prdOutputMappings`（按 subject + unit），按 sku 取 outputType，取不到才回落到角色推断；并加重复产出类型校验（OUTPUT_TYPE_DUPLICATE）。
+- 复测：同一张草稿确认成功，状态变「已确认」，按钮变「查看入库单 / 投入明细」；生成入库草稿后提示「已生成仓库生产入库草稿。」，查看入库单可打开生产入库详情（draft，2 行）。
+- 顺带确认：确认/作废/入库三个动作的入口与提示文案都正常，问题只在服务端推断逻辑。

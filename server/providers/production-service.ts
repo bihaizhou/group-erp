@@ -3040,6 +3040,21 @@ export class ProductionService {
     const configBySku = new Map(
       configs.map((config) => [config.skuId, config]),
     );
+    // 产出类型以「产出映射」为准：同一单元可能同时产出金属与砂料，
+    // 两者在报工明细里都是 product 角色，单靠角色推断会撞上
+    // (report_id, output_type) 唯一约束。
+    const mappings = await this.database
+      .repository('prdOutputMappings')
+      .findMany({
+        filter: { subjectId: text(row.subjectId), unitId: text(row.unitId) },
+        limit: 50,
+      });
+    const outputTypeBySku = new Map(
+      mappings.map((mapping) => [
+        text(mapping.skuId),
+        text(mapping.outputType),
+      ]),
+    );
     const materialRows = await this.database
       .repository('prdShiftReportMaterials')
       .findMany({ filter: { reportId: id }, limit: 200 });
@@ -3050,12 +3065,21 @@ export class ProductionService {
             text(material.role) === 'byproduct') &&
           stockMicros(text(material.quantity)) > 0n,
       )
-      .map((material) => ({
-        outputType: text(material.role) === 'product' ? 'metal' : 'sand',
-        quantity: text(material.quantity),
-        skuId: text(material.skuId),
-        warehouseId: configBySku.get(text(material.skuId))?.defaultWarehouseId,
-      }));
+      .map((material) => {
+        const skuId = text(material.skuId);
+        return {
+          outputType:
+            outputTypeBySku.get(skuId) ??
+            (text(material.role) === 'product' ? 'metal' : 'sand'),
+          quantity: text(material.quantity),
+          skuId,
+          warehouseId: configBySku.get(skuId)?.defaultWarehouseId,
+        };
+      });
+    if (
+      new Set(selected.map((item) => item.outputType)).size !== selected.length
+    )
+      throw new ProductionError('PRODUCTION_INVALID', 'OUTPUT_TYPE_DUPLICATE');
     if (!selected.length)
       throw new ProductionError('PRODUCTION_INVALID', 'OUTPUT_REQUIRED');
     for (const output of selected)
