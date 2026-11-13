@@ -583,7 +583,7 @@ function ApprovalEditor({ settings }: { settings: Settings }) {
                                 aria-pressed={stage.mode === mode}
                                 onClick={() => updateStage(index, { mode })}
                                 className={cn(
-                                  'rounded px-2.5 py-1 text-xs transition-colors',
+                                  'rounded px-2.5 py-1.5 text-xs transition-colors',
                                   stage.mode === mode
                                     ? 'bg-muted font-medium text-foreground'
                                     : 'text-muted-foreground hover:text-foreground',

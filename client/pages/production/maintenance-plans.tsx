@@ -185,7 +185,7 @@ export default function ProductionMaintenancePlansPage() {
                 ))}
               </select>
             </label>
-            <Button variant='outline' size='sm' onClick={refresh}>
+            <Button variant='outline' onClick={refresh}>
               <RefreshCw className='mr-1 size-4' />
               {t('production.refresh')}
             </Button>

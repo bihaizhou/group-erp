@@ -778,6 +778,7 @@ export default function ProductionReportPage() {
                         <TableCell>
                           <select
                             className={`${nativeSelectClass} min-w-24`}
+                            aria-label={`${t('production.statusLabel')} · ${row.personName}`}
                             disabled={locked}
                             value={row.status}
                             onChange={(event) => {
