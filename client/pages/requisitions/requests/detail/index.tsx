@@ -19,6 +19,12 @@ import { PageHeader } from '#components/page-header';
 import { BackButton } from '#components/back-button';
 import { RouteChildPage } from '#components/route-child-page';
 import { Button } from '#components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '#components/ui/dropdown-menu';
 import { LongText } from '#components/long-text';
 import { ReviewAudit } from '#components/review-audit';
 import {
@@ -189,6 +195,14 @@ export default function RequestDetail() {
         setReceiving(false);
       }
     };
+  const actionList = (['update', ...transitions, 'copy'] as Action[]).filter(
+      (action) => capsFor(action).cap?.visible,
+    ),
+    enabledActions = actionList.filter((action) => capsFor(action).enabled),
+    disabledActions = actionList.filter((action) => !capsFor(action).enabled),
+    showActions =
+      !related &&
+      (enabledActions.length > 0 || caps.isFetching || !!caps.error);
   const title = row ? `${t(ui('title'))} ${row.code}` : t(ui('title'));
   return (
     <RouteChildPage>
@@ -228,10 +242,29 @@ export default function RequestDetail() {
           <Loading kind='detail' />
         ) : row && !terminal ? (
           <div className='flex flex-col gap-6'>
-            {!related && (
-              <div className='grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
-                {(['update', ...transitions, 'copy'] as Action[]).map(
-                  operation,
+            {showActions && (
+              <div className='flex flex-wrap items-center gap-2'>
+                {enabledActions.map(operation)}
+                {disabledActions.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger render={<Button variant='outline' />}>
+                      {t(ui('more'))}
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align='start'
+                      className='w-auto min-w-48'
+                    >
+                      {disabledActions.map((action) => (
+                        <DropdownMenuItem
+                          key={action}
+                          disabled
+                          title={capsFor(action).hint}
+                        >
+                          {t(ui(actionKey(action)))}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
               </div>
             )}
