@@ -458,7 +458,7 @@ export default function InventoryPage() {
             <div className='flex flex-wrap items-end gap-3'>
               {subjectId && (
                 <>
-                  <div className='min-w-48 flex-1'>
+                  <div className='w-full sm:w-44'>
                     <ReferencePicker<Choice>
                       label={t(ui('warehouse'))}
                       queryPath='warehouse/inventory/warehouses'
@@ -468,7 +468,7 @@ export default function InventoryPage() {
                       onChange={(value) => change('warehouseId', value)}
                     />
                   </div>
-                  <div className='min-w-48 flex-1'>
+                  <div className='w-full sm:w-44'>
                     <ReferencePicker<Choice>
                       label={t(ui('transfer'))}
                       queryPath='warehouse/inventory/transferOptions'
@@ -480,15 +480,22 @@ export default function InventoryPage() {
                   </div>
                   {view === 'movements' &&
                     ['from', 'to'].map((key) => (
-                      <div key={key} className='min-w-40 flex-1'>
+                      <label
+                        key={key}
+                        className='grid w-full gap-1 text-sm sm:w-40'
+                      >
+                        <span className='text-muted-foreground'>
+                          {t(ui(key))}
+                        </span>
                         <DatePicker
                           label={t(ui(key))}
+                          placeholder={t(ui(key))}
                           value={params.get(key) ?? ''}
                           onChange={(value) => change(key, value)}
                         />
-                      </div>
+                      </label>
                     ))}
-                  <div className='min-w-48 flex-1'>
+                  <div className='w-full sm:max-w-xs'>
                     <Input
                       {...inputProps}
                       aria-label={t(ui('searchMaterials'))}
@@ -496,7 +503,10 @@ export default function InventoryPage() {
                       maxLength={200}
                     />
                   </div>
-                  <div className='min-w-40 flex-1'>
+                  <label className='grid w-full gap-1 text-sm sm:w-40'>
+                    <span className='text-muted-foreground'>
+                      {t(ui('quality'))}
+                    </span>
                     <StaticSelect
                       label={t(ui('quality'))}
                       value={quality}
@@ -511,7 +521,7 @@ export default function InventoryPage() {
                       ]}
                       onChange={(value) => change('quality', value)}
                     />
-                  </div>
+                  </label>
                   {(search ||
                     warehouseId ||
                     quality ||

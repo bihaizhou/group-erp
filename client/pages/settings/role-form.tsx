@@ -98,10 +98,11 @@ function RoleEditor(): ReactElement {
   const navigate = useNavigate();
   const location = useLocation();
   const parent = useOutletContext<{ reload: () => void }>();
+  // Creating a role needs no record: `options` already loads the same endpoint.
+  // Keeping this hook idle avoids two simultaneous GETs on one path.
   const request = useSettingsData<{ data: PermissionSet }>(
-    key
-      ? `authorization/permissionSets/${encodeURIComponent(key)}`
-      : 'authorization/permissionSets/options',
+    `authorization/permissionSets/${encodeURIComponent(key ?? '')}`,
+    { active: Boolean(key) },
   );
   const missingRef = useRef<unknown>(undefined);
   useEffect(() => {

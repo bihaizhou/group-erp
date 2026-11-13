@@ -371,21 +371,26 @@ function PurposeFormBody({
                 )}
               </p>
             ) : (
-              <>
-                <ReferencePicker
-                  id='purpose-subjectId'
-                  path='purposeCompanies'
-                  label={`${t(pui('company'))} *`}
-                  disabled={!!row || !allowed}
-                  selected={row?.company}
-                  value={values.subjectId}
-                  error={invalid.subjectId ? t(pui('required')) : undefined}
-                  onChange={(id) =>
-                    setValues((old) => ({ ...old, subjectId: id }))
-                  }
-                />
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <div className='sm:col-span-2'>
+                  <ReferencePicker
+                    id='purpose-subjectId'
+                    path='purposeCompanies'
+                    label={`${t(pui('company'))} *`}
+                    disabled={!!row || !allowed}
+                    selected={row?.company}
+                    value={values.subjectId}
+                    error={invalid.subjectId ? t(pui('required')) : undefined}
+                    onChange={(id) =>
+                      setValues((old) => ({ ...old, subjectId: id }))
+                    }
+                  />
+                </div>
                 {(['code', 'name', 'description'] as const).map((key) => (
-                  <Field key={key}>
+                  <Field
+                    key={key}
+                    className={key === 'description' ? 'sm:col-span-2' : ''}
+                  >
                     <FieldLabel htmlFor={`purpose-${key}`}>
                       {t(pui(labels[key]))}
                       {key !== 'description' ? ' *' : ''}
@@ -414,7 +419,7 @@ function PurposeFormBody({
                     )}
                   </Field>
                 ))}
-              </>
+              </div>
             )}
             {!!initial && (
               <Field>
