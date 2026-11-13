@@ -89,14 +89,33 @@ export default function RequestDetail() {
       : action === 'cancel'
         ? 'cancelRequest'
         : action;
-  const operation = (action: Action) => {
+  const capsFor = (action: Action) => {
     const cap = caps.data?.data.actions[action];
-    if (!cap?.visible) return null;
     const current =
       !!row &&
       caps.data?.data.recordRevision === row.revision &&
       caps.data?.data.lifecycleVersion === row.lifecycleVersion;
-    const enabled = !caps.error && cap.enabled && current;
+    const enabled = !caps.error && !!cap?.enabled && current;
+    const hint =
+      cap?.visible && !enabled
+        ? !current && caps.isFetching
+          ? t(ui('loading'))
+          : cap.reason && current
+            ? message(
+                new ApiClientError('Unavailable', {
+                  status: 400,
+                  reason: cap.reason,
+                  method: 'GET',
+                  url: '/procurement/requests',
+                }),
+              )
+            : t(ui('conflict'))
+        : undefined;
+    return { cap, enabled, hint };
+  };
+  const operation = (action: Action) => {
+    const { cap, enabled, hint } = capsFor(action);
+    if (!cap?.visible) return null;
     const href =
       action === 'update'
         ? 'edit'
@@ -107,6 +126,7 @@ export default function RequestDetail() {
       <div key={action} className='flex min-w-0 flex-col gap-1'>
         <Button
           disabled={!enabled}
+          title={hint}
           variant={
             enabled && (action === 'submit' || action === 'approve')
               ? 'default'
@@ -121,25 +141,19 @@ export default function RequestDetail() {
         >
           {t(ui(actionKey(action)))}
         </Button>
-        {!enabled && (
-          <span className='text-xs text-muted-foreground'>
-            {!current && caps.isFetching
-              ? t(ui('loading'))
-              : cap.reason && current
-                ? message(
-                    new ApiClientError('Unavailable', {
-                      status: 400,
-                      reason: cap.reason,
-                      method: 'GET',
-                      url: '/procurement/requests',
-                    }),
-                  )
-                : t(ui('conflict'))}
-          </span>
-        )}
       </div>
     );
   };
+  const actionHints =
+    related || caps.isFetching || caps.error
+      ? []
+      : [
+          ...new Set(
+            (['update', ...transitions, 'copy'] as Action[])
+              .map((action) => capsFor(action).hint)
+              .filter((hint): hint is string => !!hint),
+          ),
+        ];
   const title = row ? `${t(ui('title'))} ${row.code}` : t(ui('title'));
   return (
     <RouteChildPage>
@@ -185,6 +199,13 @@ export default function RequestDetail() {
                   operation,
                 )}
               </div>
+            )}
+            {actionHints.length > 0 && (
+              <ul className='flex flex-col gap-1 text-xs text-muted-foreground'>
+                {actionHints.map((hint) => (
+                  <li key={hint}>{hint}</li>
+                ))}
+              </ul>
             )}
             <div className='flex flex-wrap items-center gap-3'>
               <PurchaseStatus state={row.status} />

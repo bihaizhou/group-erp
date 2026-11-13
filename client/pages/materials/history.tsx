@@ -7,19 +7,14 @@ import { PageHeader } from '#components/page-header';
 import { Input } from '#components/ui/input';
 import { Label } from '#components/ui/label';
 import { Button } from '#components/ui/button';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '#components/ui/card';
+import { Card, CardContent } from '#components/ui/card';
 import {
   Empty,
   EmptyHeader,
   EmptyTitle,
   EmptyDescription,
 } from '#components/ui/empty';
+import { ChevronRight } from 'lucide-react';
 import { LongText } from '#components/long-text';
 import { useUrlSearch } from '#hooks/use-url-search';
 import { kinds, text, type Kind } from './model.js';
@@ -141,57 +136,59 @@ export default function MaterialHistory() {
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className='flex flex-col gap-4'>
-          {data.data.data.map((row) => {
-            const kindText = text(row.kind);
-            const kind = kinds.includes(kindText as Kind)
-              ? (kindText as Kind)
-              : undefined;
-            return (
-              <Card key={row.id}>
-                <CardHeader>
-                  <CardTitle>
-                    {text(row.recordName)} ·{' '}
-                    {t(`materials.transitions.${text(row.operation)}`)}
-                  </CardTitle>
-                  <CardDescription>
-                    {t(
-                      kind
-                        ? `materials.kinds.${kindText}`
-                        : 'materials.historicalRecords',
-                    )}{' '}
-                    · {text(row.actorName)} ·{' '}
-                    {new Date(text(row.createdAt)).toLocaleString(
-                      i18n.language,
+        <Card>
+          <CardContent className='divide-y p-0'>
+            {data.data.data.map((row) => {
+              const kindText = text(row.kind);
+              const kind = kinds.includes(kindText as Kind)
+                ? (kindText as Kind)
+                : undefined;
+              return (
+                <details key={row.id} className='group'>
+                  <summary className='flex cursor-pointer flex-col gap-1 px-4 py-3 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between [&::-webkit-details-marker]:hidden'>
+                    <span className='flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1'>
+                      <span className='font-medium [overflow-wrap:anywhere]'>
+                        {text(row.recordName)} ·{' '}
+                        {t(`materials.transitions.${text(row.operation)}`)}
+                      </span>
+                      <span className='text-sm text-muted-foreground'>
+                        {t(
+                          kind
+                            ? `materials.kinds.${kindText}`
+                            : 'materials.historicalRecords',
+                        )}
+                      </span>
+                    </span>
+                    <span className='flex shrink-0 items-center gap-2 text-sm text-muted-foreground'>
+                      <span>{text(row.actorName)}</span>
+                      <span className='tabular-nums'>
+                        {new Date(text(row.createdAt)).toLocaleString(
+                          i18n.language,
+                        )}
+                      </span>
+                      <ChevronRight className='size-4 transition-transform group-open:rotate-90' />
+                    </span>
+                  </summary>
+                  <div className='flex flex-col gap-3 px-4 pb-4'>
+                    {row.operation === 'create' &&
+                    row.reason === 'create' ? null : (
+                      <LongText>
+                        {row.reason === 'categoryMigration'
+                          ? t('materials.categoryMigration')
+                          : sourceReason(row.reason)}
+                      </LongText>
                     )}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {row.operation === 'create' &&
-                  row.reason === 'create' ? null : (
-                    <LongText>
-                      {row.reason === 'categoryMigration'
-                        ? t('materials.categoryMigration')
-                        : sourceReason(row.reason)}
-                    </LongText>
-                  )}
-                  <details className='mt-3'>
-                    <summary className='cursor-pointer text-sm text-primary'>
-                      {t('materials.changeDetails')}
-                    </summary>
-                    <div className='mt-3'>
-                      <MaterialAuditChanges
-                        kind={kind}
-                        before={row.beforeValue}
-                        after={row.afterValue}
-                      />
-                    </div>
-                  </details>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                    <MaterialAuditChanges
+                      kind={kind}
+                      before={row.beforeValue}
+                      after={row.afterValue}
+                    />
+                  </div>
+                </details>
+              );
+            })}
+          </CardContent>
+        </Card>
       )}
       {total > 20 ? (
         <div className='flex flex-wrap justify-end gap-2'>
