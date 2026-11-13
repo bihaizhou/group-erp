@@ -124,7 +124,7 @@ export default function RequestsPage() {
     )
       ? params.get('status')!
       : '',
-    status = group && selectedStatus === 'draft' ? '' : selectedStatus,
+    status = selectedStatus,
     identification = ['identified', 'unidentified'].includes(
       params.get('identification') ?? '',
     )
@@ -138,10 +138,12 @@ export default function RequestsPage() {
     page,
     pageSize,
     orderBy,
-    submitted: group ? 'true' : 'false',
+    // 草稿默认不在集团视图里出现；显式筛选草稿时切到「我的草稿」。
+    submitted: status === 'draft' ? 'false' : group ? 'true' : 'false',
     ...(status ? { status } : {}),
     ...(identification ? { identification } : {}),
-    mine: params.get('mine') === 'true' ? 'true' : 'false',
+    mine:
+      status === 'draft' || params.get('mine') === 'true' ? 'true' : 'false',
     ...(date('neededFrom') ? { neededFrom: date('neededFrom') } : {}),
     ...(date('neededTo') ? { neededTo: date('neededTo') } : {}),
   };
@@ -489,10 +491,13 @@ export default function RequestsPage() {
                 <PurchaseSelect
                   label={t(ui('reviewState'))}
                   value={status || 'all'}
-                  items={(group
-                    ? ['all', 'pending', 'approved', 'cancelled']
-                    : ['all', 'draft', 'pending', 'approved', 'cancelled']
-                  ).map((value) => ({
+                  items={[
+                    'all',
+                    'draft',
+                    'pending',
+                    'approved',
+                    'cancelled',
+                  ].map((value) => ({
                     value,
                     label: t(ui(value === 'all' ? 'allStatuses' : value)),
                   }))}
@@ -516,6 +521,7 @@ export default function RequestsPage() {
                 <PurchaseSelect
                   label={t(ui('allRequests'))}
                   value={query.mine}
+                  disabled={status === 'draft'}
                   items={[
                     { value: 'false', label: t(ui('allRequests')) },
                     { value: 'true', label: t(ui('myRequests')) },
