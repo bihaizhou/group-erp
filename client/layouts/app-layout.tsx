@@ -73,7 +73,7 @@ export function AppLayout({ routes }: AppLayoutProps): ReactElement {
                     <AppBrand />
                   </div>
                   <CompanySwitcher />
-                  <div className='h-5 w-px shrink-0 bg-border' />
+                  <div className='hidden h-5 w-px shrink-0 bg-border sm:block' />
                   {/* The current page's trail: the route tree's, or the one the page declares (`usePageBreadcrumb`). */}
                   <Breadcrumbs denied={denied} />
                 </div>

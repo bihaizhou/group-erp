@@ -38,6 +38,17 @@ const enUS = {
       'Read-only: confirming, approving and publishing are reserved for managers.',
   },
   actions: { ...systemEnUS.actions, signInAgain: 'Sign in again' },
+  settingsHub: {
+    title: 'Settings',
+    description: 'Manage accounts, roles and default record scopes.',
+    users: 'Users',
+    usersHint: 'Browse, create and deactivate accounts, reset passwords.',
+    roles: 'Roles and permissions',
+    rolesHint: 'Grant field visibility and write access per page.',
+    defaultAccess: 'Default access',
+    defaultAccessHint:
+      'Supplement which records existing operation grants can reach.',
+  },
   permissionGuide: {
     rolesDescription:
       'Every page is configured through its fields: open a page and tick "Visible" or "Writable" per field; unticked fields stay hidden. Back-office permissions live in the Administration tab. Save once.',

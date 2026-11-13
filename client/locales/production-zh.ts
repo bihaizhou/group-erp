@@ -232,6 +232,7 @@ export const production = {
   maintenanceType_repair: '故障维修',
   maintenanceType_preventive: '保养',
   maintenanceType_inspection: '点检',
+  priority: '优先级',
   priorityHigh: '紧急',
   priorityNormal: '一般',
   priorityLow: '低',

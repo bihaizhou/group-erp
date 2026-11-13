@@ -34,6 +34,16 @@ const zhCN: AppResource = {
     readOnlyFill: '只读：确认、审批与发布由负责人操作。',
   },
   actions: { ...systemZhCN.actions, signInAgain: '重新登录' },
+  settingsHub: {
+    title: '设置中心',
+    description: '管理账号、角色与默认数据范围。',
+    users: '用户管理',
+    usersHint: '查看、创建与停用账号，重置密码。',
+    roles: '角色与权限',
+    rolesHint: '按页面配置字段的可见与写入权限。',
+    defaultAccess: '默认范围',
+    defaultAccessHint: '补充已有操作权限的用户能访问哪些记录。',
+  },
   permissionGuide: {
     rolesDescription:
       '所有页面统一按字段权限配置：点开页面，为字段勾选“可见”或“写入”；都不勾选＝看不到该字段。后台管理权限在“后台管理”标签里。保存一次即可。',

@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from '#components/ui/card';
 import { Input } from '#components/ui/input';
+import { nativeSelectClass } from '#components/native-controls';
 import {
   Table,
   TableBody,
@@ -33,9 +34,6 @@ import type {
 type OptionsResult = { data: ProductionOptions };
 type EquipmentResult = { data: { equipment: ProductionEquipment[] } };
 type OrdersResult = { data: { orders: ProductionMaintenanceOrder[] } };
-
-const selectClass =
-  'h-9 rounded-md border border-input bg-background px-3 text-sm';
 
 export default function ProductionEquipmentPage() {
   const { t } = useTranslation();
@@ -198,10 +196,28 @@ export default function ProductionEquipmentPage() {
         title={t('production.equipmentTitle')}
         description={t('production.equipmentDescription')}
         actions={
-          <Button variant='outline' size='sm' onClick={refresh}>
-            <RefreshCw className='mr-1 size-4' />
-            {t('production.refresh')}
-          </Button>
+          <div className='flex flex-wrap items-end gap-2'>
+            <label className='grid w-full gap-1 text-sm sm:w-44'>
+              <span className='text-muted-foreground'>
+                {t('production.equipmentFilter')}
+              </span>
+              <select
+                className={`${nativeSelectClass} w-full sm:w-44`}
+                value={selectedUnit}
+                onChange={(event) => setUnitId(event.target.value)}
+              >
+                {units.map((unit) => (
+                  <option key={unit.id} value={unit.id}>
+                    {unit.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button variant='outline' size='sm' onClick={refresh}>
+              <RefreshCw className='mr-1 size-4' />
+              {t('production.refresh')}
+            </Button>
+          </div>
         }
       />
       {notice ? (
@@ -211,27 +227,6 @@ export default function ProductionEquipmentPage() {
         canManage={access.canManage}
         canApprove={access.canApprove}
       />
-      <Card className='mb-4'>
-        <CardHeader>
-          <CardTitle>{t('production.equipmentFilter')}</CardTitle>
-          <CardDescription>
-            {t('production.equipmentFilterHint')}
-          </CardDescription>
-        </CardHeader>
-        <div className='flex flex-wrap gap-3 px-6 pb-6'>
-          <select
-            className={selectClass}
-            value={selectedUnit}
-            onChange={(event) => setUnitId(event.target.value)}
-          >
-            {units.map((unit) => (
-              <option key={unit.id} value={unit.id}>
-                {unit.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </Card>
 
       <div className='grid gap-4 xl:grid-cols-2'>
         <Card>
@@ -245,35 +240,46 @@ export default function ProductionEquipmentPage() {
             </CardDescription>
           </CardHeader>
           <div className='space-y-3 px-6 pb-6'>
-            <div className='grid gap-2 md:grid-cols-2'>
-              <Input
-                placeholder={t('production.equipmentCode')}
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-              />
-              <Input
-                placeholder={t('production.equipmentName')}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-              <Input
-                placeholder={t('production.category')}
-                value={category}
-                onChange={(event) => setCategory(event.target.value)}
-              />
-              <select
-                className={selectClass}
-                value={criticality}
-                onChange={(event) =>
-                  setCriticality(event.target.value as typeof criticality)
-                }
-              >
-                <option value='high'>{t('production.criticalityHigh')}</option>
-                <option value='normal'>
-                  {t('production.criticalityNormal')}
-                </option>
-                <option value='low'>{t('production.criticalityLow')}</option>
-              </select>
+            <div className='grid gap-3 sm:grid-cols-2'>
+              <label className='space-y-1 text-sm'>
+                <span>{t('production.equipmentCode')}</span>
+                <Input
+                  value={code}
+                  onChange={(event) => setCode(event.target.value)}
+                />
+              </label>
+              <label className='space-y-1 text-sm'>
+                <span>{t('production.equipmentName')}</span>
+                <Input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </label>
+              <label className='space-y-1 text-sm'>
+                <span>{t('production.category')}</span>
+                <Input
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value)}
+                />
+              </label>
+              <label className='space-y-1 text-sm'>
+                <span>{t('production.criticality')}</span>
+                <select
+                  className={nativeSelectClass}
+                  value={criticality}
+                  onChange={(event) =>
+                    setCriticality(event.target.value as typeof criticality)
+                  }
+                >
+                  <option value='high'>
+                    {t('production.criticalityHigh')}
+                  </option>
+                  <option value='normal'>
+                    {t('production.criticalityNormal')}
+                  </option>
+                  <option value='low'>{t('production.criticalityLow')}</option>
+                </select>
+              </label>
             </div>
             <Button
               size='sm'
@@ -336,57 +342,71 @@ export default function ProductionEquipmentPage() {
             </CardDescription>
           </CardHeader>
           <div className='space-y-3 px-6 pb-6'>
-            <div className='grid gap-2 md:grid-cols-2'>
-              <select
-                className={selectClass}
-                value={effectiveEquipmentId}
-                onChange={(event) => setEquipmentId(event.target.value)}
-              >
-                {equipmentRows.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.code} {row.name}
+            <div className='grid gap-3 sm:grid-cols-2'>
+              <label className='space-y-1 text-sm'>
+                <span>{t('production.equipmentName')}</span>
+                <select
+                  className={nativeSelectClass}
+                  value={effectiveEquipmentId}
+                  onChange={(event) => setEquipmentId(event.target.value)}
+                >
+                  {equipmentRows.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {row.code} {row.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className='space-y-1 text-sm'>
+                <span>{t('production.maintenanceType')}</span>
+                <select
+                  className={nativeSelectClass}
+                  value={orderType}
+                  onChange={(event) =>
+                    setOrderType(event.target.value as typeof orderType)
+                  }
+                >
+                  <option value='repair'>
+                    {t('production.maintenanceType_repair')}
                   </option>
-                ))}
-              </select>
-              <select
-                className={selectClass}
-                value={orderType}
-                onChange={(event) =>
-                  setOrderType(event.target.value as typeof orderType)
-                }
-              >
-                <option value='repair'>
-                  {t('production.maintenanceType_repair')}
-                </option>
-                <option value='preventive'>
-                  {t('production.maintenanceType_preventive')}
-                </option>
-                <option value='inspection'>
-                  {t('production.maintenanceType_inspection')}
-                </option>
-              </select>
-              <select
-                className={selectClass}
-                value={priority}
-                onChange={(event) =>
-                  setPriority(event.target.value as typeof priority)
-                }
-              >
-                <option value='high'>{t('production.priorityHigh')}</option>
-                <option value='normal'>{t('production.priorityNormal')}</option>
-                <option value='low'>{t('production.priorityLow')}</option>
-              </select>
-              <Input
-                placeholder={t('production.assignee')}
-                value={assigneeName}
-                onChange={(event) => setAssigneeName(event.target.value)}
-              />
-              <Input
-                className='md:col-span-2'
-                placeholder={t('production.faultDescription')}
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-              />
+                  <option value='preventive'>
+                    {t('production.maintenanceType_preventive')}
+                  </option>
+                  <option value='inspection'>
+                    {t('production.maintenanceType_inspection')}
+                  </option>
+                </select>
+              </label>
+              <label className='space-y-1 text-sm'>
+                <span>{t('production.priority')}</span>
+                <select
+                  className={nativeSelectClass}
+                  value={priority}
+                  onChange={(event) =>
+                    setPriority(event.target.value as typeof priority)
+                  }
+                >
+                  <option value='high'>{t('production.priorityHigh')}</option>
+                  <option value='normal'>
+                    {t('production.priorityNormal')}
+                  </option>
+                  <option value='low'>{t('production.priorityLow')}</option>
+                </select>
+              </label>
+              <label className='space-y-1 text-sm'>
+                <span>{t('production.assignee')}</span>
+                <Input
+                  value={assigneeName}
+                  onChange={(event) => setAssigneeName(event.target.value)}
+                />
+              </label>
+              <label className='space-y-1 text-sm sm:col-span-2'>
+                <span>{t('production.faultDescription')}</span>
+                <Input
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                />
+              </label>
             </div>
             <Button
               size='sm'

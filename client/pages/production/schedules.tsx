@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from '#components/ui/card';
 import { Input } from '#components/ui/input';
+import { nativeSelectClass } from '#components/native-controls';
 import {
   Table,
   TableBody,
@@ -158,7 +159,7 @@ export default function ProductionSchedulesPage() {
             <label className='grid gap-1 text-sm'>
               <span>{t('production.unit')}</span>
               <select
-                className='h-9 min-w-48 rounded-md border border-input bg-background px-3 text-sm'
+                className={nativeSelectClass}
                 value={selectedUnit}
                 onChange={(event) => {
                   setUnitId(event.target.value);
@@ -186,7 +187,7 @@ export default function ProductionSchedulesPage() {
             <label className='grid gap-1 text-sm'>
               <span>{t('production.shift')}</span>
               <select
-                className='h-9 rounded-md border border-input bg-background px-3 text-sm'
+                className={nativeSelectClass}
                 value={shift}
                 onChange={(event) => {
                   setShift(event.target.value as 'day' | 'night');

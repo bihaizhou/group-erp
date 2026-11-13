@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from '#components/ui/dialog';
 import { Input } from '#components/ui/input';
+import { nativeSelectClass } from '#components/native-controls';
 import { Textarea } from '#components/ui/textarea';
 import {
   Table,
@@ -222,7 +223,7 @@ export default function ProductionShiftReportsPage() {
           <label className='grid gap-1 text-sm sm:w-44'>
             <span>{t('production.unit')}</span>
             <select
-              className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm'
+              className={nativeSelectClass}
               value={selectedUnit}
               onChange={(event) => setUnitId(event.target.value)}
             >
@@ -253,7 +254,15 @@ export default function ProductionShiftReportsPage() {
         </CardContent>
       </Card>
       <Card>
-        <CardContent className='space-y-3 pt-6'>
+        <CardHeader>
+          <CardTitle className='text-base'>
+            {t('production.shiftReportList')}
+          </CardTitle>
+          <CardDescription>
+            {t('production.shiftReportListDescription')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className='space-y-3'>
           <p className='text-xs text-muted-foreground'>
             {t('production.shiftReportInboundHint')}
           </p>
@@ -668,7 +677,7 @@ function ShiftReportInputsDialog({
               <label className='block space-y-1 text-sm'>
                 <span>{t('production.material')}</span>
                 <select
-                  className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm'
+                  className={nativeSelectClass}
                   value={activeMaterialId}
                   onChange={(event) => setMaterialId(event.target.value)}
                 >
@@ -685,7 +694,7 @@ function ShiftReportInputsDialog({
                 <label className='block space-y-1 text-sm'>
                   <span>{t('production.issueDocument')}</span>
                   <select
-                    className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm'
+                    className={nativeSelectClass}
                     value={activeDocumentId}
                     onChange={(event) => {
                       setDocumentId(event.target.value);
@@ -702,7 +711,7 @@ function ShiftReportInputsDialog({
                 <label className='block space-y-1 text-sm'>
                   <span>{t('production.issueLine')}</span>
                   <select
-                    className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm'
+                    className={nativeSelectClass}
                     value={activeLineId}
                     onChange={(event) => setLineId(event.target.value)}
                   >

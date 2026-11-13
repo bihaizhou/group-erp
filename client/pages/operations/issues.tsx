@@ -28,6 +28,7 @@ import {
   TableRow,
 } from '#components/ui/table';
 import type { OperationsIssue, OperationsIssuePage } from './model.js';
+import { nativeSelectClass } from '#components/native-controls';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const emptyForm = () => ({
@@ -137,7 +138,7 @@ export default function OperationsIssuesPage() {
             {t('operations.issueStatusLabel')}
           </span>
           <select
-            className='h-9 rounded-md border border-input bg-background px-3 text-sm'
+            className={nativeSelectClass}
             value={status}
             onChange={(event) => {
               setStatus(event.target.value);
@@ -280,7 +281,7 @@ export default function OperationsIssuesPage() {
               <label className='grid gap-1 text-sm'>
                 <span>{t('operations.issueSourceLabel')}</span>
                 <select
-                  className='h-9 rounded-md border border-input bg-background px-3 text-sm'
+                  className={nativeSelectClass}
                   value={form.sourceType}
                   onChange={(event) =>
                     setForm({ ...form, sourceType: event.target.value })
@@ -306,7 +307,7 @@ export default function OperationsIssuesPage() {
               <label className='grid gap-1 text-sm'>
                 <span>{t('operations.issueSeverityLabel')}</span>
                 <select
-                  className='h-9 rounded-md border border-input bg-background px-3 text-sm'
+                  className={nativeSelectClass}
                   value={form.severity}
                   onChange={(event) =>
                     setForm({ ...form, severity: event.target.value })

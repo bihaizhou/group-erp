@@ -18,6 +18,12 @@ const systemSettingsRoutes: AppClientRouteContribution = defineAppRoutes([
     navigation: { title: 'settings.title', icon: Settings, order: 100 },
     children: [
       {
+        name: 'settingsIndex',
+        path: '',
+        auth: 'required',
+        componentLoader: () => import('./overview.js'),
+      },
+      {
         name: 'settingsUsers',
         path: '/users',
         auth: 'required',
@@ -133,6 +139,18 @@ const systemSettingsRoutes: AppClientRouteContribution = defineAppRoutes([
         ],
       },
     ],
+  },
+  {
+    name: 'legacyUsers',
+    path: '/users',
+    auth: 'required',
+    componentLoader: () => import('./legacy-redirect.js'),
+  },
+  {
+    name: 'legacyRoles',
+    path: '/roles',
+    auth: 'required',
+    componentLoader: () => import('./legacy-redirect.js'),
   },
 ]);
 export default systemSettingsRoutes;

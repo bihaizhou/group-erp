@@ -18,6 +18,11 @@ import {
   CardTitle,
 } from '#components/ui/card';
 import { Input } from '#components/ui/input';
+import { Textarea } from '#components/ui/textarea';
+import {
+  nativeSelectClass,
+  readOnlyValueClass,
+} from '#components/native-controls';
 import { Spinner } from '#components/ui/spinner';
 import {
   Table,
@@ -85,8 +90,6 @@ type MaintenanceDraft = {
   assigneeName: string;
 };
 
-const selectClass =
-  'h-9 w-full rounded-md border border-input bg-background px-3 text-sm';
 const statuses: AttendanceStatus[] = [
   'present',
   'absent',
@@ -508,7 +511,7 @@ export default function ProductionReportPage() {
             <span>{t('production.unit')}</span>
             {units.length > 1 ? (
               <select
-                className={selectClass}
+                className={nativeSelectClass}
                 value={activeUnitId}
                 onChange={(event) => setUnitId(event.target.value)}
               >
@@ -519,7 +522,7 @@ export default function ProductionReportPage() {
                 ))}
               </select>
             ) : (
-              <div className='rounded-md border bg-muted/30 px-3 py-2'>
+              <div className={readOnlyValueClass}>
                 {activeUnit ? `${activeUnit.code} · ${activeUnit.name}` : '—'}
               </div>
             )}
@@ -534,16 +537,14 @@ export default function ProductionReportPage() {
                 onChange={(event) => setCustomDate(event.target.value)}
               />
             ) : (
-              <div className='rounded-md border bg-muted/30 px-3 py-2'>
-                {activeDate}
-              </div>
+              <div className={readOnlyValueClass}>{activeDate}</div>
             )}
           </div>
           <div className='space-y-1 text-sm'>
             <span>{t('production.shift')}</span>
             {backfill ? (
               <select
-                className={selectClass}
+                className={nativeSelectClass}
                 value={customShift}
                 onChange={(event) =>
                   setCustomShift(event.target.value as 'day' | 'night')
@@ -553,7 +554,7 @@ export default function ProductionReportPage() {
                 <option value='night'>{t('production.shifts.night')}</option>
               </select>
             ) : (
-              <div className='rounded-md border bg-muted/30 px-3 py-2'>
+              <div className={readOnlyValueClass}>
                 {activeShift === 'night'
                   ? t('production.shifts.night')
                   : t('production.shifts.day')}
@@ -708,7 +709,7 @@ export default function ProductionReportPage() {
                   </div>
                 </div>
               ))}
-              <div className='grid gap-3 sm:grid-cols-2'>
+              <div className='grid max-w-2xl gap-3 sm:grid-cols-2'>
                 <label className='space-y-1 text-sm'>
                   <span>{t('production.runtimeMinutes')}</span>
                   <Input
@@ -738,8 +739,7 @@ export default function ProductionReportPage() {
               </div>
               <label className='space-y-1 text-sm'>
                 <span>{t('production.notes')}</span>
-                <textarea
-                  className='min-h-16 w-full rounded-md border border-input bg-background px-3 py-2 text-sm'
+                <Textarea
                   disabled={locked}
                   value={form.notes}
                   onChange={(event) => update({ notes: event.target.value })}
@@ -777,7 +777,7 @@ export default function ProductionReportPage() {
                         </TableCell>
                         <TableCell>
                           <select
-                            className={selectClass}
+                            className={`${nativeSelectClass} min-w-24`}
                             disabled={locked}
                             value={row.status}
                             onChange={(event) => {
@@ -1132,7 +1132,7 @@ function DowntimeComposer({
         <label className='space-y-1 text-sm'>
           <span>{t('production.downtimeCategory')}</span>
           <select
-            className={selectClass}
+            className={nativeSelectClass}
             value={category}
             onChange={(event) =>
               setCategory(event.target.value as DowntimeCategory)
@@ -1148,7 +1148,7 @@ function DowntimeComposer({
         <label className='space-y-1 text-sm'>
           <span>{t('production.downtimeImpact')}</span>
           <select
-            className={selectClass}
+            className={nativeSelectClass}
             value={impact}
             onChange={(event) =>
               setImpact(event.target.value as DowntimeImpact)
@@ -1208,7 +1208,7 @@ function OvertimeComposer({
         <label className='space-y-1 text-sm'>
           <span>{t('production.person')}</span>
           <select
-            className={selectClass}
+            className={nativeSelectClass}
             value={selected}
             onChange={(event) => setPersonId(event.target.value)}
           >
@@ -1233,7 +1233,7 @@ function OvertimeComposer({
         <label className='space-y-1 text-sm'>
           <span>{t('production.overtimeType')}</span>
           <select
-            className={selectClass}
+            className={nativeSelectClass}
             value={type}
             onChange={(event) => setType(event.target.value as OvertimeType)}
           >
@@ -1290,7 +1290,7 @@ function MaintenanceComposer({
         <label className='space-y-1 text-sm'>
           <span>{t('production.equipmentName')}</span>
           <select
-            className={selectClass}
+            className={nativeSelectClass}
             value={selected}
             onChange={(event) => setEquipmentId(event.target.value)}
           >
@@ -1304,7 +1304,7 @@ function MaintenanceComposer({
         <label className='space-y-1 text-sm'>
           <span>{t('production.maintenanceType')}</span>
           <select
-            className={selectClass}
+            className={nativeSelectClass}
             value={kind}
             onChange={(event) =>
               setKind(event.target.value as 'repair' | 'maintenance')

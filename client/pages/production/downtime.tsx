@@ -13,6 +13,8 @@ import {
   CardTitle,
 } from '#components/ui/card';
 import { Input } from '#components/ui/input';
+import { Textarea } from '#components/ui/textarea';
+import { nativeSelectClass } from '#components/native-controls';
 import { useProductionAccess } from './access.js';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import type {
@@ -24,11 +26,6 @@ import type {
 
 type OptionsResult = { data: ProductionOptions };
 type DowntimeResult = { data: ProductionDowntimePage };
-
-const selectClass =
-  'h-9 rounded-md border border-input bg-background px-3 text-sm';
-const textareaClass =
-  'min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const nowInput = () => new Date().toISOString().slice(0, 16);
@@ -135,7 +132,7 @@ export default function ProductionDowntimePage() {
           <label className='grid gap-1 text-sm'>
             <span>{t('production.unit')}</span>
             <select
-              className={selectClass}
+              className={nativeSelectClass}
               value={selectedUnit}
               onChange={(event) => setUnitId(event.target.value)}
             >
@@ -157,7 +154,7 @@ export default function ProductionDowntimePage() {
           <label className='grid gap-1 text-sm'>
             <span>{t('production.downtimeStatus')}</span>
             <select
-              className={selectClass}
+              className={nativeSelectClass}
               value={status}
               onChange={(event) =>
                 setStatus(event.target.value as DowntimeStatus | '')
@@ -315,8 +312,7 @@ export default function ProductionDowntimePage() {
             </label>
             <label className='grid gap-1 text-sm sm:col-span-2'>
               <span>{t('production.downtimeResolution')}</span>
-              <textarea
-                className={textareaClass}
+              <Textarea
                 value={resolution}
                 onChange={(event) => setResolution(event.target.value)}
               />

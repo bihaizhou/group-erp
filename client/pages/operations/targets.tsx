@@ -18,6 +18,7 @@ import {
   TableRow,
 } from '#components/ui/table';
 import type { OperationsTargets } from './model.js';
+import { nativeSelectClass } from '#components/native-controls';
 
 const metrics = ['processed', 'metal', 'sand', 'metalRate'] as const;
 const currentPeriod = () => new Date().toISOString().slice(0, 7);
@@ -89,7 +90,7 @@ export default function OperationsTargetsPage() {
               {t('operations.metric')}
             </span>
             <select
-              className='h-9 rounded-md border border-input bg-background px-3 text-sm'
+              className={nativeSelectClass}
               value={metric}
               onChange={(event) => {
                 setMetric(event.target.value as (typeof metrics)[number]);

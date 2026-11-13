@@ -247,6 +247,7 @@ export const production = {
   maintenanceType_repair: 'Repair',
   maintenanceType_preventive: 'Preventive',
   maintenanceType_inspection: 'Inspection',
+  priority: 'Priority',
   priorityHigh: 'Urgent',
   priorityNormal: 'Normal',
   priorityLow: 'Low',

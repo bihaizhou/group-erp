@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from '#components/ui/card';
 import { Input } from '#components/ui/input';
+import { nativeSelectClass } from '#components/native-controls';
 import type {
   OvertimeStatus,
   ProductionOptions,
@@ -23,9 +24,6 @@ import type {
 
 type OptionsResult = { data: ProductionOptions };
 type OvertimeResult = { data: { records: ProductionOvertime[] } };
-
-const selectClass =
-  'h-9 rounded-md border border-input bg-background px-3 text-sm';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -111,10 +109,65 @@ export default function ProductionOvertimePage() {
         title={t('production.overtimeTitle')}
         description={t('production.overtimeDescription')}
         actions={
-          <Button variant='outline' size='sm' onClick={refresh}>
-            <RefreshCw className='mr-1 size-4' />
-            {t('production.refresh')}
-          </Button>
+          <div className='flex flex-wrap items-end gap-2'>
+            <label className='grid w-full gap-1 text-sm sm:w-40'>
+              <span className='text-muted-foreground'>
+                {t('production.unit')}
+              </span>
+              <select
+                className={`${nativeSelectClass} w-full sm:w-40`}
+                value={selectedUnit}
+                onChange={(event) => setUnitId(event.target.value)}
+              >
+                {units.map((unit) => (
+                  <option key={unit.id} value={unit.id}>
+                    {unit.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className='grid w-full gap-1 text-sm sm:w-40'>
+              <span className='text-muted-foreground'>
+                {t('production.businessDate')}
+              </span>
+              <Input
+                type='date'
+                className='w-full sm:w-40'
+                value={businessDate}
+                onChange={(event) => setBusinessDate(event.target.value)}
+              />
+            </label>
+            <label className='grid w-full gap-1 text-sm sm:w-40'>
+              <span className='text-muted-foreground'>
+                {t('production.statusLabel')}
+              </span>
+              <select
+                className={`${nativeSelectClass} w-full sm:w-40`}
+                value={status}
+                onChange={(event) =>
+                  setStatus(event.target.value as OvertimeStatus | '')
+                }
+              >
+                <option value=''>{t('production.overtimeAllStatuses')}</option>
+                {(
+                  [
+                    'submitted',
+                    'approved',
+                    'rejected',
+                    'cancelled',
+                  ] as OvertimeStatus[]
+                ).map((value) => (
+                  <option key={value} value={value}>
+                    {t(`production.overtimeStatus_${value}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button variant='outline' size='sm' onClick={refresh}>
+              <RefreshCw className='mr-1 size-4' />
+              {t('production.refresh')}
+            </Button>
+          </div>
         }
       />
       {notice ? (
@@ -124,55 +177,6 @@ export default function ProductionOvertimePage() {
         canManage={access.canManage}
         canApprove={access.canApprove}
       />
-      <Card className='mb-4'>
-        <CardHeader>
-          <CardTitle>{t('production.overtimeFilter')}</CardTitle>
-          <CardDescription>
-            {t('production.overtimeFilterHint')}
-          </CardDescription>
-        </CardHeader>
-        <div className='flex flex-wrap gap-3 px-6 pb-6'>
-          <select
-            className={selectClass}
-            value={selectedUnit}
-            onChange={(event) => setUnitId(event.target.value)}
-          >
-            {units.map((unit) => (
-              <option key={unit.id} value={unit.id}>
-                {unit.name}
-              </option>
-            ))}
-          </select>
-          <Input
-            type='date'
-            className='w-auto'
-            value={businessDate}
-            onChange={(event) => setBusinessDate(event.target.value)}
-          />
-          <select
-            className={selectClass}
-            value={status}
-            onChange={(event) =>
-              setStatus(event.target.value as OvertimeStatus | '')
-            }
-          >
-            <option value=''>{t('production.overtimeAllStatuses')}</option>
-            {(
-              [
-                'submitted',
-                'approved',
-                'rejected',
-                'cancelled',
-              ] as OvertimeStatus[]
-            ).map((value) => (
-              <option key={value} value={value}>
-                {t(`production.overtimeStatus_${value}`)}
-              </option>
-            ))}
-          </select>
-        </div>
-      </Card>
-
       {units.length === 0 ? (
         <p className='mb-4 rounded-md border p-3 text-sm text-muted-foreground'>
           {t('production.overtimeNoUnits')}{' '}

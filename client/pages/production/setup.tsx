@@ -7,6 +7,7 @@ import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
+import { nativeSelectClass } from '#components/native-controls';
 import { randomUuid } from '#lib/random-id';
 import { useProductionAccess } from './access.js';
 import { ReadOnlyNotice } from '#components/read-only-notice';
@@ -206,7 +207,7 @@ function UnitEditor({
         <label className='grid gap-1 text-sm'>
           <span>{t('production.setupFields.status')}</span>
           <select
-            className='h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm'
+            className={nativeSelectClass}
             value={status}
             onChange={(event) =>
               setStatus(event.target.value as 'active' | 'inactive')
@@ -429,7 +430,7 @@ export default function ProductionSetupPage() {
           <label className='grid max-w-sm gap-1 text-sm'>
             <span>{t('production.unit')}</span>
             <select
-              className='h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm'
+              className={nativeSelectClass}
               value={unit?.id ?? ''}
               onChange={(event) => setUnitId(event.target.value)}
             >

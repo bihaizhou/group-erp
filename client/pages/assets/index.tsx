@@ -9,6 +9,7 @@ import { PageHeader } from '#components/page-header';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
+import { nativeSelectClass } from '#components/native-controls';
 import { Textarea } from '#components/ui/textarea';
 import {
   Dialog,
@@ -218,37 +219,53 @@ export default function AssetsPage() {
         }
       />
       <ReadOnlyNotice canManage={canManage} canApprove={canApprove} />
-      <div className='mb-4 flex flex-wrap items-center gap-3'>
-        <select
-          className='h-9 rounded-md border border-input bg-background px-3 text-sm'
-          value={status}
-          onChange={(event) => {
-            setStatus(event.target.value);
-            setPage(1);
-          }}
-        >
-          <option value=''>{t('assets.allStatuses')}</option>
-          <option value='in_stock'>{t('assets.status.in_stock')}</option>
-          <option value='assigned'>{t('assets.status.assigned')}</option>
-          <option value='maintenance'>{t('assets.status.maintenance')}</option>
-          <option value='scrapped'>{t('assets.status.scrapped')}</option>
-        </select>
-        <select
-          className='h-9 rounded-md border border-input bg-background px-3 text-sm'
-          value={custodian}
-          onChange={(event) => {
-            setCustodian(event.target.value);
-            setPage(1);
-          }}
-        >
-          <option value=''>{t('assets.allCustodians')}</option>
-          {employees.map((employee) => (
-            <option key={employee.id} value={employee.id}>
-              {employee.name}
+      <div className='mb-4 flex flex-wrap items-end gap-3'>
+        <label className='grid w-full gap-1 text-sm sm:w-44'>
+          <span className='text-muted-foreground'>
+            {t('assets.fields.status')}
+          </span>
+          <select
+            className={nativeSelectClass}
+            value={status}
+            onChange={(event) => {
+              setStatus(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value=''>{t('assets.allStatuses')}</option>
+            <option value='in_stock'>{t('assets.status.in_stock')}</option>
+            <option value='assigned'>{t('assets.status.assigned')}</option>
+            <option value='maintenance'>
+              {t('assets.status.maintenance')}
             </option>
-          ))}
-        </select>
-        <Button variant='outline' onClick={() => void list.refetch()}>
+            <option value='scrapped'>{t('assets.status.scrapped')}</option>
+          </select>
+        </label>
+        <label className='grid w-full gap-1 text-sm sm:w-44'>
+          <span className='text-muted-foreground'>
+            {t('assets.fields.custodian')}
+          </span>
+          <select
+            className={nativeSelectClass}
+            value={custodian}
+            onChange={(event) => {
+              setCustodian(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value=''>{t('assets.allCustodians')}</option>
+            {employees.map((employee) => (
+              <option key={employee.id} value={employee.id}>
+                {employee.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Button
+          className='sm:ml-auto'
+          variant='outline'
+          onClick={() => void list.refetch()}
+        >
           {t('assets.refresh')}
         </Button>
       </div>
@@ -392,77 +409,96 @@ export default function AssetsPage() {
             <DialogTitle>{t('assets.create')}</DialogTitle>
             <DialogDescription>{t('assets.createHint')}</DialogDescription>
           </DialogHeader>
-          <div className='grid gap-3'>
-            <Input
-              placeholder={t('assets.fields.code')}
-              value={form.code}
-              onChange={(event) =>
-                setForm({ ...form, code: event.target.value })
-              }
-            />
-            <Input
-              placeholder={t('assets.fields.name')}
-              value={form.name}
-              onChange={(event) =>
-                setForm({ ...form, name: event.target.value })
-              }
-            />
-            <select
-              className='h-9 rounded-md border border-input bg-background px-3 text-sm'
-              value={form.category}
-              onChange={(event) =>
-                setForm({ ...form, category: event.target.value })
-              }
-            >
-              <option value=''>{t('assets.fields.category')}</option>
-              {categories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-            <select
-              className='h-9 rounded-md border border-input bg-background px-3 text-sm'
-              value={form.custodianEmployeeId}
-              onChange={(event) =>
-                setForm({ ...form, custodianEmployeeId: event.target.value })
-              }
-            >
-              <option value=''>{t('assets.noCustodian')}</option>
-              {employees.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.name}
-                </option>
-              ))}
-            </select>
-            <Input
-              placeholder={t('assets.fields.location')}
-              value={form.location}
-              onChange={(event) =>
-                setForm({ ...form, location: event.target.value })
-              }
-            />
-            <Input
-              type='date'
-              value={form.acquiredOn}
-              onChange={(event) =>
-                setForm({ ...form, acquiredOn: event.target.value })
-              }
-            />
-            <Input
-              placeholder={t('assets.fields.originalCost')}
-              value={form.originalCost}
-              onChange={(event) =>
-                setForm({ ...form, originalCost: event.target.value })
-              }
-            />
-            <Textarea
-              placeholder={t('assets.fields.notes')}
-              value={form.notes}
-              onChange={(event) =>
-                setForm({ ...form, notes: event.target.value })
-              }
-            />
+          <div className='grid gap-3 sm:grid-cols-2'>
+            <label className='grid gap-1 text-sm'>
+              <span>{t('assets.fields.code')}</span>
+              <Input
+                value={form.code}
+                onChange={(event) =>
+                  setForm({ ...form, code: event.target.value })
+                }
+              />
+            </label>
+            <label className='grid gap-1 text-sm'>
+              <span>{t('assets.fields.name')}</span>
+              <Input
+                value={form.name}
+                onChange={(event) =>
+                  setForm({ ...form, name: event.target.value })
+                }
+              />
+            </label>
+            <label className='grid gap-1 text-sm'>
+              <span>{t('assets.fields.category')}</span>
+              <select
+                className={nativeSelectClass}
+                value={form.category}
+                onChange={(event) =>
+                  setForm({ ...form, category: event.target.value })
+                }
+              >
+                <option value=''>{t('assets.fields.category')}</option>
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className='grid gap-1 text-sm'>
+              <span>{t('assets.fields.custodian')}</span>
+              <select
+                className={nativeSelectClass}
+                value={form.custodianEmployeeId}
+                onChange={(event) =>
+                  setForm({ ...form, custodianEmployeeId: event.target.value })
+                }
+              >
+                <option value=''>{t('assets.noCustodian')}</option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className='grid gap-1 text-sm'>
+              <span>{t('assets.fields.location')}</span>
+              <Input
+                value={form.location}
+                onChange={(event) =>
+                  setForm({ ...form, location: event.target.value })
+                }
+              />
+            </label>
+            <label className='grid gap-1 text-sm'>
+              <span>{t('assets.fields.acquiredOn')}</span>
+              <Input
+                type='date'
+                value={form.acquiredOn}
+                onChange={(event) =>
+                  setForm({ ...form, acquiredOn: event.target.value })
+                }
+              />
+            </label>
+            <label className='grid gap-1 text-sm'>
+              <span>{t('assets.fields.originalCost')}</span>
+              <Input
+                value={form.originalCost}
+                onChange={(event) =>
+                  setForm({ ...form, originalCost: event.target.value })
+                }
+              />
+            </label>
+            <label className='grid gap-1 text-sm sm:col-span-2'>
+              <span>{t('assets.fields.notes')}</span>
+              <Textarea
+                value={form.notes}
+                onChange={(event) =>
+                  setForm({ ...form, notes: event.target.value })
+                }
+              />
+            </label>
           </div>
           <DialogFooter>
             <Button variant='outline' onClick={() => setOpen(false)}>
@@ -493,7 +529,7 @@ export default function AssetsPage() {
           <div className='grid gap-3'>
             {action?.kind === 'assign' ? (
               <select
-                className='h-9 rounded-md border border-input bg-background px-3 text-sm'
+                className={nativeSelectClass}
                 value={employeeId}
                 onChange={(event) => setEmployeeId(event.target.value)}
               >

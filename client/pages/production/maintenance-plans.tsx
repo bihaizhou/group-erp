@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from '#components/ui/card';
 import { Input } from '#components/ui/input';
+import { nativeSelectClass } from '#components/native-controls';
 import { useProductionAccess } from './access.js';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import type {
@@ -27,9 +28,6 @@ import type {
 type OptionsResult = { data: ProductionOptions };
 type EquipmentResult = { data: { equipment: ProductionEquipment[] } };
 type PlansResult = { data: { plans: ProductionMaintenancePlan[] } };
-
-const selectClass =
-  'h-9 rounded-md border border-input bg-background px-3 text-sm';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -167,10 +165,31 @@ export default function ProductionMaintenancePlansPage() {
         title={t('production.maintenancePlansTitle')}
         description={t('production.maintenancePlansDescription')}
         actions={
-          <Button variant='outline' size='sm' onClick={refresh}>
-            <RefreshCw className='mr-1 size-4' />
-            {t('production.refresh')}
-          </Button>
+          <div className='flex flex-wrap items-end gap-2'>
+            <label className='grid w-full gap-1 text-sm sm:w-44'>
+              <span className='text-muted-foreground'>
+                {t('production.planFilter')}
+              </span>
+              <select
+                className={`${nativeSelectClass} w-full sm:w-44`}
+                value={selectedUnit}
+                onChange={(event) => {
+                  setUnitId(event.target.value);
+                  setEquipmentId('');
+                }}
+              >
+                {units.map((unit) => (
+                  <option key={unit.id} value={unit.id}>
+                    {unit.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button variant='outline' size='sm' onClick={refresh}>
+              <RefreshCw className='mr-1 size-4' />
+              {t('production.refresh')}
+            </Button>
+          </div>
         }
       />
       {notice ? (
@@ -195,29 +214,6 @@ export default function ProductionMaintenancePlansPage() {
       ) : null}
       <Card className='mb-4'>
         <CardHeader>
-          <CardTitle>{t('production.planFilter')}</CardTitle>
-          <CardDescription>{t('production.planFilterHint')}</CardDescription>
-        </CardHeader>
-        <div className='flex flex-wrap gap-3 px-6 pb-6'>
-          <select
-            className={selectClass}
-            value={selectedUnit}
-            onChange={(event) => {
-              setUnitId(event.target.value);
-              setEquipmentId('');
-            }}
-          >
-            {units.map((unit) => (
-              <option key={unit.id} value={unit.id}>
-                {unit.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </Card>
-
-      <Card className='mb-4'>
-        <CardHeader>
           <CardTitle className='flex items-center gap-2'>
             <CalendarClock className='size-4' />
             {t('production.planCreateTitle')}
@@ -225,61 +221,77 @@ export default function ProductionMaintenancePlansPage() {
           <CardDescription>{t('production.planCreateHint')}</CardDescription>
         </CardHeader>
         <div className='space-y-3 px-6 pb-6'>
-          <div className='grid gap-2 md:grid-cols-2 xl:grid-cols-3'>
-            <select
-              className={selectClass}
-              value={effectiveEquipmentId}
-              onChange={(event) => setEquipmentId(event.target.value)}
-            >
-              {equipmentRows.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.code} {row.name}
+          <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+            <label className='space-y-1 text-sm'>
+              <span>{t('production.equipmentName')}</span>
+              <select
+                className={nativeSelectClass}
+                value={effectiveEquipmentId}
+                onChange={(event) => setEquipmentId(event.target.value)}
+              >
+                {equipmentRows.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.code} {row.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className='space-y-1 text-sm'>
+              <span>{t('production.planName')}</span>
+              <Input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </label>
+            <label className='space-y-1 text-sm'>
+              <span>{t('production.maintenanceType')}</span>
+              <select
+                className={nativeSelectClass}
+                value={planType}
+                onChange={(event) =>
+                  setPlanType(event.target.value as MaintenancePlanType)
+                }
+              >
+                <option value='preventive'>
+                  {t('production.planType_preventive')}
                 </option>
-              ))}
-            </select>
-            <Input
-              placeholder={t('production.planName')}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-            <select
-              className={selectClass}
-              value={planType}
-              onChange={(event) =>
-                setPlanType(event.target.value as MaintenancePlanType)
-              }
-            >
-              <option value='preventive'>
-                {t('production.planType_preventive')}
-              </option>
-              <option value='inspection'>
-                {t('production.planType_inspection')}
-              </option>
-            </select>
-            <Input
-              type='number'
-              min={1}
-              max={3650}
-              placeholder={t('production.planIntervalDays')}
-              value={intervalDays}
-              onChange={(event) => setIntervalDays(event.target.value)}
-            />
-            <Input
-              type='date'
-              value={nextDueOn}
-              onChange={(event) => setNextDueOn(event.target.value)}
-            />
-            <Input
-              placeholder={t('production.planAssignee')}
-              value={assigneeName}
-              onChange={(event) => setAssigneeName(event.target.value)}
-            />
-            <Input
-              className='md:col-span-2 xl:col-span-3'
-              placeholder={t('production.planChecklist')}
-              value={checklist}
-              onChange={(event) => setChecklist(event.target.value)}
-            />
+                <option value='inspection'>
+                  {t('production.planType_inspection')}
+                </option>
+              </select>
+            </label>
+            <label className='space-y-1 text-sm'>
+              <span>{t('production.planIntervalDays')}</span>
+              <Input
+                type='number'
+                min={1}
+                max={3650}
+                value={intervalDays}
+                onChange={(event) => setIntervalDays(event.target.value)}
+              />
+            </label>
+            <label className='space-y-1 text-sm'>
+              <span>{t('production.planNextDue')}</span>
+              <Input
+                type='date'
+                value={nextDueOn}
+                onChange={(event) => setNextDueOn(event.target.value)}
+              />
+            </label>
+            <label className='space-y-1 text-sm'>
+              <span>{t('production.planAssignee')}</span>
+              <Input
+                value={assigneeName}
+                onChange={(event) => setAssigneeName(event.target.value)}
+              />
+            </label>
+            <label className='space-y-1 text-sm sm:col-span-2 xl:col-span-3'>
+              <span>{t('production.planChecklist')}</span>
+              <Input
+                value={checklist}
+                onChange={(event) => setChecklist(event.target.value)}
+              />
+            </label>
           </div>
           <Button
             size='sm'
