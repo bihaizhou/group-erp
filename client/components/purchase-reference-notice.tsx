@@ -156,13 +156,15 @@ function NoticeBody({ domain, kind, id, subjectId, busy }: Target) {
         </p>
       ) : data?.visibility === 'authorized' ? (
         data.total === 0 ? (
-          <Empty className='gap-2 p-2'>
-            <EmptyHeader>
-              <EmptyMedia variant='icon'>
+          <Empty className='flex-none gap-1 p-3'>
+            <EmptyHeader className='gap-1'>
+              <EmptyMedia variant='icon' className='mb-0'>
                 <SearchCheckIcon />
               </EmptyMedia>
-              <EmptyTitle>{t('purchaseReferences.empty')}</EmptyTitle>
-              <EmptyDescription>
+              <EmptyTitle className='text-sm'>
+                {t('purchaseReferences.empty')}
+              </EmptyTitle>
+              <EmptyDescription className='text-xs'>
                 {t('purchaseReferences.emptyHint')}
               </EmptyDescription>
             </EmptyHeader>
