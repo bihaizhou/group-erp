@@ -1,6 +1,6 @@
 import { useTranslation } from '@nocobase/i18n/client';
 import { Link } from 'react-router';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Shapes } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { Button } from '#components/ui/button';
@@ -16,6 +16,7 @@ import {
   EmptyHeader,
   EmptyTitle,
   EmptyDescription,
+  EmptyMedia,
 } from '#components/ui/empty';
 import { accessKey, useModuleAccess } from '../../hooks/use-module-access.js';
 import { workbenchChecks, workbenchModules } from '../../modules/catalog.js';
@@ -64,6 +65,9 @@ export default function Workbench() {
       ) : !pending ? (
         <Empty>
           <EmptyHeader>
+            <EmptyMedia variant='icon'>
+              <Shapes />
+            </EmptyMedia>
             <EmptyTitle>{t('materials.noModules')}</EmptyTitle>
             <EmptyDescription>
               {t('materials.noModulesDescription')}

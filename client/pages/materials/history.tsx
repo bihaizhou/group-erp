@@ -10,11 +10,12 @@ import { Button } from '#components/ui/button';
 import { Card, CardContent } from '#components/ui/card';
 import {
   Empty,
+  EmptyMedia,
   EmptyHeader,
   EmptyTitle,
   EmptyDescription,
 } from '#components/ui/empty';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, History } from 'lucide-react';
 import { LongText } from '#components/long-text';
 import { useUrlSearch } from '#hooks/use-url-search';
 import { kinds, text, type Kind } from './model.js';
@@ -129,6 +130,9 @@ export default function MaterialHistory() {
       ) : total === 0 ? (
         <Empty className='min-h-48 border border-dashed'>
           <EmptyHeader>
+            <EmptyMedia variant='icon'>
+              <History />
+            </EmptyMedia>
             <EmptyTitle>{t('materials.noHistory')}</EmptyTitle>
             <EmptyDescription>
               {t('materials.noHistoryDescription')}

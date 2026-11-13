@@ -1,7 +1,7 @@
-import { ApiClientError } from '@nocobase/app-client';
+import { ApiClientError, useApiClient, useToaster } from '@nocobase/app-client';
 import { useCan } from '@nocobase/app-plugin-authorization/client';
 import { AccessDenied } from '#components/access-denied';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation, useResolvedPath } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import {
@@ -32,6 +32,16 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '#components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '#components/ui/dialog';
+import { Label } from '#components/ui/label';
+import { Textarea } from '#components/ui/textarea';
 import { DateRangePicker } from '#components/date-picker';
 import { useUrlSearch } from '#hooks/use-url-search';
 import { useCurrentCompany } from '../../../company/use-company-scope.js';
@@ -41,6 +51,7 @@ import {
   usePurchaseIdentity,
   usePurchaseQuery,
   usePurchaseReturnFocus,
+  useRequestKey,
 } from './hooks.js';
 import {
   Loading,
@@ -55,6 +66,8 @@ import { OverflowText } from '../../materials/controls.js';
 import { ServerTable } from './server-table.js';
 import { MergePanel } from './merge-panel.js';
 import type { Choice, Page, PurchaseRequest } from './model.js';
+
+const EMPTY_SELECTION: ReadonlySet<string> = new Set();
 export default function RequestsPage() {
   const { t, i18n } = useTranslation(),
     location = useLocation(),
@@ -65,7 +78,21 @@ export default function RequestsPage() {
     edit = usePurchaseCan('update'),
     identity = usePurchaseIdentity(),
     unrestricted = useCan('unrestricted'),
-    currentCompany = useCurrentCompany();
+    currentCompany = useCurrentCompany(),
+    api = useApiClient(),
+    toaster = useToaster(),
+    key = useRequestKey();
+  const [selection, setSelection] = useState<{
+      key: string;
+      ids: ReadonlySet<string>;
+    }>({ key: '', ids: EMPTY_SELECTION }),
+    [bulkOpen, setBulkOpen] = useState(false),
+    [bulkReason, setBulkReason] = useState(''),
+    [bulkBusy, setBulkBusy] = useState(false);
+  const selected =
+      selection.key === location.search ? selection.ids : EMPTY_SELECTION,
+    setSelected = (ids: ReadonlySet<string>) =>
+      setSelection({ key: location.search, ids });
   const hasPosition =
     !!identity.data?.data.employee &&
     identity.data.data.companies.some((company) => company.units.length > 0);
@@ -185,6 +212,50 @@ export default function RequestsPage() {
       {t(ui('create'))}
     </Button>
   );
+  const bulkTargets = (rows ?? []).filter(
+    (row) => selected.has(row.id) && row.status === 'draft',
+  );
+  const runBulkSubmit = async () => {
+    if (bulkBusy || !bulkTargets.length) return;
+    setBulkBusy(true);
+    const reason = bulkReason.trim() || t(ui('bulkSubmit'));
+    let ok = 0;
+    let failed = 0;
+    for (const row of bulkTargets) {
+      const body = {
+        version: row.revision,
+        lifecycleVersion: row.lifecycleVersion,
+        reason,
+        requestKey: key.for({
+          id: row.id,
+          version: row.revision,
+          lifecycleVersion: row.lifecycleVersion,
+          reason,
+        }),
+      };
+      try {
+        await api.request({
+          path: `procurement/requests/${row.id}/submit`,
+          method: 'POST',
+          json: body,
+        });
+        ok += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    setBulkBusy(false);
+    setBulkOpen(false);
+    setBulkReason('');
+    setSelected(EMPTY_SELECTION);
+    void result.refetch();
+    toaster.show({
+      type: failed ? 'warning' : 'success',
+      title: failed
+        ? t(ui('bulkPartial'), { ok, failed })
+        : t(ui('bulkDone'), { count: ok }),
+    });
+  };
   const columns: ColumnDef<PurchaseRequest>[] = (() => {
     const truncate = (value: string) => (
       <OverflowText text={value || '—'} className='block max-w-xs truncate' />
@@ -517,9 +588,51 @@ export default function RequestsPage() {
                 aria-busy={result.isFetching}
                 className='flex flex-col gap-4'
               >
+                {selected.size > 0 ? (
+                  <div className='flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 px-3 py-2 text-sm'>
+                    <span className='font-medium'>
+                      {t(ui('bulkSelected'), { count: selected.size })}
+                    </span>
+                    <Button
+                      size='sm'
+                      disabled={!bulkTargets.length}
+                      title={bulkTargets.length ? undefined : t(ui('bulkNone'))}
+                      onClick={() => setBulkOpen(true)}
+                    >
+                      {t(ui('bulkSubmit'))}
+                      {bulkTargets.length ? ` (${bulkTargets.length})` : ''}
+                    </Button>
+                    <Button
+                      size='sm'
+                      variant='ghost'
+                      onClick={() => setSelected(EMPTY_SELECTION)}
+                    >
+                      {t(ui('bulkClear'))}
+                    </Button>
+                  </div>
+                ) : null}
                 <ServerTable
                   rows={rows}
                   columns={columns}
+                  selection={{
+                    selected,
+                    label: t(ui('bulkSelectRow')),
+                    selectAllLabel: t(ui('bulkSelectAll')),
+                    onToggle: (id, checked) => {
+                      const next = new Set(selected);
+                      if (checked) next.add(id);
+                      else next.delete(id);
+                      setSelected(next);
+                    },
+                    onToggleAll: (checked) => {
+                      const next = new Set(selected);
+                      for (const row of rows) {
+                        if (checked) next.add(row.id);
+                        else next.delete(row.id);
+                      }
+                      setSelected(next);
+                    },
+                  }}
                   total={total}
                   page={page}
                   pageSize={pageSize}
@@ -564,6 +677,40 @@ export default function RequestsPage() {
             )}
           </>
         )}
+        <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+          <DialogContent className='sm:max-w-md'>
+            <DialogHeader>
+              <DialogTitle>
+                {t(ui('bulkSubmit'))} ({bulkTargets.length})
+              </DialogTitle>
+              <DialogDescription>{t(ui('bulkReasonHint'))}</DialogDescription>
+            </DialogHeader>
+            <div className='grid gap-2'>
+              <Label htmlFor='purchase-bulk-reason'>
+                {t(ui('bulkReason'))}
+              </Label>
+              <Textarea
+                id='purchase-bulk-reason'
+                rows={3}
+                maxLength={3000}
+                value={bulkReason}
+                onChange={(event) => setBulkReason(event.target.value)}
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                variant='outline'
+                disabled={bulkBusy}
+                onClick={() => setBulkOpen(false)}
+              >
+                {t(ui('cancel'))}
+              </Button>
+              <Button disabled={bulkBusy} onClick={() => void runBulkSubmit()}>
+                {bulkBusy ? t(ui('submitting')) : t(ui('bulkSubmit'))}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </PageContainer>
       <Outlet />
     </>

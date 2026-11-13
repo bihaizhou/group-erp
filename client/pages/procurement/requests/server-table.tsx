@@ -13,6 +13,7 @@ import {
   TableRow,
   TableCell,
 } from '#components/ui/table';
+import { Checkbox } from '#components/ui/checkbox';
 import type { PurchaseRequest } from './model.js';
 export function ServerTable({
   rows,
@@ -22,6 +23,7 @@ export function ServerTable({
   pageSize,
   sorting,
   empty,
+  selection,
 }: {
   rows: PurchaseRequest[];
   columns: ColumnDef<PurchaseRequest>[];
@@ -30,7 +32,17 @@ export function ServerTable({
   pageSize: number;
   sorting: SortingState;
   empty?: React.ReactNode;
+  selection?: {
+    selected: ReadonlySet<string>;
+    onToggle: (id: string, checked: boolean) => void;
+    onToggleAll: (checked: boolean) => void;
+    label: string;
+    selectAllLabel: string;
+  };
 }) {
+  const allSelected =
+    !!rows.length && rows.every((row) => selection?.selected.has(row.id));
+  const someSelected = rows.some((row) => selection?.selected.has(row.id));
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: rows,
@@ -48,6 +60,18 @@ export function ServerTable({
         <TableHeader>
           {table.getHeaderGroups().map((group) => (
             <TableRow key={group.id}>
+              {selection ? (
+                <TableHead className='w-10'>
+                  <Checkbox
+                    aria-label={selection.selectAllLabel}
+                    checked={allSelected}
+                    indeterminate={someSelected && !allSelected}
+                    onCheckedChange={(checked: boolean) => {
+                      selection.onToggleAll(checked);
+                    }}
+                  />
+                </TableHead>
+              ) : null}
               {group.headers.map((head) => (
                 <TableHead key={head.id}>
                   {flexRender(head.column.columnDef.header, head.getContext())}
@@ -59,7 +83,23 @@ export function ServerTable({
         <TableBody>
           {table.getRowModel().rows.length ? (
             table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
+              <TableRow
+                key={row.id}
+                data-state={
+                  selection?.selected.has(row.id) ? 'selected' : undefined
+                }
+              >
+                {selection ? (
+                  <TableCell className='w-10'>
+                    <Checkbox
+                      aria-label={`${selection.label} ${row.original.code}`}
+                      checked={selection.selected.has(row.id)}
+                      onCheckedChange={(checked: boolean) => {
+                        selection.onToggle(row.id, checked);
+                      }}
+                    />
+                  </TableCell>
+                ) : null}
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -70,7 +110,7 @@ export function ServerTable({
           ) : (
             <TableRow>
               <TableCell
-                colSpan={columns.length}
+                colSpan={columns.length + (selection ? 1 : 0)}
                 className='h-24 text-center text-muted-foreground'
               >
                 {empty}
