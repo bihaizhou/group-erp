@@ -3,12 +3,13 @@ import { useSearchParams } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Plus, ShieldAlert } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
+import { nativeSelectClass } from '#components/native-controls';
 import { Textarea } from '#components/ui/textarea';
 import {
   Dialog,
@@ -36,6 +37,7 @@ import {
 import {
   hazardLevelKeys,
   hazardSourceKeys,
+  hazardStatusKeys,
   type HseHazard,
   type HseOptions,
   type HsePage,
@@ -60,6 +62,8 @@ export default function HseHazardsPage() {
   const api = useApiClient();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [levelFilter, setLevelFilter] = useState('');
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [transition, setTransition] = useState<{
@@ -78,12 +82,14 @@ export default function HseHazardsPage() {
   });
   const list = useQuery({
     retry: false,
-    queryKey: ['hse-hazards', subjectId, page],
+    queryKey: ['hse-hazards', subjectId, page, statusFilter, levelFilter],
     queryFn: ({ signal }) =>
       api.request<HsePage<HseHazard>>({
         path: 'hse/hazards',
         query: {
           ...(subjectId ? { subjectId } : {}),
+          ...(statusFilter ? { status: statusFilter } : {}),
+          ...(levelFilter ? { level: levelFilter } : {}),
           page,
           pageSize: 20,
         },
@@ -192,6 +198,44 @@ export default function HseHazardsPage() {
         }
       />
       <ReadOnlyNotice canManage={canManage} canApprove={canApprove} />
+      <div className='flex flex-wrap items-end gap-3'>
+        <label className='grid w-full gap-1 text-sm sm:w-36'>
+          <span>{t('hse.fields.status')}</span>
+          <select
+            className={nativeSelectClass}
+            value={statusFilter}
+            onChange={(event) => {
+              setStatusFilter(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value=''>{t('hse.allStatus')}</option>
+            {hazardStatusKeys.map((key) => (
+              <option key={key} value={key}>
+                {t(`hse.status.${key}`)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className='grid w-full gap-1 text-sm sm:w-32'>
+          <span>{t('hse.fields.level')}</span>
+          <select
+            className={nativeSelectClass}
+            value={levelFilter}
+            onChange={(event) => {
+              setLevelFilter(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value=''>{t('hse.allLevel')}</option>
+            {hazardLevelKeys.map((key) => (
+              <option key={key} value={key}>
+                {t(`hse.hazardLevel.${key}`)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       {list.isError ? (
         <HseErrorNotice error={list.error} retry={() => void list.refetch()} />
       ) : list.isLoading ? (
@@ -267,7 +311,7 @@ export default function HseHazardsPage() {
                         </Button>
                         <Button
                           size='sm'
-                          variant='ghost'
+                          variant='outline'
                           onClick={() => openTransition(row, 'return')}
                         >
                           {t('hse.returnHazard')}
@@ -304,9 +348,25 @@ export default function HseHazardsPage() {
           </div>
         </>
       ) : (
-        <p className='py-10 text-sm text-muted-foreground'>
-          {t('hse.emptyHazards')}
-        </p>
+        <div className='flex flex-col items-center gap-3 rounded-xl border border-dashed py-12'>
+          <ShieldAlert className='size-5 text-muted-foreground' />
+          <p className='text-sm text-muted-foreground'>
+            {t('hse.emptyHazards')}
+          </p>
+          {statusFilter || levelFilter ? (
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => {
+                setStatusFilter('');
+                setLevelFilter('');
+                setPage(1);
+              }}
+            >
+              {t('hse.clearFilters')}
+            </Button>
+          ) : null}
+        </div>
       )}
       {advance.isError ? (
         <p className='text-sm text-destructive'>

@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Plus, ShieldAlert } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { ReadOnlyNotice } from '#components/read-only-notice';
@@ -201,10 +201,10 @@ export default function HseIncidentsPage() {
       />
       <ReadOnlyNotice canManage={canManage} />
       <div className='flex flex-wrap items-end gap-3'>
-        <label className='grid gap-1 text-sm'>
+        <label className='grid w-full gap-1 text-sm sm:w-36'>
           <span>{t('hse.fields.status')}</span>
           <select
-            className={`${nativeSelectClass} sm:w-36`}
+            className={nativeSelectClass}
             value={statusFilter}
             onChange={(event) => {
               setStatusFilter(event.target.value);
@@ -219,10 +219,10 @@ export default function HseIncidentsPage() {
             ))}
           </select>
         </label>
-        <label className='grid gap-1 text-sm'>
+        <label className='grid w-full gap-1 text-sm sm:w-40'>
           <span>{t('hse.fields.type')}</span>
           <select
-            className={`${nativeSelectClass} sm:w-40`}
+            className={nativeSelectClass}
             value={typeFilter}
             onChange={(event) => {
               setTypeFilter(event.target.value);
@@ -338,9 +338,25 @@ export default function HseIncidentsPage() {
           </div>
         </>
       ) : (
-        <p className='py-10 text-sm text-muted-foreground'>
-          {t('hse.emptyIncidents')}
-        </p>
+        <div className='flex flex-col items-center gap-3 rounded-xl border border-dashed py-12'>
+          <ShieldAlert className='size-5 text-muted-foreground' />
+          <p className='text-sm text-muted-foreground'>
+            {t('hse.emptyIncidents')}
+          </p>
+          {statusFilter || typeFilter ? (
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => {
+                setStatusFilter('');
+                setTypeFilter('');
+                setPage(1);
+              }}
+            >
+              {t('hse.clearFilters')}
+            </Button>
+          ) : null}
+        </div>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className='sm:max-w-2xl'>

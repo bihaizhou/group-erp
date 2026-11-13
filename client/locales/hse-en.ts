@@ -35,6 +35,7 @@ export const hse = {
   loadFailed: 'Could not load',
   loading: 'Loading…',
   emptyIncidents: 'No incidents recorded.',
+  clearFilters: 'Clear filters',
   emptyHazards: 'No hazards recorded.',
   emptyCertificates: 'No certificates recorded.',
   recentIncidents: 'Recent incidents',
@@ -59,6 +60,7 @@ export const hse = {
     'A different approver verifies the correction; the submitter cannot self-verify.',
   certificateTransitionDescription:
     'Renewal, revocation and reinstatement are kept in the certificate trail.',
+  allLevel: 'All levels',
   allStatus: 'All statuses',
   allType: 'All types',
   fields: {

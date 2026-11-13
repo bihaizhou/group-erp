@@ -174,6 +174,7 @@ export const hseCertificateTransition = z.object({
 export const hseCertificateQuery = z.object({
   subjectId: z.string().max(36).optional(),
   status: z.enum(hseCertificateStatuses).optional(),
+  type: z.enum(hseCertificateTypes).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });

@@ -3,12 +3,13 @@ import { useSearchParams } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { BadgeCheck as CertificateIcon, Plus } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
+import { nativeSelectClass } from '#components/native-controls';
 import { Textarea } from '#components/ui/textarea';
 import {
   Dialog,
@@ -34,6 +35,7 @@ import {
   HseStatus,
 } from './controls.js';
 import {
+  certificateStatusKeys,
   certificateTypeKeys,
   type HseCertificate,
   type HseOptions,
@@ -56,6 +58,8 @@ export default function HseCertificatesPage() {
   const api = useApiClient();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [transition, setTransition] = useState<{
@@ -74,12 +78,14 @@ export default function HseCertificatesPage() {
   });
   const list = useQuery({
     retry: false,
-    queryKey: ['hse-certificates', subjectId, page],
+    queryKey: ['hse-certificates', subjectId, page, statusFilter, typeFilter],
     queryFn: ({ signal }) =>
       api.request<HsePage<HseCertificate>>({
         path: 'hse/certificates',
         query: {
           ...(subjectId ? { subjectId } : {}),
+          ...(statusFilter ? { status: statusFilter } : {}),
+          ...(typeFilter ? { type: typeFilter } : {}),
           page,
           pageSize: 20,
         },
@@ -189,6 +195,44 @@ export default function HseCertificatesPage() {
         }
       />
       <ReadOnlyNotice canManage={canManage} canApprove={canApprove} />
+      <div className='flex flex-wrap items-end gap-3'>
+        <label className='grid w-full gap-1 text-sm sm:w-36'>
+          <span>{t('hse.fields.status')}</span>
+          <select
+            className={nativeSelectClass}
+            value={statusFilter}
+            onChange={(event) => {
+              setStatusFilter(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value=''>{t('hse.allStatus')}</option>
+            {certificateStatusKeys.map((key) => (
+              <option key={key} value={key}>
+                {t(`hse.status.${key}`)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className='grid w-full gap-1 text-sm sm:w-44'>
+          <span>{t('hse.fields.certType')}</span>
+          <select
+            className={nativeSelectClass}
+            value={typeFilter}
+            onChange={(event) => {
+              setTypeFilter(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value=''>{t('hse.allType')}</option>
+            {certificateTypeKeys.map((key) => (
+              <option key={key} value={key}>
+                {t(`hse.certificateType.${key}`)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       {list.isError ? (
         <HseErrorNotice error={list.error} retry={() => void list.refetch()} />
       ) : list.isLoading ? (
@@ -257,7 +301,8 @@ export default function HseCertificatesPage() {
                         {canApprove ? (
                           <Button
                             size='sm'
-                            variant='ghost'
+                            variant='outline'
+                            className='text-destructive hover:text-destructive'
                             onClick={() => openTransition(row, 'revoke')}
                           >
                             {t('hse.revoke')}
@@ -294,9 +339,25 @@ export default function HseCertificatesPage() {
           </div>
         </>
       ) : (
-        <p className='py-10 text-sm text-muted-foreground'>
-          {t('hse.emptyCertificates')}
-        </p>
+        <div className='flex flex-col items-center gap-3 rounded-xl border border-dashed py-12'>
+          <CertificateIcon className='size-5 text-muted-foreground' />
+          <p className='text-sm text-muted-foreground'>
+            {t('hse.emptyCertificates')}
+          </p>
+          {statusFilter || typeFilter ? (
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => {
+                setStatusFilter('');
+                setTypeFilter('');
+                setPage(1);
+              }}
+            >
+              {t('hse.clearFilters')}
+            </Button>
+          ) : null}
+        </div>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className='sm:max-w-xl'>

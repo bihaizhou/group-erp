@@ -29,6 +29,7 @@ export const hse = {
   loadFailed: '加载失败',
   loading: '加载中…',
   emptyIncidents: '暂无事件记录。',
+  clearFilters: '清除筛选',
   emptyHazards: '暂无隐患记录。',
   emptyCertificates: '暂无证照记录。',
   recentIncidents: '最近事件',
@@ -51,6 +52,7 @@ export const hse = {
   hazardTransitionDescription:
     '整改提交后由另一名审批人验收，提交人不能自行验收。',
   certificateTransitionDescription: '续期、吊销和恢复都会写入证照办理记录。',
+  allLevel: '全部等级',
   allStatus: '全部状态',
   allType: '全部类型',
   fields: {

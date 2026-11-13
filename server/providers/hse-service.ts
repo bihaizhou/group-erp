@@ -686,6 +686,7 @@ export class HseService {
       status: this.certificateStatus(row, today),
     }));
     if (query.status) rows = rows.filter((row) => row.status === query.status);
+    if (query.type) rows = rows.filter((row) => row.certType === query.type);
     const total = rows.length;
     const start = (query.page - 1) * query.pageSize;
     return {
