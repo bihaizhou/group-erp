@@ -14,6 +14,7 @@ import {
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { Tabs, TabsList, TabsTrigger } from '#components/ui/tabs';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Alert, AlertDescription } from '#components/ui/alert';
 import { Button } from '#components/ui/button';
@@ -391,54 +392,11 @@ export default function RequestsPage() {
       <PageContainer>
         <PageHeader
           title={t(ui('title'))}
-          description={t(ui('description'))}
+          description={
+            tab === 'merge' ? t(ui('mergeHint')) : t(ui('description'))
+          }
           actions={
             <>
-              {merge.can ? (
-                <div
-                  role='tablist'
-                  className='inline-flex items-center gap-1 rounded-lg border border-input bg-muted/40 p-0.5'
-                >
-                  <Button
-                    role='tab'
-                    aria-selected={tab === 'list'}
-                    size='sm'
-                    variant='ghost'
-                    className={
-                      tab === 'list'
-                        ? 'bg-background shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }
-                    onClick={() =>
-                      updateParams((p) => {
-                        p.delete('tab');
-                        p.delete('page');
-                      })
-                    }
-                  >
-                    {t(ui('title'))}
-                  </Button>
-                  <Button
-                    role='tab'
-                    aria-selected={tab === 'merge'}
-                    size='sm'
-                    variant='ghost'
-                    className={
-                      tab === 'merge'
-                        ? 'bg-background shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }
-                    onClick={() =>
-                      updateParams((p) => {
-                        p.set('tab', 'merge');
-                        p.delete('page');
-                      })
-                    }
-                  >
-                    {t(ui('mergedList'))}
-                  </Button>
-                </div>
-              ) : null}
               {tab === 'list' &&
               create.can &&
               hasPosition &&
@@ -446,18 +404,30 @@ export default function RequestsPage() {
               (total > 0 || hasFilters)
                 ? newButton
                 : null}
-              {tab === 'list' ? (
-                <RefreshButton
-                  busy={result.isFetching || companies.isFetching}
-                  onClick={() => {
-                    if ((group || subjectId) && read.can) void result.refetch();
-                    void companies.refetch();
-                  }}
-                />
-              ) : null}
             </>
           }
         />
+        {merge.can ? (
+          <Tabs
+            value={tab}
+            onValueChange={(next) =>
+              updateParams((p) => {
+                if (next === 'merge') p.set('tab', 'merge');
+                else p.delete('tab');
+                p.delete('page');
+              })
+            }
+          >
+            <TabsList
+              variant='line'
+              aria-label={t(ui('title'))}
+              className='w-full border-b'
+            >
+              <TabsTrigger value='list'>{t(ui('title'))}</TabsTrigger>
+              <TabsTrigger value='merge'>{t(ui('mergedList'))}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        ) : null}
         <ReadOnlyNotice canManage={edit.can} />
         {unrestricted.can && !hasPosition ? (
           <Alert>
@@ -575,6 +545,13 @@ export default function RequestsPage() {
                   {t(ui('clearFilters'))}
                 </Button>
               )}
+              <RefreshButton
+                busy={result.isFetching || companies.isFetching}
+                onClick={() => {
+                  if ((group || subjectId) && read.can) void result.refetch();
+                  void companies.refetch();
+                }}
+              />
             </div>
             {result.error && (
               <ErrorNotice

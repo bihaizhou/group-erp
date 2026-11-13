@@ -67,20 +67,22 @@ export function MergePanel({
   return (
     <div className='flex flex-col gap-4'>
       <div className='flex flex-wrap items-end gap-3'>
-        <PurchaseSelect
-          label={t(ui('company'))}
-          value={company || 'all'}
-          items={[
-            { value: 'all', label: t(ui('allCompanies')) },
-            ...companies.map((item) => ({
-              value: item.id,
-              label: [item.code, item.name].filter(Boolean).join(' · '),
-            })),
-          ]}
-          onChange={(value) =>
-            update('mergeCompany', value === 'all' ? '' : value)
-          }
-        />
+        <div className='w-full sm:w-48'>
+          <PurchaseSelect
+            label={t(ui('company'))}
+            value={company || 'all'}
+            items={[
+              { value: 'all', label: t(ui('allCompanies')) },
+              ...companies.map((item) => ({
+                value: item.id,
+                label: [item.code, item.name].filter(Boolean).join(' · '),
+              })),
+            ]}
+            onChange={(value) =>
+              update('mergeCompany', value === 'all' ? '' : value)
+            }
+          />
+        </div>
         <DateRangePicker
           from={from}
           to={to}
@@ -102,7 +104,6 @@ export function MergePanel({
           busy={result.isFetching}
           onClick={() => void result.refetch()}
         />
-        <p className='text-sm text-muted-foreground'>{t(ui('mergeHint'))}</p>
       </div>
       {result.error ? (
         <ErrorNotice error={result.error} retry={() => void result.refetch()} />
@@ -115,9 +116,11 @@ export function MergePanel({
             <TableHeader>
               <TableRow>
                 <TableHead>{t(ui('mergeMaterial'))}</TableHead>
-                <TableHead>{t(ui('mergeUnit'))}</TableHead>
-                <TableHead>{t(ui('mergeQuantity'))}</TableHead>
-                <TableHead>{t(ui('mergeSources'))}</TableHead>
+                <TableHead className='w-20'>{t(ui('mergeUnit'))}</TableHead>
+                <TableHead className='w-32 text-right'>
+                  {t(ui('mergeQuantity'))}
+                </TableHead>
+                <TableHead className='w-40'>{t(ui('mergeSources'))}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -133,7 +136,7 @@ export function MergePanel({
                       </div>
                     </TableCell>
                     <TableCell>{group.material.unitName}</TableCell>
-                    <TableCell className='font-medium'>
+                    <TableCell className='text-right font-medium tabular-nums'>
                       {group.quantity} {group.material.unitName}
                     </TableCell>
                     <TableCell>
@@ -191,15 +194,17 @@ export function MergePanel({
         </div>
       )}
       <div className='flex flex-wrap items-center justify-between gap-3'>
-        <PurchaseSelect
-          label={t(ui('perPage'), { size: pageSize })}
-          value={String(pageSize)}
-          items={[20, 50, 100].map((size) => ({
-            value: String(size),
-            label: t(ui('perPage'), { size }),
-          }))}
-          onChange={(value) => update('mergePageSize', value)}
-        />
+        <div className='w-full sm:w-44'>
+          <PurchaseSelect
+            label={t(ui('perPage'), { size: pageSize })}
+            value={String(pageSize)}
+            items={[20, 50, 100].map((size) => ({
+              value: String(size),
+              label: t(ui('perPage'), { size }),
+            }))}
+            onChange={(value) => update('mergePageSize', value)}
+          />
+        </div>
         <Pagination
           page={page}
           pageSize={pageSize}
