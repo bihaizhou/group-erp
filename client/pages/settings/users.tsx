@@ -154,20 +154,14 @@ function UserActions({
           `settings.${action === 'disable' ? 'disableTitle' : action === 'enable' ? 'enableTitle' : 'revokeTitle'}`,
           { name: user.name },
         )}
-        description={
-          <>
-            <p>
-              {t(
-                action === 'disable'
-                  ? 'settings.disableHint'
-                  : action === 'enable'
-                    ? 'settings.enableHint'
-                    : 'settings.revokeHint',
-              )}
-            </p>
-            <SettingsError error={error} />
-          </>
-        }
+        description={t(
+          action === 'disable'
+            ? 'settings.disableHint'
+            : action === 'enable'
+              ? 'settings.enableHint'
+              : 'settings.revokeHint',
+        )}
+        error={<SettingsError error={error} inline />}
         confirmLabel={t(`settings.${action ?? 'confirm'}`)}
         busy={busy}
         onCancel={() => setAction(undefined)}
