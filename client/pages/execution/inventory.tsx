@@ -495,7 +495,7 @@ export default function InventoryPage() {
                         />
                       </label>
                     ))}
-                  <div className='w-full sm:max-w-xs'>
+                  <div className='w-full sm:min-w-0 sm:flex-1'>
                     <Input
                       {...inputProps}
                       aria-label={t(ui('searchMaterials'))}
@@ -503,7 +503,7 @@ export default function InventoryPage() {
                       maxLength={200}
                     />
                   </div>
-                  <label className='grid w-full gap-1 text-sm sm:w-40'>
+                  <label className='grid w-full shrink-0 gap-1 text-sm sm:w-40'>
                     <span className='text-muted-foreground'>
                       {t(ui('quality'))}
                     </span>
