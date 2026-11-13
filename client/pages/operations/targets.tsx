@@ -160,7 +160,10 @@ export default function OperationsTargetsPage() {
           ))}
           {targets.data?.data.items.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={8} className='text-muted-foreground'>
+              <TableCell
+                colSpan={8}
+                className='py-8 text-center text-sm text-muted-foreground'
+              >
                 {t('operations.noTargets')}
               </TableCell>
             </TableRow>

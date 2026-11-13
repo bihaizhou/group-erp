@@ -119,6 +119,7 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
         path: '/organization/history',
         auth: 'required',
         authz: organizationAuth,
+        breadcrumb: { title: 'org.history' },
         componentLoader: () => import('./pages/organization/history.js'),
       },
     ],

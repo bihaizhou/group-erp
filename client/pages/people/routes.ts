@@ -151,6 +151,7 @@ export const peopleRoutes: AppClientRouteDefinition[] = [
         name: 'people-history',
         path: '/human-resources/history',
         auth: 'required',
+        breadcrumb: { title: 'people.history' },
         authz: {
           resource: { type: 'page', id: 'people-history' },
           action: 'access',

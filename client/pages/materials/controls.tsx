@@ -140,7 +140,7 @@ export function ErrorNotice({
     status = error instanceof ApiClientError ? error.status : 0;
   return (
     <Alert variant='destructive'>
-      <AlertDescription className='flex flex-col gap-2'>
+      <AlertDescription className='flex flex-col items-start gap-2'>
         <p>{message(error)}</p>
         {status === 401 ? (
           <Link to='/login'>{t('materials.signIn')}</Link>

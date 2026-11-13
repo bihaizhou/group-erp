@@ -532,7 +532,7 @@ function RecordForm({
 
         {conflict ? (
           <Alert>
-            <AlertDescription className='flex flex-col gap-2'>
+            <AlertDescription className='flex flex-col items-start gap-2'>
               {t('materials.keepInput')}
               <Button
                 type='button'

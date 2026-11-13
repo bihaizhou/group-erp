@@ -134,7 +134,7 @@ function NoticeBody({ domain, kind, id, subjectId, busy }: Target) {
           <SessionExpiredAlert />
         ) : (
           <Alert variant='destructive'>
-            <AlertDescription className='flex flex-col gap-2'>
+            <AlertDescription className='flex flex-col items-start gap-2'>
               <p>{t(`purchaseReferences.${terminal ?? 'failed'}`)}</p>
               {!terminal && (
                 <Button
