@@ -11,6 +11,7 @@ export const production = {
   setupDuplicateSkuError: '同一物料只能配置一行，请检查是否重复选择。',
   setupSkuNotFoundError: '选中的物料已停用或不存在，请重新选择。',
   setupWarehouseError: '默认仓库必须是本公司启用仓库，请重新选择。',
+  unitProfile: '单元信息',
   setupPolicy:
     '物料从左表（物料中心）启用 SKU 中选择；产品与副产品可指定默认入库仓库，一张班报的入库行必须同仓。',
   setupFields: {

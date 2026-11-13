@@ -4,7 +4,7 @@ import { useApiClient } from '@nocobase/app-client';
 import { useProductionAccess } from './access.js';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Timer } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { Button } from '#components/ui/button';
@@ -16,6 +16,12 @@ import {
 } from '#components/ui/card';
 import { Input } from '#components/ui/input';
 import { nativeSelectClass } from '#components/native-controls';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from '#components/ui/empty';
 import type {
   OvertimeStatus,
   ProductionOptions,
@@ -320,9 +326,16 @@ export default function ProductionOvertimePage() {
             </div>
           ))}
           {records.length === 0 ? (
-            <p className='text-sm text-muted-foreground'>
-              {t('production.overtimeEmpty')}
-            </p>
+            <Empty className='min-h-32 border border-dashed'>
+              <EmptyHeader>
+                <EmptyMedia variant='icon'>
+                  <Timer />
+                </EmptyMedia>
+                <EmptyDescription>
+                  {t('production.overtimeEmpty')}
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : null}
         </div>
       </Card>

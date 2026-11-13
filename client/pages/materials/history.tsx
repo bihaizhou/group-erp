@@ -155,7 +155,7 @@ export default function MaterialHistory() {
                         {text(row.recordName)} ·{' '}
                         {t(`materials.transitions.${text(row.operation)}`)}
                       </span>
-                      <span className='text-sm text-muted-foreground'>
+                      <span className='rounded-md border border-border px-1.5 py-0.5 text-xs text-muted-foreground'>
                         {t(
                           kind
                             ? `materials.kinds.${kindText}`

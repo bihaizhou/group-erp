@@ -33,8 +33,10 @@ import {
   HseSelect,
   HseStatus,
 } from './controls.js';
+import { nativeSelectClass } from '#components/native-controls';
 import {
   incidentSeverityKeys,
+  incidentStatusKeys,
   incidentTypeKeys,
   type HseIncident,
   type HseOptions,
@@ -59,6 +61,8 @@ export default function HseIncidentsPage() {
   const api = useApiClient();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [transition, setTransition] = useState<{
@@ -78,12 +82,14 @@ export default function HseIncidentsPage() {
   });
   const list = useQuery({
     retry: false,
-    queryKey: ['hse-incidents', subjectId, page],
+    queryKey: ['hse-incidents', subjectId, page, statusFilter, typeFilter],
     queryFn: ({ signal }) =>
       api.request<HsePage<HseIncident>>({
         path: 'hse/incidents',
         query: {
           ...(subjectId ? { subjectId } : {}),
+          ...(statusFilter ? { status: statusFilter } : {}),
+          ...(typeFilter ? { type: typeFilter } : {}),
           page,
           pageSize: 20,
         },
@@ -194,6 +200,44 @@ export default function HseIncidentsPage() {
         }
       />
       <ReadOnlyNotice canManage={canManage} />
+      <div className='flex flex-wrap items-end gap-3'>
+        <label className='grid gap-1 text-sm'>
+          <span>{t('hse.fields.status')}</span>
+          <select
+            className={`${nativeSelectClass} sm:w-36`}
+            value={statusFilter}
+            onChange={(event) => {
+              setStatusFilter(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value=''>{t('hse.allStatus')}</option>
+            {incidentStatusKeys.map((key) => (
+              <option key={key} value={key}>
+                {t(`hse.status.${key}`)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className='grid gap-1 text-sm'>
+          <span>{t('hse.fields.type')}</span>
+          <select
+            className={`${nativeSelectClass} sm:w-40`}
+            value={typeFilter}
+            onChange={(event) => {
+              setTypeFilter(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value=''>{t('hse.allType')}</option>
+            {incidentTypeKeys.map((key) => (
+              <option key={key} value={key}>
+                {t(`hse.incidentType.${key}`)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       {list.isError ? (
         <HseErrorNotice error={list.error} retry={() => void list.refetch()} />
       ) : list.isLoading ? (

@@ -6,6 +6,13 @@ import { Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { Button } from '#components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '#components/ui/card';
 import { Input } from '#components/ui/input';
 import { nativeSelectClass } from '#components/native-controls';
 import { randomUuid } from '#lib/random-id';
@@ -148,235 +155,246 @@ function UnitEditor({
     return false;
   })();
   return (
-    <>
-      <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
-        <label className='grid gap-1 text-sm'>
-          <span>{t('production.setupFields.lineCode')}</span>
-          <Input
-            value={lineCode}
-            onChange={(event) => setLineCode(event.target.value)}
-            placeholder={t('production.setupFields.lineCodePlaceholder')}
-          />
-        </label>
-        <label className='grid gap-1 text-sm'>
-          <span>{t('production.setupFields.processType')}</span>
-          <Input
-            value={processType}
-            onChange={(event) => setProcessType(event.target.value)}
-            placeholder={t('production.setupFields.processTypePlaceholder')}
-          />
-        </label>
-        <label className='grid gap-1 text-sm'>
-          <span>{t('production.setupFields.designCapacityTpd')}</span>
-          <Input
-            type='number'
-            min='0'
-            value={designCapacityTpd}
-            onChange={(event) => setDesignCapacityTpd(event.target.value)}
-          />
-        </label>
-        <label className='grid gap-1 text-sm'>
-          <span>{t('production.setupFields.commissionDate')}</span>
-          <Input
-            type='date'
-            value={commissionDate}
-            onChange={(event) => setCommissionDate(event.target.value)}
-          />
-        </label>
-        <label className='grid gap-1 text-sm'>
-          <span>{t('production.setupFields.region')}</span>
-          <Input
-            value={region}
-            onChange={(event) => setRegion(event.target.value)}
-          />
-        </label>
-        <label className='grid gap-1 text-sm'>
-          <span>{t('production.setupFields.gatewayKey')}</span>
-          <Input
-            value={gatewayKey}
-            onChange={(event) => setGatewayKey(event.target.value)}
-          />
-        </label>
-        <label className='grid gap-1 text-sm'>
-          <span>{t('production.setupFields.fuxaPageKey')}</span>
-          <Input
-            value={fuxaPageKey}
-            onChange={(event) => setFuxaPageKey(event.target.value)}
-          />
-        </label>
-        <label className='grid gap-1 text-sm'>
-          <span>{t('production.setupFields.status')}</span>
-          <select
-            className={nativeSelectClass}
-            value={status}
-            onChange={(event) =>
-              setStatus(event.target.value as 'active' | 'inactive')
-            }
-          >
-            <option value='active'>{t('production.setupFields.active')}</option>
-            <option value='inactive'>
-              {t('production.setupFields.inactive')}
-            </option>
-          </select>
-        </label>
-      </div>
-      <p className='text-xs text-muted-foreground'>
-        {t('production.setupPolicy')}
-      </p>
-      <div className='flex flex-wrap items-center justify-between gap-2'>
-        <div>
-          <p className='text-sm font-medium'>
-            {t('production.materialConfig')}
-          </p>
-          <p className='text-xs text-muted-foreground'>
-            {t('production.materialConfigHint')}
-          </p>
+    <Card>
+      <CardHeader>
+        <CardTitle className='text-base'>
+          {t('production.unitProfile')}
+        </CardTitle>
+        <CardDescription>{t('production.setupPolicy')}</CardDescription>
+      </CardHeader>
+      <CardContent className='flex flex-col gap-4'>
+        <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
+          <label className='grid gap-1 text-sm'>
+            <span>{t('production.setupFields.lineCode')}</span>
+            <Input
+              value={lineCode}
+              onChange={(event) => setLineCode(event.target.value)}
+              placeholder={t('production.setupFields.lineCodePlaceholder')}
+            />
+          </label>
+          <label className='grid gap-1 text-sm'>
+            <span>{t('production.setupFields.processType')}</span>
+            <Input
+              value={processType}
+              onChange={(event) => setProcessType(event.target.value)}
+              placeholder={t('production.setupFields.processTypePlaceholder')}
+            />
+          </label>
+          <label className='grid gap-1 text-sm'>
+            <span>{t('production.setupFields.designCapacityTpd')}</span>
+            <Input
+              type='number'
+              min='0'
+              value={designCapacityTpd}
+              onChange={(event) => setDesignCapacityTpd(event.target.value)}
+            />
+          </label>
+          <label className='grid gap-1 text-sm'>
+            <span>{t('production.setupFields.commissionDate')}</span>
+            <Input
+              type='date'
+              value={commissionDate}
+              onChange={(event) => setCommissionDate(event.target.value)}
+            />
+          </label>
+          <label className='grid gap-1 text-sm'>
+            <span>{t('production.setupFields.region')}</span>
+            <Input
+              value={region}
+              onChange={(event) => setRegion(event.target.value)}
+            />
+          </label>
+          <label className='grid gap-1 text-sm'>
+            <span>{t('production.setupFields.gatewayKey')}</span>
+            <Input
+              value={gatewayKey}
+              onChange={(event) => setGatewayKey(event.target.value)}
+            />
+          </label>
+          <label className='grid gap-1 text-sm'>
+            <span>{t('production.setupFields.fuxaPageKey')}</span>
+            <Input
+              value={fuxaPageKey}
+              onChange={(event) => setFuxaPageKey(event.target.value)}
+            />
+          </label>
+          <label className='grid gap-1 text-sm'>
+            <span>{t('production.setupFields.status')}</span>
+            <select
+              className={nativeSelectClass}
+              value={status}
+              onChange={(event) =>
+                setStatus(event.target.value as 'active' | 'inactive')
+              }
+            >
+              <option value='active'>
+                {t('production.setupFields.active')}
+              </option>
+              <option value='inactive'>
+                {t('production.setupFields.inactive')}
+              </option>
+            </select>
+          </label>
         </div>
-        <Button
-          variant='outline'
-          disabled={!access.canManage}
-          onClick={() => setRows((current) => [...current, emptyMaterial()])}
-        >
-          <Plus />
-          {t('production.materialAdd')}
-        </Button>
-      </div>
-      <div className='overflow-x-auto rounded-xl border'>
-        <table className='w-full text-sm'>
-          <thead className='bg-muted/50 text-left'>
-            <tr>
-              <th className='px-3 py-2'>{t('production.setupFields.sku')}</th>
-              <th className='px-3 py-2'>{t('production.setupFields.role')}</th>
-              <th className='px-3 py-2'>
-                {t('production.setupFields.defaultWarehouse')}
-              </th>
-              <th className='px-3 py-2'>{t('production.setupFields.notes')}</th>
-              <th className='px-3 py-2' />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
+        <div className='flex flex-wrap items-center justify-between gap-2'>
+          <div>
+            <p className='text-sm font-medium'>
+              {t('production.materialConfig')}
+            </p>
+            <p className='text-xs text-muted-foreground'>
+              {t('production.materialConfigHint')}
+            </p>
+          </div>
+          <Button
+            variant='outline'
+            disabled={!access.canManage}
+            onClick={() => setRows((current) => [...current, emptyMaterial()])}
+          >
+            <Plus />
+            {t('production.materialAdd')}
+          </Button>
+        </div>
+        <div className='overflow-x-auto rounded-xl border'>
+          <table className='w-full text-sm'>
+            <thead className='bg-muted/50 text-left'>
               <tr>
-                <td
-                  className='px-3 py-4 text-sm text-muted-foreground'
-                  colSpan={5}
-                >
-                  {t('production.materialEmpty')}
-                </td>
+                <th className='px-3 py-2'>{t('production.setupFields.sku')}</th>
+                <th className='px-3 py-2'>
+                  {t('production.setupFields.role')}
+                </th>
+                <th className='px-3 py-2'>
+                  {t('production.setupFields.defaultWarehouse')}
+                </th>
+                <th className='px-3 py-2'>
+                  {t('production.setupFields.notes')}
+                </th>
+                <th className='px-3 py-2' />
               </tr>
-            ) : null}
-            {rows.map((row, index) => (
-              <tr key={row.key} className='border-t'>
-                <td className='px-3 py-2'>
-                  <select
-                    className='h-8 min-w-64 rounded-lg border border-input bg-transparent px-2 text-sm'
-                    value={row.skuId}
-                    onChange={(event) =>
-                      updateRow(index, { skuId: event.target.value })
-                    }
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td
+                    className='px-3 py-4 text-sm text-muted-foreground'
+                    colSpan={5}
                   >
-                    <option value=''>
-                      {t('production.setupFields.chooseMaterial')}
-                    </option>
-                    {setup.skus.map((sku) => (
-                      <option key={sku.id} value={sku.id}>
-                        {sku.code} {sku.name}
-                        {sku.unit ? ` (${sku.unit})` : ''}
+                    {t('production.materialEmpty')}
+                  </td>
+                </tr>
+              ) : null}
+              {rows.map((row, index) => (
+                <tr key={row.key} className='border-t'>
+                  <td className='px-3 py-2'>
+                    <select
+                      className={nativeSelectClass}
+                      value={row.skuId}
+                      onChange={(event) =>
+                        updateRow(index, { skuId: event.target.value })
+                      }
+                    >
+                      <option value=''>
+                        {t('production.setupFields.chooseMaterial')}
                       </option>
-                    ))}
-                  </select>
-                </td>
-                <td className='px-3 py-2'>
-                  <select
-                    className='h-8 rounded-lg border border-input bg-transparent px-2 text-sm'
-                    value={row.role}
-                    onChange={(event) =>
-                      updateRow(index, {
-                        role: event.target.value as ProductionMaterialRole,
-                      })
-                    }
-                  >
-                    {materialRoles.map((role) => (
-                      <option key={role} value={role}>
-                        {t(`production.materialRoles.${role}`)}
+                      {setup.skus.map((sku) => (
+                        <option key={sku.id} value={sku.id}>
+                          {sku.code} {sku.name}
+                          {sku.unit ? ` (${sku.unit})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className='px-3 py-2'>
+                    <select
+                      className='h-8 rounded-lg border border-input bg-transparent px-2 text-sm'
+                      value={row.role}
+                      onChange={(event) =>
+                        updateRow(index, {
+                          role: event.target.value as ProductionMaterialRole,
+                        })
+                      }
+                    >
+                      {materialRoles.map((role) => (
+                        <option key={role} value={role}>
+                          {t(`production.materialRoles.${role}`)}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className='px-3 py-2'>
+                    <select
+                      className='h-8 min-w-44 rounded-lg border border-input bg-transparent px-2 text-sm'
+                      value={row.defaultWarehouseId}
+                      onChange={(event) =>
+                        updateRow(index, {
+                          defaultWarehouseId: event.target.value,
+                        })
+                      }
+                    >
+                      <option value=''>
+                        {t('production.setupFields.noWarehouse')}
                       </option>
-                    ))}
-                  </select>
-                </td>
-                <td className='px-3 py-2'>
-                  <select
-                    className='h-8 min-w-44 rounded-lg border border-input bg-transparent px-2 text-sm'
-                    value={row.defaultWarehouseId}
-                    onChange={(event) =>
-                      updateRow(index, {
-                        defaultWarehouseId: event.target.value,
-                      })
-                    }
-                  >
-                    <option value=''>
-                      {t('production.setupFields.noWarehouse')}
-                    </option>
-                    {warehouses.map((warehouse) => (
-                      <option key={warehouse.id} value={warehouse.id}>
-                        {warehouse.name}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className='px-3 py-2'>
-                  <Input
-                    value={row.notes}
-                    onChange={(event) =>
-                      updateRow(index, { notes: event.target.value })
-                    }
-                  />
-                </td>
-                <td className='px-3 py-2'>
-                  <Button
-                    variant='ghost'
-                    disabled={!access.canManage}
-                    onClick={() =>
-                      setRows((current) =>
-                        current.filter((_, position) => position !== index),
-                      )
-                    }
-                  >
-                    <Trash2 />
-                    {t('production.remove')}
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {duplicate ? (
-        <p className='text-sm text-destructive' role='alert'>
-          {t('production.setupDuplicateSkuError')}
-        </p>
-      ) : null}
-      <ReadOnlyNotice
-        canManage={access.canManage}
-        canApprove={access.canApprove}
-      />
-      <div className='flex items-center gap-3'>
-        <Button
-          onClick={() => {
-            setNotice('');
-            save.mutate();
-          }}
-          disabled={save.isPending || duplicate || !access.canManage}
-        >
-          <Save />
-          {save.isPending ? t('production.saving') : t('production.save')}
-        </Button>
-        {notice ? (
-          <p className='text-sm text-muted-foreground' role='status'>
-            {notice}
+                      {warehouses.map((warehouse) => (
+                        <option key={warehouse.id} value={warehouse.id}>
+                          {warehouse.name}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className='px-3 py-2'>
+                    <Input
+                      value={row.notes}
+                      onChange={(event) =>
+                        updateRow(index, { notes: event.target.value })
+                      }
+                    />
+                  </td>
+                  <td className='px-3 py-2'>
+                    <Button
+                      variant='ghost'
+                      disabled={!access.canManage}
+                      onClick={() =>
+                        setRows((current) =>
+                          current.filter((_, position) => position !== index),
+                        )
+                      }
+                    >
+                      <Trash2 />
+                      {t('production.remove')}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {duplicate ? (
+          <p className='text-sm text-destructive' role='alert'>
+            {t('production.setupDuplicateSkuError')}
           </p>
         ) : null}
-      </div>
-    </>
+        <ReadOnlyNotice
+          canManage={access.canManage}
+          canApprove={access.canApprove}
+        />
+        <div className='flex items-center gap-3 border-t pt-4'>
+          <Button
+            onClick={() => {
+              setNotice('');
+              save.mutate();
+            }}
+            disabled={save.isPending || duplicate || !access.canManage}
+          >
+            <Save />
+            {save.isPending ? t('production.saving') : t('production.save')}
+          </Button>
+          {notice ? (
+            <p className='text-sm text-muted-foreground' role='status'>
+              {notice}
+            </p>
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -402,7 +420,7 @@ export default function ProductionSetupPage() {
     configuredUnit ??
     data?.units[0];
   return (
-    <PageContainer>
+    <PageContainer className='max-w-5xl'>
       <PageHeader
         title={t('production.setup')}
         description={t('production.setupDescription')}

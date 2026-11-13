@@ -152,7 +152,7 @@ export default function SalesOverviewPage() {
         >
           {recentOrders.data?.map((row) => (
             <TableRow key={row.id}>
-              <TableCell className='font-medium'></TableCell>
+              <TableCell className='font-medium'>{row.code}</TableCell>
               <TableCell>{row.display?.partner?.name ?? '—'}</TableCell>
               <TableCell>
                 <DashboardStatus status={row.status} />

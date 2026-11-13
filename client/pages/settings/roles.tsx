@@ -148,6 +148,7 @@ export default function RolesPage(): ReactElement {
               type: t('settings.roleType'),
               protected: t('settings.protected'),
               custom: t('settings.custom'),
+              edit: t('settings.editRole'),
             }}
           />
         </ListFeedback>

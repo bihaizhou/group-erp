@@ -59,6 +59,8 @@ export const hse = {
     'A different approver verifies the correction; the submitter cannot self-verify.',
   certificateTransitionDescription:
     'Renewal, revocation and reinstatement are kept in the certificate trail.',
+  allStatus: 'All statuses',
+  allType: 'All types',
   fields: {
     incidentNo: 'Incident no.',
     occurredAt: 'Occurred at',

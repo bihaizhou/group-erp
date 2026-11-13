@@ -103,14 +103,66 @@ export default function ProductionDowntimePage() {
         title={t('production.downtimeTitle')}
         description={t('production.downtimePageDescription')}
         actions={
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() => void events.refetch()}
-          >
-            <RefreshCw className='mr-1 size-4' />
-            {t('production.refresh')}
-          </Button>
+          <div className='flex flex-wrap items-end gap-2'>
+            <label className='grid w-full gap-1 text-sm sm:w-44'>
+              <span className='text-muted-foreground'>
+                {t('production.unit')}
+              </span>
+              <select
+                className={nativeSelectClass}
+                value={selectedUnit}
+                onChange={(event) => setUnitId(event.target.value)}
+              >
+                {units.map((unit) => (
+                  <option key={unit.id} value={unit.id}>
+                    {unit.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className='grid w-full gap-1 text-sm sm:w-40'>
+              <span className='text-muted-foreground'>
+                {t('production.businessDate')}
+              </span>
+              <Input
+                type='date'
+                value={date}
+                onChange={(event) => setDate(event.target.value)}
+              />
+            </label>
+            <label className='grid w-full gap-1 text-sm sm:w-36'>
+              <span className='text-muted-foreground'>
+                {t('production.downtimeStatus')}
+              </span>
+              <select
+                className={nativeSelectClass}
+                value={status}
+                onChange={(event) =>
+                  setStatus(event.target.value as DowntimeStatus | '')
+                }
+              >
+                <option value=''>{t('production.allStatuses')}</option>
+                <option value='open'>
+                  {t('production.downtimeStatus_open')}
+                </option>
+                <option value='closed'>
+                  {t('production.downtimeStatus_closed')}
+                </option>
+                <option value='cancelled'>
+                  {t('production.downtimeStatus_cancelled')}
+                </option>
+              </select>
+            </label>
+            <Button
+              variant='outline'
+              size='icon'
+              aria-label={t('production.refresh')}
+              title={t('production.refresh')}
+              onClick={() => void events.refetch()}
+            >
+              <RefreshCw className='size-4' />
+            </Button>
+          </div>
         }
       />
 
@@ -118,62 +170,6 @@ export default function ProductionDowntimePage() {
         canManage={access.canManage}
         canApprove={access.canApprove}
       />
-
-      <Card className='mb-4'>
-        <CardHeader>
-          <CardTitle className='text-base'>
-            {t('production.downtimeFilter')}
-          </CardTitle>
-          <CardDescription>
-            {t('production.downtimeFilterHint')}
-          </CardDescription>
-        </CardHeader>
-        <div className='grid gap-3 px-6 pb-6 sm:grid-cols-3'>
-          <label className='grid gap-1 text-sm'>
-            <span>{t('production.unit')}</span>
-            <select
-              className={nativeSelectClass}
-              value={selectedUnit}
-              onChange={(event) => setUnitId(event.target.value)}
-            >
-              {units.map((unit) => (
-                <option key={unit.id} value={unit.id}>
-                  {unit.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className='grid gap-1 text-sm'>
-            <span>{t('production.businessDate')}</span>
-            <Input
-              type='date'
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-            />
-          </label>
-          <label className='grid gap-1 text-sm'>
-            <span>{t('production.downtimeStatus')}</span>
-            <select
-              className={nativeSelectClass}
-              value={status}
-              onChange={(event) =>
-                setStatus(event.target.value as DowntimeStatus | '')
-              }
-            >
-              <option value=''>{t('production.allStatuses')}</option>
-              <option value='open'>
-                {t('production.downtimeStatus_open')}
-              </option>
-              <option value='closed'>
-                {t('production.downtimeStatus_closed')}
-              </option>
-              <option value='cancelled'>
-                {t('production.downtimeStatus_cancelled')}
-              </option>
-            </select>
-          </label>
-        </div>
-      </Card>
 
       {units.length === 0 ? (
         <p className='mb-4 rounded-md border p-3 text-sm text-muted-foreground'>
@@ -244,7 +240,10 @@ export default function ProductionDowntimePage() {
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td className='py-4 text-muted-foreground' colSpan={7}>
+                  <td
+                    className='py-8 text-center text-sm text-muted-foreground'
+                    colSpan={7}
+                  >
                     {t('production.downtimeEmpty')}
                   </td>
                 </tr>

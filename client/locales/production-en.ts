@@ -14,6 +14,7 @@ export const production = {
     'The selected material is inactive or missing. Pick another one.',
   setupWarehouseError:
     'The default warehouse must be an active warehouse of this company.',
+  unitProfile: 'Unit profile',
   setupPolicy:
     'Materials come from the active SKUs in the material center. Product and byproduct rows may name a default warehouse; one report may only receive into a single warehouse.',
   setupFields: {

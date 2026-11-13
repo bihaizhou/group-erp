@@ -1,6 +1,7 @@
 import { useMemo, type ReactElement } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import type { To } from 'react-router';
+import { Link, type To } from 'react-router';
+import { ChevronRight } from 'lucide-react';
 import { RecordLink } from '#components/record-link';
 import {
   DataTable,
@@ -24,6 +25,7 @@ export interface RoleListProps {
     readonly type: string;
     readonly protected: string;
     readonly custom: string;
+    readonly edit: string;
   };
   readonly ariaLabel?: string;
   readonly tableState?: Pick<
@@ -47,7 +49,7 @@ export function RoleList({
     () => [
       {
         accessorKey: 'title',
-        meta: { className: 'w-[38%]' },
+        meta: { className: 'w-[34%]' },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={labels.name} />
         ),
@@ -63,7 +65,7 @@ export function RoleList({
       },
       {
         accessorKey: 'key',
-        meta: { className: 'w-[44%]' },
+        meta: { className: 'w-[38%]' },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={labels.key} />
         ),
@@ -79,12 +81,28 @@ export function RoleList({
       {
         accessorKey: 'protected',
         enableSorting: false,
-        meta: { className: 'w-[18%]' },
+        meta: { className: 'w-[16%]' },
         header: labels.type,
         cell: ({ row }) => (
           <Badge variant='secondary'>
             {row.original.protected ? labels.protected : labels.custom}
           </Badge>
+        ),
+      },
+      {
+        id: 'actions',
+        enableSorting: false,
+        meta: { className: 'w-[12%] text-right' },
+        header: () => <span className='sr-only'>{labels.edit}</span>,
+        cell: ({ row }) => (
+          <Link
+            to={row.original.to}
+            aria-label={`${labels.edit} ${row.original.title}`}
+            className='inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground'
+          >
+            {labels.edit}
+            <ChevronRight className='size-3.5' />
+          </Link>
         ),
       },
     ],

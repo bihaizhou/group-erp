@@ -51,6 +51,8 @@ export const hse = {
   hazardTransitionDescription:
     '整改提交后由另一名审批人验收，提交人不能自行验收。',
   certificateTransitionDescription: '续期、吊销和恢复都会写入证照办理记录。',
+  allStatus: '全部状态',
+  allType: '全部类型',
   fields: {
     incidentNo: '事件编号',
     occurredAt: '发生时间',
