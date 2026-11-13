@@ -73,7 +73,7 @@ export default function SupplierDetail() {
   return (
     <>
       <RouteChildPage>
-        <PageContainer>
+        <PageContainer className='max-w-4xl'>
           <BackButton />
           <PageHeader
             title={row?.identity.name ?? t('procurement.suppliers')}
@@ -129,7 +129,11 @@ export default function SupplierDetail() {
                       ],
                     ]}
                   />
-                  {can?.updateIdentity && button('identity', 'editIdentity')}
+                  {can?.updateIdentity && (
+                    <div className='flex flex-wrap gap-2'>
+                      {button('identity', 'editIdentity')}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
               <Card>

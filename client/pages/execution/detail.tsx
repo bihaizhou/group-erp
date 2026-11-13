@@ -143,14 +143,20 @@ export default function ExecutionDetail() {
   useReturnFocus(ownPath, `${config.page}-detail-refresh`);
   const link = (path: string) => ({ pathname: path, search: location.search }),
     enabled = (action: string) => caps.data?.data.actions[action]?.visible,
+    primaryAction = ['submit', 'start', 'post', 'approve'].find(
+      (action) => enabled(action) && caps.data?.data.actions[action]?.enabled,
+    ),
+    primaryTransitions = ['submit', 'start', 'post', 'approve'].filter(enabled),
+    enabledTransitions = primaryTransitions.filter(
+      (action) => caps.data?.data.actions[action]?.enabled,
+    ),
+    blockedTransitions = primaryTransitions.filter(
+      (action) => !caps.data?.data.actions[action]?.enabled,
+    ),
     actionButton = (action: string) => (
       <Button
         key={action}
-        variant={
-          ['submit', 'post', 'start', 'approve'].includes(action)
-            ? 'default'
-            : 'outline'
-        }
+        variant={action === primaryAction ? 'default' : 'outline'}
         nativeButton={false}
         disabled={!caps.data?.data.actions[action]?.enabled || caps.isFetching}
         render={<Link to={link(`actions/${action}`)} />}
@@ -173,11 +179,13 @@ export default function ExecutionDetail() {
           ) : row ? (
             <>
               <PageHeader
-                title={row.code}
-                description={
+                title={
                   row.kind
                     ? t(ui(`kinds.${row.kind}`))
                     : t(ui(`titles.${config.kind}`))
+                }
+                description={
+                  <span className='font-mono text-xs'>{row.code}</span>
                 }
                 actions={
                   <>
@@ -205,9 +213,7 @@ export default function ExecutionDetail() {
                         {t(ui('edit'))}
                       </Button>
                     )}
-                    {['submit', 'start', 'post', 'approve']
-                      .filter(enabled)
-                      .map(actionButton)}
+                    {enabledTransitions.map(actionButton)}
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
@@ -224,6 +230,11 @@ export default function ExecutionDetail() {
                         align='end'
                         className='w-auto min-w-40'
                       >
+                        {blockedTransitions.map((action) => (
+                          <DropdownMenuItem key={action} disabled>
+                            {t(ui(`actions.${action}`))}
+                          </DropdownMenuItem>
+                        ))}
                         {['return', 'withdraw', 'revise', 'reassign', 'copy']
                           .filter(enabled)
                           .map((action) => (
@@ -305,7 +316,7 @@ export default function ExecutionDetail() {
                   <CardTitle>{t(ui('details'))}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <dl className='grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3'>
+                  <dl className='grid gap-x-8 gap-y-2 sm:grid-cols-2 lg:grid-cols-3'>
                     {[
                       ['company', row.display.company?.name],
                       ['warehouse', row.display.warehouse?.name],
@@ -386,11 +397,14 @@ export default function ExecutionDetail() {
                           ]
                         : []),
                     ].map(([label, value]) => (
-                      <div key={label} className='min-w-0'>
+                      <div
+                        key={label}
+                        className='grid min-w-0 grid-cols-[5.5rem_minmax(0,1fr)] items-baseline gap-2'
+                      >
                         <dt className='text-sm text-muted-foreground'>
                           {t(ui(label!))}
                         </dt>
-                        <dd className='mt-1 whitespace-pre-wrap break-words text-sm'>
+                        <dd className='whitespace-pre-wrap break-words text-sm'>
                           {value || '—'}
                         </dd>
                       </div>

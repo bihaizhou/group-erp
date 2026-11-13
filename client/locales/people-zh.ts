@@ -305,6 +305,8 @@ export const people = {
   },
   uploading: '照片上传中',
   photoHint: '支持JPEG、PNG、WebP，最大5MB；上传后保存人员档案完成关联。',
+  choosePhoto: '选择照片',
+  noFileChosen: '未选择文件',
   photoAttached: '已关联照片',
   fields: {
     phone: '手机号',

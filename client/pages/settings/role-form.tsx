@@ -662,7 +662,7 @@ function RoleEditor(): ReactElement {
                     setDirty(true);
                   }}
                 />
-                <div className='sticky bottom-0 flex justify-end gap-2 border-t bg-background py-4'>
+                <div className='sticky bottom-0 flex justify-end gap-2 border-t bg-background py-4 pr-16'>
                   <Button
                     variant='outline'
                     disabled={busy}

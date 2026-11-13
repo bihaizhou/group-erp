@@ -334,6 +334,8 @@ export const people = {
   uploading: 'Uploading photo',
   photoHint:
     'JPEG, PNG or WebP, up to 5 MB. Save the employee record after upload.',
+  choosePhoto: 'Choose photo',
+  noFileChosen: 'No file chosen',
   photoAttached: 'Photo attached',
   fields: {
     phone: 'Phone',

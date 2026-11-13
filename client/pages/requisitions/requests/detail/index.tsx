@@ -203,7 +203,7 @@ export default function RequestDetail() {
     showActions =
       !related &&
       (enabledActions.length > 0 || caps.isFetching || !!caps.error);
-  const title = row ? `${t(ui('title'))} ${row.code}` : t(ui('title'));
+  const title = t(ui('title'));
   return (
     <RouteChildPage>
       <PageContainer>
@@ -217,6 +217,13 @@ export default function RequestDetail() {
             >
               {title}
             </span>
+          }
+          description={
+            row ? (
+              <span className='font-mono text-xs text-muted-foreground'>
+                {row.code}
+              </span>
+            ) : undefined
           }
           actions={
             row && !terminal ? (

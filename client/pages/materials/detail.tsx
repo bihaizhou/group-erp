@@ -138,7 +138,7 @@ export default function MaterialDetail({
           <CardTitle>{t('materials.basic')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <dl className='grid gap-4 sm:grid-cols-2'>
+          <dl className='grid gap-x-8 gap-y-3 sm:grid-cols-2'>
             {['name', 'code', ...fields[kind].map((v) => v.key), 'notes']
               .filter(
                 (key) =>
@@ -147,21 +147,23 @@ export default function MaterialDetail({
               .map((key) => (
                 <div
                   key={key}
-                  className={key === 'notes' ? 'sm:col-span-2' : undefined}
+                  className={`grid grid-cols-[6.5rem_minmax(0,1fr)] items-baseline gap-2 ${
+                    key === 'notes' ? 'sm:col-span-2' : ''
+                  }`}
                 >
                   <dt className='text-sm text-muted-foreground'>
                     {t(`materials.fields.${key}`)}
                   </dt>
-                  <dd className='mt-1'>
+                  <dd>
                     <LongText>{display(key, row[key])}</LongText>
                   </dd>
                 </div>
               ))}
-            <div>
+            <div className='grid grid-cols-[6.5rem_minmax(0,1fr)] items-baseline gap-2'>
               <dt className='text-sm text-muted-foreground'>
                 {t('materials.fields.status')}
               </dt>
-              <dd className='mt-1'>
+              <dd>
                 <StatusBadge
                   tone={
                     ['active', 'resolved'].includes(row.status)
@@ -184,7 +186,7 @@ export default function MaterialDetail({
             <CardTitle>{t('materials.attributes')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className='grid gap-4 sm:grid-cols-2'>
+            <dl className='grid gap-x-8 gap-y-3 sm:grid-cols-2'>
               {Object.entries(
                 (row.attributeValues ?? {}) as Record<string, string>,
               ).map(([key, value]) => {
@@ -202,14 +204,17 @@ export default function MaterialDetail({
                   (v) => v.key === key,
                 );
                 return (
-                  <div key={key}>
+                  <div
+                    key={key}
+                    className='grid grid-cols-[6.5rem_minmax(0,1fr)] items-baseline gap-2'
+                  >
                     <dt className='text-sm text-muted-foreground'>
                       {attr?.title ?? publicLabel?.title ?? key}
                       {attr?.unit || publicLabel?.unit
                         ? ` (${attr?.unit ?? publicLabel?.unit})`
                         : ''}
                     </dt>
-                    <dd className='mt-1'>{value || '—'}</dd>
+                    <dd>{value || '—'}</dd>
                   </div>
                 );
               })}
@@ -258,27 +263,67 @@ export default function MaterialDetail({
           <CardHeader>
             <CardTitle>{t('materials.catalogRelations')}</CardTitle>
           </CardHeader>
-          <CardContent className='flex flex-col gap-4'>
-            <p>
-              {t('materials.unitValue', { name: text(extra.baseUnitName) })}
-            </p>
-            {((extra.packages ?? []) as Row[]).map((v) => (
-              <p key={v.id}>
-                {v.name} · {text(v.denominator)} : {text(v.numerator)}
-                {v.conversionMode === 'reference'
-                  ? ` · ${t('materials.referenceConversion')} ±${text(v.variancePercent)}%`
-                  : ''}
-              </p>
-            ))}
-            {((extra.aliases ?? []) as Row[]).map((v) => (
-              <p key={v.id}>{t('materials.aliasValue', { name: v.name })}</p>
-            ))}
-            {((extra.tags ?? []) as Row[]).map((v) => (
-              <p key={v.id}>
-                {v.name}
-                {v.inherited ? ` · ${t('materials.inherited')}` : ''}
-              </p>
-            ))}
+          <CardContent>
+            <dl className='grid gap-x-8 gap-y-3 sm:grid-cols-2'>
+              <div className='grid grid-cols-[6.5rem_minmax(0,1fr)] items-baseline gap-2'>
+                <dt className='text-sm text-muted-foreground'>
+                  {t('materials.baseUnitLabel')}
+                </dt>
+                <dd>{text(extra.baseUnitName) || '—'}</dd>
+              </div>
+              {((extra.packages ?? []) as Row[]).length ? (
+                <div className='grid grid-cols-[6.5rem_minmax(0,1fr)] items-baseline gap-2'>
+                  <dt className='text-sm text-muted-foreground'>
+                    {t('materials.packagesLabel')}
+                  </dt>
+                  <dd className='flex flex-col gap-1'>
+                    {((extra.packages ?? []) as Row[]).map((v) => (
+                      <span key={v.id}>
+                        {v.name} · {text(v.denominator)} : {text(v.numerator)}
+                        {v.conversionMode === 'reference'
+                          ? ` · ${t('materials.referenceConversion')} ±${text(v.variancePercent)}%`
+                          : ''}
+                      </span>
+                    ))}
+                  </dd>
+                </div>
+              ) : null}
+              {((extra.aliases ?? []) as Row[]).length ? (
+                <div className='grid grid-cols-[6.5rem_minmax(0,1fr)] items-baseline gap-2'>
+                  <dt className='text-sm text-muted-foreground'>
+                    {t('materials.aliasesLabel')}
+                  </dt>
+                  <dd className='flex flex-wrap gap-1'>
+                    {((extra.aliases ?? []) as Row[]).map((v) => (
+                      <span
+                        key={v.id}
+                        className='rounded-md border border-border px-1.5 py-0.5 text-xs'
+                      >
+                        {v.name}
+                      </span>
+                    ))}
+                  </dd>
+                </div>
+              ) : null}
+              {((extra.tags ?? []) as Row[]).length ? (
+                <div className='grid grid-cols-[6.5rem_minmax(0,1fr)] items-baseline gap-2'>
+                  <dt className='text-sm text-muted-foreground'>
+                    {t('materials.tagsLabel')}
+                  </dt>
+                  <dd className='flex flex-wrap gap-1'>
+                    {((extra.tags ?? []) as Row[]).map((v) => (
+                      <span
+                        key={v.id}
+                        className='rounded-md border border-border px-1.5 py-0.5 text-xs'
+                      >
+                        {v.name}
+                        {v.inherited ? ` · ${t('materials.inherited')}` : ''}
+                      </span>
+                    ))}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
             {extra.relationsTruncated ? (
               <p className='text-sm text-muted-foreground'>
                 {t('materials.relationCap')}

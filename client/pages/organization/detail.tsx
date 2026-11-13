@@ -47,7 +47,7 @@ export default function OrganizationDetailPage() {
         <OrgStatus status={data.status} />
         <span className='text-sm text-muted-foreground'>{data.code}</span>
       </div>
-      <dl className='grid gap-4 sm:grid-cols-2'>
+      <dl className='grid gap-x-8 gap-y-2 sm:grid-cols-2'>
         {fields[kind].map((field, index) => (
           <div key={field.key} className='contents'>
             {!isSmall(kind) &&
@@ -60,14 +60,14 @@ export default function OrganizationDetailPage() {
             ) : null}
             <div
               key={field.key}
-              className={
-                field.type === 'textarea' ? 'sm:col-span-2' : undefined
-              }
+              className={`grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-2 ${
+                field.type === 'textarea' ? 'sm:col-span-2' : ''
+              }`}
             >
               <dt className='text-sm text-muted-foreground'>
                 {t(`org.fields.${field.key}`)}
               </dt>
-              <dd className='mt-1 text-sm break-words'>
+              <dd className='text-sm break-words'>
                 {field.type === 'textarea' ? (
                   <LongText>{String(data[field.key] ?? '—')}</LongText>
                 ) : (
