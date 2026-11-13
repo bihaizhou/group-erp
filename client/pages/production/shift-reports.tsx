@@ -218,11 +218,11 @@ export default function ProductionShiftReportsPage() {
             {t('production.shiftReportListDescription')}
           </CardDescription>
         </CardHeader>
-        <CardContent className='grid gap-3 sm:grid-cols-2'>
-          <label className='grid gap-1 text-sm'>
+        <CardContent className='flex flex-wrap items-end gap-3'>
+          <label className='grid gap-1 text-sm sm:w-44'>
             <span>{t('production.unit')}</span>
             <select
-              className='h-9 w-full rounded-md border bg-transparent px-3'
+              className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm'
               value={selectedUnit}
               onChange={(event) => setUnitId(event.target.value)}
             >
@@ -241,7 +241,7 @@ export default function ProductionShiftReportsPage() {
               onChange={(event) => setReportDate(event.target.value)}
             />
           </label>
-          <p className='text-xs text-muted-foreground sm:col-span-2'>
+          <p className='w-full text-xs text-muted-foreground'>
             {t('production.shiftReportEntryHint')}{' '}
             <Link
               className='underline underline-offset-4'
@@ -668,7 +668,7 @@ function ShiftReportInputsDialog({
               <label className='block space-y-1 text-sm'>
                 <span>{t('production.material')}</span>
                 <select
-                  className='h-9 w-full rounded-md border bg-transparent px-3'
+                  className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm'
                   value={activeMaterialId}
                   onChange={(event) => setMaterialId(event.target.value)}
                 >
@@ -685,7 +685,7 @@ function ShiftReportInputsDialog({
                 <label className='block space-y-1 text-sm'>
                   <span>{t('production.issueDocument')}</span>
                   <select
-                    className='h-9 w-full rounded-md border bg-transparent px-3'
+                    className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm'
                     value={activeDocumentId}
                     onChange={(event) => {
                       setDocumentId(event.target.value);
@@ -702,7 +702,7 @@ function ShiftReportInputsDialog({
                 <label className='block space-y-1 text-sm'>
                   <span>{t('production.issueLine')}</span>
                   <select
-                    className='h-9 w-full rounded-md border bg-transparent px-3'
+                    className='h-9 w-full rounded-md border border-input bg-background px-3 text-sm'
                     value={activeLineId}
                     onChange={(event) => setLineId(event.target.value)}
                   >

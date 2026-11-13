@@ -220,7 +220,7 @@ export default function AssetsPage() {
       <ReadOnlyNotice canManage={canManage} canApprove={canApprove} />
       <div className='mb-4 flex flex-wrap items-center gap-3'>
         <select
-          className='h-9 rounded-md border bg-background px-3 text-sm'
+          className='h-9 rounded-md border border-input bg-background px-3 text-sm'
           value={status}
           onChange={(event) => {
             setStatus(event.target.value);
@@ -234,7 +234,7 @@ export default function AssetsPage() {
           <option value='scrapped'>{t('assets.status.scrapped')}</option>
         </select>
         <select
-          className='h-9 rounded-md border bg-background px-3 text-sm'
+          className='h-9 rounded-md border border-input bg-background px-3 text-sm'
           value={custodian}
           onChange={(event) => {
             setCustodian(event.target.value);
@@ -408,7 +408,7 @@ export default function AssetsPage() {
               }
             />
             <select
-              className='h-9 rounded-md border bg-background px-3 text-sm'
+              className='h-9 rounded-md border border-input bg-background px-3 text-sm'
               value={form.category}
               onChange={(event) =>
                 setForm({ ...form, category: event.target.value })
@@ -422,7 +422,7 @@ export default function AssetsPage() {
               ))}
             </select>
             <select
-              className='h-9 rounded-md border bg-background px-3 text-sm'
+              className='h-9 rounded-md border border-input bg-background px-3 text-sm'
               value={form.custodianEmployeeId}
               onChange={(event) =>
                 setForm({ ...form, custodianEmployeeId: event.target.value })
@@ -493,7 +493,7 @@ export default function AssetsPage() {
           <div className='grid gap-3'>
             {action?.kind === 'assign' ? (
               <select
-                className='h-9 rounded-md border bg-background px-3 text-sm'
+                className='h-9 rounded-md border border-input bg-background px-3 text-sm'
                 value={employeeId}
                 onChange={(event) => setEmployeeId(event.target.value)}
               >

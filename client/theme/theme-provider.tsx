@@ -1,10 +1,8 @@
 import { PresetContext } from './theme-context';
 import { resolveAppBase } from '@nocobase/app-client';
-import {
-  ThemeProvider as NextThemesProvider,
-  type ThemeProviderProps,
-} from 'next-themes';
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
+import { ThemeModeProvider } from './theme-mode-provider';
+import type { ThemeMode } from './theme-mode';
 import {
   readThemeDefaults,
   readThemePreference,
@@ -33,7 +31,7 @@ function ModeStorageSync({
           event.newValue !== defaultTheme &&
           !['light', 'dark', 'system'].includes(event.newValue ?? ''))
       ) {
-        // Consume invalid mode events before next-themes can persist its fallback.
+        // Consume invalid mode events before the mode provider persists its fallback.
         // Re-dispatch a valid value for its state-only synchronization path.
         // Let clear events through so the preset listener also resets.
         if (event.key === storageKey) event.stopImmediatePropagation();
@@ -53,18 +51,25 @@ function ModeStorageSync({
   return null;
 }
 
+interface AppThemeProviderProps {
+  children?: ReactNode;
+  defaultTheme?: ThemeMode;
+  enableSystem?: boolean;
+  forcedTheme?: ThemeMode;
+  storageKey?: string;
+}
+
 export function AppThemeProvider({
   children,
-  attribute = 'class',
   defaultTheme,
   enableSystem = true,
+  forcedTheme,
   storageKey = themeStorageKeys(resolveAppBase()).mode,
-  ...props
-}: ThemeProviderProps): ReactElement {
+}: AppThemeProviderProps): ReactElement {
   const [defaults] = useState(() =>
     readThemeDefaults(themePresets.map(({ id }) => id)),
   );
-  const mode = defaultTheme ?? defaults.mode;
+  const mode = defaultTheme ?? (defaults.mode as ThemeMode);
   const fallbackPreset = defaults.preset as ThemePresetId;
   const presetKey = themeStorageKeys(resolveAppBase()).preset;
   const [preset, setPreset] = useState(() =>
@@ -90,17 +95,16 @@ export function AppThemeProvider({
     return () => window.removeEventListener('storage', sync, true);
   }, [presetKey, fallbackPreset]);
   return (
-    <NextThemesProvider
-      {...props}
-      attribute={attribute}
+    <ThemeModeProvider
       defaultTheme={mode}
       enableSystem={enableSystem}
+      forcedTheme={forcedTheme}
       storageKey={storageKey}
     >
       <ModeStorageSync storageKey={storageKey} defaultTheme={mode} />
       <PresetContext.Provider value={{ preset, setPreset: selectPreset }}>
         {children}
       </PresetContext.Provider>
-    </NextThemesProvider>
+    </ThemeModeProvider>
   );
 }

@@ -153,23 +153,25 @@ export default function PurposesPage() {
         <div className='flex flex-wrap gap-2'>
           <Input
             id='issue-purpose-search'
-            className='sm:max-w-xs'
+            className='w-full sm:max-w-xs'
             {...inputProps}
             placeholder={t(pui('search'))}
             aria-label={t(pui('search'))}
             maxLength={200}
           />
-          <IssueSelect
-            value={status || 'all'}
-            items={['all', 'active', 'inactive'].map((value) => ({
-              value,
-              label: t(pui(value === 'all' ? 'anyStatus' : value)),
-            }))}
-            label={t(pui('status'))}
-            onChange={(v) =>
-              set({ status: v === 'all' ? null : v, page: null })
-            }
-          />
+          <div className='w-full sm:w-40'>
+            <IssueSelect
+              value={status || 'all'}
+              items={['all', 'active', 'inactive'].map((value) => ({
+                value,
+                label: t(pui(value === 'all' ? 'anyStatus' : value)),
+              }))}
+              label={t(pui('status'))}
+              onChange={(v) =>
+                set({ status: v === 'all' ? null : v, page: null })
+              }
+            />
+          </div>
           {filtered && (
             <Button variant='outline' onClick={() => resetFilters()}>
               {t(pui('clear'))}

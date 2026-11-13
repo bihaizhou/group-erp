@@ -1,5 +1,5 @@
 import { Check, Monitor, Moon, Palette, Sun } from 'lucide-react';
-import { useTheme } from 'next-themes';
+import { useTheme, type ThemeMode } from './theme-mode';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useId, type ReactElement } from 'react';
 import { Button } from '#components/ui/button';
@@ -60,7 +60,7 @@ export function ThemeSettings(): ReactElement {
           <RadioGroup
             name={id + '-mode'}
             value={theme}
-            onValueChange={(value) => setTheme(String(value))}
+            onValueChange={(value) => setTheme(value as ThemeMode)}
             aria-label={t('appearance.mode', { defaultValue: 'Color mode' })}
             className='grid-cols-3 gap-1 rounded-lg bg-muted/70 p-1'
           >

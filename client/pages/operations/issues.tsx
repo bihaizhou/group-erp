@@ -137,7 +137,7 @@ export default function OperationsIssuesPage() {
             {t('operations.issueStatusLabel')}
           </span>
           <select
-            className='h-9 rounded-md border bg-background px-3'
+            className='h-9 rounded-md border border-input bg-background px-3 text-sm'
             value={status}
             onChange={(event) => {
               setStatus(event.target.value);
@@ -280,7 +280,7 @@ export default function OperationsIssuesPage() {
               <label className='grid gap-1 text-sm'>
                 <span>{t('operations.issueSourceLabel')}</span>
                 <select
-                  className='h-9 rounded-md border bg-background px-3'
+                  className='h-9 rounded-md border border-input bg-background px-3 text-sm'
                   value={form.sourceType}
                   onChange={(event) =>
                     setForm({ ...form, sourceType: event.target.value })
@@ -306,7 +306,7 @@ export default function OperationsIssuesPage() {
               <label className='grid gap-1 text-sm'>
                 <span>{t('operations.issueSeverityLabel')}</span>
                 <select
-                  className='h-9 rounded-md border bg-background px-3'
+                  className='h-9 rounded-md border border-input bg-background px-3 text-sm'
                   value={form.severity}
                   onChange={(event) =>
                     setForm({ ...form, severity: event.target.value })

@@ -30,3 +30,6 @@ coverage/
 /deploy/storage/
 /deploy/backups/
 /deploy/*.secret.json
+
+# Local UX audit scratch (Playwright probes, screenshots).
+/.ux-audit/

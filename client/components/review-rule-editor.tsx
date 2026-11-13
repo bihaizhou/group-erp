@@ -2,6 +2,8 @@ import { useRef, useState } from 'react';
 import { useTranslation } from '@nocobase/i18n/client';
 import { Button } from '#components/ui/button';
 import { FieldError } from '#components/ui/field';
+import { Label } from '#components/ui/label';
+import { RadioGroup, RadioGroupItem } from '#components/ui/radio-group';
 import { PeopleSelect } from '../pages/people/controls.js';
 import {
   PagedReferencePicker,
@@ -92,18 +94,28 @@ export function ReviewRuleEditor({
     >
       {fields.map((field) =>
         field.kind === 'boolean' ? (
-          <PeopleSelect
-            key={field.key}
-            label={field.label}
-            value={String(
-              (values as unknown as Record<string, unknown>)[field.key],
-            )}
-            items={[
-              { value: 'true', label: field.trueLabel },
-              { value: 'false', label: field.falseLabel },
-            ]}
-            onChange={(value) => onChange({ [field.key]: value === 'true' })}
-          />
+          <div key={field.key} className='flex flex-col gap-2'>
+            <p className='text-sm font-medium'>{field.label}</p>
+            <RadioGroup
+              aria-label={field.label}
+              className='flex w-fit flex-wrap gap-x-6 gap-y-2'
+              value={String(
+                (values as unknown as Record<string, unknown>)[field.key],
+              )}
+              onValueChange={(value) =>
+                onChange({ [field.key]: value === 'true' })
+              }
+            >
+              <Label className='flex items-center gap-2 text-sm font-normal'>
+                <RadioGroupItem value='true' />
+                {field.trueLabel}
+              </Label>
+              <Label className='flex items-center gap-2 text-sm font-normal'>
+                <RadioGroupItem value='false' />
+                {field.falseLabel}
+              </Label>
+            </RadioGroup>
+          </div>
         ) : (
           <div key={field.key} className='flex flex-col gap-4'>
             {groups.length === 0 && (
@@ -124,32 +136,57 @@ export function ReviewRuleEditor({
                   selection.group === group ? (
                     <div
                       key={`${group}-${selection.type}-${selection.referenceId}`}
-                      className='grid gap-3'
+                      className='flex flex-col gap-3'
                     >
-                      <PeopleSelect
-                        label={t('reviewRules.ruleType')}
-                        value={selection.type}
-                        items={[
-                          {
-                            value: 'position',
-                            label: t('reviewRules.position'),
-                          },
-                          { value: 'user', label: t('reviewRules.account') },
-                        ]}
-                        onChange={(type) =>
-                          update(
-                            selections.map((row, i) =>
-                              i === index
-                                ? {
-                                    ...row,
-                                    type: type as 'position' | 'user',
-                                    referenceId: '',
-                                  }
-                                : row,
-                            ),
-                          )
-                        }
-                      />
+                      <div className='flex flex-wrap items-center gap-2'>
+                        <div className='w-full sm:w-40'>
+                          <PeopleSelect
+                            label={t('reviewRules.ruleType')}
+                            value={selection.type}
+                            items={[
+                              {
+                                value: 'position',
+                                label: t('reviewRules.position'),
+                              },
+                              {
+                                value: 'user',
+                                label: t('reviewRules.account'),
+                              },
+                            ]}
+                            onChange={(type) =>
+                              update(
+                                selections.map((row, i) =>
+                                  i === index
+                                    ? {
+                                        ...row,
+                                        type: type as 'position' | 'user',
+                                        referenceId: '',
+                                      }
+                                    : row,
+                                ),
+                              )
+                            }
+                          />
+                        </div>
+                        {canEdit && (
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            className='sm:ml-auto'
+                            onClick={() => {
+                              update(selections.filter((_, i) => i !== index));
+                              setTimeout(
+                                () =>
+                                  conditionButtonRef.current[group]?.focus(),
+                                0,
+                              );
+                            }}
+                          >
+                            {t('reviewRules.removeCondition')}
+                          </Button>
+                        )}
+                      </div>
                       <PagedReferencePicker<PagedReferenceChoice>
                         queryPath={field.optionsPath}
                         queryKeyPrefix='reviewRules'
@@ -238,22 +275,6 @@ export function ReviewRuleEditor({
                           );
                         }}
                       />
-                      {canEdit && (
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          onClick={() => {
-                            update(selections.filter((_, i) => i !== index));
-                            setTimeout(
-                              () => conditionButtonRef.current[group]?.focus(),
-                              0,
-                            );
-                          }}
-                        >
-                          {t('reviewRules.removeCondition')}
-                        </Button>
-                      )}
                     </div>
                   ) : null,
                 )}
@@ -293,6 +314,8 @@ export function ReviewRuleEditor({
               <Button
                 type='button'
                 variant='outline'
+                size='sm'
+                className='self-start'
                 disabled={selections.length >= 100}
                 ref={addGroupRef}
                 title={t('reviewRules.newGroupLimit')}

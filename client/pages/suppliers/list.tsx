@@ -193,7 +193,7 @@ export default function SupplierList() {
                 aria-label={t('procurement.search')}
                 placeholder={t('procurement.search')}
                 maxLength={200}
-                className='min-w-0 sm:min-w-64 sm:flex-1'
+                className='w-full sm:max-w-xs'
                 {...search.inputProps}
               />
               <div className='sm:w-40'>

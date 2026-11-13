@@ -408,18 +408,22 @@ export default function RequestsPage() {
                 className='w-full sm:max-w-sm'
               />
               {readAll.can ? (
-                <PurchaseSelect
-                  label={t(ui('company'))}
-                  value={group ? 'all' : subjectId}
-                  items={[
-                    { value: 'all', label: t(ui('allCompanies')) },
-                    ...(companies.data?.data ?? []).map((item) => ({
-                      value: item.id,
-                      label: [item.code, item.name].filter(Boolean).join(' · '),
-                    })),
-                  ]}
-                  onChange={(v) => selectCompany(v === 'all' ? '' : v)}
-                />
+                <div className='w-full sm:w-40'>
+                  <PurchaseSelect
+                    label={t(ui('company'))}
+                    value={group ? 'all' : subjectId}
+                    items={[
+                      { value: 'all', label: t(ui('allCompanies')) },
+                      ...(companies.data?.data ?? []).map((item) => ({
+                        value: item.id,
+                        label: [item.code, item.name]
+                          .filter(Boolean)
+                          .join(' · '),
+                      })),
+                    ]}
+                    onChange={(v) => selectCompany(v === 'all' ? '' : v)}
+                  />
+                </div>
               ) : null}
               <div className='w-full sm:w-auto'>
                 <PurchaseSelect
@@ -435,24 +439,30 @@ export default function RequestsPage() {
                   onChange={(v) => change('status', v === 'all' ? '' : v)}
                 />
               </div>
-              <PurchaseSelect
-                label={t(ui('identificationState'))}
-                value={identification || 'all'}
-                items={['all', 'identified', 'unidentified'].map((value) => ({
-                  value,
-                  label: t(ui(value === 'all' ? 'allIdentification' : value)),
-                }))}
-                onChange={(v) => change('identification', v === 'all' ? '' : v)}
-              />
-              <PurchaseSelect
-                label={t(ui('allRequests'))}
-                value={query.mine}
-                items={[
-                  { value: 'false', label: t(ui('allRequests')) },
-                  { value: 'true', label: t(ui('myRequests')) },
-                ]}
-                onChange={(v) => change('mine', v)}
-              />
+              <div className='w-full sm:w-40'>
+                <PurchaseSelect
+                  label={t(ui('identificationState'))}
+                  value={identification || 'all'}
+                  items={['all', 'identified', 'unidentified'].map((value) => ({
+                    value,
+                    label: t(ui(value === 'all' ? 'allIdentification' : value)),
+                  }))}
+                  onChange={(v) =>
+                    change('identification', v === 'all' ? '' : v)
+                  }
+                />
+              </div>
+              <div className='w-full sm:w-40'>
+                <PurchaseSelect
+                  label={t(ui('allRequests'))}
+                  value={query.mine}
+                  items={[
+                    { value: 'false', label: t(ui('allRequests')) },
+                    { value: 'true', label: t(ui('myRequests')) },
+                  ]}
+                  onChange={(v) => change('mine', v)}
+                />
+              </div>
               <DateRangePicker
                 from={date('neededFrom')}
                 to={date('neededTo')}
@@ -529,15 +539,17 @@ export default function RequestsPage() {
                   }
                 />
                 <div className='flex flex-wrap items-center justify-between gap-3'>
-                  <PurchaseSelect
-                    label={t(ui('perPage'), { size: pageSize })}
-                    value={String(pageSize)}
-                    items={[20, 50, 100].map((n) => ({
-                      value: String(n),
-                      label: t(ui('perPage'), { size: n }),
-                    }))}
-                    onChange={(v) => change('pageSize', v)}
-                  />
+                  <div className='w-full sm:w-auto'>
+                    <PurchaseSelect
+                      label={t(ui('perPage'), { size: pageSize })}
+                      value={String(pageSize)}
+                      items={[20, 50, 100].map((n) => ({
+                        value: String(n),
+                        label: t(ui('perPage'), { size: n }),
+                      }))}
+                      onChange={(v) => change('pageSize', v)}
+                    />
+                  </div>
                   <Pagination
                     page={page}
                     pageSize={pageSize}

@@ -158,7 +158,7 @@ export default function ProductionSchedulesPage() {
             <label className='grid gap-1 text-sm'>
               <span>{t('production.unit')}</span>
               <select
-                className='h-9 min-w-48 rounded-md border bg-background px-3'
+                className='h-9 min-w-48 rounded-md border border-input bg-background px-3 text-sm'
                 value={selectedUnit}
                 onChange={(event) => {
                   setUnitId(event.target.value);
@@ -186,7 +186,7 @@ export default function ProductionSchedulesPage() {
             <label className='grid gap-1 text-sm'>
               <span>{t('production.shift')}</span>
               <select
-                className='h-9 rounded-md border bg-background px-3'
+                className='h-9 rounded-md border border-input bg-background px-3 text-sm'
                 value={shift}
                 onChange={(event) => {
                   setShift(event.target.value as 'day' | 'night');
@@ -300,7 +300,7 @@ export default function ProductionSchedulesPage() {
             </Table>
           </div>
           <div className='flex flex-wrap items-end gap-2 border-t p-4'>
-            <label className='grid flex-1 gap-1 text-sm'>
+            <label className='grid flex-1 gap-1 text-sm sm:max-w-md'>
               <span>{t('production.notes')}</span>
               <Input
                 value={notes}

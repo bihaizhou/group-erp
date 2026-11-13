@@ -47,7 +47,7 @@ export function initializeTheme(
   document.documentElement.classList.add(resolved);
   document.documentElement.dataset.theme = preset;
   document.documentElement.style.colorScheme = resolved;
-  // next-themes reads storage itself; normalize invalid modes before it mounts.
+  // The mode provider reads storage itself; normalize invalid modes before it mounts.
   if (savedMode && !['light', 'dark', 'system'].includes(savedMode)) {
     try {
       localStorage.removeItem(keys.mode);

@@ -467,15 +467,17 @@ export default function RequestsPage() {
                   }
                 />
                 <div className='flex flex-wrap items-center justify-between gap-3'>
-                  <IssueSelect
-                    label={t(ui('perPage'), { size: pageSize })}
-                    value={String(pageSize)}
-                    items={[20, 50, 100].map((n) => ({
-                      value: String(n),
-                      label: t(ui('perPage'), { size: n }),
-                    }))}
-                    onChange={(v) => change('pageSize', v)}
-                  />
+                  <div className='w-full sm:w-auto'>
+                    <IssueSelect
+                      label={t(ui('perPage'), { size: pageSize })}
+                      value={String(pageSize)}
+                      items={[20, 50, 100].map((n) => ({
+                        value: String(n),
+                        label: t(ui('perPage'), { size: n }),
+                      }))}
+                      onChange={(v) => change('pageSize', v)}
+                    />
+                  </div>
                   <Pagination
                     page={page}
                     pageSize={pageSize}

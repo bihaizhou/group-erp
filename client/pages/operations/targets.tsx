@@ -89,7 +89,7 @@ export default function OperationsTargetsPage() {
               {t('operations.metric')}
             </span>
             <select
-              className='h-9 rounded-md border bg-background px-3'
+              className='h-9 rounded-md border border-input bg-background px-3 text-sm'
               value={metric}
               onChange={(event) => {
                 setMetric(event.target.value as (typeof metrics)[number]);
