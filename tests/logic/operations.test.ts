@@ -236,12 +236,16 @@ test('reads an operations overview scoped to one company', async ({
 
   const db = testApp.application.container.resolve(databaseManagerToken);
   const now = new Date();
+  // Mid-month so the target actual aggregates, but never "today": the overview
+  // counts only today's reports and this fixture asserts a zero count.
+  const awayFromToday =
+    businessDate() === `${period}-01` ? `${period}-02` : `${period}-01`;
   await db.repository('prdShiftReports').createOne({
     values: {
       id: randomUUID(),
       subjectId: subject.id,
       unitId: unit.id,
-      reportDate: `${period}-15`,
+      reportDate: awayFromToday,
       shift: 'day',
       status: 'confirmed',
       processedQuantity: '10',
