@@ -9,6 +9,18 @@ export const assets = {
   editHint:
     'Update the asset name, category, location and other details. Change the code or custodian through their dedicated actions.',
   allCustodians: 'All custodians',
+  detail: 'Details',
+  detailTitle: 'Asset details',
+  searchPlaceholder: 'Search code / name / location',
+  events: 'Activity',
+  noEvents: 'No activity yet',
+  event: {
+    create: 'Registered',
+    assign: 'Assigned',
+    return: 'Returned',
+    scrap: 'Scrapped',
+    update: 'Edited',
+  },
   allStatuses: 'All statuses',
   refresh: 'Refresh',
   loading: 'Loading assets…',

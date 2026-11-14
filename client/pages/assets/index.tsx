@@ -58,6 +58,16 @@ type Page = {
   data: Asset[];
   meta: { page: number; pageSize: number; total: number };
 };
+type AssetEvent = {
+  id: string;
+  action: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  actorId: string;
+  note: string | null;
+  createdAt: string;
+};
+type AssetDetail = Asset & { events: AssetEvent[] };
 type Form = {
   subjectId: string;
   code: string;
@@ -93,6 +103,8 @@ export default function AssetsPage() {
   const [custodian, setCustodian] = useState('');
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Asset | null>(null);
+  const [q, setQ] = useState('');
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [action, setAction] = useState<{
     row: Asset;
@@ -109,7 +121,7 @@ export default function AssetsPage() {
   });
   const list = useQuery({
     retry: false,
-    queryKey: ['assets', subjectId, page, status, custodian],
+    queryKey: ['assets', subjectId, page, status, custodian, q],
     queryFn: ({ signal }) =>
       api.request<Page>({
         path: 'assets',
@@ -119,7 +131,18 @@ export default function AssetsPage() {
           ...(subjectId ? { subjectId } : {}),
           ...(status ? { status } : {}),
           ...(custodian ? { custodianEmployeeId: custodian } : {}),
+          ...(q ? { q } : {}),
         },
+        signal,
+      }),
+  });
+  const detail = useQuery({
+    retry: false,
+    enabled: !!detailId,
+    queryKey: ['assets', 'detail', detailId],
+    queryFn: ({ signal }) =>
+      api.request<{ data: AssetDetail }>({
+        path: `assets/${detailId}`,
         signal,
       }),
   });
@@ -296,6 +319,19 @@ export default function AssetsPage() {
             <option value='scrapped'>{t('assets.status.scrapped')}</option>
           </select>
         </label>
+        <label className='grid w-full gap-1 text-sm sm:w-56'>
+          <span className='text-muted-foreground'>
+            {t('assets.searchPlaceholder')}
+          </span>
+          <Input
+            value={q}
+            placeholder={t('assets.searchPlaceholder')}
+            onChange={(event) => {
+              setQ(event.target.value);
+              setPage(1);
+            }}
+          />
+        </label>
         <label className='grid w-full gap-1 text-sm sm:w-44'>
           <span className='text-muted-foreground'>
             {t('assets.fields.custodian')}
@@ -365,6 +401,13 @@ export default function AssetsPage() {
                       : '—'}
                   </TableCell>
                   <TableCell className='text-right'>
+                    <Button
+                      size='sm'
+                      variant='ghost'
+                      onClick={() => setDetailId(row.id)}
+                    >
+                      {t('assets.detail')}
+                    </Button>
                     {row.scrapPending && canApprove ? (
                       <span className='inline-flex gap-2'>
                         <Button
@@ -650,6 +693,115 @@ export default function AssetsPage() {
               {t('assets.save')}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!detailId}
+        onOpenChange={(value) => {
+          if (!value) setDetailId(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('assets.detailTitle')}</DialogTitle>
+            <DialogDescription>{detail.data?.data.code ?? ''}</DialogDescription>
+          </DialogHeader>
+          {detail.data?.data ? (
+            <>
+              <div className='grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2'>
+                <div>
+                  <span className='text-muted-foreground'>
+                    {t('assets.fields.name')}
+                  </span>
+                  <p>{detail.data.data.name}</p>
+                </div>
+                <div>
+                  <span className='text-muted-foreground'>
+                    {t('assets.fields.category')}
+                  </span>
+                  <p>
+                    {detail.data.data.category
+                      ? categoryLabel(detail.data.data.category)
+                      : '—'}
+                  </p>
+                </div>
+                <div>
+                  <span className='text-muted-foreground'>
+                    {t('assets.fields.status')}
+                  </span>
+                  <p>{t(`assets.status.${detail.data.data.status}`)}</p>
+                </div>
+                <div>
+                  <span className='text-muted-foreground'>
+                    {t('assets.fields.custodian')}
+                  </span>
+                  <p>{detail.data.data.custodian?.name ?? '—'}</p>
+                </div>
+                <div>
+                  <span className='text-muted-foreground'>
+                    {t('assets.fields.location')}
+                  </span>
+                  <p>{detail.data.data.location ?? '—'}</p>
+                </div>
+                <div>
+                  <span className='text-muted-foreground'>
+                    {t('assets.fields.originalCost')}
+                  </span>
+                  <p>
+                    {detail.data.data.originalCost
+                      ? `${detail.data.data.originalCost} ${detail.data.data.currency ?? ''}`
+                      : '—'}
+                  </p>
+                </div>
+                <div className='sm:col-span-2'>
+                  <span className='text-muted-foreground'>
+                    {t('assets.fields.notes')}
+                  </span>
+                  <p>{detail.data.data.notes ?? '—'}</p>
+                </div>
+              </div>
+              <div className='mt-4'>
+                <h3 className='mb-2 text-sm font-medium'>
+                  {t('assets.events')}
+                </h3>
+                {detail.data.data.events.length ? (
+                  <ul className='grid gap-2 text-sm'>
+                    {detail.data.data.events.map((event) => (
+                      <li
+                        key={event.id}
+                        className='rounded-md border p-2 text-xs'
+                      >
+                        <span className='font-medium'>
+                          {t(`assets.event.${event.action}`)}
+                        </span>
+                        {event.fromStatus || event.toStatus ? (
+                          <span className='ml-2 text-muted-foreground'>
+                            {event.fromStatus ?? '—'} → {event.toStatus ?? '—'}
+                          </span>
+                        ) : null}
+                        <span className='ml-2 text-muted-foreground'>
+                          {new Date(event.createdAt).toLocaleString()}
+                        </span>
+                        {event.note ? (
+                          <p className='mt-1 text-muted-foreground'>
+                            {event.note}
+                          </p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className='text-sm text-muted-foreground'>
+                    {t('assets.noEvents')}
+                  </p>
+                )}
+              </div>
+            </>
+          ) : (
+            <p className='text-sm text-muted-foreground'>
+              {t('assets.loading')}
+            </p>
+          )}
         </DialogContent>
       </Dialog>
     </PageContainer>
