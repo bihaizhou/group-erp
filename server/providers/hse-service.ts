@@ -135,6 +135,37 @@ export class HseService {
     return company;
   }
 
+  /**
+   * Resolve the company that owns a record bound to a file, after checking
+   * that `principal` may see that company under the current HSE scope.
+   */
+  async fileSubject(
+    principal: HsePrincipal,
+    scope: HseScope,
+    kind: 'incident' | 'hazard' | 'certificate',
+    recordId: string,
+  ): Promise<string> {
+    const collection =
+      kind === 'incident'
+        ? 'hseIncidents'
+        : kind === 'hazard'
+          ? 'hseHazards'
+          : 'hseCertificates';
+    const row = await this.database
+      .repository(collection)
+      .findOne({ filter: { id: recordId } });
+    if (!row) throw new HseError('HSE_NOT_FOUND');
+    const subjectId = text(row.subjectId);
+    await this.resolveSubject(
+      principal,
+      subjectId || undefined,
+      scope,
+      false,
+    );
+    if (!subjectId) throw new HseError('HSE_NOT_FOUND');
+    return subjectId;
+  }
+
   private async assertUnit(
     subjectId: string,
     unitId: string | null | undefined,
@@ -243,11 +274,20 @@ export class HseService {
     };
   }
 
-  async overview(principal: HsePrincipal, scope: HseScope) {
-    const company = await this.resolveSubject(principal, undefined, scope);
+  async overview(
+    principal: HsePrincipal,
+    scope: HseScope,
+    query: { subjectId?: string; horizonDays?: number } = {},
+  ) {
+    const company = await this.resolveSubject(
+      principal,
+      query.subjectId,
+      scope,
+    );
+    const horizonDays = query.horizonDays ?? 90;
     const today = businessDate(this.timeZone);
     const horizon = new Date(`${today}T00:00:00Z`);
-    horizon.setUTCDate(horizon.getUTCDate() + 90);
+    horizon.setUTCDate(horizon.getUTCDate() + horizonDays);
     const horizonDate = horizon.toISOString().slice(0, 10);
     const [incidents, hazards, certificates, names] = await Promise.all([
       this.scopedRows('hseIncidents', company, 'occurredAt'),
@@ -280,6 +320,7 @@ export class HseService {
     return {
       businessDate: today,
       scope: company ? 'company' : 'group',
+      horizonDays,
       counts: {
         incidentsOpen: openIncidents.length,
         incidentsLti: incidents.filter((row) => number(row.lostDays) > 0)

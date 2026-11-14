@@ -36,6 +36,7 @@ import {
   hseIncidentQuery,
   hseIncidentTransition,
   hseIncidentUpdate,
+  hseOverviewQuery,
 } from '../providers/hse-model.js';
 import {
   HseError,
@@ -183,13 +184,20 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
     router.get(
       '/overview',
       allowed('read'),
+      apiValidator('query', hseOverviewQuery),
       describe(
         'hseOverview',
         'Read HSE overview counts and recent records',
         dataResponse(object),
       ),
       async (c) =>
-        c.json({ data: await service.overview(actor(c), await scoped(c)) }),
+        c.json({
+          data: await service.overview(
+            actor(c),
+            await scoped(c),
+            c.req.valid('query'),
+          ),
+        }),
     );
 
     router.get(

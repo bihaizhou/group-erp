@@ -10,6 +10,7 @@ import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { nativeSelectClass } from '#components/native-controls';
+import { HseAttachments } from './attachments.js';
 import { businessDate } from '#lib/business-date';
 import { Textarea } from '#components/ui/textarea';
 import {
@@ -348,6 +349,11 @@ export default function HseHazardsPage() {
                     {lastAction(row)}
                   </TableCell>
                   <TableCell className='text-right'>
+                    <HseAttachments
+                      scope='hazard'
+                      scopeId={row.id}
+                      canWrite={canManage || canReport}
+                    />
                     {row.status === 'open' && canManage ? (
                       <Button
                         size='sm'

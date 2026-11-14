@@ -32,6 +32,11 @@ import {
   peoplePhotoContentGuard,
   peoplePhotoRoutes,
 } from './people-files.js';
+import {
+  hseFileApiGuard,
+  hseFileContentGuard,
+  hseFileRoutes,
+} from './hse-files.js';
 
 const routes: readonly AppRouteContribution<Application>[] = [
   accountRoutes,
@@ -62,6 +67,9 @@ const routes: readonly AppRouteContribution<Application>[] = [
   peoplePhotoApiGuard,
   peoplePhotoContentGuard,
   ...peoplePhotoRoutes,
+  hseFileApiGuard,
+  hseFileContentGuard,
+  ...hseFileRoutes,
 ];
 
 export default routes;

@@ -59,6 +59,16 @@ export const hse = {
   allStatus: '全部状态',
   allType: '全部类型',
   selectOwner: '选择责任人',
+  attachments: {
+    open: '查看附件',
+    title: '证据附件',
+    description: '现场照片、报告或 PDF 等证据文件。',
+    loading: '正在加载附件…',
+    empty: '暂无附件。',
+    hint: '支持图片（JPEG/PNG/WebP）与 PDF，单个不超过 6 MB。',
+    failed: '上传失败，请检查文件类型或大小后重试。',
+    close: '关闭',
+  },
   selectHolder: '选择持证人员',
   fields: {
     incidentNo: '事件编号',
@@ -102,7 +112,10 @@ export const hse = {
     hazardsOverdue: '逾期隐患',
     permitsActive: '有效作业票',
     certificatesExpiring90: '90 天内到期证照',
+    certificatesExpiringInDays: '{{days}} 天内到期证照',
   },
+  expiryWindow: '到期窗口',
+  expiryWindowDays: '{{days}} 天',
   status: {
     reported: '已登记',
     investigating: '调查中',

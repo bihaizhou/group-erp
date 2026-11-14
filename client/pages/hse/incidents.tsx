@@ -34,6 +34,7 @@ import {
   HseStatus,
 } from './controls.js';
 import { nativeSelectClass } from '#components/native-controls';
+import { HseAttachments } from './attachments.js';
 import { businessDate } from '#lib/business-date';
 import {
   incidentSeverityKeys,
@@ -344,6 +345,11 @@ export default function HseIncidentsPage() {
                     {lastAction(row)}
                   </TableCell>
                   <TableCell className='text-right'>
+                    <HseAttachments
+                      scope='incident'
+                      scopeId={row.id}
+                      canWrite={canManage || canReport}
+                    />
                     {row.status === 'reported' && canManage ? (
                       <Button
                         size='sm'

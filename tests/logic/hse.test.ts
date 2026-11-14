@@ -76,7 +76,9 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
     personId: employee.id,
     data: {
       type: 'entry',
-      effectiveDate: new Date().toISOString().slice(0, 10),
+      effectiveDate: new Date().toLocaleDateString('en-CA', {
+        timeZone: 'Asia/Shanghai',
+      }),
       targetSubjectId: subject.id,
       targetPositionId: position.id,
       explanation: 'HSE test hire',
@@ -744,6 +746,35 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
     'CERTIFICATE_DUPLICATE',
   );
 
+  const expiringSoon = await send(manager.client, '/hse/certificates', {
+    subjectId: subject.id,
+    holderType: 'company',
+    holderName: subject.name,
+    certType: 'fire',
+    certNo: `CERT-FIRE-${randomUUID().slice(0, 8)}`,
+    expiresAt: new Date(Date.now() + 60 * 86_400_000)
+      .toISOString()
+      .slice(0, 10),
+  });
+  expect(expiringSoon.status).toBe(201);
+
+  const scopedOverview = (
+    await (await admin.fetch(`/hse/overview?subjectId=${subject.id}`)).json()
+  ).data;
+  expect(scopedOverview.scope).toBe('company');
+  expect(scopedOverview.horizonDays).toBe(90);
+  expect(
+    scopedOverview.counts.certificatesExpiring90,
+  ).toBeGreaterThanOrEqual(1);
+
+  const narrowOverview = (
+    await (await admin.fetch('/hse/overview?horizonDays=30')).json()
+  ).data;
+  expect(narrowOverview.horizonDays).toBe(30);
+  expect(narrowOverview.counts.certificatesExpiring90).toBe(0);
+
+  expect((await admin.fetch('/hse/overview?horizonDays=0')).status).toBe(400);
+
   expect(findUndeclaredApiRoutes(testApp.application)).toEqual([]);
 
   const viewerPassword = randomUUID();
@@ -786,6 +817,84 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
   await authz.permissionSets.revoke(assignment.id);
   expect((await client.fetch('/hse/overview')).status).toBe(403);
 
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR6kAAAAASUVORK5CYII=',
+    'base64',
+  );
+  const uploadForm = new FormData();
+  uploadForm.set('file', new File([png], '现场.png', { type: 'image/png' }));
+  const upload = await manager.client.fetch(
+    `/hseFiles/uploadOne?scope=incident&scopeId=${incident.id}`,
+    {
+      method: 'POST',
+      headers: { origin: 'http://localhost' },
+      body: uploadForm,
+    },
+  );
+  expect(upload.status).toBe(201);
+  const uploaded = (await upload.json()).data.record;
+  expect(uploaded.contentUrl).toContain('/uploads/hseFiles/');
+
+  const listed = await send(
+    manager.client,
+    `/hseFiles/findMany?scope=incident&scopeId=${incident.id}`,
+    { limit: 20 },
+  );
+  expect(listed.status).toBe(200);
+  const listedRows = (await listed.json()).data;
+  expect(listedRows).toHaveLength(1);
+  expect(listedRows[0]).toMatchObject({
+    id: uploaded.id,
+    filename: '现场.png',
+    ext: 'png',
+  });
+  expect(listedRows[0].disk).toBeUndefined();
+  expect(listedRows[0].key).toBeUndefined();
+
+  const content = await testApp.fetch(
+    new Request(new URL(uploaded.contentUrl, 'http://localhost'), {
+      headers: { cookie: manager.client.cookie },
+    }),
+  );
+  expect(content.status).toBe(200);
+  expect(content.headers.get('Cache-Control')).toBe('private, no-store');
+  expect(Buffer.from(await content.arrayBuffer())).toEqual(png);
+
+  const anonymousContent = await testApp.fetch(
+    new Request(new URL(uploaded.contentUrl, 'http://localhost')),
+  );
+  expect(anonymousContent.status).toBe(401);
+
+  const outsideViewerForm = new FormData();
+  outsideViewerForm.set(
+    'file',
+    new File([png], 'viewer.png', { type: 'image/png' }),
+  );
+  const viewerUpload = await client.fetch(
+    `/hseFiles/uploadOne?scope=incident&scopeId=${incident.id}`,
+    {
+      method: 'POST',
+      headers: { origin: 'http://localhost' },
+      body: outsideViewerForm,
+    },
+  );
+  expect(viewerUpload.status).toBe(403);
+
+  const rejectedForm = new FormData();
+  rejectedForm.set(
+    'file',
+    new File(['not an image'], 'notes.txt', { type: 'text/plain' }),
+  );
+  const rejected = await manager.client.fetch(
+    `/hseFiles/uploadOne?scope=incident&scopeId=${incident.id}`,
+    {
+      method: 'POST',
+      headers: { origin: 'http://localhost' },
+      body: rejectedForm,
+    },
+  );
+  expect(rejected.status).toBe(415);
+
   const reporter = await makeUser('HSE reporter', [
     'read',
     'report',
@@ -813,7 +922,9 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
     personId: reporterPerson.id,
     data: {
       type: 'entry',
-      effectiveDate: new Date().toISOString().slice(0, 10),
+      effectiveDate: new Date().toLocaleDateString('en-CA', {
+        timeZone: 'Asia/Shanghai',
+      }),
       targetSubjectId: subject.id,
       targetPositionId: position.id,
       explanation: 'HSE test reporter hire',

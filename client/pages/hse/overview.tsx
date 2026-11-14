@@ -1,9 +1,17 @@
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { Label } from '#components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '#components/ui/select';
 import {
   Card,
   CardContent,
@@ -30,12 +38,15 @@ import type { HseOverview } from './model.js';
 export default function HseOverviewPage() {
   const { t, i18n } = useTranslation();
   const api = useApiClient();
+  const [params, setParams] = useSearchParams();
+  const subjectId = params.get('subjectId') ?? '';
+  const horizonDays = Number(params.get('horizonDays') ?? 90);
   const query = useQuery({
     retry: false,
-    queryKey: ['hse-overview'],
+    queryKey: ['hse-overview', subjectId, horizonDays],
     queryFn: ({ signal }) =>
       api.request<{ data: HseOverview }>({
-        path: 'hse/overview',
+        path: `hse/overview?subjectId=${encodeURIComponent(subjectId)}&horizonDays=${horizonDays}`,
         signal,
       }),
   });
@@ -62,10 +73,38 @@ export default function HseOverviewPage() {
         title={t('hse.overview')}
         description={t('hse.overviewDescription')}
         actions={
-          <HseRefresh
-            busy={query.isFetching}
-            onClick={() => void query.refetch()}
-          />
+          <div className='flex items-center gap-3'>
+            <Label
+              htmlFor='hse-horizon'
+              className='text-sm text-muted-foreground'
+            >
+              {t('hse.expiryWindow')}
+            </Label>
+            <Select
+              value={String(horizonDays)}
+              onValueChange={(value) => {
+                if (!value) return;
+                const next = new URLSearchParams(params);
+                next.set('horizonDays', value);
+                setParams(next, { replace: true });
+              }}
+            >
+              <SelectTrigger id='hse-horizon' className='w-32'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[30, 60, 90, 180].map((days) => (
+                  <SelectItem key={days} value={String(days)}>
+                    {t('hse.expiryWindowDays', { days })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <HseRefresh
+              busy={query.isFetching}
+              onClick={() => void query.refetch()}
+            />
+          </div>
         }
       />
       {query.isError ? (
@@ -82,7 +121,11 @@ export default function HseOverviewPage() {
               <Card key={String(key)}>
                 <CardHeader>
                   <CardDescription>
-                    {t(`hse.metrics.${String(key)}`)}
+                    {key === 'certificatesExpiring90'
+                      ? t('hse.metrics.certificatesExpiringInDays', {
+                          days: horizonDays,
+                        })
+                      : t(`hse.metrics.${String(key)}`)}
                   </CardDescription>
                   <CardTitle className='text-3xl tabular-nums'>
                     {Number(value).toLocaleString(i18n.language)}

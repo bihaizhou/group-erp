@@ -67,6 +67,16 @@ export const hse = {
   allStatus: 'All statuses',
   allType: 'All types',
   selectOwner: 'Select owner',
+  attachments: {
+    open: 'View attachments',
+    title: 'Evidence attachments',
+    description: 'Site photos, reports or PDF files used as evidence.',
+    loading: 'Loading attachments…',
+    empty: 'No attachments yet.',
+    hint: 'Images (JPEG/PNG/WebP) and PDF up to 6 MB per file.',
+    failed: 'Upload failed. Check the file type or size and try again.',
+    close: 'Close',
+  },
   selectHolder: 'Select holder',
   fields: {
     incidentNo: 'Incident no.',
@@ -110,7 +120,10 @@ export const hse = {
     hazardsOverdue: 'Overdue hazards',
     permitsActive: 'Active permits',
     certificatesExpiring90: 'Certificates due in 90 days',
+    certificatesExpiringInDays: 'Certificates due in {{days}} days',
   },
+  expiryWindow: 'Expiry window',
+  expiryWindowDays: '{{days}} days',
   status: {
     reported: 'Reported',
     investigating: 'Investigating',

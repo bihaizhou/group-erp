@@ -95,6 +95,7 @@ export type HseCertificate = {
 export type HseOverview = {
   businessDate: string;
   scope: 'company' | 'group';
+  horizonDays: number;
   counts: {
     incidentsOpen: number;
     incidentsLti: number;

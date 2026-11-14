@@ -103,6 +103,11 @@ export const hseIncidentTransition = z.object({
   note: z.string().trim().max(2000).optional(),
 });
 
+export const hseOverviewQuery = z.object({
+  subjectId: z.string().max(36).optional(),
+  horizonDays: z.coerce.number().int().min(1).max(365).default(90),
+});
+
 export const hseIncidentQuery = z.object({
   subjectId: z.string().max(36).optional(),
   status: z.enum(hseIncidentStatuses).optional(),

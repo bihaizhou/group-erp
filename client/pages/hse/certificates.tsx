@@ -34,6 +34,7 @@ import {
   HseSelect,
   HseStatus,
 } from './controls.js';
+import { HseAttachments } from './attachments.js';
 import {
   certificateStatusKeys,
   certificateTypeKeys,
@@ -318,6 +319,11 @@ export default function HseCertificatesPage() {
                     {lastAction(row)}
                   </TableCell>
                   <TableCell className='text-right'>
+                    <HseAttachments
+                      scope='certificate'
+                      scopeId={row.id}
+                      canWrite={canManage}
+                    />
                     {row.status === 'revoked' ? (
                       canApprove ? (
                         <Button
