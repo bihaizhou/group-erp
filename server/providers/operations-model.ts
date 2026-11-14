@@ -49,6 +49,7 @@ export const operationsIssueInput = z.object({
   description: z.string().trim().min(1).max(2000),
   severity: z.enum(operationsIssueSeverities).default('medium'),
   ownerName: z.string().trim().min(1).max(200),
+  ownerId: z.string().length(36).optional(),
   dueAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   businessDate: z
     .string()
@@ -62,6 +63,7 @@ export const operationsIssueUpdate = z.object({
   status: z.enum(operationsIssueStatuses).optional(),
   severity: z.enum(operationsIssueSeverities).optional(),
   ownerName: z.string().trim().min(1).max(200).optional(),
+  ownerId: z.string().length(36).nullable().optional(),
   dueAt: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)

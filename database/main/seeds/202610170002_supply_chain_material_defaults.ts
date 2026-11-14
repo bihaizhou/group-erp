@@ -47,7 +47,6 @@ export default defineSeed({
                         catalogTables.map((table) => [table, 'allRecords']),
                       ),
                       orgSubjects: 'supplyChain.ownSubject',
-                      materialSubjectSettings: 'supplyChain.ownCompany',
                     },
                   },
                 },

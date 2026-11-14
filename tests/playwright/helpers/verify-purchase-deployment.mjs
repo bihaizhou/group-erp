@@ -269,13 +269,6 @@ try {
         denominator: '1',
       }),
     );
-    const admission = await create('materials/subjectSettings', {
-      name: '发布保留准入',
-      subjectId: company.id,
-      skuId: sku.id,
-      canPurchase: true,
-      canSell: false,
-    });
     fixture = {
       company,
       other,
@@ -288,7 +281,6 @@ try {
       box,
       sku,
       pack,
-      admission,
     };
     fixture.legacySnapshot = {};
     for (const [key, path] of Object.entries({
@@ -298,12 +290,11 @@ try {
       name: `materials/names/${name.id}`,
       sku: `materials/skus/${sku.id}`,
       pack: `materials/unitRules/${pack.id}`,
-      admission: `materials/subjectSettings/${admission.id}`,
     }))
       fixture.legacySnapshot[key] = (await get(root, path)).data;
     await savePrivate('stage-fixture.json', fixture);
     checks.push(
-      'previous compiled image initialized nonempty organization, effective employment, SKU, packaging and admission',
+      'previous compiled image initialized nonempty organization, effective employment, SKU and packaging',
     );
   } else if (mode === 'production-before') {
     assert(!document.paths['/api/procurement/requests']);
@@ -336,7 +327,6 @@ try {
         name: `materials/names/${fixture.name.id}`,
         sku: `materials/skus/${fixture.sku.id}`,
         pack: `materials/unitRules/${fixture.pack.id}`,
-        admission: `materials/subjectSettings/${fixture.admission.id}`,
       }))
         assert.deepEqual(
           (await get(root, path)).data,
@@ -457,13 +447,6 @@ try {
             denominator: '1',
           }),
         );
-        await create('materials/subjectSettings', {
-          name: '发布小数准入',
-          subjectId: fixture.company.id,
-          skuId: fractionalSku.id,
-          canPurchase: true,
-          canSell: false,
-        });
         const known = {
           id: randomUUID(),
           selection: {

@@ -16,7 +16,6 @@ export async function guardInventoryMaterial(
     ![
       'warehouses',
       'skus',
-      'subjectSettings',
       'unitRules',
       'units',
       'names',
@@ -25,12 +24,7 @@ export async function guardInventoryMaterial(
   )
     return;
   const warehouses = await c.repository('warehouses').findMany({
-    filter:
-      kind === 'warehouses'
-        ? { id: text(record.id) }
-        : kind === 'subjectSettings'
-          ? { subjectId: text(record.subjectId) }
-          : undefined,
+    filter: kind === 'warehouses' ? { id: text(record.id) } : undefined,
     limit: 10001,
     sort: (s) => [s.field('id').asc()],
   });
@@ -49,7 +43,7 @@ export async function guardInventoryMaterial(
     if (gate.countId) return fail('STOCK_COUNT_FROZEN');
   }
   let skuIds: string[] | undefined;
-  if (['skus', 'subjectSettings', 'unitRules'].includes(kind))
+  if (['skus', 'unitRules'].includes(kind))
     skuIds = [text(kind === 'skus' ? record.id : record.skuId)];
   if (['names', 'templates'].includes(kind)) {
     const names =
@@ -76,7 +70,6 @@ export async function guardInventoryMaterial(
     (kind !== 'warehouses' ||
       row.warehouseId === record.id ||
       row.destinationWarehouseId === record.id) &&
-    (kind !== 'subjectSettings' || row.subjectId === record.subjectId) &&
     (!skuIds || skuIds.includes(text(row.skuId))) &&
     (kind !== 'units' ||
       row.unitId === record.id ||
@@ -84,11 +77,7 @@ export async function guardInventoryMaterial(
     (kind !== 'unitRules' || row.unitRuleId === record.id);
   const balances = await c.repository('stockBalances').findMany({
     filter:
-      kind === 'warehouses'
-        ? { warehouseId: text(record.id) }
-        : kind === 'subjectSettings'
-          ? { subjectId: text(record.subjectId) }
-          : undefined,
+      kind === 'warehouses' ? { warehouseId: text(record.id) } : undefined,
     limit: 100001,
   });
   if (balances.length > 100000) return fail('STOCK_REFERENCE_TOO_BROAD');
@@ -124,8 +113,6 @@ export async function guardInventoryMaterial(
         head.destinationWarehouseId !== record.id
       )
         continue;
-      if (kind === 'subjectSettings' && head.subjectId !== record.subjectId)
-        continue;
       const lines = await c.repository(lineTable).findMany({
         filter: { [parent]: text(head.id), status: 'active' },
         limit: 101,
@@ -157,10 +144,8 @@ export async function guardInventoryMaterial(
       }
     }
   }
-  // Requests that are fully executed/allocated remain readable history. A company
-  // admission is not inventory: ending it stays allowed, and request submission
-  // revalidates the admission instead of freezing material master data forever.
-  if (kind !== 'warehouses' && kind !== 'subjectSettings')
+  // Requests that are fully executed/allocated remain readable history.
+  if (kind !== 'warehouses')
     for (const [heads, lines, issue] of [
       ['materialIssueRequests', 'materialIssueRequestLines', true],
       ['purchaseRequests', 'purchaseRequestLines', false],

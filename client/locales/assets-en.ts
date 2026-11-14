@@ -5,6 +5,9 @@ export const assets = {
   create: 'New asset',
   createHint:
     'Register the asset first, then assign a custodian. Outstanding assets must be returned or transferred before an employee exits.',
+  edit: 'Edit asset',
+  editHint:
+    'Update the asset name, category, location and other details. Change the code or custodian through their dedicated actions.',
   allCustodians: 'All custodians',
   allStatuses: 'All statuses',
   refresh: 'Refresh',
@@ -53,5 +56,13 @@ export const assets = {
     scrap: 'Request scrap for {{code}}',
     approve: 'Approve scrap for {{code}}',
     reject: 'Reject scrap for {{code}}',
+  },
+  category: {
+    electronics: 'Electronics',
+    furniture: 'Office furniture',
+    vehicle: 'Vehicle',
+    machinery: 'Production tool',
+    instrument: 'Inspection instrument',
+    other: 'Other',
   },
 };

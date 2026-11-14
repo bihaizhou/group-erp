@@ -247,7 +247,10 @@ export const productionRoutes: AppApiRouteContribution<Application> =
           c.req.valid('query'),
           await scoped(c),
         );
-        const policies = await fieldPoliciesFor(database, actor(c));
+        const policies = await fieldPoliciesFor(database, {
+          type: 'user',
+          id: c.get('auth')!.user.id,
+        });
         const hiddenFields = new Set(
           (await resourceFieldNames(database, materialResource)).filter(
             (field) =>
@@ -276,7 +279,10 @@ export const productionRoutes: AppApiRouteContribution<Application> =
       apiValidator('json', productionReportSave),
       async (c) => {
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(database, actor(c));
+        const policies = await fieldPoliciesFor(database, {
+          type: 'user',
+          id: c.get('auth')!.user.id,
+        });
         const quantityWritable =
           accessFor(policies, materialResource, 'quantity') === 'write';
         const stockWritable =
@@ -704,7 +710,7 @@ export const productionRoutes: AppApiRouteContribution<Application> =
 
     router.post(
       '/shift-reports/:id/confirm',
-      allowed('manage'),
+      allowed('approve'),
       describe(
         'productionShiftReportConfirm',
         'Confirm a shift report and snapshot its material outputs',
@@ -725,7 +731,7 @@ export const productionRoutes: AppApiRouteContribution<Application> =
 
     router.post(
       '/shift-reports/:id/void',
-      allowed('manage'),
+      allowed('approve'),
       describe(
         'productionShiftReportVoid',
         'Void a confirmed shift report before its inbound receipt is posted',
@@ -746,7 +752,7 @@ export const productionRoutes: AppApiRouteContribution<Application> =
 
     router.post(
       '/shift-reports/:id/reopen',
-      allowed('manage'),
+      allowed('approve'),
       describe(
         'productionShiftReportReopen',
         'Reopen a voided shift report as a draft for correction',

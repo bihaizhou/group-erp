@@ -213,6 +213,10 @@ export interface ExecutionRecord {
   currency?: string;
   totalAmount?: string | null;
   sourceChannel?: 'manual' | 'import' | 'api' | 'device';
+  sourceRef?: string | null;
+  sourceDoc?: string | null;
+  onBehalfOf?: string | null;
+  period?: string | null;
   deliveryOn?: string | null;
   deliveryTerms?: string;
   occurredOn: string;
@@ -375,6 +379,9 @@ export interface Draft {
   partnerId: string;
   occurredOn: string;
   currency: string;
+  sourceRef: string;
+  sourceDoc: string;
+  period: string;
   deliveryOn: string;
   deliveryTerms: string;
   reason: string;
@@ -442,6 +449,9 @@ export const blankDraft = (subjectId = '', date = ''): Draft => ({
   partnerId: '',
   occurredOn: date,
   currency: 'CNY',
+  sourceRef: '',
+  sourceDoc: '',
+  period: '',
   deliveryOn: '',
   deliveryTerms: '',
   reason: '',
@@ -472,6 +482,9 @@ export function recordDraft(row: ExecutionRecord): Draft {
         'destinationWarehouseId',
         'partnerId',
         'currency',
+        'sourceRef',
+        'sourceDoc',
+        'period',
         'deliveryOn',
         'deliveryTerms',
         'reason',
@@ -521,6 +534,9 @@ export function requestContent(page: ExecutionPage, draft: Draft) {
       ...common,
       partnerId: draft.partnerId,
       sourceChannel: 'manual',
+      sourceRef: draft.sourceRef.trim() || null,
+      sourceDoc: draft.sourceDoc.trim() || null,
+      period: draft.period.trim() || null,
       currency: draft.currency.trim().toUpperCase(),
       deliveryOn: draft.deliveryOn || null,
       deliveryTerms: draft.deliveryTerms,

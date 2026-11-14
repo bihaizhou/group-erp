@@ -39,14 +39,7 @@ type Impact =
 const kinds: Record<Domain, readonly string[]> = {
   organization: ['subjects', 'units', 'positions', 'regions'],
   people: ['employees', 'changes'],
-  materials: [
-    'names',
-    'templates',
-    'skus',
-    'units',
-    'unitRules',
-    'subjectSettings',
-  ],
+  materials: ['names', 'templates', 'skus', 'units', 'unitRules'],
   suppliers: ['identity', 'applicability', 'company'],
 };
 

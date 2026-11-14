@@ -30,8 +30,9 @@ import type {
   ProductionSchedulePayload,
   ProductionSchedulePerson,
 } from './model.js';
+import { businessDate } from '#lib/business-date';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessDate();
 type ScheduleResult = { data: ProductionSchedulePayload };
 type OptionsResult = { data: ProductionOptions };
 

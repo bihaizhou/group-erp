@@ -333,7 +333,6 @@ test('matches all material identities, excludes cancelled lines, caps visible ex
     ['units', m.box.id],
     ['units', m.each.id],
     ['unitRules', m.pack.id],
-    ['subjectSettings', m.admission.id],
   ]) {
     const r = await f.admin.fetch(impact('materials', kind, String(id)));
     expect(r.status).toBe(200);
@@ -694,22 +693,6 @@ test('intersects scoped lines and tasks with visible heads, restricts unreadable
       { domain: 'materials', kind: 'skus', id: m.sku.id },
       undefined,
       noFields,
-      'Asia/Shanghai',
-    ),
-  ).toEqual(restricted);
-  expect(
-    await purchaseReferenceImpact(
-      connection,
-      { domain: 'materials', kind: 'subjectSettings', id: m.admission.id },
-      {
-        materialSubjectSettings: {
-          read: { scope: true, fields: ['id'] },
-          create: false,
-          update: false,
-          delete: false,
-        },
-      },
-      policies(),
       'Asia/Shanghai',
     ),
   ).toEqual(restricted);

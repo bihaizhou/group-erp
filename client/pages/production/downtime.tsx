@@ -17,6 +17,12 @@ import { Textarea } from '#components/ui/textarea';
 import { nativeSelectClass } from '#components/native-controls';
 import { useProductionAccess } from './access.js';
 import { ReadOnlyNotice } from '#components/read-only-notice';
+import {
+  businessDate,
+  businessDateTime,
+  businessDateTimeInput,
+  businessInstant,
+} from '#lib/business-date';
 import type {
   DowntimeStatus,
   ProductionDowntime,
@@ -27,8 +33,8 @@ import type {
 type OptionsResult = { data: ProductionOptions };
 type DowntimeResult = { data: ProductionDowntimePage };
 
-const today = () => new Date().toISOString().slice(0, 10);
-const nowInput = () => new Date().toISOString().slice(0, 16);
+const today = () => businessDate();
+const nowInput = () => businessDateTimeInput();
 
 export default function ProductionDowntimePage() {
   const { t } = useTranslation();
@@ -40,8 +46,10 @@ export default function ProductionDowntimePage() {
   const [status, setStatus] = useState<DowntimeStatus | ''>('');
   const [notice, setNotice] = useState('');
   const [closingId, setClosingId] = useState('');
+  const [cancellingId, setCancellingId] = useState('');
   const [endedAt, setEndedAt] = useState(() => nowInput());
   const [resolution, setResolution] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
 
   const options = useQuery({
     retry: false,
@@ -82,7 +90,7 @@ export default function ProductionDowntimePage() {
         path: `production/downtime-events/${row.id}/close`,
         method: 'POST',
         json: {
-          endedAt: new Date(endedAt).toISOString(),
+          endedAt: businessInstant(endedAt.slice(0, 10), endedAt.slice(11, 16)),
           resolution: resolution.trim(),
           version: row.version,
         },
@@ -92,6 +100,26 @@ export default function ProductionDowntimePage() {
       setResolution('');
       setEndedAt(nowInput());
       setNotice(t('production.downtimeClosedMessage'));
+      refresh();
+    },
+    onError: (error) => setNotice(error.message),
+  });
+
+  const cancel = useMutation({
+    retry: false,
+    mutationFn: (row: ProductionDowntime) =>
+      api.request<{ data: ProductionDowntime }>({
+        path: `production/downtime-events/${row.id}/cancel`,
+        method: 'POST',
+        json: {
+          reason: cancelReason.trim(),
+          version: row.version,
+        },
+      }),
+    onSuccess: () => {
+      setCancellingId('');
+      setCancelReason('');
+      setNotice(t('production.downtimeCancelledMessage'));
       refresh();
     },
     onError: (error) => setNotice(error.message),
@@ -251,11 +279,7 @@ export default function ProductionDowntimePage() {
                 rows.map((row) => (
                   <tr key={row.id} className='border-b align-top'>
                     <td className='py-2 pr-3'>
-                      {new Date(row.startedAt).toLocaleString('zh-CN', {
-                        hour12: false,
-                        hourCycle: 'h23',
-                        timeZone: 'Asia/Shanghai',
-                      })}
+                      {businessDateTime(row.startedAt)}
                     </td>
                     <td className='py-2 pr-3'>{row.equipmentName || '—'}</td>
                     <td className='py-2 pr-3'>
@@ -268,18 +292,31 @@ export default function ProductionDowntimePage() {
                     <td className='py-2 pr-3'>{row.durationMinutes}</td>
                     <td className='py-2'>
                       {row.status === 'open' ? (
-                        <Button
-                          variant='outline'
-                          size='sm'
-                          disabled={!access.canManage}
-                          onClick={() => {
-                            setClosingId(row.id);
-                            setEndedAt(nowInput());
-                            setResolution('');
-                          }}
-                        >
-                          {t('production.downtimeClose')}
-                        </Button>
+                        <div className='flex flex-wrap gap-2'>
+                          <Button
+                            variant='outline'
+                            size='sm'
+                            disabled={!access.canManage}
+                            onClick={() => {
+                              setClosingId(row.id);
+                              setEndedAt(nowInput());
+                              setResolution('');
+                            }}
+                          >
+                            {t('production.downtimeClose')}
+                          </Button>
+                          <Button
+                            variant='outline'
+                            size='sm'
+                            disabled={!access.canManage}
+                            onClick={() => {
+                              setCancellingId(row.id);
+                              setCancelReason('');
+                            }}
+                          >
+                            {t('production.downtimeCancel')}
+                          </Button>
+                        </div>
                       ) : null}
                     </td>
                   </tr>
@@ -329,6 +366,44 @@ export default function ProductionDowntimePage() {
                 {t('production.downtimeCloseConfirm')}
               </Button>
               <Button variant='outline' onClick={() => setClosingId('')}>
+                {t('production.cancel')}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
+      {cancellingId ? (
+        <Card className='mt-4'>
+          <CardHeader>
+            <CardTitle className='text-base'>
+              {t('production.downtimeCancelTitle')}
+            </CardTitle>
+            <CardDescription>
+              {t('production.downtimeCancelHint')}
+            </CardDescription>
+          </CardHeader>
+          <div className='grid gap-3 px-6 pb-6 sm:grid-cols-2'>
+            <label className='grid gap-1 text-sm sm:col-span-2'>
+              <span>{t('production.downtimeCancelReason')}</span>
+              <Textarea
+                value={cancelReason}
+                onChange={(event) => setCancelReason(event.target.value)}
+              />
+            </label>
+            <div className='flex gap-2 sm:col-span-2'>
+              <Button
+                disabled={
+                  !cancelReason.trim() || cancel.isPending || !access.canManage
+                }
+                onClick={() => {
+                  const row = rows.find((item) => item.id === cancellingId);
+                  if (row) cancel.mutate(row);
+                }}
+              >
+                {t('production.downtimeCancelConfirm')}
+              </Button>
+              <Button variant='outline' onClick={() => setCancellingId('')}>
                 {t('production.cancel')}
               </Button>
             </div>

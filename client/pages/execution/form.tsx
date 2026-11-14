@@ -703,6 +703,9 @@ function FormBody({
                     onChange={(value) => setField('partnerId', value)}
                   />
                   {field('currency', false, true)}
+                  {field('sourceRef')}
+                  {field('sourceDoc')}
+                  {field('period')}
                   <Field>
                     <FieldLabel>{t(ui('deliveryOn'))}</FieldLabel>
                     <DatePicker

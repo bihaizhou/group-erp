@@ -147,27 +147,6 @@ async function fixture(testApp: TestApp, database: DatabaseManager) {
   const first = await sku('A'),
     second = await sku('B'),
     nonStock = await sku('service', 'nonStock');
-  const missing = await sku('not-approved-for-company');
-  const disabled = await sku('inactive-setting');
-  const set = (
-    subjectId: string,
-    skuId: string,
-    canPurchase: boolean,
-    canSell = false,
-  ) =>
-    create('/materials/subjectSettings', {
-      name: 'Company material permission',
-      subjectId,
-      skuId,
-      canPurchase,
-      canSell,
-    });
-  const firstSetting = await set(a.id, first.id, true);
-  await set(a.id, second.id, false, true);
-  await set(a.id, nonStock.id, true);
-  const disabledSetting = await set(a.id, disabled.id, true);
-  await fire('subjectSettings', disabledSetting, 'deactivate');
-  await set(b.id, second.id, true);
   const pack = await activate(
     'unitRules',
     await create('/materials/unitRules', {
@@ -216,14 +195,10 @@ async function fixture(testApp: TestApp, database: DatabaseManager) {
                     table,
                     omitted.includes(table)
                       ? ''
-                      : table === 'orgSubjects' ||
-                          table === 'materialSubjectSettings'
+                      : table === 'orgSubjects'
                         ? {
                             type: 'recordAccess',
-                            key:
-                              table === 'orgSubjects'
-                                ? 'supplyChain.subjects'
-                                : 'supplyChain.companies',
+                            key: 'supplyChain.subjects',
                             params: { subjectIds: allowed },
                           }
                         : 'allRecords',
@@ -269,9 +244,6 @@ async function fixture(testApp: TestApp, database: DatabaseManager) {
     first,
     second,
     nonStock,
-    missing,
-    disabled,
-    firstSetting,
     each: each!,
     box: box!,
     kg: kg!,
@@ -351,7 +323,7 @@ test('authenticates before validation, separates page/catalog/business grants, a
   expect(document.paths).toHaveProperty('/api/requisitions/materialSelections');
 });
 
-test('applies company purchase eligibility, stock-only requisitions, and paginates eligible rows', async ({
+test('lists all active materials for purchase, stock-only for requisitions, and paginates rows', async ({
   testApp,
   database,
 }) => {
@@ -360,15 +332,22 @@ test('applies company purchase eligibility, stock-only requisitions, and paginat
   await f.grant('requisitions');
   const purchase = await (await f.list()).json();
   expect(materialOptionsMeta.safeParse(purchase.meta).success).toBe(true);
-  expect(new Set(purchase.data.map((row: { id: string }) => row.id))).toEqual(
-    new Set([f.first.id, f.nonStock.id]),
+  // Materials are group-shared identities: every active SKU is eligible for
+  // purchase (scheme A). Assert this fixture's SKUs are all included, and the
+  // requisition mode filter excludes non-stock rows from any fixture.
+  const purchaseIds = new Set(
+    purchase.data.map((row: { id: string }) => row.id),
   );
+  for (const id of [f.first.id, f.second.id, f.nonStock.id])
+    expect(purchaseIds.has(id)).toBe(true);
   const issue = await (await f.list('requisitions')).json();
-  expect(new Set(issue.data.map((row: { id: string }) => row.id))).toEqual(
-    new Set([f.first.id, f.second.id]),
-  );
-  for (const skuId of [f.second.id, f.missing.id, f.disabled.id])
-    expect((await f.select({ ...f.known, skuId })).status).toBe(404);
+  const issueIds = new Set(issue.data.map((row: { id: string }) => row.id));
+  expect(issueIds.has(f.first.id)).toBe(true);
+  expect(issueIds.has(f.second.id)).toBe(true);
+  expect(issueIds.has(f.nonStock.id)).toBe(false);
+  for (const row of issue.data as { managementMode: string }[])
+    expect(row.managementMode).toBe('stock');
+  expect((await f.select({ ...f.known, skuId: f.second.id })).status).toBe(200);
   expect(
     (await f.select({ ...f.known, skuId: f.second.id }, 'requisitions')).status,
   ).toBe(200);
@@ -382,16 +361,15 @@ test('applies company purchase eligibility, stock-only requisitions, and paginat
     )
   ).json();
   expect(page.data).toHaveLength(1);
-  expect(page.meta).toMatchObject({ page: 2, pageSize: 1, total: 2 });
+  expect(page.meta).toMatchObject({ page: 2, pageSize: 1 });
+  expect(page.meta.total).toBeGreaterThanOrEqual(3);
   expect(
     (
       await f.member.session.fetch(
         `/procurement/materialOptions/${f.second.id}?subjectId=${f.a.id}`,
       )
     ).status,
-  ).toBe(404);
-  await f.fire('subjectSettings', f.firstSetting, 'deactivate');
-  expect((await f.select(f.known)).status).toBe(404);
+  ).toBe(200);
 });
 
 test('resolves only eligible company/global aliases and never hides ambiguous name targets', async ({
@@ -429,8 +407,8 @@ test('resolves only eligible company/global aliases and never hides ambiguous na
   await f.alias('本公司手套', f.second.id);
   result = await (await f.list('procurement', f.a.id, '本公司手套')).json();
   expect(result.meta.aliasMatch).toEqual({
-    status: 'unique',
-    skuId: f.first.id,
+    status: 'ambiguous',
+    skuId: null,
   });
   const ambiguous = await (
     await f.list('requisitions', f.a.id, '本公司手套')
@@ -564,7 +542,7 @@ test('does not broaden missing action scopes using unrelated material permission
     permissionSet: 'materials-maintainer',
     subject: { type: 'user', id: f.member.user.id },
   });
-  await f.grant('procurement', [f.a.id], ['materialSubjectSettings']);
+  await f.grant('procurement', [f.a.id], ['materialSkus']);
   const response = await f.list();
   expect(response.status).toBe(403);
   expect((await f.select(f.known)).ok).toBe(false);

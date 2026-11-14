@@ -16,7 +16,6 @@ export default defineSeed({
       'personnelAssignments',
       'orgUnits',
       'materialIssuePurposes',
-      'materialSubjectSettings',
     ];
     const referenceTables = [
       'materialAttributeTemplates',
@@ -116,7 +115,6 @@ export default defineSeed({
                               'personnelAssignments',
                               'orgUnits',
                               'materialIssuePurposes',
-                              'materialSubjectSettings',
                             ].includes(table),
                         )
                         .map((table) => [

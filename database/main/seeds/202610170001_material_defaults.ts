@@ -12,7 +12,6 @@ const materialKinds = [
   'tags',
   'tagLinks',
   'requests',
-  'subjectSettings',
   'warehouses',
 ] as const;
 const materialDependencies: Record<(typeof materialKinds)[number], string[]> = {
@@ -26,7 +25,6 @@ const materialDependencies: Record<(typeof materialKinds)[number], string[]> = {
   tags: [],
   tagLinks: ['tags', 'names', 'skus'],
   requests: ['skus', 'names', 'templates', 'units'],
-  subjectSettings: ['skus'],
   warehouses: [],
 };
 
@@ -156,7 +154,7 @@ export default defineSeed({
         const org =
           kind === 'warehouses'
             ? ['orgSubjects', 'orgUnits', 'orgPositions']
-            : ['requests', 'references', 'subjectSettings'].includes(kind)
+            : ['requests', 'references'].includes(kind)
               ? ['orgSubjects']
               : [];
         const keys = [

@@ -18,6 +18,7 @@ export const operationsRoutes: AppClientRouteDefinition[] = [
     children: [
       {
         name: 'operations-overview',
+        companyScope: 'operations/companies',
         path: '/functions/operations/overview',
         auth: 'required',
         authz: {

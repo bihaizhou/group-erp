@@ -10,7 +10,6 @@ export const materialKinds = [
   'tags',
   'tagLinks',
   'requests',
-  'subjectSettings',
   'warehouses',
 ] as const;
 export type MaterialKind = (typeof materialKinds)[number];
@@ -24,7 +23,6 @@ export const materialTables: Record<MaterialKind, string> = {
   tags: 'materialTags',
   tagLinks: 'materialTagLinks',
   requests: 'materialRequests',
-  subjectSettings: 'materialSubjectSettings',
   warehouses: 'warehouses',
 };
 export const materialWorkflowKinds: readonly MaterialKind[] = [
@@ -35,7 +33,6 @@ export const materialWorkflowKinds: readonly MaterialKind[] = [
 ];
 export const materialScopedKinds: readonly MaterialKind[] = [
   'requests',
-  'subjectSettings',
   'warehouses',
 ];
 const ref = z.string().uuid();
@@ -126,13 +123,6 @@ export const materialSchemas = {
     proposedUnit: z.string().trim().max(100).optional(),
     usage: text.min(1),
   }),
-  subjectSettings: z.strictObject({
-    ...base,
-    subjectId: ref,
-    skuId: ref,
-    canPurchase: z.boolean(),
-    canSell: z.boolean(),
-  }),
   warehouses: z.strictObject({
     ...base,
     subjectId: ref,
@@ -218,7 +208,6 @@ export const materialDependencies: Record<MaterialKind, MaterialKind[]> = {
   tags: [],
   tagLinks: ['tags', 'names', 'skus'],
   requests: ['skus', 'names', 'templates', 'units'],
-  subjectSettings: ['skus'],
   warehouses: [],
 };
 export const materialColumns: Record<MaterialKind, string[]> = {
@@ -257,7 +246,6 @@ export const materialColumns: Record<MaterialKind, string[]> = {
     'usage',
     'resolvedSkuId',
   ],
-  subjectSettings: ['subjectId', 'skuId', 'canPurchase', 'canSell'],
   warehouses: ['subjectId', 'responsiblePositionId'],
 };
 export const materialBaseColumns = [

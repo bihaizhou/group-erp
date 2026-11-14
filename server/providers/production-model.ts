@@ -250,6 +250,7 @@ export const unitSetupParams = z.object({ unitId: z.string().uuid() });
 export const unitMaterialInput = z.strictObject({
   skuId: z.string().uuid(),
   role: z.enum(productionMaterialRoles),
+  outputType: z.enum(['metal', 'sand']).nullable().optional(),
   defaultWarehouseId: z.string().uuid().nullable().optional(),
   sortOrder: z.number().int().min(0).max(10000).default(0),
   notes: nullableText(1000),

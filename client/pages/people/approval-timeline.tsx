@@ -42,10 +42,12 @@ export function ApprovalTimeline({
                 </span>
               </div>
               <p className='text-xs text-muted-foreground'>
-                {t('people.approvalCandidates')}：
-                {stage.candidates
-                  .map((candidate) => candidate.name)
-                  .join('、') || '—'}
+                {t('people.approvalCandidatesLine', {
+                  names:
+                    stage.candidates
+                      .map((candidate) => candidate.name)
+                      .join(t('people.nameSeparator')) || '—',
+                })}
               </p>
               {stage.decisions.map((decision) => (
                 <p

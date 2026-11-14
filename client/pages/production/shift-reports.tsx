@@ -48,8 +48,14 @@ import type {
   ShiftReportInputOptions,
   ShiftReportPage,
 } from './model.js';
+import { businessDate } from '#lib/business-date';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessDate();
+const confirmErrorCodes = [
+  'SELF_APPROVAL',
+  'DOWNTIME_MINUTES_MISMATCH',
+  'INPUT_LINE_OVER_ISSUED',
+];
 type SetupResult = { data: ProductionSetup };
 type ListResult = { data: ShiftReportPage };
 const materialSummary = (row: ShiftReport) => {
@@ -117,9 +123,11 @@ export default function ProductionShiftReportsPage() {
     },
     onError: (error) =>
       setNotice(
-        error instanceof Error
-          ? error.message
-          : t('production.shiftReportConfirmFailed'),
+        error instanceof Error && confirmErrorCodes.includes(error.message)
+          ? t(`production.error.${error.message}`)
+          : error instanceof Error
+            ? error.message
+            : t('production.shiftReportConfirmFailed'),
       ),
   });
   const inbound = useMutation({

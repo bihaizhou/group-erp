@@ -232,10 +232,6 @@ test('uses exact stock selection quantities independent of purchasing and sellin
 }) => {
   const f = await setup(testApp, database),
     m = await purchaseMaterial(f as never, database);
-  await database.repository('materialSubjectSettings').updateOne({
-    filter: { id: m.admission.id },
-    values: { canPurchase: false, canSell: false },
-  });
   const row = await f.draft({ ...f.content(), lines: m.content.lines });
   expect(row.lines[0].baseQuantity).toBe('24');
   expect(row.lines[0].managementModeSnapshot).toBe('stock');

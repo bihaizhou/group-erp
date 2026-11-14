@@ -180,6 +180,10 @@ export const org = {
     ORG_DATE_RANGE: '结束日期不能早于开始日期。',
     ORG_ACTIVE_DEPENDENTS:
       '仍有启用中的下级或关系引用此资料，请先处理后再停用。',
+    ORG_POSITION_MAPPING_DEPENDENTS:
+      '该岗位或所属单元下的岗位仍有权限映射，请先在岗位权限中清空映射后再停用。',
+    ORG_ASSET_DEPENDENTS: '该主体仍有资产登记引用，请先处理相关资产后再停用。',
+    ORG_POSITION_NOT_ACTIVE: '该岗位已停用，无法保存权限映射。',
     INVALID_INPUT: '请检查标记的字段。',
     INVALID_ORIGIN: '访问地址配置不正确，请联系管理员。',
     INVALID_CSRF_ORIGIN: '访问地址配置不正确，请联系管理员。',
@@ -201,6 +205,7 @@ export const erp = {
     '人事事务办理，以及运营、采购、安环、财务、设备技术等职能。',
   developmentDescription: '项目拓展、投资决策、建设、验收与运营移交。',
   open: '进入组织架构',
+  boundary: '组织变更保存后立即生效，请谨慎核对。',
   organizationBoundary:
     '维护组织主体、单元、岗位与板块；组织变动会同步到人员任职与数据权限。',
   hrBoundary: '集团层面的规划与评价入口；各公司的人事事务在职能平台办理。',

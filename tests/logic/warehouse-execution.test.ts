@@ -44,10 +44,6 @@ const setup = async (...args: Parameters<typeof executionFixture>) => {
     'warehouse.counts',
   ])
     await f.grant(f.reviewer.user.id, resource, ['read', 'review']);
-  await db.repository('materialSubjectSettings').updateOne({
-    filter: { id: String(f.m.admission.id) },
-    values: { canSell: true },
-  });
   const doc = async (content: unknown) =>
     f.create('/warehouse/documents', { content, requestKey: randomUUID() });
   const fire = async (
@@ -1142,13 +1138,6 @@ test('counts steel sheets in stock while pricing the purchase in tonnes through 
         attributeValues: { model: 'B' },
       }),
     );
-  await f.create('/materials/subjectSettings', {
-    name: '钢板准入',
-    subjectId: f.a.id,
-    skuId: sku.id,
-    canPurchase: true,
-    canSell: false,
-  });
   const balance = (quality = 'qualified') =>
     database.repository('stockBalances').findOne({
       filter: {

@@ -70,39 +70,22 @@ export class SupplyChainMaterialService {
     materialNameId?: string,
   ): Promise<MaterialCatalogContext> {
     await this.company(c, subjectId, policies);
-    const settings = await this.repo(
-      c,
-      'materialSubjectSettings',
-      policies,
-    ).findMany({
-      filter: {
-        subjectId,
-        status: 'active',
-        ...(module === 'procurement' ? { canPurchase: true } : {}),
-        ...(module === 'sales' ? { canSell: true } : {}),
-        ...(skuId ? { skuId } : {}),
-      },
+    const skus = await this.repo(c, 'materialSkus', policies).findMany({
+      filter: (f) =>
+        f.and([
+          f.string('status').eq('active'),
+          ...(skuId ? [f.string('id').eq(skuId)] : []),
+          ...(materialNameId
+            ? [f.string('materialNameId').eq(materialNameId)]
+            : []),
+          ...(module !== 'procurement'
+            ? [f.string('managementMode').eq('stock')]
+            : []),
+        ]),
       limit: maxCompanyMaterials + 1,
     });
-    if (settings.length > maxCompanyMaterials)
+    if (skus.length > maxCompanyMaterials)
       return fail('SUPPLY_CATALOG_TOO_LARGE');
-    const ids = settings.map((setting) => text(setting.skuId));
-    const skus = ids.length
-      ? await this.repo(c, 'materialSkus', policies).findMany({
-          filter: (f) =>
-            f.and([
-              materialIdFilter(f, 'id', ids),
-              f.string('status').eq('active'),
-              ...(materialNameId
-                ? [f.string('materialNameId').eq(materialNameId)]
-                : []),
-              ...(module !== 'procurement'
-                ? [f.string('managementMode').eq('stock')]
-                : []),
-            ]),
-          limit: maxCompanyMaterials + 1,
-        })
-      : [];
     const nameIds = [...new Set(skus.map((sku) => text(sku.materialNameId)))];
     const unitIds = [...new Set(skus.map((sku) => text(sku.baseUnitId)))];
     const names = nameIds.length
@@ -293,7 +276,9 @@ export class SupplyChainMaterialService {
     const numerator = rule ? text(rule.numerator) : '1';
     const denominator = rule ? text(rule.denominator) : '1';
     const conversionMode =
-        rule && text(rule.conversionMode) === 'reference' ? 'reference' : 'exact',
+        rule && text(rule.conversionMode) === 'reference'
+          ? 'reference'
+          : 'exact',
       variancePercent =
         conversionMode === 'reference'
           ? text(rule?.variancePercent) || '3'

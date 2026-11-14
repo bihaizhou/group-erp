@@ -201,13 +201,9 @@ function RecordForm({
       positionId: record?.positionId ?? null,
       ...(record?.data ?? emptyData(kind)),
     };
-    // Show the code the server would assign before the first save, so the
-    // form never looks like it will submit an empty identifier.
-    if (kind === 'changes' && !record)
-      initial.code = `CHG-${businessDate.replaceAll('-', '')}-${createUuid()
-        .replaceAll('-', '')
-        .slice(0, 4)
-        .toUpperCase()}`;
+    // The code stays empty for new changes: the server assigns it with its
+    // own collision-retried scheme (CHG-YYYYMMDD-XXXX), so the client never
+    // guesses an identifier that could collide.
     for (const key of Object.keys(repeats[kind] ?? {}))
       initial[key] = ((initial[key] as Data[] | undefined) ?? []).map(
         (row) => ({

@@ -51,6 +51,9 @@ const transitionInput = z.strictObject({
   requestKey: z.string().min(1).max(100),
   reason: z.string().trim().min(1).max(1000),
   resolvedSkuId: z.string().uuid().optional(),
+  resolvedUnitId: z.string().uuid().optional(),
+  resolvedUnitRuleId: z.string().uuid().optional(),
+  addAlias: z.boolean().optional(),
 });
 export const materialRoutes: AppApiRouteContribution<Application> =
   defineApiRoutes((app) => {
@@ -399,17 +402,26 @@ export const materialRoutes: AppApiRouteContribution<Application> =
           }),
           apiValidator('param', param),
           apiValidator('json', transitionInput),
-          async (c) =>
-            c.json({
-              data: await service.fire(
+          async (c) => {
+            const data = await service.fire(
+              kind,
+              c.req.valid('param').id,
+              transition,
+              c.req.valid('json'),
+              actor(c),
+              c.get('materialPolicies'),
+            );
+            if (
+              kind === 'skus' &&
+              ['approve', 'reactivate'].includes(transition)
+            )
+              await service.autoLinkApprovedSku(
                 kind,
                 c.req.valid('param').id,
-                transition,
-                c.req.valid('json'),
                 actor(c),
-                c.get('materialPolicies'),
-              ),
-            }),
+              );
+            return c.json({ data });
+          },
         );
       }
     }

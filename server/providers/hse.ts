@@ -46,6 +46,7 @@ export default class HseProvider extends ServiceProvider<Application> {
         { name: 'manage' },
         { name: 'approve' },
         { name: 'readAll' },
+        { name: 'report' },
       ],
     });
     authz.ui.place(

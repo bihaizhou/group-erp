@@ -9,8 +9,7 @@ export const materials = {
     references: 'Aliases and legacy codes',
     tags: 'Tags',
     tagLinks: 'Tag assignments',
-    requests: 'Material requests',
-    subjectSettings: 'Company material settings',
+    requests: 'Materials to govern',
     warehouses: 'Warehouse settings',
   },
   actions: {

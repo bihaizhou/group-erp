@@ -160,7 +160,28 @@ export function redactRows<T extends Record<string, unknown>>(
   if (!hidden.size) return [...rows];
   return rows.map((row) => {
     const copy = { ...row };
-    for (const field of hidden) delete copy[field];
+    // Rows may mirror a hidden field inside their `data` JSON column
+    // (profiles store `grade` both as a column and as data.grade). Delete the
+    // same-named nested key too, leaving the rest of `data` untouched. Only
+    // plain objects qualify; strings, arrays and dates are left alone.
+    const data = (copy as Record<string, unknown>).data;
+    const nested =
+      data !== null &&
+      typeof data === 'object' &&
+      !Array.isArray(data) &&
+      (Object.getPrototypeOf(data) === Object.prototype ||
+        Object.getPrototypeOf(data) === null)
+        ? (data as Record<string, unknown>)
+        : null;
+    let redactedData: Record<string, unknown> | null = null;
+    for (const field of hidden) {
+      delete copy[field];
+      if (nested && Object.hasOwn(nested, field)) {
+        redactedData ??= { ...nested };
+        delete redactedData[field];
+      }
+    }
+    if (redactedData) (copy as Record<string, unknown>).data = redactedData;
     return copy;
   });
 }

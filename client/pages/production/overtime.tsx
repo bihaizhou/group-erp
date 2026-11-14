@@ -27,11 +27,12 @@ import type {
   ProductionOptions,
   ProductionOvertime,
 } from './model.js';
+import { businessDate as businessToday } from '#lib/business-date';
 
 type OptionsResult = { data: ProductionOptions };
 type OvertimeResult = { data: { records: ProductionOvertime[] } };
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 
 export default function ProductionOvertimePage() {
   const { t } = useTranslation();
@@ -106,7 +107,12 @@ export default function ProductionOvertimePage() {
       );
       refresh();
     },
-    onError: (error) => setNotice(error.message),
+    onError: (error) =>
+      setNotice(
+        error instanceof Error && error.message === 'SELF_APPROVAL'
+          ? t('production.error.SELF_APPROVAL')
+          : error.message,
+      ),
   });
 
   return (

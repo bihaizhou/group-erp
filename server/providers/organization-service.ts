@@ -55,6 +55,24 @@ const fail = (reason: string, field?: string): never => {
   throw new OrganizationError(reason, field);
 };
 
+/**
+ * The single orgMutationLock row every organization mutation serializes on.
+ * Position permission-mapping writes must take the very same row so mapping
+ * saves and position deactivation can never interleave.
+ */
+export const ORG_MUTATION_LOCK_ID = 'organization';
+
+/**
+ * Take the shared organization mutation lock inside an already-open
+ * transaction. Callers keep the transaction open around their reads and
+ * writes so the lock is held until commit.
+ */
+export const lockOrgMutation = (connection: DatabaseConnection) =>
+  connection.repository('orgMutationLock').updateOne({
+    filter: { id: ORG_MUTATION_LOCK_ID },
+    values: { nonce: randomUUID() },
+  });
+
 export class OrganizationService {
   constructor(
     private readonly db: DatabaseManager,
@@ -187,10 +205,7 @@ export class OrganizationService {
     return this.db.transaction(async (connection) => {
       // Acquire the shared database row lock BEFORE any reads. This serializes topology checks across
       // all application processes, including concurrent moves in different branches and enable/disable.
-      await connection.repository('orgMutationLock').updateOne({
-        filter: { id: 'organization' },
-        values: { nonce: randomUUID() },
-      });
+      await lockOrgMutation(connection);
       const repo = connection.repository(tables[kind]);
       const before = id
         ? ((await repo.findOne({ filter: { id } })) ?? null)
@@ -314,11 +329,7 @@ export class OrganizationService {
       return fail('ORG_ISSUE_DEPENDENTS');
     // Material writes acquire orgMutationLock first too, so retirement and warehouse assignment cannot race.
     if (before && kind === 'subjects' && !active) {
-      for (const table of [
-        'warehouses',
-        'materialSubjectSettings',
-        'materialReferences',
-      ])
+      for (const table of ['warehouses', 'materialReferences'])
         if (
           await c
             .repository(table)
@@ -533,6 +544,43 @@ export class OrganizationService {
           (await exists('units', { leaderPositionId: id })))
       )
         return fail('ORG_ACTIVE_DEPENDENTS');
+      // Residual permission-set mappings block deactivation: clearing them is
+      // an explicit configuration step the operator must take first.
+      if (
+        kind === 'positions' &&
+        (await c
+          .repository('orgPositionPermissionSets')
+          .exists({ filter: { positionId: id } }))
+      )
+        return fail('ORG_POSITION_MAPPING_DEPENDENTS');
+      if (kind === 'units') {
+        const positions = await c
+          .repository('orgPositions')
+          .findMany({ filter: { unitId: id }, limit: 10001 });
+        if (positions.length > 10000)
+          return fail('ORG_POSITION_MAPPING_DEPENDENTS');
+        for (const position of positions)
+          if (
+            await c
+              .repository('orgPositionPermissionSets')
+              .exists({ filter: { positionId: scalar(position.id) } })
+          )
+            return fail('ORG_POSITION_MAPPING_DEPENDENTS');
+      }
+      // Assets reference entities (assets.subjectId → orgSubjects.id), not
+      // units or positions, so only subject deactivation checks them.
+      // Scrapped assets are out of service and do not block deactivation.
+      if (
+        kind === 'subjects' &&
+        (await c.repository('assets').exists({
+          filter: (f) =>
+            f.and([
+              f.string('subjectId').eq(id),
+              f.string('status').ne('scrapped'),
+            ]),
+        }))
+      )
+        return fail('ORG_ASSET_DEPENDENTS');
       if (
         (kind === 'subjects' || kind === 'units') &&
         (await c.repository('orgRelations').exists({

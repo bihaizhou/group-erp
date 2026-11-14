@@ -1188,6 +1188,21 @@ export class PurchaseRequestService {
     previousHead?: Row,
   ) {
     const old = await this.lines(c, requestId);
+    // Resolve each distinct supplier once; many lines often share one.
+    const supplierCache = new Map<string, Promise<unknown>>();
+    const lineSupplier = (id: string) => {
+      if (!supplierCache.has(id))
+        supplierCache.set(
+          id,
+          this.suppliers.resolveSupplierInTransaction(
+            c,
+            content.subjectId,
+            id,
+            p,
+          ),
+        );
+      return supplierCache.get(id)!;
+    };
     // A restrictive line policy must not turn an unseen line into a deletion.
     for (const line of old)
       if (
@@ -1266,6 +1281,7 @@ export class PurchaseRequestService {
         !previous || canonical(previous.selectionInput) !== canonical(line);
       const oldInput = previous?.selectionInput as
         Record<string, unknown> | undefined;
+      const supplierId = text(line.supplierId) || null;
       const inputChanged =
         (!!previousHead &&
           !line.usage.trim() &&
@@ -1275,7 +1291,23 @@ export class PurchaseRequestService {
           (key) =>
             canonical(oldInput[key]) !==
             canonical(line[key as keyof typeof line]),
-        );
+        ) ||
+        text(oldInput?.supplierId) !== (supplierId ?? '');
+      // A supplier is part of the line contract: resolve it inside the same
+      // transaction so the stored snapshot matches what approvers review.
+      let supplierSnapshot: unknown = null;
+      if (supplierId) {
+        try {
+          supplierSnapshot = await lineSupplier(supplierId);
+        } catch (error) {
+          if (error instanceof SupplyChainError)
+            throw new SupplyChainError(
+              error.reason,
+              `lines.${index}.supplierId`,
+            );
+          throw error;
+        }
+      }
       if (previous && inputChanged)
         await this.sourceHooks?.invalidate(
           c,
@@ -1338,6 +1370,8 @@ export class PurchaseRequestService {
             ? new Date()
             : (previous?.confirmedAt ?? new Date())
           : null,
+        supplierId,
+        supplierSnapshot: supplierSnapshot ? json(supplierSnapshot) : null,
         usage: line.usage,
         notes: line.notes,
         selectionInput: json(line),
@@ -2147,6 +2181,10 @@ export class PurchaseRequestService {
       sourceChannel:
         (text(before.sourceChannel) as PurchaseContent['sourceChannel']) ||
         'manual',
+      sourceRef: text(before.sourceRef) || null,
+      sourceDoc: text(before.sourceDoc) || null,
+      onBehalfOf: text(before.onBehalfOf) || null,
+      period: text(before.period) || null,
       suggestedSupplierId: text(before.suggestedSupplierId) || null,
       projectId: null,
       notes: text(before.notes),
@@ -2171,6 +2209,28 @@ export class PurchaseRequestService {
         'FAILED_PRECONDITION',
         'suggestedSupplierId',
       );
+    // Revalidate each line supplier so a deactivated or re-scoped supplier
+    // cannot survive into approval unnoticed.
+    const lineSuppliers = new Map<string, unknown>();
+    for (const [index, line] of lines.entries()) {
+      const supplierId = text(line.supplierId);
+      if (!supplierId) continue;
+      let fresh = lineSuppliers.get(supplierId);
+      if (!lineSuppliers.has(supplierId)) {
+        fresh = await (
+          readOnly
+            ? this.suppliers.previewSupplierInTransaction.bind(this.suppliers)
+            : this.suppliers.resolveSupplierInTransaction.bind(this.suppliers)
+        )(c, text(before.subjectId), supplierId, access.policies);
+        lineSuppliers.set(supplierId, fresh);
+      }
+      if (canonical(fresh) !== canonical(line.supplierSnapshot))
+        return purchaseError(
+          'PURCHASE_SUPPLIER_CHANGED',
+          'FAILED_PRECONDITION',
+          `lines.${index}.supplierId`,
+        );
+    }
     // Revalidate current references, but never silently replace a reviewed material snapshot.
     for (const [index, line] of content.lines.entries()) {
       const resolved = await (

@@ -50,10 +50,6 @@ for (const [table, id, name] of [
   ['materialSkus', m.sku.id, '耐磨手套 A 型'],
 ] as const)
   await db.repository(table).updateOne({ filter: { id }, values: { name } });
-await db.repository('materialSubjectSettings').updateOne({
-  filter: { id: String(m.admission.id) },
-  values: { canSell: true },
-});
 const roles = [
   'procurement-order-operator',
   'sales-order-operator',

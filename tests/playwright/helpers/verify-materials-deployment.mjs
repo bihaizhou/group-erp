@@ -420,7 +420,6 @@ try {
     'tags',
     'tagLinks',
     'requests',
-    'subjectSettings',
     'warehouses',
   ])
     await get(root, `materials/${kind}`);

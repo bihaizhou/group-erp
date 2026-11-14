@@ -81,13 +81,6 @@ const number = (value: unknown) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 };
-const businessToday = () =>
-  new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
 const addDays = (date: string, days: number) => {
   const value = new Date(`${date}T00:00:00.000Z`);
   value.setUTCDate(value.getUTCDate() + days);
@@ -218,6 +211,7 @@ export class ProductionService {
           skuName: text(sku?.name),
           unit: unitName.get(text(sku?.baseUnitId)) ?? '',
           role: text(row.role),
+          outputType: text(row.outputType) || null,
           defaultWarehouseId: warehouseId,
           warehouseName: text(warehouseById.get(warehouseId ?? '')?.name),
           sortOrder: number(row.sortOrder),
@@ -365,6 +359,7 @@ export class ProductionService {
           skuName: text(sku?.name),
           unit: measureUnitName.get(text(sku?.baseUnitId)) ?? '',
           role: text(row.role),
+          outputType: text(row.outputType) || null,
           defaultWarehouseId: text(row.defaultWarehouseId) || null,
           warehouseName: text(warehouse?.name),
           sortOrder: number(row.sortOrder),
@@ -415,6 +410,10 @@ export class ProductionService {
     if (!subjectId) throw new ProductionError('PRODUCTION_INVALID');
     await this.assertUnit(subjectId, unitId);
     const seen = new Set<string>();
+    const resolved = new Map<
+      string,
+      { outputType: string; skuId: string; warehouseId: string | null }
+    >();
     for (const material of input.materials) {
       if (seen.has(material.skuId))
         throw new ProductionError('PRODUCTION_INVALID', 'DUPLICATE_MATERIAL');
@@ -437,6 +436,23 @@ export class ProductionService {
             'PRODUCTION_INVALID',
             'WAREHOUSE_NOT_FOUND',
           );
+      }
+      const outputType =
+        material.role === 'product' || material.role === 'byproduct'
+          ? (material.outputType ??
+            (material.role === 'product' ? 'metal' : 'sand'))
+          : null;
+      if (outputType) {
+        if (resolved.has(outputType))
+          throw new ProductionError(
+            'PRODUCTION_INVALID',
+            'OUTPUT_TYPE_DUPLICATE',
+          );
+        resolved.set(outputType, {
+          outputType,
+          skuId: material.skuId,
+          warehouseId: material.defaultWarehouseId ?? null,
+        });
       }
     }
     const now = new Date().toISOString();
@@ -481,6 +497,11 @@ export class ProductionService {
       const materials = c.repository('prdUnitMaterials');
       await materials.deleteMany({ filter: { unitId } });
       for (const material of input.materials) {
+        const outputType =
+          material.role === 'product' || material.role === 'byproduct'
+            ? (material.outputType ??
+              (material.role === 'product' ? 'metal' : 'sand'))
+            : null;
         await materials.createOne({
           values: {
             id: randomUUID(),
@@ -488,6 +509,7 @@ export class ProductionService {
             unitId,
             skuId: material.skuId,
             role: material.role,
+            outputType,
             defaultWarehouseId: material.defaultWarehouseId ?? null,
             sortOrder: material.sortOrder,
             status: 'active',
@@ -499,6 +521,53 @@ export class ProductionService {
             updatedAt: now,
           } as never,
         });
+      }
+      // Keep prdOutputMappings in sync so the confirm step and any legacy
+      // consumer see the same output types as the unit material list.
+      const mappings = c.repository('prdOutputMappings');
+      const existing = await mappings.findMany({
+        filter: { unitId },
+        limit: 50,
+      });
+      const wanted = [...resolved.entries()];
+      const wantedTypes = new Set(wanted.map(([type]) => type));
+      for (const row of existing)
+        if (!wantedTypes.has(text(row.outputType)))
+          await mappings.deleteMany({
+            filter: { id: text(row.id) },
+          });
+      for (const [outputType, entry] of wanted) {
+        const current = existing.find(
+          (row) => text(row.outputType) === outputType,
+        );
+        if (current)
+          await mappings.updateOne({
+            filter: { id: text(current.id) },
+            values: {
+              skuId: entry.skuId,
+              defaultWarehouseId: entry.warehouseId,
+              updatedBy: principal.id,
+              updatedAt: now,
+            } as never,
+          });
+        else
+          await mappings.createOne({
+            values: {
+              id: randomUUID(),
+              subjectId,
+              unitId,
+              outputType,
+              skuId: entry.skuId,
+              defaultWarehouseId: entry.warehouseId,
+              status: 'active',
+              notes: null,
+              version: 1,
+              createdBy: principal.id,
+              updatedBy: principal.id,
+              createdAt: now,
+              updatedAt: now,
+            } as never,
+          });
       }
     });
     return this.setup(principal, scope);
@@ -1175,17 +1244,36 @@ export class ProductionService {
         } as never,
       });
     }
-    const totals = new Map<string, bigint>();
+    const roleTotals = new Map<string, bigint>();
+    const outputTotals = new Map<string, bigint>();
     for (const material of materials) {
       const micros = stockMicros(material.quantity);
-      totals.set(material.role, (totals.get(material.role) ?? 0n) + micros);
+      roleTotals.set(
+        material.role,
+        (roleTotals.get(material.role) ?? 0n) + micros,
+      );
+      // 产出类型以单元物料清单为准：同一单元可有多个 product 行，
+      // 金属/砂料分别按 outputType 聚合，避免砂料混入金属量。
+      const config = configBySku.get(material.skuId);
+      const outputType =
+        config?.outputType ??
+        (material.role === 'product'
+          ? 'metal'
+          : material.role === 'byproduct'
+            ? 'sand'
+            : null);
+      if (outputType)
+        outputTotals.set(
+          outputType,
+          (outputTotals.get(outputType) ?? 0n) + micros,
+        );
     }
     await connection.repository('prdShiftReports').updateOne({
       filter: { id: reportId },
       values: {
-        processedQuantity: stockQuantity(totals.get('feedstock') ?? 0n),
-        metalQuantity: stockQuantity(totals.get('product') ?? 0n),
-        sandQuantity: stockQuantity(totals.get('byproduct') ?? 0n),
+        processedQuantity: stockQuantity(roleTotals.get('feedstock') ?? 0n),
+        metalQuantity: stockQuantity(outputTotals.get('metal') ?? 0n),
+        sandQuantity: stockQuantity(outputTotals.get('sand') ?? 0n),
         updatedBy: principal.id,
         updatedAt: now,
       } as never,
@@ -2135,7 +2223,7 @@ export class ProductionService {
           values: { status: 'active', updatedAt: now } as never,
         });
       if (next === 'completed' && plan) {
-        const completedOn = businessToday();
+        const completedOn = businessDate(this.timeZone);
         await c.repository('prdMaintenancePlans').updateMany({
           filter: { id: planId },
           values: {
@@ -2163,7 +2251,7 @@ export class ProductionService {
     equipmentName: string,
     openOrder: Row | null,
   ) {
-    const today = businessToday();
+    const today = businessDate(this.timeZone);
     const nextDueOn = text(row.nextDueOn);
     const status = text(row.status);
     const dueStatus =
@@ -2603,6 +2691,10 @@ export class ProductionService {
         runtimeMinutes: input.runtimeMinutes,
         downtimeMinutes: input.downtimeMinutes,
         notes: input.notes ?? null,
+        // 与 writeShiftReport 一致记录录入人，否则自报自批校验会被此入口绕过。
+        enteredBy: principal.id,
+        enteredByPositionId: null,
+        sourceChannel: 'manual',
         confirmedBy: null,
         confirmedAt: null,
         version: 1,
@@ -3032,6 +3124,34 @@ export class ProductionService {
         'PRODUCTION_CONFLICT',
         text(row.status) === 'draft' ? 'VERSION_CONFLICT' : 'REPORT_NOT_DRAFT',
       );
+    // 自报自批校验：班报录入人与确认人不能是同一用户（参照资产报废审批）。
+    if (text(row.enteredBy) === principal.id)
+      throw new ProductionError('PRODUCTION_INVALID', 'SELF_APPROVAL');
+    // 停机分钟双口径校验：班报手填停机分钟必须与停机事件表该单元该日
+    // ΣdurationMinutes 一致（方案 2.10 停机分钟系统算不手填）。
+    // 已取消事件作废，分钟数不再计入（与文案「取消后分钟数不再计入」对齐）。
+    // 旧班报可能只有手填分钟、没有对应的停机事件记录，此时无从比对，跳过。
+    const downtimeEvents = await this.database
+      .repository('prdDowntimeEvents')
+      .findMany({
+        filter: { unitId: text(row.unitId) },
+        sort: (sort) => [sort.field('startedAt').desc()],
+        limit: 5000,
+      });
+    const dayDowntimeEvents = downtimeEvents.filter(
+      (event) => this.localDate(text(event.startedAt)) === text(row.reportDate),
+    );
+    const computedDowntime = dayDowntimeEvents
+      .filter((event) => text(event.status) !== 'cancelled')
+      .reduce((total, event) => total + number(event.durationMinutes), 0);
+    if (
+      dayDowntimeEvents.length > 0 &&
+      computedDowntime !== number(row.downtimeMinutes)
+    )
+      throw new ProductionError(
+        'PRODUCTION_INVALID',
+        'DOWNTIME_MINUTES_MISMATCH',
+      );
     const configs = await this.unitMaterials(
       this.database,
       text(row.subjectId),
@@ -3040,20 +3160,14 @@ export class ProductionService {
     const configBySku = new Map(
       configs.map((config) => [config.skuId, config]),
     );
-    // 产出类型以「产出映射」为准：同一单元可能同时产出金属与砂料，
-    // 两者在报工明细里都是 product 角色，单靠角色推断会撞上
-    // (report_id, output_type) 唯一约束。
-    const mappings = await this.database
-      .repository('prdOutputMappings')
-      .findMany({
-        filter: { subjectId: text(row.subjectId), unitId: text(row.unitId) },
-        limit: 50,
-      });
+    // 产出类型以单元物料清单为准（outputType 由单元设置维护并同步到
+    // prdOutputMappings）：同一单元可能同时产出金属与砂料，两者在报工
+    // 明细里都是 product 角色，单靠角色推断会撞上 (report_id,
+    // output_type) 唯一约束。
     const outputTypeBySku = new Map(
-      mappings.map((mapping) => [
-        text(mapping.skuId),
-        text(mapping.outputType),
-      ]),
+      configs
+        .filter((config) => config.outputType)
+        .map((config) => [config.skuId, config.outputType as string]),
     );
     const materialRows = await this.database
       .repository('prdShiftReportMaterials')
@@ -3067,10 +3181,9 @@ export class ProductionService {
       )
       .map((material) => {
         const skuId = text(material.skuId);
+        const roleOutput = text(material.role) === 'product' ? 'metal' : 'sand';
         return {
-          outputType:
-            outputTypeBySku.get(skuId) ??
-            (text(material.role) === 'product' ? 'metal' : 'sand'),
+          outputType: outputTypeBySku.get(skuId) ?? roleOutput,
           quantity: text(material.quantity),
           skuId,
           warehouseId: configBySku.get(skuId)?.defaultWarehouseId,
@@ -3088,22 +3201,6 @@ export class ProductionService {
           'PRODUCTION_INVALID',
           'OUTPUT_WAREHOUSE_MISSING',
         );
-    const inputRows = await this.database
-      .repository('prdShiftReportInputs')
-      .findMany({ filter: { reportId: id }, limit: 200 });
-    for (const line of inputRows) {
-      if (stockMicros(text(line.quantity)) <= 0n)
-        throw new ProductionError('PRODUCTION_INVALID', 'INPUT_QUANTITY');
-      if (!text(line.stockDocumentId)) continue;
-      const issue = await this.database
-        .repository('stockDocuments')
-        .findOne({ filter: { id: text(line.stockDocumentId) } });
-      if (!issue || text(issue.status) !== 'posted')
-        throw new ProductionError(
-          'PRODUCTION_INVALID',
-          'INPUT_ISSUE_NOT_POSTED',
-        );
-    }
     const now = new Date().toISOString();
     const confirmed = await this.database.transaction(async (c) => {
       // Claim the draft revision first; the row lock makes concurrent confirms
@@ -3121,6 +3218,88 @@ export class ProductionService {
       });
       if (!claimed.record)
         throw new ProductionError('PRODUCTION_CONFLICT', 'VERSION_CONFLICT');
+      // 领用输入校验与确认在同一事务内：claim 先取得写锁，随后按事务内
+      // 最新数据重新计算累计占用，避免两个并发确认各自读到旧用量后都放行。
+      // 用 count 定界，避免固定 limit 截断导致本班报的输入行漏检。
+      const inputCount = await c
+        .repository('prdShiftReportInputs')
+        .count({ filter: { reportId: id } });
+      const inputRows = await c.repository('prdShiftReportInputs').findMany({
+        filter: { reportId: id },
+        limit: Math.max(500, inputCount),
+      });
+      for (const line of inputRows) {
+        if (stockMicros(text(line.quantity)) <= 0n)
+          throw new ProductionError('PRODUCTION_INVALID', 'INPUT_QUANTITY');
+        if (!text(line.stockDocumentId)) continue;
+        const issue = await c
+          .repository('stockDocuments')
+          .findOne({ filter: { id: text(line.stockDocumentId) } });
+        if (!issue || text(issue.status) !== 'posted')
+          throw new ProductionError(
+            'PRODUCTION_INVALID',
+            'INPUT_ISSUE_NOT_POSTED',
+          );
+      }
+      // 同一领用行累计校验：该 stockDocumentLineId 被所有有效班报（draft 或
+      // confirmed）引用的量合计不得超过领用行基量 baseQuantity。
+      const lineIds = [
+        ...new Set(
+          inputRows
+            .map((input) => text(input.stockDocumentLineId))
+            .filter(Boolean),
+        ),
+      ];
+      for (const lineId of lineIds) {
+        const stockLine = await c
+          .repository('stockDocumentLines')
+          .findOne({ filter: { id: lineId } });
+        if (!stockLine) continue;
+        // 已冲销的领用行不再占用基量：其 original posting 已被 reversal
+        // posting（reversesPostingId 指向它）冲销，继续累计会误报超领。
+        if (await this.isStockDocumentReversed(c, text(stockLine.documentId)))
+          continue;
+        // 用 count 定界，避免固定 limit 截断导致累计量偏小、漏判超领。
+        const usageCount = await c
+          .repository('prdShiftReportInputs')
+          .count({ filter: { stockDocumentLineId: lineId } });
+        const usages = await c.repository('prdShiftReportInputs').findMany({
+          filter: { stockDocumentLineId: lineId },
+          limit: Math.max(500, usageCount),
+        });
+        const reportIds = [
+          ...new Set(
+            usages.map((usage) => text(usage.reportId)).filter(Boolean),
+          ),
+        ];
+        const usageReports = reportIds.length
+          ? await c.repository('prdShiftReports').findMany({
+              filter: (f) =>
+                f.or(reportIds.map((reportId) => f.string('id').eq(reportId))),
+              limit: Math.max(500, reportIds.length),
+            })
+          : [];
+        const activeReportIds = new Set(
+          usageReports
+            .filter(
+              (report) =>
+                text(report.status) === 'draft' ||
+                text(report.status) === 'confirmed',
+            )
+            .map((report) => text(report.id)),
+        );
+        const usedMicros = usages
+          .filter((usage) => activeReportIds.has(text(usage.reportId)))
+          .reduce(
+            (total, usage) => total + stockMicros(text(usage.quantity)),
+            0n,
+          );
+        if (usedMicros > stockMicros(text(stockLine.baseQuantity)))
+          throw new ProductionError(
+            'PRODUCTION_INVALID',
+            'INPUT_LINE_OVER_ISSUED',
+          );
+      }
       const existing = await c
         .repository('prdShiftReportOutputs')
         .findMany({ filter: { reportId: id }, limit: 20 });
@@ -3552,10 +3731,9 @@ export class ProductionService {
       summary: {
         open: events.filter((row) => text(row.status) === 'open').length,
         closed: events.filter((row) => text(row.status) === 'closed').length,
-        minutes: events.reduce(
-          (total, row) => total + number(row.durationMinutes),
-          0,
-        ),
+        minutes: events
+          .filter((row) => text(row.status) !== 'cancelled')
+          .reduce((total, row) => total + number(row.durationMinutes), 0),
       },
     };
   }
@@ -3679,6 +3857,25 @@ export class ProductionService {
       month: '2-digit',
       day: '2-digit',
     }).format(instant);
+  }
+
+  /**
+   * Whether a stock document's posting has been reversed. A reversal document
+   * creates a postings row whose `reversesPostingId` points at the original
+   * posting (unique), so existence of such a row is the authoritative signal.
+   */
+  private async isStockDocumentReversed(
+    c: WriteConnection,
+    documentId: string,
+  ) {
+    if (!documentId) return false;
+    const posting = await c
+      .repository('stockPostings')
+      .findOne({ filter: { documentId } });
+    if (!posting) return false;
+    return c
+      .repository('stockPostings')
+      .exists({ filter: { reversesPostingId: text(posting.id) } });
   }
 
   private parseInstant(value: string, code: string) {
@@ -3874,6 +4071,9 @@ export class ProductionService {
     await this.resolveSubject(principal, text(row.subjectId), scope, true);
     if (text(row.status) !== 'submitted')
       throw new ProductionError('PRODUCTION_CONFLICT', 'OVERTIME_NOT_PENDING');
+    // 自报自批校验：加班申请提交人与审批人不能是同一用户。
+    if (text(row.createdBy) === principal.id)
+      throw new ProductionError('PRODUCTION_INVALID', 'SELF_APPROVAL');
     if (Number(row.version) !== input.version)
       throw new ProductionError('PRODUCTION_CONFLICT');
     if (input.decision === 'reject' && !input.reason)

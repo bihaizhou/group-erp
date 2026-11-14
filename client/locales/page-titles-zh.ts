@@ -100,16 +100,6 @@ export const pageTitles = {
     '物料申请 · 物料 · 申请 · 关联 · SKU · 编辑',
   'warehouse-material-requests-linked-sku-action':
     '物料申请 · 物料 · 申请 · 关联 · SKU · 操作',
-  'warehouse-material-subjectSettings-new':
-    '公司物料设置 · 物料 · 科目设置 · 新建',
-  'warehouse-material-subjectSettings-edit':
-    '公司物料设置 · 物料 · 科目设置 · 编辑',
-  'warehouse-material-subjectSettings-detail':
-    '公司物料设置 · 物料 · 科目设置 · 详情',
-  'warehouse-material-subjectSettings-detail-edit':
-    '公司物料设置 · 物料 · 科目设置 · 详情 · 编辑',
-  'warehouse-material-subjectSettings-action':
-    '公司物料设置 · 物料 · 科目设置 · 操作',
   'warehouse-material-history': '物料中心 · 物料 · 历史',
   'warehouse-inbounds-new': '入库 · 新建',
   'warehouse-inbounds-list-edit': '入库 · 列表 · 编辑',
@@ -335,15 +325,9 @@ export const pageTitles = {
   'people-employees-detail': '人员档案 · 员工 · 详情',
   'people-employees-detail-edit': '人员档案 · 员工 · 详情 · 编辑',
   'people-employees-detail-action': '人员档案 · 员工 · 详情 · 操作',
-  'people-employments-new': '用工记录 · 任职 · 新建',
-  'people-employments-edit': '用工记录 · 任职 · 编辑',
   'people-employments-detail': '用工记录 · 任职 · 详情',
-  'people-employments-detail-edit': '用工记录 · 任职 · 详情 · 编辑',
   'people-employments-detail-action': '用工记录 · 任职 · 详情 · 操作',
-  'people-assignments-new': '任职记录 · 分配 · 新建',
-  'people-assignments-edit': '任职记录 · 分配 · 编辑',
   'people-assignments-detail': '任职记录 · 分配 · 详情',
-  'people-assignments-detail-edit': '任职记录 · 分配 · 详情 · 编辑',
   'people-assignments-detail-action': '任职记录 · 分配 · 详情 · 操作',
   'people-changes-new': '人事办理 · 变更 · 新建',
   'people-changes-edit': '人事办理 · 变更 · 编辑',

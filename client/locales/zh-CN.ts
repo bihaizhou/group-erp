@@ -37,6 +37,7 @@ const zhCN: AppResource = {
   settingsHub: {
     title: '设置中心',
     description: '管理账号、角色与默认数据范围。',
+    empty: '你没有任何可用的设置模块。',
     users: '用户管理',
     usersHint: '查看、创建与停用账号，重置密码。',
     roles: '角色与权限',

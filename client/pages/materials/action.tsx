@@ -12,6 +12,7 @@ import { RouteDialog } from '#components/route-dialog';
 import { Button } from '#components/ui/button';
 import { Textarea } from '#components/ui/textarea';
 import { Input } from '#components/ui/input';
+import { Checkbox } from '#components/ui/checkbox';
 import { randomId } from '#lib/random-id';
 import {
   Field,
@@ -80,6 +81,8 @@ function Action({
     navigate = useNavigate();
   const [reason, setReason] = useState(''),
     [sku, setSku] = useState(''),
+    [unitRule, setUnitRule] = useState('base'),
+    [addAlias, setAddAlias] = useState(false),
     [q, setQ] = useState(''),
     [invalid, setInvalid] = useState(false),
     [busy, setBusy] = useState(false),
@@ -94,6 +97,26 @@ function Action({
     sku ? [sku] : [],
     transition === 'resolve',
   );
+  const catalog = useMaterialRecord('skus', sku || undefined, true);
+  const material = catalog.data?.data as
+    | {
+        baseUnitId?: string;
+        baseUnitName?: string;
+        packages?: {
+          id: string;
+          unitId: string;
+          unitName: string;
+          name: string;
+          numerator: number;
+          denominator: number;
+        }[];
+      }
+    | undefined;
+  const unitId =
+    unitRule === 'base'
+      ? material?.baseUnitId
+      : material?.packages?.find((item) => item.id === unitRule)?.unitId;
+
   const allowed =
     permitted &&
     row?.workflow?.available.some((a) => a.name === transition && a.allowed);
@@ -113,13 +136,15 @@ function Action({
   const send = async (e: FormEvent) => {
     e.preventDefault();
     if (busy || !row || !allowed || conflict) return;
-    if (!reason.trim() || (transition === 'resolve' && !sku)) {
+    if (!reason.trim() || (transition === 'resolve' && (!sku || !unitId))) {
       setInvalid(true);
       document
         .getElementById(
           transition === 'resolve' && !sku
             ? 'material-resolved-sku'
-            : 'material-action-reason',
+            : transition === 'resolve' && !unitId
+              ? 'material-resolved-unit'
+              : 'material-action-reason',
         )
         ?.focus();
       return;
@@ -134,7 +159,16 @@ function Action({
           version: row.lifecycleVersion,
           requestKey: key,
           reason,
-          ...(transition === 'resolve' ? { resolvedSkuId: sku } : {}),
+          ...(transition === 'resolve'
+            ? {
+                resolvedSkuId: sku,
+                resolvedUnitId: unitId,
+                ...(unitRule !== 'base'
+                  ? { resolvedUnitRuleId: unitRule }
+                  : {}),
+                addAlias,
+              }
+            : {}),
         },
       });
       await refresh(response.data, kind);
@@ -170,7 +204,12 @@ function Action({
             ? 'destructive'
             : 'default'
         }
-        disabled={busy || !allowed || conflict}
+        disabled={
+          busy ||
+          !allowed ||
+          conflict ||
+          (transition === 'resolve' && (!sku || !unitId || catalog.isLoading))
+        }
       >
         {t(busy ? 'materials.saving' : `materials.transitions.${transition}`)}
       </Button>
@@ -226,7 +265,10 @@ function Action({
               id='material-resolved-sku'
               label={t('materials.fields.resolvedSkuId')}
               value={sku}
-              onChange={setSku}
+              onChange={(value) => {
+                setSku(value);
+                setUnitRule('base');
+              }}
               disabled={busy}
               invalid={invalid && !sku}
               items={[
@@ -243,6 +285,45 @@ function Action({
             {invalid && !sku ? (
               <FieldError>{t('materials.required')}</FieldError>
             ) : null}
+          </Field>
+          {material ? (
+            <Field data-invalid={invalid && !unitId}>
+              <FieldLabel htmlFor='material-resolved-unit'>
+                {t('materials.fields.resolvedUnitId')} *
+              </FieldLabel>
+              <MaterialSelect
+                id='material-resolved-unit'
+                label={t('materials.fields.resolvedUnitId')}
+                value={unitRule}
+                onChange={setUnitRule}
+                disabled={busy}
+                invalid={invalid && !unitId}
+                items={[
+                  {
+                    value: 'base',
+                    label: `${material.baseUnitName ?? ''} · 1/1`,
+                  },
+                  ...(material.packages ?? []).map((item) => ({
+                    value: item.id,
+                    label: `${item.name} · ${item.unitName} · ${item.numerator}/${item.denominator} ${material.baseUnitName ?? ''}`,
+                  })),
+                ]}
+              />
+              {invalid && !unitId ? (
+                <FieldError>{t('materials.required')}</FieldError>
+              ) : null}
+            </Field>
+          ) : null}
+          <Field>
+            <label className='flex items-start gap-2 text-sm'>
+              <Checkbox
+                checked={addAlias}
+                onCheckedChange={(checked) => setAddAlias(checked === true)}
+                disabled={busy}
+              />
+              <span>{t('materials.addAlias', { name: row.name })}</span>
+            </label>
+            <FieldDescription>{t('materials.addAliasHelp')}</FieldDescription>
           </Field>
           {options.data &&
           Object.values(options.data.data).some((v) => v.truncated) ? (

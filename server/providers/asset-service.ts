@@ -5,6 +5,7 @@ import type {
   RepositoryRecord,
 } from '@nocobase/db';
 import { createServiceToken } from '@nocobase/service-provider';
+import { businessDate } from './business-date.js';
 import { currentCompanyForUser } from './company-identity.js';
 import type {
   AssetAssign,
@@ -28,7 +29,12 @@ export type AssetScope = {
   approve: boolean;
 };
 export type AssetErrorCode =
-  'ASSET_FORBIDDEN' | 'ASSET_NOT_FOUND' | 'ASSET_CONFLICT' | 'ASSET_INVALID';
+  | 'ASSET_FORBIDDEN'
+  | 'ASSET_NOT_FOUND'
+  | 'ASSET_CONFLICT'
+  | 'ASSET_INVALID'
+  | 'ASSET_CUSTODIAN_COMPANY'
+  | 'ASSET_SUBJECT_INACTIVE';
 
 export class AssetError extends Error {
   constructor(
@@ -60,7 +66,14 @@ export class AssetService {
     write = false,
   ) {
     if (scope.readAll) {
-      if (requested) return requested;
+      if (requested) {
+        const subject = await this.database
+          .repository('orgSubjects')
+          .findOne({ filter: { id: requested } });
+        if (!subject || text(subject.status) !== 'active')
+          throw new AssetError('ASSET_SUBJECT_INACTIVE');
+        return requested;
+      }
       if (write) throw new AssetError('ASSET_INVALID', 'SUBJECT_REQUIRED');
       return null;
     }
@@ -193,14 +206,15 @@ export class AssetService {
         id: text(row.id),
         code: text(row.code),
         name: text(row.name),
+        subjectId: text(row.subjectId) || null,
       })),
       categories: [
-        '电子设备',
-        '办公家具',
-        '车辆',
-        '生产工具',
-        '检测仪器',
-        '其他',
+        'electronics',
+        'furniture',
+        'vehicle',
+        'machinery',
+        'instrument',
+        'other',
       ],
       permissions: {
         manage: scope.manage,
@@ -269,6 +283,8 @@ export class AssetService {
         toEmployeeId: text(event.toEmployeeId) || null,
         fromLocation: text(event.fromLocation) || null,
         toLocation: text(event.toLocation) || null,
+        fromStatus: text(event.fromStatus) || null,
+        toStatus: text(event.toStatus) || null,
         actorId: text(event.actorId),
         note: text(event.note) || null,
         createdAt: event.createdAt,
@@ -312,10 +328,11 @@ export class AssetService {
       text(custodian.subjectId) &&
       text(custodian.subjectId) !== subjectId
     )
-      throw new AssetError('ASSET_INVALID', 'EMPLOYEE_NOT_IN_COMPANY');
+      // Same code as the assign path: a cross-company custodian is one rule.
+      throw new AssetError('ASSET_CUSTODIAN_COMPANY');
     const code =
       input.code ??
-      `AST-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 6).toUpperCase()}`;
+      `AST-${businessDate(this.timeZone).replaceAll('-', '')}-${randomUUID().slice(0, 6).toUpperCase()}`;
     if (
       await this.database
         .repository('assets')
@@ -348,16 +365,17 @@ export class AssetService {
           updatedAt: now,
         },
       });
-      if (custodian)
-        await this.event(c, {
-          assetId: id,
-          subjectId,
-          action: 'assign',
-          toEmployeeId: text(custodian.id),
-          toLocation: input.location ?? null,
-          actorId: principal.id,
-          note: 'CREATE',
-        });
+      await this.event(c, {
+        assetId: id,
+        subjectId,
+        action: custodian ? 'assign' : 'create',
+        fromStatus: null,
+        toStatus: status,
+        toEmployeeId: custodian ? text(custodian.id) : null,
+        toLocation: input.location ?? null,
+        actorId: principal.id,
+        note: custodian ? 'CREATE' : null,
+      });
     });
     return this.detail(principal, id, scope);
   }
@@ -369,24 +387,37 @@ export class AssetService {
     scope: AssetScope,
   ) {
     if (!scope.manage) throw new AssetError('ASSET_FORBIDDEN');
-    const row = await this.database
-      .repository('assets')
-      .findOne({ filter: { id } });
-    if (!row || !(await this.allowedSubject(principal, row, scope)))
-      throw new AssetError('ASSET_NOT_FOUND');
-    if (text(row.status) === 'scrapped')
-      throw new AssetError('ASSET_INVALID', 'ASSET_SCRAPPED');
     const { version, ...values } = input;
-    const updated = await this.database.repository('assets').updateOne({
-      filter: { id, version },
-      values: {
-        ...values,
-        version: version + 1,
-        updatedBy: principal.id,
-        updatedAt: new Date(),
-      },
+    await this.database.transaction(async (c) => {
+      const row = await c.repository('assets').findOne({ filter: { id } });
+      if (!row || !(await this.allowedSubject(principal, row, scope)))
+        throw new AssetError('ASSET_NOT_FOUND');
+      if (text(row.status) === 'scrapped')
+        throw new AssetError('ASSET_INVALID', 'ASSET_SCRAPPED');
+      const status = text(row.status);
+      const fromLocation = text(row.location) || null;
+      const updated = await c.repository('assets').updateOne({
+        filter: { id, version },
+        values: {
+          ...values,
+          version: version + 1,
+          updatedBy: principal.id,
+          updatedAt: new Date(),
+        },
+      });
+      if (!updated) throw new AssetError('ASSET_CONFLICT', 'VERSION_CONFLICT');
+      await this.event(c, {
+        assetId: id,
+        subjectId: text(row.subjectId),
+        action: 'update',
+        fromStatus: status,
+        toStatus: status,
+        fromLocation,
+        toLocation: values.location ?? fromLocation,
+        actorId: principal.id,
+        note: null,
+      });
     });
-    if (!updated) throw new AssetError('ASSET_CONFLICT', 'VERSION_CONFLICT');
     return this.detail(principal, id, scope);
   }
 
@@ -405,6 +436,11 @@ export class AssetService {
         throw new AssetError('ASSET_NOT_FOUND');
       if (text(row.status) === 'scrapped')
         throw new AssetError('ASSET_INVALID', 'ASSET_SCRAPPED');
+      if (
+        text(employee.subjectId) &&
+        text(employee.subjectId) !== text(row.subjectId)
+      )
+        throw new AssetError('ASSET_CUSTODIAN_COMPANY');
       const fromEmployeeId = text(row.custodianEmployeeId) || null;
       const fromLocation = text(row.location) || null;
       const updated = await c.repository('assets').updateOne({
@@ -423,6 +459,8 @@ export class AssetService {
         assetId: id,
         subjectId: text(row.subjectId),
         action: fromEmployeeId ? 'transfer' : 'assign',
+        fromStatus: text(row.status),
+        toStatus: 'assigned',
         fromEmployeeId,
         toEmployeeId: text(employee.id),
         fromLocation,
@@ -465,6 +503,8 @@ export class AssetService {
         assetId: id,
         subjectId: text(row.subjectId),
         action: 'return',
+        fromStatus: 'assigned',
+        toStatus: 'in_stock',
         fromEmployeeId,
         fromLocation,
         toLocation: input.location ?? fromLocation,
@@ -510,6 +550,8 @@ export class AssetService {
         assetId: id,
         subjectId: text(row.subjectId),
         action: 'scrap_requested',
+        fromStatus: text(row.status),
+        toStatus: text(row.status),
         actorId: principal.id,
         note: input.reason,
       });
@@ -530,6 +572,8 @@ export class AssetService {
         throw new AssetError('ASSET_NOT_FOUND');
       if (row.scrapPending !== true)
         throw new AssetError('ASSET_INVALID', 'ASSET_SCRAP_NOT_PENDING');
+      if (text(row.scrapRequestedBy) === principal.id)
+        throw new AssetError('ASSET_CONFLICT', 'ASSET_SELF_APPROVAL');
       const fromEmployeeId = text(row.custodianEmployeeId) || null;
       const fromLocation = text(row.location) || null;
       const values = input.approve
@@ -562,6 +606,8 @@ export class AssetService {
         assetId: id,
         subjectId: text(row.subjectId),
         action: input.approve ? 'scrap' : 'scrap_rejected',
+        fromStatus: text(row.status),
+        toStatus: input.approve ? 'scrapped' : text(row.status),
         fromEmployeeId,
         fromLocation,
         actorId: principal.id,

@@ -31,6 +31,7 @@ type MaterialDraft = {
   key: string;
   skuId: string;
   role: ProductionMaterialRole;
+  outputType: 'metal' | 'sand' | null;
   defaultWarehouseId: string;
   notes: string;
 };
@@ -46,6 +47,7 @@ const emptyMaterial = (): MaterialDraft => ({
   key: randomUuid(),
   skuId: '',
   role: 'product',
+  outputType: 'metal',
   defaultWarehouseId: '',
   notes: '',
 });
@@ -85,6 +87,13 @@ function UnitEditor({
       key: randomUuid(),
       skuId: material.skuId,
       role: material.role,
+      outputType:
+        material.outputType ??
+        (material.role === 'product'
+          ? 'metal'
+          : material.role === 'byproduct'
+            ? 'sand'
+            : null),
       defaultWarehouseId: material.defaultWarehouseId ?? '',
       notes: material.notes ?? '',
     })),
@@ -97,6 +106,8 @@ function UnitEditor({
     const message = error instanceof Error ? error.message : '';
     if (message.includes('DUPLICATE_MATERIAL'))
       return t('production.setupDuplicateSkuError');
+    if (message.includes('OUTPUT_TYPE_DUPLICATE'))
+      return t('production.setupOutputTypeDuplicateError');
     if (message.includes('SKU_NOT_FOUND'))
       return t('production.setupSkuNotFoundError');
     if (message.includes('WAREHOUSE_NOT_FOUND'))
@@ -125,6 +136,10 @@ function UnitEditor({
             .map((row, index) => ({
               skuId: row.skuId,
               role: row.role,
+              outputType:
+                row.role === 'product' || row.role === 'byproduct'
+                  ? row.outputType
+                  : null,
               defaultWarehouseId: row.defaultWarehouseId || null,
               sortOrder: index * 10,
               notes: row.notes || null,
@@ -263,6 +278,9 @@ function UnitEditor({
                   {t('production.setupFields.role')}
                 </th>
                 <th className='px-3 py-2'>
+                  {t('production.setupFields.outputType')}
+                </th>
+                <th className='px-3 py-2'>
                   {t('production.setupFields.defaultWarehouse')}
                 </th>
                 <th className='px-3 py-2'>
@@ -276,7 +294,7 @@ function UnitEditor({
                 <tr>
                   <td
                     className='px-3 py-4 text-sm text-muted-foreground'
-                    colSpan={5}
+                    colSpan={6}
                   >
                     {t('production.materialEmpty')}
                   </td>
@@ -307,11 +325,18 @@ function UnitEditor({
                     <select
                       className='h-8 rounded-lg border border-input bg-transparent px-2 text-sm'
                       value={row.role}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const role = event.target.value as ProductionMaterialRole;
                         updateRow(index, {
-                          role: event.target.value as ProductionMaterialRole,
-                        })
-                      }
+                          role,
+                          outputType:
+                            role === 'product'
+                              ? 'metal'
+                              : role === 'byproduct'
+                                ? 'sand'
+                                : null,
+                        });
+                      }}
                     >
                       {materialRoles.map((role) => (
                         <option key={role} value={role}>
@@ -319,6 +344,28 @@ function UnitEditor({
                         </option>
                       ))}
                     </select>
+                  </td>
+                  <td className='px-3 py-2'>
+                    {row.role === 'product' || row.role === 'byproduct' ? (
+                      <select
+                        className='h-8 rounded-lg border border-input bg-transparent px-2 text-sm'
+                        value={row.outputType ?? 'metal'}
+                        onChange={(event) =>
+                          updateRow(index, {
+                            outputType: event.target.value as 'metal' | 'sand',
+                          })
+                        }
+                      >
+                        <option value='metal'>
+                          {t('production.outputTypes.metal')}
+                        </option>
+                        <option value='sand'>
+                          {t('production.outputTypes.sand')}
+                        </option>
+                      </select>
+                    ) : (
+                      <span className='text-xs text-muted-foreground'>—</span>
+                    )}
                   </td>
                   <td className='px-3 py-2'>
                     <select

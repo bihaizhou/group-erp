@@ -156,7 +156,6 @@ export const issueCompanyTables = [
   'personnelAssignments',
   'orgUnits',
   'materialIssuePurposes',
-  'materialSubjectSettings',
 ];
 export const issueCompanyAccess = defineRecordAccess(
   'requisitions.requestCompanies',

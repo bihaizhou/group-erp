@@ -38,6 +38,7 @@ export type HseScope = {
   readAll: boolean;
   manage: boolean;
   approve: boolean;
+  report: boolean;
 };
 
 type Row = RepositoryRecord;
@@ -105,6 +106,21 @@ export class HseService {
     write = false,
   ): Promise<string | null> {
     if (scope.readAll) {
+      if (write && !scope.manage) {
+        // Group-level readers/reporters have no company scope of their
+        // own. Creating records is only allowed inside the company of the
+        // user's assignment, so an accidental or malicious subjectId for
+        // another company is rejected instead of writing foreign records.
+        const company = await currentCompanyForUser(
+          this.database,
+          this.timeZone,
+          principal,
+        );
+        if (!company) throw new HseError('HSE_FORBIDDEN');
+        if (requested && requested !== company)
+          throw new HseError('HSE_FORBIDDEN');
+        return requested ?? company;
+      }
       if (requested) return requested;
       if (write) throw new HseError('HSE_INVALID', 'SUBJECT_REQUIRED');
       return null;
@@ -129,6 +145,28 @@ export class HseService {
       .findOne({ filter: { id: unitId } });
     if (!unit || text(unit.subjectId) !== subjectId)
       throw new HseError('HSE_INVALID', 'UNIT_NOT_IN_COMPANY');
+  }
+
+  private async assertOwner(
+    subjectId: string,
+    ownerId: string | null | undefined,
+  ) {
+    if (!ownerId) return;
+    const employee = await this.database
+      .repository('personnelEmployees')
+      .findOne({ filter: { id: ownerId } });
+    if (!employee) throw new HseError('HSE_INVALID', 'OWNER_NOT_FOUND');
+    if (text(employee.subjectId) !== subjectId || text(employee.status) !== 'active')
+      throw new HseError('HSE_INVALID', 'OWNER_NOT_IN_COMPANY');
+  }
+
+  private async assertHolder(subjectId: string, holderId: string) {
+    const employee = await this.database
+      .repository('personnelEmployees')
+      .findOne({ filter: { id: holderId } });
+    if (!employee) throw new HseError('HSE_INVALID', 'HOLDER_NOT_FOUND');
+    if (text(employee.subjectId) !== subjectId || text(employee.status) !== 'active')
+      throw new HseError('HSE_INVALID', 'HOLDER_NOT_IN_COMPANY');
   }
 
   private async subjectNames(scope: string | null) {
@@ -169,6 +207,16 @@ export class HseService {
       limit: 5000,
       sort: (sort) => [sort.field('sortOrder').asc(), sort.field('name').asc()],
     });
+    const employees = await this.database
+      .repository('personnelEmployees')
+      .findMany({
+        filter: {
+          status: 'active',
+          ...(company ? { subjectId: company } : {}),
+        },
+        limit: 5000,
+        sort: (sort) => [sort.field('code').asc(), sort.field('name').asc()],
+      });
     return {
       subjects: subjects.map((row) => ({
         id: text(row.id),
@@ -181,7 +229,17 @@ export class HseService {
         name: text(row.name),
         subjectId: text(row.subjectId),
       })),
-      permissions: { manage: scope.manage, approve: scope.approve },
+      employees: employees.map((row) => ({
+        id: text(row.id),
+        code: text(row.code),
+        name: text(row.name),
+        subjectId: text(row.subjectId),
+      })),
+      permissions: {
+        manage: scope.manage,
+        approve: scope.approve,
+        report: scope.report,
+      },
     };
   }
 
@@ -198,7 +256,9 @@ export class HseService {
       this.subjectNames(company),
     ]);
     const openIncidents = incidents.filter((row) =>
-      ['reported', 'investigating', 'rectifying'].includes(text(row.status)),
+      ['reported', 'investigating', 'rectifying', 'verifying'].includes(
+        text(row.status),
+      ),
     );
     const openHazards = hazards.filter((row) =>
       ['open', 'rectifying', 'verifying'].includes(text(row.status)),
@@ -293,8 +353,14 @@ export class HseService {
         status: 'reported',
         history: [],
         investigatorId: null,
+        ownerId: null,
+        dueAt: null,
         rootCause: '',
         actions: '',
+        rectifiedBy: null,
+        rectifiedAt: null,
+        verifiedBy: null,
+        verifiedAt: null,
         closedBy: null,
         closedAt: null,
         version: 1,
@@ -331,6 +397,20 @@ export class HseService {
       throw new HseError('HSE_CONFLICT');
     if (text(existing.status) === 'closed')
       throw new HseError('HSE_INVALID', 'INCIDENT_CLOSED');
+    // A verifying incident is under approval: direct PATCH would let the
+    // submitter rewrite the evidence while the approver is deciding, so edits
+    // must go through the return/verify transitions instead.
+    if (text(existing.status) === 'verifying')
+      throw new HseError('HSE_INVALID', 'INCIDENT_STATE');
+    if (input.ownerId !== undefined) {
+      const company = await this.resolveSubject(
+        principal,
+        text(existing.subjectId),
+        scope,
+      );
+      if (!company) throw new HseError('HSE_FORBIDDEN');
+      await this.assertOwner(company, input.ownerId);
+    }
     const now = new Date().toISOString();
     const values: Record<string, unknown> = {
       version: input.version + 1,
@@ -350,6 +430,8 @@ export class HseService {
     for (const key of [
       'severity',
       'investigatorId',
+      'ownerId',
+      'dueAt',
       'rootCause',
       'actions',
       'injuryCount',
@@ -410,25 +492,55 @@ export class HseService {
         input.investigatorId ?? (text(existing.investigatorId) || principal.id);
     } else if (input.action === 'rectify') {
       if (!scope.manage) throw new HseError('HSE_FORBIDDEN');
-      if (from !== 'investigating')
+      if (!['investigating', 'rectifying'].includes(from))
         throw new HseError('HSE_INVALID', 'INCIDENT_STATE');
       if (!rootCause) throw new HseError('HSE_INVALID', 'ROOT_CAUSE_REQUIRED');
+      const ownerId = (input.ownerId ?? text(existing.ownerId)) || null;
+      const dueAt = (input.dueAt ?? text(existing.dueAt)) || null;
+      if (!ownerId) throw new HseError('HSE_INVALID', 'OWNER_REQUIRED');
+      if (!dueAt) throw new HseError('HSE_INVALID', 'DUE_REQUIRED');
+      if (!subjectId) throw new HseError('HSE_FORBIDDEN');
+      await this.assertOwner(subjectId, ownerId);
       to = 'rectifying';
       values.status = to;
       values.rootCause = rootCause;
+      values.ownerId = ownerId;
+      values.dueAt = dueAt;
       if (input.actions !== undefined) values.actions = actions;
-    } else {
-      if (!scope.approve) throw new HseError('HSE_FORBIDDEN');
+    } else if (input.action === 'submit') {
+      if (!scope.manage) throw new HseError('HSE_FORBIDDEN');
       if (from !== 'rectifying')
         throw new HseError('HSE_INVALID', 'INCIDENT_STATE');
-      if (!rootCause) throw new HseError('HSE_INVALID', 'ROOT_CAUSE_REQUIRED');
       if (!actions) throw new HseError('HSE_INVALID', 'ACTIONS_REQUIRED');
+      to = 'verifying';
+      values.status = to;
+      values.actions = actions;
+      values.rectifiedBy = principal.id;
+      values.rectifiedAt = now;
+    } else if (input.action === 'verify') {
+      if (!scope.approve) throw new HseError('HSE_FORBIDDEN');
+      if (from !== 'verifying')
+        throw new HseError('HSE_INVALID', 'INCIDENT_STATE');
+      const rectifiedBy =
+        text(existing.rectifiedBy) || text(existing.updatedBy);
+      if (rectifiedBy === principal.id)
+        throw new HseError('HSE_INVALID', 'SELF_VERIFICATION');
       to = 'closed';
       values.status = to;
-      values.rootCause = rootCause;
-      values.actions = actions;
+      values.verifiedBy = principal.id;
+      values.verifiedAt = now;
       values.closedBy = principal.id;
       values.closedAt = now;
+    } else {
+      if (!scope.approve) throw new HseError('HSE_FORBIDDEN');
+      if (from !== 'verifying')
+        throw new HseError('HSE_INVALID', 'INCIDENT_STATE');
+      const note = (input.note ?? '').trim();
+      if (!note) throw new HseError('HSE_INVALID', 'RETURN_REASON_REQUIRED');
+      to = 'rectifying';
+      values.status = to;
+      values.rectifiedBy = null;
+      values.rectifiedAt = null;
     }
     values.history = appendHistory(
       existing,
@@ -485,6 +597,7 @@ export class HseService {
     );
     if (!subjectId) throw new HseError('HSE_INVALID', 'SUBJECT_REQUIRED');
     await this.assertUnit(subjectId, input.unitId);
+    await this.assertOwner(subjectId, input.ownerId);
     const now = new Date().toISOString();
     const record = await this.database.repository('hseHazards').createOne({
       values: {
@@ -537,6 +650,10 @@ export class HseService {
       throw new HseError('HSE_CONFLICT');
     if (['verifying', 'closed'].includes(text(existing.status)))
       throw new HseError('HSE_INVALID', 'HAZARD_LOCKED');
+    if (input.ownerId !== undefined) {
+      if (!subjectId) throw new HseError('HSE_FORBIDDEN');
+      await this.assertOwner(subjectId, input.ownerId);
+    }
     const now = new Date().toISOString();
     const values: Record<string, unknown> = {
       version: input.version + 1,
@@ -601,8 +718,16 @@ export class HseService {
     if (input.action === 'startRectification') {
       if (!scope.manage) throw new HseError('HSE_FORBIDDEN');
       if (from !== 'open') throw new HseError('HSE_INVALID', 'HAZARD_STATE');
+      const ownerId = (input.ownerId ?? text(existing.ownerId)) || null;
+      const dueAt = (input.dueAt ?? text(existing.dueAt)) || null;
+      if (!ownerId) throw new HseError('HSE_INVALID', 'OWNER_REQUIRED');
+      if (!dueAt) throw new HseError('HSE_INVALID', 'DUE_REQUIRED');
+      if (!subjectId) throw new HseError('HSE_FORBIDDEN');
+      await this.assertOwner(subjectId, ownerId);
       to = 'rectifying';
       values.status = to;
+      values.ownerId = ownerId;
+      values.dueAt = dueAt;
     } else if (input.action === 'submitVerification') {
       if (!scope.manage) throw new HseError('HSE_FORBIDDEN');
       if (from !== 'rectifying')
@@ -710,6 +835,23 @@ export class HseService {
       true,
     );
     if (!subjectId) throw new HseError('HSE_INVALID', 'SUBJECT_REQUIRED');
+    if (input.holderType === 'person') {
+      const holderId = (input.holderId ?? '').trim();
+      if (!holderId) throw new HseError('HSE_INVALID', 'HOLDER_REQUIRED');
+      await this.assertHolder(subjectId, holderId);
+    }
+    const duplicate = await this.database
+      .repository('hseCertificates')
+      .findOne({
+        filter: {
+          certType: input.certType,
+          holderId:
+            input.holderId ?? (input.holderType === 'company' ? subjectId : ''),
+          status: 'active',
+        },
+      });
+    if (duplicate)
+      throw new HseError('HSE_CONFLICT', 'CERTIFICATE_DUPLICATE');
     const now = new Date().toISOString();
     const record = await this.database.repository('hseCertificates').createOne({
       values: {
@@ -764,6 +906,14 @@ export class HseService {
       throw new HseError('HSE_CONFLICT');
     if (text(existing.status) === 'revoked')
       throw new HseError('HSE_INVALID', 'CERTIFICATE_REVOKED');
+    if (
+      text(existing.status) === 'active' &&
+      // Only an unexpired certificate is locked to the renew flow; an expired
+      // one is regularity work and may be corrected through PATCH.
+      text(existing.expiresAt) >= businessDate(this.timeZone) &&
+      (input.issuedAt !== undefined || input.expiresAt !== undefined)
+    )
+      throw new HseError('HSE_INVALID', 'CERTIFICATE_ACTIVE');
     const now = new Date().toISOString();
     const values: Record<string, unknown> = {
       version: input.version + 1,

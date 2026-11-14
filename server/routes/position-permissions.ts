@@ -20,6 +20,8 @@ import {
   type AppApiRouteContribution,
 } from '@nocobase/app-server/router';
 import { Hono, type Context } from 'hono';
+import { businessDate } from '../providers/business-date.js';
+import { lockOrgMutation } from '../providers/organization-service.js';
 import { isCurrentAssignment } from '../providers/position-permission-sync.js';
 import { z } from 'zod';
 
@@ -66,6 +68,10 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
     const db = app.container.resolve(databaseManagerToken);
     const auth = app.container.resolve(authenticationToken);
     const authz = app.container.resolve(authorizationToken);
+    // Civil business dates follow the configured people timezone, not the
+    // server's OS timezone (see ERP_PEOPLE_TIME_ZONE).
+    const timeZone =
+      app.config.get<string>('people.timeZone') ?? 'Asia/Shanghai';
     const router = new Hono<Env>();
     const root = new Hono();
     router.use('*', auth.required(), authz.middleware());
@@ -141,8 +147,9 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
           ]);
         }
         const positionsByPerson = new Map<string, Set<string>>();
+        const today = businessDate(timeZone);
         for (const assignment of assignments) {
-          if (!isCurrentAssignment(assignment)) continue;
+          if (!isCurrentAssignment(assignment, today)) continue;
           const personId = text(assignment.personId);
           const positionId = text(assignment.positionId);
           if (!personId || !positionId) continue;
@@ -206,171 +213,209 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
         await permit(c, 'assign');
         const positionId = c.req.valid('param').id;
         const keys = [...new Set(c.req.valid('json').permissionSetKeys)];
-        const position = await db
-          .repository('orgPositions')
-          .findOne({ filter: { id: positionId } });
-        if (!position)
-          throw new ApiError({
-            status: 'NOT_FOUND',
-            reason: 'POSITION_NOT_FOUND',
-            domain: 'organization',
-            message: 'Position was not found.',
-          });
-        const sets = await db
-          .repository('authorizationPermissionSets')
-          .findMany({ limit: 500 });
-        const known = new Set(sets.map((set) => text(set.key)));
-        if (keys.some((key) => !known.has(key)))
-          throw new ApiError({
-            status: 'INVALID_ARGUMENT',
-            reason: 'PERMISSION_SET_NOT_FOUND',
-            domain: 'authorization',
-            message: 'One of the permission sets does not exist.',
-          });
+        // Mapping writes run in one transaction and serialize on the shared
+        // organization mutation lock, exactly like organization topology
+        // changes, so concurrent saves and position deactivations cannot race.
+        const result = await db.transaction(async (connection) => {
+          await lockOrgMutation(connection);
+          const position = await connection
+            .repository('orgPositions')
+            .findOne({ filter: { id: positionId } });
+          if (!position)
+            throw new ApiError({
+              status: 'NOT_FOUND',
+              reason: 'POSITION_NOT_FOUND',
+              domain: 'organization',
+              message: 'Position was not found.',
+            });
+          if (text(position.status) !== 'active')
+            throw new ApiError({
+              status: 'FAILED_PRECONDITION',
+              reason: 'ORG_POSITION_NOT_ACTIVE',
+              domain: 'organization',
+              message: 'Position is not active.',
+            });
+          const sets = await connection
+            .repository('authorizationPermissionSets')
+            .findMany({ limit: 500 });
+          const known = new Set(sets.map((set) => text(set.key)));
+          if (keys.some((key) => !known.has(key)))
+            throw new ApiError({
+              status: 'INVALID_ARGUMENT',
+              reason: 'PERMISSION_SET_NOT_FOUND',
+              domain: 'authorization',
+              message: 'One of the permission sets does not exist.',
+            });
+          // Position mapping only ever grants business permission sets:
+          // root/builtin sets are managed by the system and must not be
+          // assigned through this endpoint (GET never lists them either).
+          const reserved = new Set(
+            sets
+              .filter(
+                (set) =>
+                  text(set.key) === 'root' ||
+                  text(set.key).startsWith('permissionSets.builtin.'),
+              )
+              .map((set) => text(set.key)),
+          );
+          if (keys.some((key) => reserved.has(key)))
+            throw new ApiError({
+              status: 'INVALID_ARGUMENT',
+              reason: 'PERMISSION_SET_RESERVED',
+              domain: 'authorization',
+              message: 'System permission sets cannot be mapped to positions.',
+            });
 
-        const [
-          previous,
-          allEmployees,
-          allMappings,
-          setAssignments,
-          allAssignments,
-        ] = await Promise.all([
-          db
-            .repository('orgPositionPermissionSets')
-            .findMany({ filter: { positionId }, limit: 200 }),
-          db
-            .repository('personnelEmployees')
-            .findMany({ filter: { status: 'active' }, limit: 10000 }),
-          db.repository('orgPositionPermissionSets').findMany({ limit: 10000 }),
-          db
-            .repository('authorizationPermissionSetAssignments')
-            .findMany({ limit: 10000 }),
-          db
-            .repository('personnelAssignments')
-            .findMany({ filter: { status: 'active' }, limit: 10000 }),
-        ]);
-        const before = previous
-          .map((row) => text(row.permissionSetKey))
-          .filter(Boolean);
-        const nextSet = new Set(keys);
-        const removed = before.filter((key) => !nextSet.has(key));
-        const currentAssignments = allAssignments.filter((assignment) =>
-          isCurrentAssignment(assignment),
-        );
-        const positionsByPerson = new Map<string, Set<string>>();
-        for (const assignment of currentAssignments) {
-          const personId = text(assignment.personId);
-          const id = text(assignment.positionId);
-          if (!personId || !id) continue;
-          const positions =
-            positionsByPerson.get(personId) ?? new Set<string>();
-          positions.add(id);
-          positionsByPerson.set(personId, positions);
-        }
-        const memberPersonIds = new Set(
-          currentAssignments
-            .filter((assignment) => text(assignment.positionId) === positionId)
-            .map((assignment) => text(assignment.personId))
-            .filter(Boolean),
-        );
-        const employees = allEmployees.filter((employee) =>
-          memberPersonIds.has(text(employee.id)),
-        );
-        const positionsByAccount = new Map<string, Set<string>>();
-        for (const employee of allEmployees) {
-          const accountId = text(employee.accountId);
-          if (!accountId) continue;
-          const positions =
-            positionsByAccount.get(accountId) ?? new Set<string>();
-          for (const id of positionsByPerson.get(text(employee.id)) ?? [])
+          const [
+            previous,
+            allEmployees,
+            allMappings,
+            setAssignments,
+            allAssignments,
+          ] = await Promise.all([
+            connection
+              .repository('orgPositionPermissionSets')
+              .findMany({ filter: { positionId }, limit: 200 }),
+            connection
+              .repository('personnelEmployees')
+              .findMany({ filter: { status: 'active' }, limit: 10000 }),
+            connection
+              .repository('orgPositionPermissionSets')
+              .findMany({ limit: 10000 }),
+            connection
+              .repository('authorizationPermissionSetAssignments')
+              .findMany({ limit: 10000 }),
+            connection
+              .repository('personnelAssignments')
+              .findMany({ filter: { status: 'active' }, limit: 10000 }),
+          ]);
+          const before = previous
+            .map((row) => text(row.permissionSetKey))
+            .filter(Boolean);
+          const nextSet = new Set(keys);
+          const removed = before.filter((key) => !nextSet.has(key));
+          const today = businessDate(timeZone);
+          const currentAssignments = allAssignments.filter((assignment) =>
+            isCurrentAssignment(assignment, today),
+          );
+          const positionsByPerson = new Map<string, Set<string>>();
+          for (const assignment of currentAssignments) {
+            const personId = text(assignment.personId);
+            const id = text(assignment.positionId);
+            if (!personId || !id) continue;
+            const positions =
+              positionsByPerson.get(personId) ?? new Set<string>();
             positions.add(id);
-          positionsByAccount.set(accountId, positions);
-        }
-        const keysAtPosition = new Map<string, Set<string>>();
-        for (const mapping of allMappings) {
-          const id = text(mapping.positionId);
-          const keysAt = keysAtPosition.get(id) ?? new Set<string>();
-          keysAt.add(text(mapping.permissionSetKey));
-          keysAtPosition.set(id, keysAt);
-        }
-        const assigned = new Set(
-          setAssignments.map(
-            (row) =>
-              `${text(row.subjectType)}:${text(row.subjectId)}:${text(row.permissionSetKey)}`,
-          ),
-        );
-        const accounts = [
-          ...new Set(
-            employees
-              .map((employee) => text(employee.accountId))
+            positionsByPerson.set(personId, positions);
+          }
+          const memberPersonIds = new Set(
+            currentAssignments
+              .filter(
+                (assignment) => text(assignment.positionId) === positionId,
+              )
+              .map((assignment) => text(assignment.personId))
               .filter(Boolean),
-          ),
-        ];
-        const now = new Date();
-        let granted = 0;
-        let revoked = 0;
-        for (const accountId of accounts) {
-          const otherPositions = [
-            ...(positionsByAccount.get(accountId) ?? []),
-          ].filter((id) => id !== positionId);
-          const keptByOther = new Set<string>();
-          for (const other of otherPositions)
-            for (const key of keysAtPosition.get(other) ?? [])
-              if (key !== '') keptByOther.add(key);
-          for (const key of removed) {
-            if (keptByOther.has(key)) continue;
-            if (!assigned.has(`user:${accountId}:${key}`)) continue;
-            await db
-              .repository('authorizationPermissionSetAssignments')
-              .deleteMany({
-                filter: {
-                  subjectType: 'user',
-                  subjectId: accountId,
-                  permissionSetKey: key,
-                },
-              });
-            assigned.delete(`user:${accountId}:${key}`);
-            revoked += 1;
+          );
+          const employees = allEmployees.filter((employee) =>
+            memberPersonIds.has(text(employee.id)),
+          );
+          const positionsByAccount = new Map<string, Set<string>>();
+          for (const employee of allEmployees) {
+            const accountId = text(employee.accountId);
+            if (!accountId) continue;
+            const positions =
+              positionsByAccount.get(accountId) ?? new Set<string>();
+            for (const id of positionsByPerson.get(text(employee.id)) ?? [])
+              positions.add(id);
+            positionsByAccount.set(accountId, positions);
           }
-          for (const key of keys) {
-            if (assigned.has(`user:${accountId}:${key}`)) continue;
-            await db
-              .repository('authorizationPermissionSetAssignments')
-              .createOne({
-                values: {
-                  id: `user:${accountId}:${key}`,
-                  subjectType: 'user',
-                  subjectId: accountId,
-                  permissionSetKey: key,
-                  createdAt: now,
-                  updatedAt: now,
-                },
-              });
-            assigned.add(`user:${accountId}:${key}`);
-            granted += 1;
+          const keysAtPosition = new Map<string, Set<string>>();
+          for (const mapping of allMappings) {
+            const id = text(mapping.positionId);
+            const keysAt = keysAtPosition.get(id) ?? new Set<string>();
+            keysAt.add(text(mapping.permissionSetKey));
+            keysAtPosition.set(id, keysAt);
           }
-        }
-        const mappingRepo = db.repository('orgPositionPermissionSets');
-        await mappingRepo.deleteMany({ filter: { positionId } });
-        for (const key of keys)
-          await mappingRepo.createOne({
-            values: {
-              id: randomUUID(),
-              positionId,
-              permissionSetKey: key,
-              createdAt: now,
-              updatedAt: now,
-            },
-          });
-        return c.json({
-          data: {
+          const assigned = new Set(
+            setAssignments.map(
+              (row) =>
+                `${text(row.subjectType)}:${text(row.subjectId)}:${text(row.permissionSetKey)}`,
+            ),
+          );
+          const accounts = [
+            ...new Set(
+              employees
+                .map((employee) => text(employee.accountId))
+                .filter(Boolean),
+            ),
+          ];
+          const now = new Date();
+          let granted = 0;
+          let revoked = 0;
+          for (const accountId of accounts) {
+            const otherPositions = [
+              ...(positionsByAccount.get(accountId) ?? []),
+            ].filter((id) => id !== positionId);
+            const keptByOther = new Set<string>();
+            for (const other of otherPositions)
+              for (const key of keysAtPosition.get(other) ?? [])
+                if (key !== '') keptByOther.add(key);
+            for (const key of removed) {
+              if (keptByOther.has(key)) continue;
+              if (!assigned.has(`user:${accountId}:${key}`)) continue;
+              await connection
+                .repository('authorizationPermissionSetAssignments')
+                .deleteMany({
+                  filter: {
+                    subjectType: 'user',
+                    subjectId: accountId,
+                    permissionSetKey: key,
+                  },
+                });
+              assigned.delete(`user:${accountId}:${key}`);
+              revoked += 1;
+            }
+            for (const key of keys) {
+              if (assigned.has(`user:${accountId}:${key}`)) continue;
+              await connection
+                .repository('authorizationPermissionSetAssignments')
+                .createOne({
+                  values: {
+                    id: `user:${accountId}:${key}`,
+                    subjectType: 'user',
+                    subjectId: accountId,
+                    permissionSetKey: key,
+                    createdAt: now,
+                    updatedAt: now,
+                  },
+                });
+              assigned.add(`user:${accountId}:${key}`);
+              granted += 1;
+            }
+          }
+          const mappingRepo = connection.repository(
+            'orgPositionPermissionSets',
+          );
+          await mappingRepo.deleteMany({ filter: { positionId } });
+          for (const key of keys)
+            await mappingRepo.createOne({
+              values: {
+                id: randomUUID(),
+                positionId,
+                permissionSetKey: key,
+                createdAt: now,
+                updatedAt: now,
+              },
+            });
+          return {
             positionId,
             permissionSetKeys: keys,
             members: accounts.length,
             granted,
             revoked,
-          },
+          };
         });
+        return c.json({ data: result });
       },
     );
 

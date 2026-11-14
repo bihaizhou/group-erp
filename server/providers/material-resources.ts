@@ -82,7 +82,7 @@ export const materialResources = Object.fromEntries(
         ).filter(
           ([table]) =>
             kind === 'warehouses' ||
-            (['requests', 'references', 'subjectSettings'].includes(kind) &&
+            (['requests', 'references'].includes(kind) &&
               table === 'orgSubjects'),
         ))
           parts.push(
@@ -199,7 +199,6 @@ export const materialCompanyAccess = defineRecordAccess(
       .collections(
         'materialRequests',
         'materialRequestSources',
-        'materialSubjectSettings',
         'warehouses',
         'materialAudit',
       )
@@ -238,7 +237,6 @@ export function materialOwnCompanyAccess(
         .collections(
           'materialRequests',
           'materialRequestSources',
-          'materialSubjectSettings',
           'warehouses',
           'materialAudit',
           'orgUnits',

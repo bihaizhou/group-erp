@@ -3,6 +3,8 @@ export const assets = {
   description: '登记资产、保管人和位置，跟踪领用、调拨、归还与报废。',
   create: '新建资产',
   createHint: '先登记资产，再分配保管人；离职前必须先归还或调拨名下资产。',
+  edit: '编辑资产',
+  editHint: '修改资产名称、类别、存放地点等信息；资产编号与保管人请通过调拨操作变更。',
   allCustodians: '全部保管人',
   allStatuses: '全部状态',
   refresh: '刷新',
@@ -50,5 +52,13 @@ export const assets = {
     scrap: '申请报废 {{code}}',
     approve: '批准报废 {{code}}',
     reject: '驳回报废 {{code}}',
+  },
+  category: {
+    electronics: '电子设备',
+    furniture: '办公家具',
+    vehicle: '车辆',
+    machinery: '生产工具',
+    instrument: '检测仪器',
+    other: '其他',
   },
 };

@@ -42,7 +42,7 @@
 - A2 审批和治理完成仍不等于实际收发。B 数量账、来源凭证、预留和纠错就绪后，由仓库过账形成实际数量；不重复录入一份领用发放事实。
 - 已上线迁移及种子保持历史不变。接续必须新增迁移和增量配置，不重新生成现有物料中心，不修改页面 ID，也不往生产插入验收物料。
 
-- A2.1 业务选料使用 `procurement.materials/requisitions.materials` 独立动作与本域公司范围。目录可读不能替代公司准入；无公司设置或 inactive 拒绝采购和领用，采购还要求 canPurchase，领用只接受 stock，不借 canSell 放行。
+- A2.1 业务选料使用 `procurement.materials/requisitions.materials` 独立动作与本域公司范围。目录可读不能替代公司准入：采购选料要求 SKU active（+公司有效）；领用只接受 active+stock；销售选料接受 active+stock，价格表（SA2）建成后改为"有当期价格"。公司级准入白名单 `materialSubjectSettings`（含 canPurchase）已于 2026-11-13 决策移除，不再恢复；准入由供应商范围、审核链与价格表承接，见 [决策文档](../../docs/物料准入与采购销售开放范围决策-2026-11-13.md)。
 - 跨服务原子写使用 `MaterialService.saveInTransaction/fireInTransaction` 和 `SupplyChainMaterialService.resolveSelectionInTransaction`，传入同一个真实事务连接；公共 `save/fire` 仍自行包裹事务，不可嵌套调用来代替来源回写。来源表、共同协调锁及实际回写在 A2.4 按真实申请模型接入。
 
 供应商/客户范围统一由 `partnerRolePolicies` 与区域/公司选择保存，`partnerSubjectSettings` 是单公司覆盖，不再是继承适用场景的唯一准入来源。全部/区域适用与用户授权分开，局部恢复不能扩围；角色全局恢复保留公司单独停用。采购选择用 supplierOptions，并在真实事务中调用 resolveSupplierInTransaction 重查；旧显式关系列表不是完整业务目录。客户目前仅有共用基础和角色独立判定，没有客户管理/交易接口。

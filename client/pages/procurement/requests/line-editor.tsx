@@ -2,20 +2,43 @@ import { useEffect, useState } from 'react';
 import { ApiClientError, useApiClient } from '@nocobase/app-client';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from '@nocobase/i18n/client';
+import { X } from 'lucide-react';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { Textarea } from '#components/ui/textarea';
 import { Field, FieldLabel, FieldError } from '#components/ui/field';
-import { RadioGroup, RadioGroupItem } from '#components/ui/radio-group';
-import { Label } from '#components/ui/label';
 import {
   Collapsible,
   CollapsibleTrigger,
   CollapsibleContent,
 } from '#components/ui/collapsible';
-import { ui, useConfirm } from './hooks.js';
-import { ErrorNotice } from './controls.js';
-import type { DemandLine, Preview } from './model.js';
+import { ui, usePurchaseQuery } from './hooks.js';
+import { ErrorNotice, ReferencePicker, PurchaseSelect } from './controls.js';
+import type { DemandLine, Page, Preview, Selection } from './model.js';
+interface MaterialMatch {
+  id: string;
+  code: string;
+  name: string;
+  standardName?: string;
+  baseUnitId: string;
+  baseUnitName?: string;
+}
+interface Material {
+  id: string;
+  code: string;
+  name: string;
+  baseUnitId: string;
+  baseUnitName?: string;
+  standardName?: string;
+  packages?: {
+    id: string;
+    unitId: string;
+    unitName: string;
+    name: string;
+    numerator: string;
+    denominator: string;
+  }[];
+}
 export function LineEditor({
   line,
   index,
@@ -46,8 +69,8 @@ export function LineEditor({
 }) {
   const { t } = useTranslation(),
     api = useApiClient(),
-    confirm = useConfirm(),
-    [delayed, setDelayed] = useState(line.selection);
+    [delayed, setDelayed] = useState(line.selection),
+    [open, setOpen] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setDelayed(line.selection), 300);
     return () => clearTimeout(timer);
@@ -75,7 +98,21 @@ export function LineEditor({
       ? result.data?.data
       : undefined;
   const display = current ?? preview,
-    s = line.selection;
+    s = line.selection,
+    typed = s.kind === 'unknown' ? s.originalName.trim() : '',
+    matches = usePurchaseQuery<Page<MaterialMatch>>(
+      'requestMaterialOptions',
+      { subjectId: s.subjectId, q: typed, page: 1, pageSize: 5 },
+      s.kind === 'unknown' && typed.length >= 1,
+    ),
+    matchRows = matches.data?.data ?? [];
+  const material = usePurchaseQuery<{ data: Material }>(
+    `requestMaterialOptions/${s.kind === 'known' ? s.skuId : ''}`,
+    { subjectId: s.subjectId },
+    s.kind === 'known' && !!s.skuId,
+  );
+  const m = material.data?.data,
+    rule = s.kind === 'known' ? (s.unitRuleId ?? 'base') : 'base';
   const validation = (name: string) =>
     errors[`line-${line.id}-${name}`] ||
     (name === 'quantity' &&
@@ -138,43 +175,52 @@ export function LineEditor({
       {fieldError(`detail-${name}`)}
     </Field>
   );
-  const kind = async (value: string) => {
-    if (s.kind === value) return;
-    if (
-      s.kind === 'known' &&
-      s.skuId &&
-      !(await confirm.ask(
-        t(ui('changeLineKindTitle')),
-        t(ui('changeLineKindHint')),
-        t(ui('confirmCompanyChange')),
-      ))
-    )
-      return;
+  const chooseMatch = (match: MaterialMatch) => {
+    setOpen(false);
     onChange({
       ...line,
-      originalName:
-        line.originalName || (s.kind === 'unknown' ? s.originalName : ''),
-      originalSpecification:
-        line.originalSpecification ||
-        (s.kind === 'unknown' ? s.originalSpecification : ''),
-      selection:
-        value === 'known'
-          ? {
-              kind: 'known',
-              subjectId: s.subjectId,
-              skuId: '',
-              unitId: '',
-              quantity: s.quantity,
-            }
-          : {
-              kind: 'unknown',
-              subjectId: s.subjectId,
-              originalName: line.originalName,
-              originalSpecification: line.originalSpecification,
-              requestedUnitText: '',
-              quantity: s.quantity,
-            },
+      selection: {
+        kind: 'known',
+        subjectId: s.subjectId,
+        skuId: match.id,
+        unitId: match.baseUnitId,
+        quantity: s.quantity,
+      },
     });
+  };
+  const clearMaterial = () =>
+    onChange({
+      ...line,
+      selection: {
+        kind: 'unknown',
+        subjectId: s.subjectId,
+        originalName: '',
+        originalSpecification: '',
+        requestedUnitText: '',
+        quantity: s.quantity,
+      },
+    });
+  const setUnit = (value: string) => {
+    if (s.kind !== 'known') return;
+    const pkg = m?.packages?.find((p) => p.id === value);
+    const selection: Selection =
+      value === 'base'
+        ? {
+            kind: 'known',
+            subjectId: s.subjectId,
+            skuId: s.skuId,
+            unitId: m?.baseUnitId ?? s.unitId,
+            quantity: s.quantity,
+          }
+        : {
+            kind: 'known',
+            subjectId: s.subjectId,
+            skuId: s.skuId,
+            unitId: pkg?.unitId ?? s.unitId,
+            unitRuleId: value,
+            quantity: s.quantity,
+          };
+    onChange({ ...line, selection });
   };
   return (
     <fieldset
@@ -186,68 +232,129 @@ export function LineEditor({
       <legend className='px-1 font-medium'>
         {t(ui('lineTitle'), { number: index + 1 })}
       </legend>
-      <div className='flex flex-wrap items-center justify-between gap-3'>
-        <RadioGroup
-          aria-label={t(ui('lineTitle'), { number: index + 1 })}
-          value={s.kind}
-          onValueChange={(v: string) => void kind(v)}
-          className='flex flex-wrap gap-4'
+      <div className='flex flex-wrap items-center justify-end gap-2'>
+        <Button
+          type='button'
+          size='sm'
+          variant='outline'
+          disabled={!canUp}
+          onClick={() => onMove(-1)}
         >
-          {['known', 'unknown'].map((value) => (
-            <Label key={value} className='flex items-center gap-2'>
-              <RadioGroupItem value={value} />
-              {t(ui(value))}
-            </Label>
-          ))}
-        </RadioGroup>
-        <div className='flex flex-wrap gap-2'>
-          <Button
-            type='button'
-            size='sm'
-            variant='outline'
-            disabled={!canUp}
-            onClick={() => onMove(-1)}
-          >
-            {t(ui('up'))}
-          </Button>
-          <Button
-            type='button'
-            size='sm'
-            variant='outline'
-            disabled={!canDown}
-            onClick={() => onMove(1)}
-          >
-            {t(ui('down'))}
-          </Button>
-          <Button
-            type='button'
-            size='sm'
-            variant='outline'
-            onClick={() => void onRemove()}
-          >
-            {t(ui('removeLine'))}
-          </Button>
-        </div>
+          {t(ui('up'))}
+        </Button>
+        <Button
+          type='button'
+          size='sm'
+          variant='outline'
+          disabled={!canDown}
+          onClick={() => onMove(1)}
+        >
+          {t(ui('down'))}
+        </Button>
+        <Button
+          type='button'
+          size='sm'
+          variant='outline'
+          onClick={() => void onRemove()}
+        >
+          {t(ui('removeLine'))}
+        </Button>
       </div>
-      {s.kind === 'known' ? (
-        <div className='flex flex-col gap-4'>
-          <div className='flex flex-wrap items-center justify-between gap-3'>
-            <span className='break-words text-sm'>
+      <Field>
+        <FieldLabel htmlFor={`line-${line.id}-materialName`}>
+          {t(ui('materialName'))} *
+        </FieldLabel>
+        {s.kind === 'known' ? (
+          <div className='flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2'>
+            <span
+              id={`line-${line.id}-materialName`}
+              className='min-w-0 flex-1 break-words text-sm'
+            >
               {display?.materialSnapshot
                 ? `${display.materialSnapshot.code} · ${display.materialSnapshot.standardName} · ${display.materialSnapshot.name}`
                 : t(ui('noSelection'))}
             </span>
             <Button
-              id={`line-${line.id}-selection`}
-              {...attributes('selection')}
               type='button'
-              variant='outline'
-              onClick={onSelect}
+              variant='ghost'
+              size='sm'
+              aria-label={t(ui('clearSelection'))}
+              onClick={clearMaterial}
             >
-              {t(ui('selectMaterial'))}
+              <X />
+              {t(ui('clearSelection'))}
+            </Button>
+            <Button type='button' variant='ghost' size='sm' onClick={onSelect}>
+              {t(ui('changeMaterial'))}
             </Button>
           </div>
-          {fieldError('selection')}
+        ) : (
+          <div className='relative'>
+            <Input
+              id={`line-${line.id}-materialName`}
+              {...attributes('originalName')}
+              autoComplete='off'
+              placeholder={t(ui('materialSearch'))}
+              value={s.originalName}
+              onFocus={() => setOpen(true)}
+              onBlur={() => setTimeout(() => setOpen(false), 150)}
+              onChange={(e) =>
+                onChange({
+                  ...line,
+                  selection: { ...s, originalName: e.target.value },
+                })
+              }
+            />
+            {open && typed.length >= 1 && (
+              <div className='absolute inset-x-0 top-full z-10 mt-1 overflow-hidden rounded-md border bg-popover text-sm shadow-md'>
+                {matches.isLoading ? (
+                  <p className='px-3 py-2 text-muted-foreground'>
+                    {t(ui('loading'))}
+                  </p>
+                ) : matchRows.length ? (
+                  <ul className='max-h-64 overflow-auto py-1'>
+                    {matchRows.map((match) => (
+                      <li key={match.id}>
+                        <button
+                          type='button'
+                          className='flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted'
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => chooseMatch(match)}
+                        >
+                          <span className='font-mono text-xs text-muted-foreground'>
+                            {match.code}
+                          </span>
+                          <span className='min-w-0 flex-1 truncate'>
+                            {match.standardName ?? match.name}
+                          </span>
+                          <span className='shrink-0 text-xs text-muted-foreground'>
+                            {t(ui('useMaterialMatch'))}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className='px-3 py-2 text-muted-foreground'>
+                    {t(ui('materialNoMatch'))}
+                  </p>
+                )}
+                <button
+                  type='button'
+                  className='flex w-full items-center justify-center border-t px-3 py-2 text-muted-foreground hover:bg-muted'
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={onSelect}
+                >
+                  {t(ui('browseAllMaterials'))}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        {fieldError(s.kind === 'known' ? 'selection' : 'originalName')}
+      </Field>
+      {s.kind === 'known' ? (
+        <>
           <div className='grid gap-3 sm:grid-cols-2'>
             <Field>
               <FieldLabel htmlFor={`line-${line.id}-quantity`}>
@@ -267,86 +374,132 @@ export function LineEditor({
               />
               {fieldError('quantity')}
             </Field>
-            <div className='flex flex-col gap-2 text-sm'>
-              <p>
-                {t(ui('requestedUnit'))}:{' '}
-                {display?.materialSnapshot?.unitName ?? '—'}
-              </p>
-              <p>
-                {t(ui('packaging'))}: {display?.numeratorSnapshot ?? '—'} /{' '}
-                {display?.denominatorSnapshot ?? '—'}
-              </p>
-              <p aria-live='polite'>
-                {t(ui('baseQuantity'))}:{' '}
-                {current?.baseQuantity ??
-                  (preview && s.quantity === preview.requestedQuantity
-                    ? preview.baseQuantity
-                    : '—')}{' '}
-                {display?.materialSnapshot?.baseUnitName ?? ''}
-              </p>
-              {result.error && (
-                <ErrorNotice
-                  error={result.error}
-                  retry={() => void result.refetch()}
-                />
-              )}
-            </div>
+            <Field>
+              <FieldLabel htmlFor={`line-${line.id}-unit`}>
+                {t(ui('requestedUnit'))} / {t(ui('packaging'))}
+              </FieldLabel>
+              <PurchaseSelect
+                label={t(ui('packaging'))}
+                value={rule}
+                items={[
+                  {
+                    value: 'base',
+                    label: `${m?.baseUnitName ?? t(ui('baseUnit'))} · 1/1`,
+                  },
+                  ...(m?.packages ?? []).map((p) => ({
+                    value: p.id,
+                    label: `${p.name} · ${p.unitName} · ${p.numerator}/${p.denominator} ${m?.baseUnitName ?? ''}`,
+                  })),
+                ]}
+                onChange={setUnit}
+              />
+            </Field>
           </div>
-        </div>
+          <div className='flex flex-wrap gap-x-4 gap-y-1 text-sm'>
+            <p>
+              {t(ui('packaging'))}: {display?.numeratorSnapshot ?? '—'} /{' '}
+              {display?.denominatorSnapshot ?? '—'}
+            </p>
+            <p aria-live='polite'>
+              {t(ui('baseQuantity'))}:{' '}
+              {current?.baseQuantity ??
+                (preview && s.quantity === preview.requestedQuantity
+                  ? preview.baseQuantity
+                  : '—')}{' '}
+              {display?.materialSnapshot?.baseUnitName ?? ''}
+            </p>
+            {result.error && (
+              <ErrorNotice
+                error={result.error}
+                retry={() => void result.refetch()}
+              />
+            )}
+          </div>
+        </>
       ) : (
         <div className='grid gap-3 sm:grid-cols-2'>
-          {(
-            [
-              'originalName',
-              'originalSpecification',
-              'requestedUnitText',
-              'quantity',
-            ] as const
-          ).map((name) => (
-            <Field key={name}>
-              <FieldLabel htmlFor={`line-${line.id}-${name}`}>
-                {t(
-                  ui(
-                    name === 'originalSpecification'
-                      ? 'specification'
-                      : name === 'requestedUnitText'
-                        ? 'unknownUnit'
-                        : name,
-                  ),
-                )}{' '}
-                *
-              </FieldLabel>
-              {name === 'originalSpecification' ? (
-                <Textarea
-                  id={`line-${line.id}-${name}`}
-                  {...attributes(name)}
-                  value={s[name]}
-                  onChange={(e) =>
-                    onChange({
-                      ...line,
-                      selection: { ...s, [name]: e.target.value },
-                    })
-                  }
-                />
-              ) : (
-                <Input
-                  id={`line-${line.id}-${name}`}
-                  {...attributes(name)}
-                  value={s[name]}
-                  inputMode={name === 'quantity' ? 'decimal' : undefined}
-                  onChange={(e) =>
-                    onChange({
-                      ...line,
-                      selection: { ...s, [name]: e.target.value },
-                    })
-                  }
-                />
-              )}
-              {fieldError(name)}
-            </Field>
-          ))}
+          <Field className='sm:col-span-2'>
+            <FieldLabel htmlFor={`line-${line.id}-originalSpecification`}>
+              {t(ui('specification'))} *
+            </FieldLabel>
+            <Textarea
+              id={`line-${line.id}-originalSpecification`}
+              {...attributes('originalSpecification')}
+              value={s.originalSpecification}
+              onChange={(e) =>
+                onChange({
+                  ...line,
+                  selection: { ...s, originalSpecification: e.target.value },
+                })
+              }
+            />
+            {fieldError('originalSpecification')}
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`line-${line.id}-requestedUnitText`}>
+              {t(ui('unknownUnit'))} *
+            </FieldLabel>
+            <Input
+              id={`line-${line.id}-requestedUnitText`}
+              {...attributes('requestedUnitText')}
+              value={s.requestedUnitText}
+              onChange={(e) =>
+                onChange({
+                  ...line,
+                  selection: { ...s, requestedUnitText: e.target.value },
+                })
+              }
+            />
+            {fieldError('requestedUnitText')}
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`line-${line.id}-quantity`}>
+              {t(ui('quantity'))} *
+            </FieldLabel>
+            <Input
+              id={`line-${line.id}-quantity`}
+              {...attributes('quantity')}
+              inputMode='decimal'
+              value={s.quantity}
+              onChange={(e) =>
+                onChange({
+                  ...line,
+                  selection: { ...s, quantity: e.target.value },
+                })
+              }
+            />
+            {fieldError('quantity')}
+          </Field>
         </div>
       )}
+      <ReferencePicker
+        id={`line-${line.id}-supplier`}
+        error={
+          errors[`line-${line.id}-supplier`]
+            ? t(ui(errors[`line-${line.id}-supplier`]))
+            : undefined
+        }
+        path='requestSupplierOptions'
+        query={{ subjectId: line.selection.subjectId }}
+        label={`${t(ui('lineSupplier'))} (${t(ui('optional'))})`}
+        value={line.supplierId ?? ''}
+        selected={
+          line.supplierId
+            ? {
+                id: line.supplierId,
+                code: '',
+                name: line.supplierName ?? line.supplierId,
+              }
+            : null
+        }
+        onChange={(id, item) =>
+          onChange({
+            ...line,
+            supplierId: id || null,
+            supplierName: item?.name ?? null,
+          })
+        }
+      />
       <Collapsible>
         <CollapsibleTrigger
           render={<Button type='button' variant='ghost' size='sm' />}
@@ -354,14 +507,11 @@ export function LineEditor({
           {t(ui('lineDetails'))}
         </CollapsibleTrigger>
         <CollapsibleContent className='mt-3 grid gap-3 sm:grid-cols-2'>
-          {text('originalName', 'originalName')}
-          {text('originalSpecification', 'specification', true)}
           {text('usage', 'lineUsage', true)}
           {text('notes', 'lineNotes', true)}
         </CollapsibleContent>
       </Collapsible>
       {error && <FieldError>{t(ui(error))}</FieldError>}
-      {confirm.dialog}
     </fieldset>
   );
 }

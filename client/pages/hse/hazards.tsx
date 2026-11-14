@@ -10,6 +10,7 @@ import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { nativeSelectClass } from '#components/native-controls';
+import { businessDate } from '#lib/business-date';
 import { Textarea } from '#components/ui/textarea';
 import {
   Dialog,
@@ -43,7 +44,6 @@ import {
   type HsePage,
 } from './model.js';
 
-const today = () => new Date().toISOString().slice(0, 10);
 const emptyForm = () => ({
   subjectId: '',
   unitId: '',
@@ -51,8 +51,8 @@ const emptyForm = () => ({
   level: 'general',
   description: '',
   location: '',
-  discoveredAt: today(),
-  ownerName: '',
+  discoveredAt: businessDate(),
+  ownerId: '',
   dueAt: '',
   rectification: '',
 });
@@ -72,6 +72,8 @@ export default function HseHazardsPage() {
   } | null>(null);
   const [rectification, setRectification] = useState('');
   const [note, setNote] = useState('');
+  const [ownerId, setOwnerId] = useState('');
+  const [dueAt, setDueAt] = useState('');
   const [params] = useSearchParams(),
     subjectId = params.get('subjectId') ?? '';
   const options = useQuery({
@@ -98,6 +100,24 @@ export default function HseHazardsPage() {
   });
   const canManage = options.data?.data.permissions.manage ?? false;
   const canApprove = options.data?.data.permissions.approve ?? false;
+  const canReport = options.data?.data.permissions.report ?? false;
+  const employees = useMemo(
+    () =>
+      (options.data?.data.employees ?? []).filter(
+        (employee) =>
+          !form.subjectId || employee.subjectId === form.subjectId,
+      ),
+    [options.data?.data.employees, form.subjectId],
+  );
+  const transitionEmployees = useMemo(
+    () =>
+      (options.data?.data.employees ?? []).filter(
+        (employee) =>
+          !transition?.row.subjectId ||
+          employee.subjectId === transition.row.subjectId,
+      ),
+    [options.data?.data.employees, transition?.row.subjectId],
+  );
   const units = useMemo(
     () =>
       (options.data?.data.units ?? []).filter(
@@ -123,7 +143,10 @@ export default function HseHazardsPage() {
           description: form.description,
           location: form.location,
           discoveredAt: form.discoveredAt,
-          ownerName: form.ownerName,
+          ownerId: form.ownerId || null,
+          ownerName:
+            employees.find((employee) => employee.id === form.ownerId)
+              ?.name ?? '',
           dueAt: form.dueAt || null,
           rectification: form.rectification,
         },
@@ -145,6 +168,8 @@ export default function HseHazardsPage() {
           version: transition.row.version,
           action: transition.action,
           rectification: rectification.trim() || undefined,
+          ownerId: ownerId || undefined,
+          dueAt: dueAt || undefined,
           note: note.trim() || undefined,
         },
       });
@@ -160,7 +185,36 @@ export default function HseHazardsPage() {
   ) => {
     setRectification(row.rectification ?? '');
     setNote('');
+    setOwnerId(row.ownerId ?? '');
+    setDueAt(row.dueAt ?? '');
     setTransition({ row, action });
+  };
+  const knownErrorCodes = [
+    'PERMISSION_DENIED',
+    'SUBJECT_REQUIRED',
+    'UNIT_NOT_IN_COMPANY',
+    'OWNER_NOT_FOUND',
+    'OWNER_NOT_IN_COMPANY',
+    'OWNER_REQUIRED',
+    'DUE_REQUIRED',
+    'ROOT_CAUSE_REQUIRED',
+    'ACTIONS_REQUIRED',
+    'RETURN_REASON_REQUIRED',
+    'SELF_VERIFICATION',
+    'INCIDENT_STATE',
+    'INCIDENT_CLOSED',
+    'HAZARD_STATE',
+    'HAZARD_LOCKED',
+    'HAZARD_CLOSED',
+    'RECTIFICATION_REQUIRED',
+  ];
+  const errorText = (error: unknown) => {
+    if (error instanceof Error && error.message) {
+      return knownErrorCodes.includes(error.message)
+        ? t(`hse.error.${error.message}`)
+        : error.message;
+    }
+    return t('hse.saveFailed');
   };
   const lastAction = (row: HseHazard) => {
     const entry = row.history?.at(-1);
@@ -183,7 +237,7 @@ export default function HseHazardsPage() {
               busy={list.isFetching}
               onClick={() => void list.refetch()}
             />
-            {canManage ? (
+            {canManage || canReport ? (
               <Button
                 onClick={() => {
                   setForm({ ...emptyForm(), subjectId });
@@ -197,7 +251,10 @@ export default function HseHazardsPage() {
           </>
         }
       />
-      <ReadOnlyNotice canManage={canManage} canApprove={canApprove} />
+      <ReadOnlyNotice
+        canManage={canManage || canReport}
+        canApprove={canApprove}
+      />
       <div className='flex flex-wrap items-end gap-3'>
         <label className='grid w-full gap-1 text-sm sm:w-36'>
           <span>{t('hse.fields.status')}</span>
@@ -268,8 +325,19 @@ export default function HseHazardsPage() {
                   <TableCell>{row.ownerName}</TableCell>
                   <TableCell>
                     {row.dueAt
-                      ? new Date(`${row.dueAt}T00:00:00`).toLocaleDateString(
-                          i18n.language,
+                      ? (
+                          <span
+                            className={
+                              row.status !== 'closed' &&
+                              row.dueAt < businessDate()
+                                ? 'text-destructive'
+                                : undefined
+                            }
+                          >
+                            {new Date(
+                              `${row.dueAt}T00:00:00`,
+                            ).toLocaleDateString(i18n.language)}
+                          </span>
                         )
                       : '—'}
                   </TableCell>
@@ -368,13 +436,6 @@ export default function HseHazardsPage() {
           ) : null}
         </div>
       )}
-      {advance.isError ? (
-        <p className='text-sm text-destructive'>
-          {advance.error instanceof Error
-            ? advance.error.message
-            : t('hse.saveFailed')}
-        </p>
-      ) : null}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className='sm:max-w-2xl'>
           <DialogHeader>
@@ -432,10 +493,12 @@ export default function HseHazardsPage() {
                 />
               </label>
               <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.ownerName')}</span>
-                <Input
-                  value={form.ownerName}
-                  onChange={(event) => set('ownerName', event.target.value)}
+                <span>{t('hse.fields.owner')}</span>
+                <HseSelect
+                  value={form.ownerId}
+                  onChange={(value) => set('ownerId', value)}
+                  options={employees}
+                  placeholder={t('hse.selectOwner')}
                 />
               </label>
               <label className='grid gap-1.5 text-sm'>
@@ -455,6 +518,27 @@ export default function HseHazardsPage() {
                 onChange={(event) => set('description', event.target.value)}
               />
             </label>
+            {transition?.action === 'startRectification' ? (
+              <>
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.owner')}</span>
+                  <HseSelect
+                    value={ownerId}
+                    onChange={setOwnerId}
+                    options={transitionEmployees}
+                    placeholder={t('hse.selectOwner')}
+                  />
+                </label>
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.dueAt')}</span>
+                  <Input
+                    type='date'
+                    value={dueAt}
+                    onChange={(event) => setDueAt(event.target.value)}
+                  />
+                </label>
+              </>
+            ) : null}
             <label className='grid gap-1.5 text-sm'>
               <span>{t('hse.fields.rectification')}</span>
               <Textarea
@@ -465,9 +549,7 @@ export default function HseHazardsPage() {
             </label>
             {create.isError ? (
               <p className='text-sm text-destructive'>
-                {create.error instanceof Error
-                  ? create.error.message
-                  : t('hse.saveFailed')}
+                {errorText(create.error)}
               </p>
             ) : null}
           </div>
@@ -486,7 +568,7 @@ export default function HseHazardsPage() {
                 !form.subjectId ||
                 !form.location.trim() ||
                 !form.description.trim() ||
-                !form.ownerName.trim()
+                !form.ownerId
               }
             >
               {create.isPending ? t('hse.saving') : t('hse.save')}
@@ -532,9 +614,7 @@ export default function HseHazardsPage() {
             </label>
             {advance.isError ? (
               <p className='text-sm text-destructive'>
-                {advance.error instanceof Error
-                  ? advance.error.message
-                  : t('hse.saveFailed')}
+                {errorText(advance.error)}
               </p>
             ) : null}
           </div>
@@ -552,6 +632,8 @@ export default function HseHazardsPage() {
                 advance.isPending ||
                 (transition?.action === 'submitVerification' &&
                   !rectification.trim()) ||
+                (transition?.action === 'startRectification' &&
+                  (!ownerId || !dueAt)) ||
                 (transition?.action === 'return' && !note.trim())
               }
             >

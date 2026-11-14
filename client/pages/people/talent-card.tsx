@@ -145,7 +145,13 @@ export function TalentCard({ profile }: { profile: Row }) {
         ] as const)),
     [
       'startDate',
-      talent.employments.rows.find((r) => !r.data.endDate)?.data.startDate,
+      // The first employment current at `asOf` (end date exclusive), not just
+      // any row without an end date.
+      talent.employments.rows.find(
+        (r) =>
+          textValue(r.data.startDate) <= talent.asOf &&
+          (!r.data.endDate || textValue(r.data.endDate) > talent.asOf),
+      )?.data.startDate,
     ],
     ['location', primary?.data.location || talent.person.data.location],
   ];

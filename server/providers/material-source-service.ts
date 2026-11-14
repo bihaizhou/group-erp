@@ -239,6 +239,51 @@ export class MaterialSourceService implements DemandSourceHooks {
       auditActor,
     });
   }
+  /**
+   * Keep a familiar submitted name searchable after the material center links
+   * it. This is a trusted consequence of an authorized resolve, not a separate
+   * editor action, and duplicates are left untouched.
+   */
+  private async linkAlias(
+    c: DatabaseConnection,
+    source: Row,
+    skuId: string,
+    actor: LifecycleActor,
+  ) {
+    const snapshot = source.inputSnapshot as JsonObject;
+    const name = text(snapshot.originalName).trim();
+    if (!name) return;
+    const searchKey = name.normalize('NFKC').trim().toLowerCase();
+    const scopeKey = text(source.subjectId) || 'global';
+    if (
+      await c
+        .repository('materialReferences')
+        .exists({ filter: { searchKey, scopeKey } })
+    )
+      return;
+    const now = new Date();
+    await c.repository('materialReferences').createOne({
+      values: {
+        id: randomUUID(),
+        code: `ALIAS-${randomUUID().slice(0, 8).toUpperCase()}`,
+        name,
+        notes: '',
+        status: 'active',
+        revision: 1,
+        lifecycleVersion: 0,
+        statusChangedAt: now,
+        createdBy: actor.id,
+        createdAt: now,
+        updatedAt: now,
+        targetKind: 'skus',
+        targetId: skuId,
+        sourceType: 'alias',
+        subjectId: text(source.subjectId) || null,
+        searchKey,
+        scopeKey,
+      },
+    });
+  }
   private async lineWrite(
     c: DatabaseConnection,
     port: DemandSourcePort,
@@ -914,11 +959,16 @@ export class MaterialSourceService implements DemandSourceHooks {
           version: z.number().int(),
         })
         .parse(detail.data);
+      const unitId = text(context.record.resolvedUnitId) || sku.baseUnitId;
+      const unitRuleId = text(context.record.resolvedUnitRuleId) || null;
+      // Governance stays two-sided: resolving only offers the candidate, and
+      // the demand side must confirm the material (manual §6.6, awaiting
+      // confirmation) before the line is identified.
       await c.repository('materialRequestSources').updateOne({
         filter: { id: text(source.id), revision: Number(source.revision) },
         values: {
           status: 'offered',
-          proposedSkuId: text(context.record.resolvedSkuId),
+          proposedSkuId: sku.id,
           offeredAt: new Date(),
           resolutionSnapshot: json({
             skuId: sku.id,
@@ -926,8 +976,11 @@ export class MaterialSourceService implements DemandSourceHooks {
             name: sku.name,
             baseUnitId: sku.baseUnitId,
             version: sku.version,
+            unitId,
+            unitRuleId,
           }),
           revision: Number(source.revision) + 1,
+          reason: text(context.input.reason),
           updatedAt: new Date(),
         },
       });
@@ -941,6 +994,8 @@ export class MaterialSourceService implements DemandSourceHooks {
         },
         access,
       );
+      if (context.input.addAlias === true)
+        await this.linkAlias(c, source, sku.id, context.actor);
     } else if (transition === 'return') {
       await c.repository('materialRequestSources').updateOne({
         filter: { id: text(source.id) },

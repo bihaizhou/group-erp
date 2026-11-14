@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import {
   Boxes,
   Building2,
@@ -10,6 +10,7 @@ import {
   CircleAlert,
   CircleCheck,
   ClipboardList,
+  EyeOff,
   FileBadge,
   Gauge,
   Gem,
@@ -19,12 +20,14 @@ import {
   ShieldAlert,
   ShoppingCart,
   Siren,
+  TriangleAlert,
   Users,
   Warehouse,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from 'cn';
 import { PageContainer } from '#components/page-container';
+import { businessDate } from '#hooks/business-date';
 import { PageHeader } from '#components/page-header';
 import {
   DashboardMetric,
@@ -54,14 +57,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '#components/ui/empty';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#components/ui/select';
 import { Skeleton } from '#components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#components/ui/tabs';
 import {
@@ -74,7 +69,6 @@ import {
 } from '#components/ui/table';
 import type {
   OperationsCompanyOverview,
-  OperationsOptions,
   OperationsOverview,
 } from './model.js';
 
@@ -96,6 +90,13 @@ const displayRate = (
   if (value === null || value === undefined || value === '') return '—';
   return `${displayNumber(value, language)}%`;
 };
+
+/**
+ * Keeps the current company in the URL when jumping to another module, so the
+ * destination page's CompanyGate does not silently switch context.
+ */
+const withSubject = (to: string, subjectId: string | null): string =>
+  subjectId ? `${to}?subjectId=${encodeURIComponent(subjectId)}` : to;
 
 function ErrorNotice({ onRetry }: { onRetry: () => void }) {
   const { t } = useTranslation();
@@ -303,12 +304,12 @@ function RiskCard({ data }: { data: OperationsOverview }) {
                   })
                 : undefined,
             count: data.issues.open,
-            to: '/functions/operations/issues',
+            to: withSubject('/functions/operations/issues', data.subjectId),
             icon: CircleAlert,
           },
         ]
       : []),
-    ...(data.hse.hazardsOpen > 0
+    ...(data.hse !== null && data.hse.hazardsOpen > 0
       ? [
           {
             key: 'hazards',
@@ -322,29 +323,29 @@ function RiskCard({ data }: { data: OperationsOverview }) {
                   })
                 : undefined,
             count: data.hse.hazardsOpen,
-            to: '/functions/hse/hazards',
+            to: withSubject('/functions/hse/hazards', data.subjectId),
             icon: ShieldAlert,
           },
         ]
       : []),
-    ...(data.hse.incidentsOpen > 0
+    ...(data.hse !== null && data.hse.incidentsOpen > 0
       ? [
           {
             key: 'incidents',
             label: t('operations.incidentsOpen'),
             count: data.hse.incidentsOpen,
-            to: '/functions/hse/incidents',
+            to: withSubject('/functions/hse/incidents', data.subjectId),
             icon: Siren,
           },
         ]
       : []),
-    ...(data.hse.certificatesExpiring90 > 0
+    ...(data.hse !== null && data.hse.certificatesExpiring90 > 0
       ? [
           {
             key: 'certificates',
             label: t('operations.certificatesExpiring90'),
             count: data.hse.certificatesExpiring90,
-            to: '/functions/hse/certificates',
+            to: withSubject('/functions/hse/certificates', data.subjectId),
             icon: FileBadge,
           },
         ]
@@ -412,6 +413,7 @@ function UnitOutputCard({ data }: { data: OperationsOverview }) {
     .filter((unit) => unit.reports > 0)
     .sort((a, b) => Number(b.processed) - Number(a.processed))
     .slice(0, 10);
+  const masked = data.production === null;
   const maxProcessed = Math.max(
     0,
     ...units.map((unit) => Number(unit.processed)),
@@ -487,9 +489,13 @@ function UnitOutputCard({ data }: { data: OperationsOverview }) {
           </Table>
         ) : (
           <EmptyPanel
-            icon={ClipboardList}
-            title={t('operations.emptyUnits')}
-            description={t('operations.emptyUnitsDescription')}
+            icon={masked ? EyeOff : ClipboardList}
+            title={masked ? t('operations.maskedTitle') : t('operations.emptyUnits')}
+            description={
+              masked
+                ? t('operations.maskedDescription')
+                : t('operations.emptyUnitsDescription')
+            }
             className='flex-1'
           />
         )}
@@ -561,26 +567,38 @@ function GroupCard({
 function SummaryView({ data }: { data: OperationsOverview }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
-  const rate = data.production.metalRate;
+  const rate = data.production?.metalRate ?? null;
   return (
     <div className='space-y-4'>
       <DashboardMetricGrid>
         <DashboardMetric
           label={t('operations.processed')}
-          value={displayNumber(data.production.processed, language)}
-          hint={t('operations.reportsCount', {
-            count: data.production.reports.toLocaleString(language),
-          })}
+          value={
+            data.production
+              ? displayNumber(data.production.processed, language)
+              : '—'
+          }
+          hint={
+            data.production
+              ? t('operations.reportsCount', {
+                  count: data.production.reports.toLocaleString(language),
+                })
+              : t('operations.maskedHint')
+          }
           icon={Boxes}
         />
         <DashboardMetric
           label={t('operations.metal')}
-          value={displayNumber(data.production.metal, language)}
+          value={
+            data.production ? displayNumber(data.production.metal, language) : '—'
+          }
           icon={Gem}
         />
         <DashboardMetric
           label={t('operations.sand')}
-          value={displayNumber(data.production.sand, language)}
+          value={
+            data.production ? displayNumber(data.production.sand, language) : '—'
+          }
           icon={Mountain}
         />
         <DashboardMetric
@@ -602,37 +620,47 @@ function SummaryView({ data }: { data: OperationsOverview }) {
         <GroupCard
           title={t('operations.stockTitle')}
           description={
-            data.warehouse.stockConfigured
-              ? t('operations.stockHint')
-              : t('operations.stockNotConfigured')
+            data.warehouse === null
+              ? t('operations.maskedHint')
+              : data.warehouse.stockConfigured
+                ? t('operations.stockHint')
+                : t('operations.stockNotConfigured')
           }
           icon={Warehouse}
           stats={[
             {
               label: t('operations.stockMetal'),
-              value: data.warehouse.stockConfigured
-                ? displayNumber(data.warehouse.stockMetal, language)
-                : '—',
+              value:
+                data.warehouse !== null && data.warehouse.stockConfigured
+                  ? displayNumber(data.warehouse.stockMetal, language)
+                  : '—',
             },
             {
               label: t('operations.stockSand'),
-              value: data.warehouse.stockConfigured
-                ? displayNumber(data.warehouse.stockSand, language)
-                : '—',
+              value:
+                data.warehouse !== null && data.warehouse.stockConfigured
+                  ? displayNumber(data.warehouse.stockSand, language)
+                  : '—',
             },
             {
               label: t('operations.receiptDraft'),
-              value: displayNumber(data.warehouse.receiptDraft, language),
+              value:
+                data.warehouse !== null
+                  ? displayNumber(data.warehouse.receiptDraft, language)
+                  : '—',
             },
             {
               label: t('operations.receiptPostedLabel'),
-              value: displayNumber(data.warehouse.receiptPosted, language),
+              value:
+                data.warehouse !== null
+                  ? displayNumber(data.warehouse.receiptPosted, language)
+                  : '—',
             },
           ]}
           links={[
             {
               label: t('operations.openWarehouse'),
-              to: '/functions/warehouse/overview',
+              to: withSubject('/functions/warehouse/overview', data.subjectId),
             },
           ]}
         />
@@ -643,29 +671,44 @@ function SummaryView({ data }: { data: OperationsOverview }) {
           stats={[
             {
               label: t('operations.salesOpen'),
-              value: displayNumber(data.sales.openOrders, language),
+              value:
+                data.sales !== null
+                  ? displayNumber(data.sales.openOrders, language)
+                  : '—',
             },
             {
               label: t('operations.salesShippedToday'),
-              value: displayNumber(data.sales.shippedToday, language),
+              value:
+                data.sales !== null
+                  ? displayNumber(data.sales.shippedToday, language)
+                  : '—',
             },
             {
               label: t('operations.procurementOpen'),
-              value: displayNumber(data.procurement.openOrders, language),
+              value:
+                data.procurement !== null
+                  ? displayNumber(data.procurement.openOrders, language)
+                  : '—',
             },
             {
               label: t('operations.procurementReceivedToday'),
-              value: displayNumber(data.procurement.receivedToday, language),
+              value:
+                data.procurement !== null
+                  ? displayNumber(data.procurement.receivedToday, language)
+                  : '—',
             },
           ]}
           links={[
             {
               label: t('operations.openSales'),
-              to: '/functions/sales/overview',
+              to: withSubject('/functions/sales/overview', data.subjectId),
             },
             {
               label: t('operations.openProcurement'),
-              to: '/functions/procurement/overview',
+              to: withSubject(
+                '/functions/procurement/overview',
+                data.subjectId,
+              ),
             },
           ]}
         />
@@ -676,26 +719,46 @@ function SummaryView({ data }: { data: OperationsOverview }) {
           stats={[
             {
               label: t('operations.peopleActive'),
-              value: displayNumber(data.people.active, language),
+              value:
+                data.people !== null
+                  ? displayNumber(data.people.active, language)
+                  : '—',
             },
             {
               label: t('operations.peopleProductionLabel'),
-              value: displayNumber(data.people.production, language),
+              value:
+                data.people !== null
+                  ? displayNumber(data.people.production, language)
+                  : '—',
             },
             {
               label: t('operations.maintenanceOpen'),
-              value: displayNumber(data.maintenance.openOrders, language),
+              value:
+                data.maintenance !== null
+                  ? displayNumber(data.maintenance.openOrders, language)
+                  : '—',
             },
             {
               label: t('operations.downtimeOpen'),
-              value: displayNumber(data.downtime.open, language),
-              hint: t('operations.downtimeMinutes', {
-                minutes: data.downtime.minutesToday.toLocaleString(language),
-              }),
+              value:
+                data.downtime !== null
+                  ? displayNumber(data.downtime.open, language)
+                  : '—',
+              hint:
+                data.downtime !== null
+                  ? t('operations.downtimeMinutes', {
+                      minutes: data.downtime.minutesToday.toLocaleString(
+                        language,
+                      ),
+                    })
+                  : undefined,
             },
           ]}
           links={[
-            { label: t('operations.openPeople'), to: '/functions/personnel' },
+            {
+              label: t('operations.openPeople'),
+              to: '/functions/personnel',
+            },
             {
               label: t('operations.openEquipment'),
               to: '/functions/production/equipment',
@@ -729,6 +792,23 @@ function CompanyComparison({
     t('operations.peopleActive'),
     t('operations.issueOpen'),
   ];
+  // A source is partially masked when some company blocks are visible and
+  // others are null; summing only the visible blocks would understate the group
+  // total, so the total row carries an explicit caveat. A source masked for
+  // every company keeps the plain '—' total.
+  const partial = (isNull: (item: OperationsOverview) => boolean) =>
+    Boolean(
+      data &&
+      data.items.length > 1 &&
+      data.items.some(isNull) &&
+      !data.items.every(isNull),
+    );
+  const totalsPartiallyMasked =
+    partial((item) => item.production === null) ||
+    partial((item) => item.warehouse === null) ||
+    partial((item) => item.sales === null) ||
+    partial((item) => item.procurement === null) ||
+    partial((item) => item.people === null);
   const head = (
     <TableHeader>
       <TableRow>
@@ -782,7 +862,7 @@ function CompanyComparison({
             <TableBody>
               {data.items.map((item) => (
                 <TableRow
-                  key={item.subjectId ?? item.subjectName}
+                  key={item.subjectId ?? item.subjectName ?? item.date}
                   className='group/row'
                 >
                   <TableCell className='sticky left-0 z-10 bg-card group-hover/row:bg-muted/50'>
@@ -790,11 +870,11 @@ function CompanyComparison({
                       type='button'
                       onClick={() => onSelect(item.subjectId ?? '')}
                       aria-label={t('operations.companyDetail', {
-                        name: item.subjectName,
+                        name: item.subjectName ?? t('operations.allCompanies'),
                       })}
                       className='inline-flex items-center gap-1 whitespace-nowrap text-left font-medium transition-colors hover:text-primary focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
                     >
-                      {item.subjectName}
+                      {item.subjectName ?? t('operations.allCompanies')}
                       <ChevronRight
                         aria-hidden
                         className='size-3.5 text-muted-foreground'
@@ -802,35 +882,172 @@ function CompanyComparison({
                     </button>
                   </TableCell>
                   <TableCell className='text-right tabular-nums'>
-                    {displayNumber(item.production.processed, language)}
+                    {item.production !== null
+                      ? displayNumber(item.production.processed, language)
+                      : '—'}
                   </TableCell>
                   <TableCell className='text-right tabular-nums'>
-                    {displayRate(item.production.metalRate, language)}
+                    {item.production !== null
+                      ? displayRate(item.production.metalRate, language)
+                      : '—'}
                   </TableCell>
                   <TableCell className='text-right tabular-nums'>
-                    {item.warehouse.stockConfigured
+                    {item.warehouse !== null && item.warehouse.stockConfigured
                       ? displayNumber(item.warehouse.stockMetal, language)
                       : '—'}
                   </TableCell>
                   <TableCell className='text-right tabular-nums'>
-                    {item.warehouse.stockConfigured
+                    {item.warehouse !== null && item.warehouse.stockConfigured
                       ? displayNumber(item.warehouse.stockSand, language)
                       : '—'}
                   </TableCell>
                   <TableCell className='text-right tabular-nums'>
-                    {displayNumber(item.sales.openOrders, language)}
+                    {item.sales !== null
+                      ? displayNumber(item.sales.openOrders, language)
+                      : '—'}
                   </TableCell>
                   <TableCell className='text-right tabular-nums'>
-                    {displayNumber(item.procurement.openOrders, language)}
+                    {item.procurement !== null
+                      ? displayNumber(item.procurement.openOrders, language)
+                      : '—'}
                   </TableCell>
                   <TableCell className='text-right tabular-nums'>
-                    {displayNumber(item.people.active, language)}
+                    {item.people !== null
+                      ? displayNumber(item.people.active, language)
+                      : '—'}
                   </TableCell>
                   <TableCell className='text-right tabular-nums'>
                     {displayNumber(item.issues.open, language)}
                   </TableCell>
                 </TableRow>
               ))}
+              {data.items.length > 1 ? (
+                <TableRow className='border-t-2 font-medium'>
+                  <TableCell className='sticky left-0 z-10 bg-card'>
+                    {t('operations.companiesTotal')}
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {data.items.every((item) => item.production === null)
+                      ? '—'
+                      : displayNumber(
+                          data.items.reduce(
+                            (total, item) =>
+                              total +
+                              Number(item.production?.processed ?? 0),
+                            0,
+                          ),
+                          language,
+                        )}
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {(() => {
+                      const metal = data.items.reduce(
+                        (total, item) =>
+                          total + Number(item.production?.metal ?? 0),
+                        0,
+                      );
+                      const processed = data.items.reduce(
+                        (total, item) =>
+                          total + Number(item.production?.processed ?? 0),
+                        0,
+                      );
+                      return processed > 0
+                        ? `${displayNumber(
+                            ((metal / processed) * 100).toFixed(1),
+                            language,
+                          )}%`
+                        : '—';
+                    })()}
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {data.items.every(
+                      (item) =>
+                        item.warehouse === null ||
+                        !item.warehouse.stockConfigured,
+                    )
+                      ? '—'
+                      : displayNumber(
+                          data.items.reduce(
+                            (total, item) =>
+                              total + Number(item.warehouse?.stockMetal ?? 0),
+                            0,
+                          ),
+                          language,
+                        )}
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {data.items.every(
+                      (item) =>
+                        item.warehouse === null ||
+                        !item.warehouse.stockConfigured,
+                    )
+                      ? '—'
+                      : displayNumber(
+                          data.items.reduce(
+                            (total, item) =>
+                              total + Number(item.warehouse?.stockSand ?? 0),
+                            0,
+                          ),
+                          language,
+                        )}
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {data.items.every((item) => item.sales === null)
+                      ? '—'
+                      : displayNumber(
+                          data.items.reduce(
+                            (total, item) =>
+                              total + (item.sales?.openOrders ?? 0),
+                            0,
+                          ),
+                          language,
+                        )}
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {data.items.every((item) => item.procurement === null)
+                      ? '—'
+                      : displayNumber(
+                          data.items.reduce(
+                            (total, item) =>
+                              total + (item.procurement?.openOrders ?? 0),
+                            0,
+                          ),
+                          language,
+                        )}
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {data.items.every((item) => item.people === null)
+                      ? '—'
+                      : displayNumber(
+                          data.items.reduce(
+                            (total, item) =>
+                              total + (item.people?.active ?? 0),
+                            0,
+                          ),
+                          language,
+                        )}
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {displayNumber(
+                      data.items.reduce(
+                        (total, item) => total + item.issues.open,
+                        0,
+                      ),
+                      language,
+                    )}
+                  </TableCell>
+                </TableRow>
+              ) : null}
+              {data.items.length > 1 && totalsPartiallyMasked ? (
+                <TableRow className='text-xs text-muted-foreground'>
+                  <TableCell
+                    colSpan={columns.length}
+                    className='whitespace-normal py-2'
+                  >
+                    {t('operations.companiesTotalPartial')}
+                  </TableCell>
+                </TableRow>
+              ) : null}
             </TableBody>
           </Table>
         ) : (
@@ -845,12 +1062,20 @@ function CompanyComparison({
   );
 }
 
-function DataNote() {
+function DataNote({ truncated }: { truncated: boolean }) {
   const { t } = useTranslation();
   return (
     <p className='flex items-start gap-2 text-xs leading-5 text-muted-foreground'>
       <Info aria-hidden className='mt-0.5 size-3.5 shrink-0' />
-      <span>{t('operations.notes')}</span>
+      <span>
+        {t('operations.notes')}
+        {truncated ? (
+          <span className='mt-1 flex items-start gap-1.5 font-medium text-foreground'>
+            <TriangleAlert aria-hidden className='mt-0.5 size-3.5 shrink-0' />
+            {t('operations.notesTruncated')}
+          </span>
+        ) : null}
+      </span>
     </p>
   );
 }
@@ -858,21 +1083,10 @@ function DataNote() {
 export default function OperationsOverviewPage() {
   const { t } = useTranslation();
   const api = useApiClient();
-  const [subjectId, setSubjectId] = useState('');
+  const [params, setParams] = useSearchParams();
+  const subjectId = params.get('subjectId') ?? '';
   const [view, setView] = useState<'summary' | 'companies'>('summary');
-  const [date, setDate] = useState(() =>
-    new Date().toLocaleDateString('en-CA'),
-  );
-  const options = useQuery({
-    retry: false,
-    queryKey: ['operations-options'],
-    queryFn: ({ signal }) =>
-      api.request<{ data: OperationsOptions }>({
-        path: 'operations/options',
-        signal,
-      }),
-  });
-  const subjects = options.data?.data.subjects ?? [];
+  const [date, setDate] = useState(() => businessDate());
   const overview = useQuery({
     retry: false,
     placeholderData: keepPreviousData,
@@ -899,20 +1113,29 @@ export default function OperationsOverviewPage() {
         signal,
       }),
   });
-  const busy =
-    options.isFetching || overview.isFetching || companies.isFetching;
+  const busy = overview.isFetching || companies.isFetching;
+  const truncated =
+    view === 'summary'
+      ? Boolean(overview.data?.data.notes.truncated?.length)
+      : (companies.data?.data.items ?? []).some(
+          (item) => Boolean(item.notes.truncated?.length),
+        );
   const refresh = () => {
-    void options.refetch();
     void overview.refetch();
     if (view === 'companies') void companies.refetch();
   };
-  const companyItems = [
-    { value: '', label: t('operations.allCompanies') },
-    ...subjects.map((subject) => ({
-      value: subject.id,
-      label: subject.name,
-    })),
-  ];
+  const selectCompany = (id: string) => {
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        if (id) next.set('subjectId', id);
+        else next.delete('subjectId');
+        return next;
+      },
+      { replace: true },
+    );
+    setView('summary');
+  };
   return (
     <PageContainer>
       <PageHeader
@@ -942,31 +1165,6 @@ export default function OperationsOverviewPage() {
       >
         <div className='flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between'>
           <div className='grid gap-2 sm:flex sm:flex-wrap sm:items-center'>
-            <Select
-              items={companyItems}
-              value={subjectId}
-              disabled={options.isPending || options.isError}
-              onValueChange={(value) => {
-                setSubjectId(value ?? '');
-                setView('summary');
-              }}
-            >
-              <SelectTrigger
-                className='w-full sm:w-56'
-                aria-label={t('operations.company')}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className='w-auto max-w-[min(var(--container-sm),var(--available-width))] min-w-(--anchor-width) [&_[data-slot=select-item]>:first-child]:whitespace-normal'>
-                <SelectGroup>
-                  {companyItems.map((item) => (
-                    <SelectItem key={item.value || 'all'} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
             <div className='w-full sm:w-40'>
               <DatePicker
                 value={date}
@@ -1008,15 +1206,12 @@ export default function OperationsOverviewPage() {
             <CompanyComparison
               data={companies.data?.data}
               loading={companies.isPending}
-              onSelect={(id) => {
-                setSubjectId(id);
-                setView('summary');
-              }}
+              onSelect={selectCompany}
             />
           )}
         </TabsContent>
       </Tabs>
-      <DataNote />
+      <DataNote truncated={truncated} />
     </PageContainer>
   );
 }

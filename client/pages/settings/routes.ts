@@ -21,6 +21,12 @@ const systemSettingsRoutes: AppClientRouteContribution = defineAppRoutes([
         name: 'settingsIndex',
         path: '',
         auth: 'required',
+        // The hub is a static shell with no protected data of its own. Each
+        // administration entry is filtered on the client by the signed-in
+        // user's capability (overview.tsx checks useCan per entry), so the hub
+        // route opts out of a page-level gate while every child page keeps its
+        // own authz check.
+        authz: 'skip',
         breadcrumb: { title: 'settingsHub.title' },
         componentLoader: () => import('./overview.js'),
       },
@@ -145,12 +151,20 @@ const systemSettingsRoutes: AppClientRouteContribution = defineAppRoutes([
     name: 'legacyUsers',
     path: '/users',
     auth: 'required',
+    // Redirect target is /settings/users; mirror its authorization so the
+    // legacy path never out-grants the real page.
+    authz: { resource: { type: 'user', id: '*' }, action: 'read' },
     componentLoader: () => import('./legacy-redirect.js'),
   },
   {
     name: 'legacyRoles',
     path: '/roles',
     auth: 'required',
+    // Redirect target is /settings/roles; mirror its authorization.
+    authz: {
+      resource: { type: 'settings', id: 'authorization.permission-sets' },
+      action: 'read',
+    },
     componentLoader: () => import('./legacy-redirect.js'),
   },
 ]);

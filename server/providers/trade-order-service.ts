@@ -684,6 +684,12 @@ export class TradeOrderService {
             sourceChannel: head
               ? text(head.sourceChannel) || 'manual'
               : content.sourceChannel,
+            sourceRef: text(content.sourceRef) || null,
+            sourceDoc: text(content.sourceDoc) || null,
+            onBehalfOf: head
+              ? text(head.onBehalfOf) || null
+              : content.onBehalfOf,
+            period: text(content.period) || null,
             demandMode: content.demandMode ?? null,
             temporaryReason: content.temporaryReason ?? null,
             partnerSnapshot: resolved.partner,
@@ -788,6 +794,10 @@ export class TradeOrderService {
             'partnerId',
             'occurredOn',
             'currency',
+            'sourceRef',
+            'sourceDoc',
+            'onBehalfOf',
+            'period',
             'deliveryOn',
             'deliveryTerms',
             'notes',

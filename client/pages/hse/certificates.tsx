@@ -45,6 +45,7 @@ import {
 const emptyForm = () => ({
   subjectId: '',
   holderType: 'company',
+  holderId: '',
   holderName: '',
   certType: 'pollution',
   certNo: '',
@@ -94,6 +95,14 @@ export default function HseCertificatesPage() {
   });
   const canManage = options.data?.data.permissions.manage ?? false;
   const canApprove = options.data?.data.permissions.approve ?? false;
+  const employees = useMemo(
+    () =>
+      (options.data?.data.employees ?? []).filter(
+        (employee) =>
+          !form.subjectId || employee.subjectId === form.subjectId,
+      ),
+    [options.data?.data.employees, form.subjectId],
+  );
   const create = useMutation({
     retry: false,
     mutationFn: () =>
@@ -103,7 +112,15 @@ export default function HseCertificatesPage() {
         json: {
           subjectId: form.subjectId,
           holderType: form.holderType,
-          holderName: form.holderName,
+          holderId:
+            form.holderType === 'person'
+              ? form.holderId || undefined
+              : undefined,
+          holderName:
+            form.holderType === 'person'
+              ? (employees.find((employee) => employee.id === form.holderId)
+                  ?.name ?? '')
+              : form.holderName,
           certType: form.certType,
           certNo: form.certNo,
           issuedAt: form.issuedAt || null,
@@ -155,6 +172,32 @@ export default function HseCertificatesPage() {
     const entry = row.history?.at(-1);
     if (!entry) return '—';
     return `${t(`hse.action.${entry.action}`)} · ${new Date(entry.at).toLocaleDateString(i18n.language)}`;
+  };
+  const knownErrorCodes = [
+    'PERMISSION_DENIED',
+    'SUBJECT_REQUIRED',
+    'OWNER_NOT_FOUND',
+    'OWNER_NOT_IN_COMPANY',
+    'OWNER_REQUIRED',
+    'DUE_REQUIRED',
+    'SELF_VERIFICATION',
+    'CERTIFICATE_ACTIVE',
+    'CERTIFICATE_REVOKED',
+    'CERTIFICATE_STATE',
+    'EXPIRES_AT_REQUIRED',
+    'EXPIRY_NOT_EXTENDED',
+    'HOLDER_REQUIRED',
+    'HOLDER_NOT_FOUND',
+    'HOLDER_NOT_IN_COMPANY',
+    'CERTIFICATE_DUPLICATE',
+  ];
+  const errorText = (error: unknown) => {
+    if (error instanceof Error && error.message) {
+      return knownErrorCodes.includes(error.message)
+        ? t(`hse.error.${error.message}`)
+        : error.message;
+    }
+    return t('hse.saveFailed');
   };
   const rows = list.data?.data ?? [];
   const total = list.data?.meta.total ?? 0;
@@ -380,13 +423,25 @@ export default function HseCertificatesPage() {
                   ]}
                 />
               </label>
-              <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.holderName')}</span>
-                <Input
-                  value={form.holderName}
-                  onChange={(event) => set('holderName', event.target.value)}
-                />
-              </label>
+              {form.holderType === 'person' ? (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.holder')}</span>
+                  <HseSelect
+                    value={form.holderId}
+                    onChange={(value) => set('holderId', value)}
+                    options={employees}
+                    placeholder={t('hse.selectHolder')}
+                  />
+                </label>
+              ) : (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.holderName')}</span>
+                  <Input
+                    value={form.holderName}
+                    onChange={(event) => set('holderName', event.target.value)}
+                  />
+                </label>
+              )}
               <label className='grid gap-1.5 text-sm'>
                 <span>{t('hse.fields.certType')}</span>
                 <HseSelect
@@ -428,9 +483,7 @@ export default function HseCertificatesPage() {
             </div>
             {create.isError ? (
               <p className='text-sm text-destructive'>
-                {create.error instanceof Error
-                  ? create.error.message
-                  : t('hse.saveFailed')}
+                {errorText(create.error)}
               </p>
             ) : null}
           </div>
@@ -447,7 +500,9 @@ export default function HseCertificatesPage() {
               disabled={
                 create.isPending ||
                 !form.subjectId ||
-                !form.holderName.trim() ||
+                (form.holderType === 'person'
+                  ? !form.holderId
+                  : !form.holderName.trim()) ||
                 !form.certNo.trim() ||
                 !form.expiresAt
               }
@@ -495,9 +550,7 @@ export default function HseCertificatesPage() {
             </label>
             {advance.isError ? (
               <p className='text-sm text-destructive'>
-                {advance.error instanceof Error
-                  ? advance.error.message
-                  : t('hse.saveFailed')}
+                {errorText(advance.error)}
               </p>
             ) : null}
           </div>

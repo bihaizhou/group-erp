@@ -112,7 +112,11 @@ export const materials = {
   actionUnavailable: '当前状态或权限不允许此操作，请关闭后刷新资料。',
   actionConsequence:
     '此操作将变更资料状态，并保留操作原因和历史。存在有效引用的资料不能停用。',
-  resolveHelp: '只可关联已审核启用的 SKU，办结后可追溯来源。',
+  resolveHelp:
+    '只可关联已审核启用的 SKU，办结后采购申请明细会自动关联，无需申请人再确认。',
+  addAlias: '同时把“{{name}}”添加为该物料的别名',
+  addAliasHelp:
+    '下次提交相同名称时会直接匹配到该物料；已存在的同名别名不会重复添加。',
   requestHandling: '办理物料申请',
   requestHandlingHelp:
     '已有合适物料时直接关联 SKU 办结；需要新规格时，从本申请新建 SKU，审核启用后再关联办结。',
@@ -160,8 +164,7 @@ export const materials = {
     references: '别名与旧码',
     tags: '标签字典',
     tagLinks: '标签关联',
-    requests: '物料申请',
-    subjectSettings: '公司物料设置',
+    requests: '待治理物料',
     warehouses: '仓库设置',
   },
   descriptions: {
@@ -173,8 +176,7 @@ export const materials = {
     references: '维护别名和历史编码，保留多候选对应关系。',
     tags: '维护适用于标准名称或 SKU 的标签。',
     tagLinks: '关联标签，名称标签可由 SKU 继承显示。',
-    requests: '提报缺失物料，办理后关联已启用 SKU。',
-    subjectSettings: '设置各公司可采购、可销售的物料。',
+    requests: '采购或领用提报的未匹配物料，办理后自动关联已启用 SKU。',
     warehouses: '引用现有组织主体和岗位，维护仓库基础资料。',
   },
   fields: {
@@ -205,10 +207,9 @@ export const materials = {
     specification: '规格需求',
     proposedUnit: '建议单位',
     usage: '用途',
-    canPurchase: '允许采购',
-    canSell: '允许销售',
     responsiblePositionId: '责任岗位',
     resolvedSkuId: '办理结果 SKU',
+    resolvedUnitId: '办理结果单位',
   },
   enums: {
     stock: '库存物料',

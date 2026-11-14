@@ -7,6 +7,8 @@ import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { useSettingsAccess } from '#hooks/use-settings-access';
+import { businessMonth } from '#hooks/business-date';
+import { operationsErrorKey } from './errors.js';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import {
@@ -21,7 +23,7 @@ import type { OperationsTargets } from './model.js';
 import { nativeSelectClass } from '#components/native-controls';
 
 const metrics = ['processed', 'metal', 'sand', 'metalRate'] as const;
-const currentPeriod = () => new Date().toISOString().slice(0, 7);
+const currentPeriod = () => businessMonth();
 
 export default function OperationsTargetsPage() {
   const { t } = useTranslation();
@@ -62,8 +64,7 @@ export default function OperationsTargetsPage() {
       setError('');
       await queryClient.invalidateQueries({ queryKey: ['operations-targets'] });
     },
-    onError: (reason) =>
-      setError(reason instanceof Error ? reason.message : String(reason)),
+    onError: (reason) => setError(operationsErrorKey(reason)),
   });
   const access = useSettingsAccess('operations');
   return (
@@ -125,7 +126,16 @@ export default function OperationsTargetsPage() {
           </Button>
         </fieldset>
       </div>
-      {error ? <p className='mb-3 text-sm text-destructive'>{error}</p> : null}
+      {error ? (
+        <p className='mb-3 text-sm text-destructive'>
+          {t(`operations.error.${error}`)}
+        </p>
+      ) : null}
+      <p className='mb-3 text-sm text-muted-foreground'>
+        {t('operations.targetsTotal', {
+          count: targets.data?.data.total ?? 0,
+        })}
+      </p>
       <Table>
         <TableHeader>
           <TableRow>

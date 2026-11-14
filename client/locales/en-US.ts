@@ -41,6 +41,7 @@ const enUS = {
   settingsHub: {
     title: 'Settings',
     description: 'Manage accounts, roles and default record scopes.',
+    empty: 'You have no settings modules available.',
     users: 'Users',
     usersHint: 'Browse, create and deactivate accounts, reset passwords.',
     roles: 'Roles and permissions',

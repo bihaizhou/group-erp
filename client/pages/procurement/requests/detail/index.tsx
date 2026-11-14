@@ -349,7 +349,6 @@ export function RequestInformation({
           company: snapshot.payload.company,
           requester: snapshot.payload.requester,
           unit: snapshot.payload.unit,
-          supplier: undefined,
         }
       : row.display;
   return (
@@ -370,6 +369,9 @@ export function RequestInformation({
           'sourceChannel',
           t(ui(`sourceChannel_${head.sourceChannel ?? 'manual'}`)),
         ],
+        ['sourceRef', head.sourceRef ?? ''],
+        ['sourceDoc', head.sourceDoc ?? ''],
+        ['period', head.period ?? ''],
         [
           'neededOn',
           head.neededOn
@@ -377,15 +379,6 @@ export function RequestInformation({
                 i18n.language,
               )
             : '',
-        ],
-        [
-          'supplier',
-          snapshot
-            ? (
-                head.supplierSnapshot as
-                  { identity?: { name?: string } } | undefined
-              )?.identity?.name
-            : row.display.supplier?.name,
         ],
         ['usage', head.usage],
         ['notes', head.notes],
@@ -398,9 +391,7 @@ export function RequestInformation({
           <dd className='text-sm break-words'>
             {value ? (
               <LongText>{String(value)}</LongText>
-            ) : snapshot &&
-              (['company', 'requester', 'unit'].includes(key!) ||
-                (key === 'supplier' && head.suggestedSupplierId)) ? (
+            ) : snapshot && ['company', 'requester', 'unit'].includes(key!) ? (
               t(ui('nameNotRecorded'))
             ) : (
               '—'
@@ -458,6 +449,7 @@ export function DemandLines({ lines }: { lines: StoredLine[] }) {
                   ? `${line.baseQuantity} ${line.materialSnapshot?.baseUnitName ?? ''}`
                   : '',
               ],
+              ['lineSupplier', line.supplierSnapshot?.identity?.name],
               ['lineUsage', line.usage],
               ['lineNotes', line.notes],
             ].map(([key, value]) => (

@@ -188,6 +188,9 @@ test('approved purchase demand splits into bounded orders; frozen independent re
   };
   const input = { content: content('10'), requestKey: randomUUID() };
   input.content.lines[0].unitPrice = '19.90345678';
+  input.content.sourceRef = 'PR-2026-001';
+  input.content.sourceDoc = 'Split from approved demand';
+  input.content.period = '2026-11';
   const created = await send(f.applicant.session, base, input);
   expect(created.status).toBe(201);
   let order = (await created.json()).data;
@@ -196,6 +199,19 @@ test('approved purchase demand splits into bounded orders; frozen independent re
     baseQuantity: '10',
     fulfilledQuantity: '0',
   });
+  expect(order.sourceRef).toBe('PR-2026-001');
+  expect(order.sourceDoc).toBe('Split from approved demand');
+  expect(order.period).toBe('2026-11');
+  const badPeriod = content('1');
+  badPeriod.period = '2026/11';
+  expect(
+    (
+      await send(f.applicant.session, base, {
+        content: badPeriod,
+        requestKey: randomUUID(),
+      })
+    ).status,
+  ).toBe(400);
   expect((await send(f.applicant.session, base, input)).status).toBe(201);
   expect(
     (
@@ -333,4 +349,81 @@ test('a failure after order lines and allocations rolls back the entire creation
     }),
   ).toBe(0);
   expect((await send(f.admin, '/procurement/orders', input)).status).toBe(201);
+});
+
+test('draft order updates persist source reference edits and allow clearing them', async ({
+  testApp,
+  database,
+}) => {
+  const f = await setup(testApp, database),
+    base = '/procurement/orders';
+  await f.grant(f.applicant.user.id, 'procurement.orders', [
+    'read',
+    'create',
+    'update',
+  ]);
+  await f.orderRules('purchaseOrders');
+  const baseContent = f.orderContent('10'),
+    content = {
+      ...baseContent,
+      sourceRef: 'PR-2026-001',
+      sourceDoc: 'Original source document',
+      period: '2026-11',
+    };
+  const created = await send(f.applicant.session, base, {
+    content,
+    requestKey: randomUUID(),
+  });
+  expect(created.status).toBe(201);
+  let order = (await created.json()).data;
+  expect(order.sourceRef).toBe('PR-2026-001');
+  expect(order.sourceDoc).toBe('Original source document');
+  expect(order.period).toBe('2026-11');
+  const patched = await send(
+    f.applicant.session,
+    `${base}/${order.id}`,
+    {
+      ...mutation(order),
+      content: {
+        ...content,
+        sourceRef: 'PR-2026-002',
+        sourceDoc: 'Edited source document',
+        period: '2026-12',
+      },
+    },
+    'PATCH',
+  );
+  expect(patched.status).toBe(200);
+  order = (await patched.json()).data;
+  expect(order.sourceRef).toBe('PR-2026-002');
+  expect(order.sourceDoc).toBe('Edited source document');
+  expect(order.period).toBe('2026-12');
+  expect(
+    await database
+      .repository('purchaseOrders')
+      .findOne({ filter: { id: order.id } }),
+  ).toMatchObject({
+    sourceRef: 'PR-2026-002',
+    sourceDoc: 'Edited source document',
+    period: '2026-12',
+  });
+  const cleared = await send(
+    f.applicant.session,
+    `${base}/${order.id}`,
+    {
+      ...mutation(order),
+      content: { ...content, sourceRef: null, sourceDoc: null, period: null },
+    },
+    'PATCH',
+  );
+  expect(cleared.status).toBe(200);
+  order = (await cleared.json()).data;
+  expect(order.sourceRef).toBeNull();
+  expect(order.sourceDoc).toBeNull();
+  expect(order.period).toBeNull();
+  expect(
+    await database
+      .repository('purchaseOrders')
+      .findOne({ filter: { id: order.id } }),
+  ).toMatchObject({ sourceRef: null, sourceDoc: null, period: null });
 });

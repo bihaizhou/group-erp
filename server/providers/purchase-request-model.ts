@@ -31,6 +31,7 @@ export type PurchaseSourceChannel = (typeof purchaseSourceChannels)[number];
 export const purchaseLineInput = z.strictObject({
   id,
   selection: materialSelectionInput,
+  supplierId: optionalId,
   originalName: z.string().trim().max(200).default(''),
   originalSpecification: z.string().trim().max(6000).default(''),
   usage: note,
@@ -46,6 +47,15 @@ export const purchaseContent = z
     neededOn: z.iso.date().nullable().default(null),
     businessDate: z.iso.date().nullable().default(null),
     sourceChannel: z.enum(purchaseSourceChannels).default('manual'),
+    sourceRef: z.string().trim().max(200).nullable().default(null),
+    sourceDoc: z.string().trim().max(200).nullable().default(null),
+    onBehalfOf: optionalId,
+    period: z
+      .string()
+      .trim()
+      .regex(/^\d{4}-(0[1-9]|1[0-2])$/u)
+      .nullable()
+      .default(null),
     suggestedSupplierId: optionalId,
     projectId: z.null().default(null),
     notes: note,
@@ -148,6 +158,10 @@ export const purchaseHeadColumns = [
   'neededOn',
   'businessDate',
   'sourceChannel',
+  'sourceRef',
+  'sourceDoc',
+  'onBehalfOf',
+  'period',
   'suggestedSupplierId',
   'supplierSnapshot',
   'notes',
@@ -203,6 +217,8 @@ export const purchaseLineColumns = [
   'materialSnapshot',
   'confirmedBy',
   'confirmedAt',
+  'supplierId',
+  'supplierSnapshot',
   'usage',
   'notes',
   'selectionInput',

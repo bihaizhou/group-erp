@@ -223,6 +223,32 @@ export class PeopleService {
       profileId = card ? scalar(card.id) : null;
     if (workflowKinds.includes(kind) && actor) {
       const view = await this.runtime.view(peopleTables[kind], id, actor);
+      // Transition entries only carry the actor id; resolve display names so
+      // the client never has to show raw UUIDs (career audits do the same).
+      const actorIds = [
+        ...new Set(
+          view.history.transitions
+            .map((entry) => scalar(entry.actorId))
+            .filter((actorId): actorId is string => Boolean(actorId)),
+        ),
+      ];
+      const names = new Map<string, string>();
+      await Promise.all(
+        actorIds.map(async (actorId) => {
+          if (actorId === SYSTEM_ACTOR.id) {
+            names.set(actorId, 'system');
+            return;
+          }
+          try {
+            const user = await this.users
+              .withConnection(this.db.connection())
+              .get(actorId);
+            names.set(actorId, scalar(user?.name) || scalar(user?.username));
+          } catch {
+            names.set(actorId, '');
+          }
+        }),
+      );
       return {
         ...record,
         currentStaffing,
@@ -231,7 +257,10 @@ export class PeopleService {
         ...(profileId ? { profileId } : {}),
         workflow: {
           available: view.available,
-          history: view.history.transitions,
+          history: view.history.transitions.map((entry) => ({
+            ...entry,
+            actorName: names.get(scalar(entry.actorId)) ?? '',
+          })),
         },
       };
     }
@@ -2138,9 +2167,17 @@ export class PeopleService {
       await close('assignments', assignment);
     }
     if (d.type === 'exit') {
-      const outstandingAssets = await c.repository('assets').count({
-        filter: { custodianEmployeeId: person.id, status: 'assigned' },
-      });
+      // A maintenance asset still keeps its custodian: it is out for repair,
+      // not returned. Counting only `assigned` let such an asset follow the
+      // departed employee out of the company, so both statuses block the exit
+      // until the asset is returned or transferred.
+      const outstandingAssets =
+        (await c.repository('assets').count({
+          filter: { custodianEmployeeId: person.id, status: 'assigned' },
+        })) +
+        (await c.repository('assets').count({
+          filter: { custodianEmployeeId: person.id, status: 'maintenance' },
+        }));
       if (outstandingAssets > 0) return fail('PEOPLE_ASSETS_OUTSTANDING');
       for (const record of currentAssignments)
         await close('assignments', record);
@@ -2207,7 +2244,8 @@ export class PeopleService {
       );
     }
     const accountId = scalar(person.accountId);
-    if (accountId) await syncAccountPositionPermissions(c, accountId);
+    if (accountId)
+      await syncAccountPositionPermissions(c, accountId, this.timeZone);
   }
 
   async applyDue() {

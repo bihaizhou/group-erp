@@ -25,6 +25,7 @@ import {
   lifecycleErrorFields,
 } from '@nocobase/lifecycle';
 import { Hono, type Context } from 'hono';
+import { databaseManagerToken } from '@nocobase/db';
 import { z } from 'zod';
 import { supplyChainMaterialServiceToken } from '../providers/supply-chain.js';
 import { supplierServiceToken } from '../providers/procurement.js';
@@ -69,6 +70,14 @@ import {
   purchaseIdentityView,
   purchaseMergeView,
 } from '../providers/purchase-request-model.js';
+import {
+  assertFieldsWritable,
+  fieldPoliciesFor,
+  redactRecord,
+  redactRows,
+  type FieldPolicyView,
+} from '../providers/field-access.js';
+import { resourceFieldNames } from '../providers/field-catalog.js';
 
 type Env = AuthEnv &
   AuthorizationEnv & { Variables: { purchaseAccess: PurchaseAccess } };
@@ -83,7 +92,8 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
   defineApiRoutes((app) => {
     const service = app.container.resolve(purchaseRequestServiceToken),
       auth = app.container.resolve(authenticationToken),
-      authz = app.container.resolve(authorizationToken);
+      authz = app.container.resolve(authorizationToken),
+      db = app.container.resolve(databaseManagerToken);
     const router = new Hono<Env>();
     for (const path of [
       '/requests',
@@ -103,6 +113,91 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
       router.use(path, auth.required(), authz.middleware());
     const actor = (c: Context<Env>) => ({ id: c.get('auth')!.user.id });
     const access = (c: Context<Env>) => c.get('purchaseAccess');
+    // Field-policy enforcement resources: the request head and its lines.
+    const HEAD_RESOURCE = 'purchase.request';
+    const LINE_RESOURCE = 'purchase.request.line';
+    /** actor() carries no principal type; fieldPoliciesFor requires one. */
+    const principal = (c: Context<Env>) => ({
+      type: 'user' as const,
+      id: c.get('auth')!.user.id,
+    });
+    /** Null and the empty string both mean "not provided" on a form. */
+    const isProvided = (value: unknown): boolean =>
+      value !== undefined && value !== null && value !== '';
+    /** Quantities compare numerically; text compares as strings. */
+    const asComparable = (field: string, value: unknown): string | null => {
+      if (value === '' || value === null || value === undefined) return null;
+      if (
+        field === 'requestedQuantity' ||
+        field === 'baseQuantity' ||
+        field === 'requestedUnitText'
+      ) {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? String(numeric) : String(value);
+      }
+      return String(value);
+    };
+    /**
+     * Quantity fields travel inside a line's `selection` on the way in but
+     * live as plain columns on stored lines; expose both views.
+     */
+    const lineFieldValues = (
+      line: Record<string, unknown>,
+    ): Record<string, unknown> => {
+      const selection =
+        line.selection && typeof line.selection === 'object'
+          ? (line.selection as Record<string, unknown>)
+          : undefined;
+      if (!selection) return line;
+      return {
+        ...line,
+        requestedQuantity: selection.quantity,
+        requestedUnitText: selection.requestedUnitText,
+        baseQuantity: selection.baseQuantity,
+      };
+    };
+    /**
+     * Reject a save that writes a catalog field the caller's field policies
+     * mark hidden. `previousLines` (stored line rows) turns the check into a
+     * diff; without it (create/copy) every provided value counts as a write.
+     */
+    const assertContentWritable = async (
+      policies: FieldPolicyView[],
+      content: Record<string, unknown>,
+      previousLines?: Record<string, unknown>[],
+    ) => {
+      const headFields = await resourceFieldNames(db, HEAD_RESOURCE);
+      const lineFields = await resourceFieldNames(db, LINE_RESOURCE);
+      assertFieldsWritable(
+        policies,
+        HEAD_RESOURCE,
+        headFields.filter(
+          (field) => field in content && isProvided(content[field]),
+        ),
+      );
+      const lines = (Array.isArray(content.lines)
+        ? content.lines
+        : []) as Record<string, unknown>[];
+      for (const line of lines) {
+        const values = lineFieldValues(line);
+        assertFieldsWritable(
+          policies,
+          LINE_RESOURCE,
+          lineFields.filter((field) => {
+            if (!(field in values) || !isProvided(values[field])) return false;
+            if (!previousLines) return true;
+            const previousLine = previousLines.find(
+              (previous) => previous.id === line.id,
+            );
+            if (!previousLine) return true;
+            return (
+              asComparable(field, values[field]) !==
+              asComparable(field, previousLine[field])
+            );
+          }),
+        );
+      }
+    };
     const allowed = (
       action: PurchasePermissionAction | 'update',
       settings = false,
@@ -368,14 +463,18 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
         listResponse(purchaseListView, purchaseMeta),
       ),
       apiValidator('query', purchaseQuery),
-      async (c) =>
-        c.json(
-          await service.list(
-            c.req.valid('query'),
-            actor(c),
-            access(c).policies,
-          ),
-        ),
+      async (c) => {
+        const result = await service.list(
+          c.req.valid('query'),
+          actor(c),
+          access(c).policies,
+        );
+        const policies = await fieldPoliciesFor(db, principal(c));
+        return c.json({
+          ...result,
+          data: redactRows(result.data, policies, HEAD_RESOURCE),
+        });
+      },
     );
     router.get(
       '/requestIdentity',
@@ -422,17 +521,20 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
         true,
       ),
       apiValidator('json', purchaseCreate),
-      async (c) =>
-        c.json(
+      async (c) => {
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal(c));
+        await assertContentWritable(
+          policies,
+          input.content as unknown as Record<string, unknown>,
+        );
+        return c.json(
           {
-            data: await service.create(
-              c.req.valid('json'),
-              actor(c),
-              access(c),
-            ),
+            data: await service.create(input, actor(c), access(c)),
           },
           201,
-        ),
+        );
+      },
     );
     router.get(
       '/requests/:id',
@@ -443,13 +545,21 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
         dataResponse(purchaseView),
       ),
       apiValidator('param', purchaseParams),
-      async (c) =>
-        c.json({
-          data: await service.detail(
-            c.req.valid('param').id,
-            access(c).policies,
-          ),
-        }),
+      async (c) => {
+        const policies = await fieldPoliciesFor(db, principal(c));
+        const data = await service.detail(
+          c.req.valid('param').id,
+          access(c).policies,
+        );
+        const view = redactRecord(
+          data as unknown as Record<string, unknown>,
+          policies,
+          HEAD_RESOURCE,
+        );
+        if (Array.isArray(view.lines))
+          view.lines = redactRows(view.lines, policies, LINE_RESOURCE);
+        return c.json({ data: view });
+      },
     );
     router.get(
       '/requests/:id/progress',
@@ -498,15 +608,32 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
       ),
       apiValidator('param', purchaseParams),
       apiValidator('json', purchaseUpdate),
-      async (c) =>
-        c.json({
+      async (c) => {
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal(c));
+        const current = await service.detail(
+          c.req.valid('param').id,
+          access(c).policies,
+        );
+        const currentLines = (
+          current as unknown as Record<string, unknown>
+        ).lines;
+        await assertContentWritable(
+          policies,
+          input.content as unknown as Record<string, unknown>,
+          Array.isArray(currentLines)
+            ? (currentLines as Record<string, unknown>[])
+            : undefined,
+        );
+        return c.json({
           data: await service.update(
             c.req.valid('param').id,
-            c.req.valid('json'),
+            input,
             actor(c),
             access(c),
           ),
-        }),
+        });
+      },
     );
     router.post(
       '/requests/:id/copy',
@@ -520,18 +647,25 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
       ),
       apiValidator('param', purchaseParams),
       apiValidator('json', purchaseUpdate),
-      async (c) =>
-        c.json(
+      async (c) => {
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal(c));
+        await assertContentWritable(
+          policies,
+          input.content as unknown as Record<string, unknown>,
+        );
+        return c.json(
           {
             data: await service.copy(
               c.req.valid('param').id,
-              c.req.valid('json'),
+              input,
               actor(c),
               access(c),
             ),
           },
           201,
-        ),
+        );
+      },
     );
     // The action name comes from a code-owned path. Permission checks precede body validation.
     for (const transition of [

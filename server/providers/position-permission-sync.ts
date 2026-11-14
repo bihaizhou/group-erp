@@ -1,4 +1,5 @@
 import type { DatabaseConnection } from '@nocobase/db';
+import { businessDate } from './business-date.js';
 
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
 
@@ -38,10 +39,13 @@ export interface PositionMappingLike {
  *
  * A person can hold several positions; the union is intentional, matching the
  * position-permission page's "one position = several permission sets" model.
+ *
+ * `asOf` is a civil business date in the configured people timezone — the
+ * server's OS/UTC date must not decide whether an assignment counts "today".
  */
 export function isCurrentAssignment(
   row: PositionAssignmentLike,
-  asOf = new Date().toISOString().slice(0, 10),
+  asOf = businessDate(),
 ): boolean {
   if (row.status !== undefined && row.status !== 'active') return false;
   const data = assignmentData(row);
@@ -54,7 +58,7 @@ export function desiredPermissionKeys(
   personIds: readonly string[],
   assignments: readonly PositionAssignmentLike[],
   mappings: readonly PositionMappingLike[],
-  asOf = new Date().toISOString().slice(0, 10),
+  asOf = businessDate(),
 ): Set<string> {
   const people = new Set(personIds);
   const positions = new Set(
@@ -80,6 +84,7 @@ export function desiredPermissionKeys(
 export async function syncAccountPositionPermissions(
   db: DatabaseConnection,
   accountId: string,
+  timeZone = 'Asia/Shanghai',
 ): Promise<{ granted: number; revoked: number }> {
   if (!accountId) return { granted: 0, revoked: 0 };
   const employees = await db
@@ -101,7 +106,12 @@ export async function syncAccountPositionPermissions(
       limit: 10000,
     }),
   ]);
-  const desired = desiredPermissionKeys(personIds, assignments, mappings);
+  const desired = desiredPermissionKeys(
+    personIds,
+    assignments,
+    mappings,
+    businessDate(timeZone),
+  );
   const mappedKeys = new Set(
     mappings.map((row) => text(row.permissionSetKey)).filter(Boolean),
   );

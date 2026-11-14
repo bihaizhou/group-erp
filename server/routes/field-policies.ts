@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { Application } from '@nocobase/app-server/application';
 import {
@@ -63,6 +63,7 @@ const listQuery = z.object({ permissionSetKey: z.string().min(1).max(120) });
 
 const saveBody = z.object({
   permissionSetKey: z.string().min(1).max(120),
+  requestKey: z.string().min(1).max(98),
   policies: z
     .array(
       z.object({
@@ -81,6 +82,42 @@ const denied = () =>
     reason: 'PERMISSION_DENIED',
     message: 'Permission set access denied',
   });
+
+const keyReused = () =>
+  new ApiError({
+    status: 'ABORTED',
+    domain: 'authorization',
+    reason: 'FIELD_POLICY_REQUEST_KEY_REUSED',
+    message: 'Field policy request key was already used for a different payload.',
+  });
+
+/** Stable fingerprint of a policy list so one requestKey always means one payload. */
+const fingerprintOf = (
+  policies: { resource: string; field: string; access: string }[],
+): string =>
+  createHash('sha256')
+    .update(
+      JSON.stringify(
+        policies
+          .map((policy) => [policy.resource, policy.field, policy.access])
+          .sort((a, b) =>
+            a[0] !== b[0]
+              ? a[0] < b[0]
+                ? -1
+                : 1
+              : a[1] !== b[1]
+                ? a[1] < b[1]
+                  ? -1
+                  : 1
+                : a[2] < b[2]
+                  ? -1
+                  : a[2] > b[2]
+                    ? 1
+                    : 0,
+          ),
+      ),
+    )
+    .digest('hex');
 
 /**
  * Field policies for the permission-set editor plus the signed-in account's
@@ -111,7 +148,10 @@ export const fieldPolicyRoutes: AppApiRouteContribution<Application> =
         operationId: 'getFieldPolicyCatalog',
         responses: { '200': dataResponse(catalogResponse) },
       }),
-      async (c) => c.json({ data: { resources: await fieldCatalog(db) } }),
+      async (c) => {
+        await check(c, 'read');
+        return c.json({ data: { resources: await fieldCatalog(db) } });
+      },
     );
 
     router.get(
@@ -182,7 +222,7 @@ export const fieldPolicyRoutes: AppApiRouteContribution<Application> =
       apiValidator('json', saveBody),
       async (c) => {
         await check(c, 'update');
-        const { permissionSetKey, policies } = c.req.valid('json');
+        const { permissionSetKey, policies, requestKey } = c.req.valid('json');
         const set = await db
           .repository('authorizationPermissionSets')
           .findOne({ filter: { key: permissionSetKey } });
@@ -193,11 +233,52 @@ export const fieldPolicyRoutes: AppApiRouteContribution<Application> =
           limit: 500,
         });
         // The first explicit save switches the set to the ladder model:
-        // an absent policy then means hidden. The marker row itself is
-        // excluded from reads and effective merges.
+        // an absent policy then means hidden. The marker rows themselves are
+        // excluded from reads and effective merges. `k:`/`f:` rows record the
+        // last requestKey and its payload fingerprint so a retried request
+        // replays instead of re-applying, and a reused key with a different
+        // payload is rejected instead of silently dropped.
+        const fingerprint = fingerprintOf(policies);
+        const keyMarker = `k:${requestKey}`;
+        const fingerprintMarker = `f:${fingerprint}`;
+        const previousKeyMarker = existing.find(
+          (row) =>
+            asText(row.resource) === '$default' &&
+            asText(row.field).startsWith('k:'),
+        );
+        if (previousKeyMarker && asText(previousKeyMarker.field) === keyMarker) {
+          const previousFingerprintMarker = existing.find(
+            (row) =>
+              asText(row.resource) === '$default' &&
+              asText(row.field).startsWith('f:'),
+          );
+          if (
+            previousFingerprintMarker &&
+            asText(previousFingerprintMarker.field) === fingerprintMarker
+          ) {
+            return c.json({
+              data: {
+                policies: existing
+                  .map((row) => ({
+                    resource: asText(row.resource),
+                    field: asText(row.field),
+                    access: row.access as 'hidden' | 'visible' | 'write',
+                  }))
+                  .filter((row) => row.resource && row.resource !== '$default'),
+              },
+            });
+          }
+          throw keyReused();
+        }
         const items = [
           ...policies,
           { resource: '$default', field: 'model', access: 'visible' as const },
+          { resource: '$default', field: keyMarker, access: 'visible' as const },
+          {
+            resource: '$default',
+            field: fingerprintMarker,
+            access: 'visible' as const,
+          },
         ];
         const nextKeys = new Set(
           items.map((item) => `${item.resource}.${item.field}`),

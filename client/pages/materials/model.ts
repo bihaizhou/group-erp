@@ -1,4 +1,5 @@
 export const kinds = [
+  'requests',
   'names',
   'templates',
   'skus',
@@ -7,8 +8,6 @@ export const kinds = [
   'references',
   'tags',
   'tagLinks',
-  'requests',
-  'subjectSettings',
   'warehouses',
 ] as const;
 export type Kind = (typeof kinds)[number];
@@ -47,7 +46,8 @@ export type Options = Record<
 >;
 export type FieldSpec = {
   key: string;
-  type?: 'text' | 'number' | 'decimal' | 'boolean' | 'textarea' | 'select' | 'ref';
+  type?:
+    'text' | 'number' | 'decimal' | 'boolean' | 'textarea' | 'select' | 'ref';
   source?: string;
   choices?: string[];
   required?: boolean;
@@ -133,12 +133,6 @@ export const fields: Record<Kind, FieldSpec[]> = {
     { key: 'specification', type: 'textarea', required: true },
     { key: 'proposedUnit' },
     { key: 'usage', type: 'textarea', required: true },
-  ],
-  subjectSettings: [
-    { key: 'subjectId', type: 'ref', source: 'orgSubjects', required: true },
-    { key: 'skuId', type: 'ref', source: 'skus', required: true },
-    { key: 'canPurchase', type: 'boolean' },
-    { key: 'canSell', type: 'boolean' },
   ],
   warehouses: [
     { key: 'subjectId', type: 'ref', source: 'orgSubjects', required: true },

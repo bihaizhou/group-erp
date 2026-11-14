@@ -10,6 +10,8 @@ export const production = {
     'Keep the production attributes and material list of a unit: one row each for feedstock, product, byproduct and auxiliary; the shift report and receipt follow this list.',
   setupDuplicateSkuError:
     'Each material may appear once. Check for a duplicate selection.',
+  setupOutputTypeDuplicateError:
+    'Only one SKU per output type (one metal, one sand). Check the output types of your product and byproduct rows.',
   setupSkuNotFoundError:
     'The selected material is inactive or missing. Pick another one.',
   setupWarehouseError:
@@ -38,6 +40,7 @@ export const production = {
     noWarehouse: 'None',
     chooseMaterial: 'Choose a material',
     role: 'Role',
+    outputType: 'Output type',
   },
   materialRoles: {
     feedstock: 'Feedstock',
@@ -352,6 +355,21 @@ export const production = {
   downtimeCloseConfirm: 'Confirm close',
   downtimeCreated: 'Downtime event created.',
   downtimeClosedMessage: 'Downtime event closed.',
+  downtimeCancel: 'Cancel',
+  downtimeCancelTitle: 'Cancel downtime',
+  downtimeCancelHint:
+    'Cancelling marks the event void and its minutes stop counting. Enter the reason for cancelling.',
+  downtimeCancelReason: 'Cancel reason',
+  downtimeCancelConfirm: 'Confirm cancel',
+  downtimeCancelledMessage: 'Downtime event cancelled.',
+  error: {
+    SELF_APPROVAL:
+      'Shift reports and overtime requests cannot be approved by the person who entered them. Ask another approver.',
+    DOWNTIME_MINUTES_MISMATCH:
+      'The entered downtime minutes do not match the downtime events recorded for this unit and date. Close or correct the downtime events first.',
+    INPUT_LINE_OVER_ISSUED:
+      'The quantity referenced from this issue line across shift reports exceeds the issued quantity.',
+  },
   businessDate: 'Business date',
   allStatuses: 'All statuses',
   cancel: 'Cancel',

@@ -19,6 +19,7 @@ export const hseIncidentStatuses = [
   'reported',
   'investigating',
   'rectifying',
+  'verifying',
   'closed',
 ] as const;
 export const hseHazardSources = [
@@ -54,6 +55,16 @@ export const hseCertificateStatuses = [
 const optionalId = z.string().min(1).max(36).nullable().optional();
 const subjectId = z.string().min(1).max(36).optional();
 const version = z.number().int().positive();
+const ownerId = z.string().max(36).nullable().optional();
+/** A civil date that must be a real YYYY-MM-DD, not just ten characters. */
+const dueAt = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((value) => !Number.isNaN(Date.parse(value)), {
+    message: 'Invalid date',
+  })
+  .nullable()
+  .optional();
 
 export const hseIncidentCreate = z.object({
   subjectId,
@@ -71,7 +82,9 @@ export const hseIncidentCreate = z.object({
 export const hseIncidentUpdate = z.object({
   version,
   severity: z.enum(hseIncidentSeverities).optional(),
-  investigatorId: z.string().max(200).nullable().optional(),
+  investigatorId: z.string().trim().max(200).nullable().optional(),
+  ownerId,
+  dueAt,
   rootCause: z.string().max(5000).optional(),
   actions: z.string().max(5000).optional(),
   injuryCount: z.coerce.number().int().min(0).max(100000).optional(),
@@ -81,8 +94,10 @@ export const hseIncidentUpdate = z.object({
 
 export const hseIncidentTransition = z.object({
   version,
-  action: z.enum(['investigate', 'rectify', 'close']),
+  action: z.enum(['investigate', 'rectify', 'submit', 'verify', 'return']),
   investigatorId: z.string().trim().min(1).max(200).optional(),
+  ownerId,
+  dueAt,
   rootCause: z.string().max(5000).optional(),
   actions: z.string().max(5000).optional(),
   note: z.string().trim().max(2000).optional(),
@@ -104,18 +119,18 @@ export const hseHazardCreate = z.object({
   description: z.string().trim().min(1).max(500),
   location: z.string().trim().min(1).max(200),
   discoveredAt: z.string().min(10).max(10),
-  ownerId: z.string().max(200).nullable().optional(),
+  ownerId,
   ownerName: z.string().trim().min(1).max(100),
-  dueAt: z.string().min(10).max(10).nullable().optional(),
+  dueAt,
   rectification: z.string().max(5000).default(''),
 });
 
 export const hseHazardUpdate = z.object({
   version,
   level: z.enum(hseHazardLevels).optional(),
-  ownerId: z.string().max(200).nullable().optional(),
+  ownerId,
   ownerName: z.string().trim().min(1).max(100).optional(),
-  dueAt: z.string().min(10).max(10).nullable().optional(),
+  dueAt,
   rectification: z.string().max(5000).optional(),
 });
 
@@ -127,6 +142,8 @@ export const hseHazardTransition = z.object({
     'verify',
     'return',
   ]),
+  ownerId,
+  dueAt,
   rectification: z.string().max(5000).optional(),
   note: z.string().trim().max(2000).optional(),
 });
@@ -180,10 +197,6 @@ export const hseCertificateQuery = z.object({
 });
 
 export const hseIdParams = z.object({ id: z.string().min(1).max(36) });
-
-export const hseOverviewQuery = z.object({
-  subjectId: z.string().max(36).optional(),
-});
 
 export type HseIncidentCreate = z.infer<typeof hseIncidentCreate>;
 export type HseIncidentUpdate = z.infer<typeof hseIncidentUpdate>;

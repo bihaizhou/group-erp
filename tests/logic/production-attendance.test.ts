@@ -8,6 +8,8 @@ import {
 } from '@nocobase/app-plugin-authentication/testing';
 import { databaseManagerToken } from '@nocobase/db';
 import { createStandaloneServer } from '../../server/standalone.js';
+import { userAdministrationServiceToken } from '@nocobase/app-plugin-authentication';
+import { authorizationToken } from '@nocobase/app-plugin-authorization/server';
 
 const test = createAppTest({
   createServer: createStandaloneServer,
@@ -28,6 +30,49 @@ test('builds a production roster from HR positions and records attendance', asyn
   const admin = await signIn(testApp, DEFAULT_ADMIN_CREDENTIALS);
   const send = async (path: string, body: unknown, method = 'POST') =>
     admin.fetch(path, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost',
+      },
+      body: JSON.stringify(body),
+    });
+  // 自报自批校验落地后，确认/审批需要独立的审批人会话。
+  const users = testApp.application.container.resolve(
+    userAdministrationServiceToken,
+  );
+  const authz = testApp.application.container.resolve(authorizationToken);
+  const approverEmail = `${randomUUID()}@example.test`;
+  const approverPassword = randomUUID();
+  const approverAccount = await users.create({
+    name: 'Production approver',
+    email: approverEmail,
+    password: approverPassword,
+  });
+  const approverRole = await authz.permissionSets.create({
+    key: `production-approver-${randomUUID()}`,
+    title: 'Production approver',
+    grants: [
+      {
+        resource: { type: 'settings', id: 'production' },
+        actions: [
+          { action: 'manage' },
+          { action: 'approve' },
+          { action: 'readAll' },
+        ],
+      },
+    ],
+  });
+  await authz.permissionSets.assign({
+    permissionSet: approverRole.key,
+    subject: { type: 'user', id: approverAccount.id },
+  });
+  const approver = await signIn(testApp, {
+    email: approverEmail,
+    password: approverPassword,
+  });
+  const approveSend = async (path: string, body: unknown, method = 'POST') =>
+    approver.fetch(path, {
       method,
       headers: {
         'content-type': 'application/json',
@@ -219,7 +264,9 @@ test('builds a production roster from HR positions and records attendance', asyn
     sandQuantity: '70',
     tailingsQuantity: '27.5',
     runtimeMinutes: 600,
-    downtimeMinutes: 60,
+    // 停机分钟与停机事件表 ΣdurationMinutes 双口径校验：无事件须为 0，
+    // 否则确认会先报 DOWNTIME_MINUTES_MISMATCH 而非 OUTPUT_REQUIRED。
+    downtimeMinutes: 0,
     notes: 'First shift',
   });
   expect(draftResponse.status).toBe(200);
@@ -241,7 +288,7 @@ test('builds a production roster from HR positions and records attendance', asyn
     expect.objectContaining({ id: draft.id, status: 'draft' }),
   );
 
-  const missingMapping = await send(
+  const missingMapping = await approveSend(
     `/production/shift-reports/${draft.id}/confirm`,
     { version: draft.version },
   );
@@ -514,7 +561,13 @@ test('builds a production roster from HR positions and records attendance', asyn
     expect.objectContaining({ id: overtime.id, personId }),
   );
 
-  const approvedOvertime = await send(
+  const overtimeSelfApproval = await send(
+    `/production/overtime/${overtime.id}/decision`,
+    { decision: 'approve', version: overtime.version },
+  );
+  expect(overtimeSelfApproval.status).toBe(400);
+  expect(await overtimeSelfApproval.text()).toContain('SELF_APPROVAL');
+  const approvedOvertime = await approveSend(
     `/production/overtime/${overtime.id}/decision`,
     { decision: 'approve', version: overtime.version },
   );
@@ -534,13 +587,13 @@ test('builds a production roster from HR positions and records attendance', asyn
   });
   expect(rejectCandidate.status).toBe(200);
   const rejectOvertime = (await rejectCandidate.json()).data;
-  const missingRejectReason = await send(
+  const missingRejectReason = await approveSend(
     `/production/overtime/${rejectOvertime.id}/decision`,
     { decision: 'reject', version: rejectOvertime.version },
   );
   expect(missingRejectReason.status).toBe(400);
   expect(await missingRejectReason.text()).toContain('REJECT_REASON_REQUIRED');
-  const rejectedOvertime = await send(
+  const rejectedOvertime = await approveSend(
     `/production/overtime/${rejectOvertime.id}/decision`,
     {
       decision: 'reject',
@@ -609,6 +662,18 @@ test('builds a production roster from HR positions and records attendance', asyn
   );
   expect(cancelled.status).toBe(200);
   expect((await cancelled.json()).data).toMatchObject({ status: 'cancelled' });
+
+  // P2: cancelled events keep their frozen minutes on the row but must not be
+  // counted in the list summary, matching the confirm-time aggregation.
+  const afterCancelList = await admin.fetch(
+    `/production/downtime-events?unitId=${unit.id}&date=2026-10-21`,
+  );
+  expect(afterCancelList.status).toBe(200);
+  expect((await afterCancelList.json()).data.summary).toMatchObject({
+    open: 0,
+    closed: 1,
+    minutes: 120,
+  });
 
   const invalidDowntime = await send('/production/downtime-events', {
     unitId: unit.id,

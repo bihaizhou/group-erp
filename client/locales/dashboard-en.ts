@@ -88,7 +88,7 @@ export const dashboard = {
       activeSkus: 'Active materials',
       names: 'Material names',
       templates: 'Material templates',
-      pendingRequests: 'Requests awaiting handling',
+      pendingRequests: 'Materials awaiting governance',
     },
     recentSkus: 'Recently updated materials',
     recentSkusDescription: 'Material master records ordered by update time.',
@@ -98,7 +98,7 @@ export const dashboard = {
     todosDescription: 'Jump into material governance and requests.',
     todo: {
       newSku: 'Create a material',
-      requests: 'Material requests',
+      requests: 'Materials to govern',
       names: 'Material names',
       units: 'Units of measure',
     },

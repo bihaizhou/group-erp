@@ -1,9 +1,11 @@
 export type HseOption = { id: string; name: string };
 export type HseUnitOption = HseOption & { subjectId: string };
+export type HseEmployeeOption = HseOption & { code: string; subjectId: string };
 export type HseOptions = {
   subjects: HseOption[];
   units: HseUnitOption[];
-  permissions: { manage: boolean; approve: boolean };
+  employees: HseEmployeeOption[];
+  permissions: { manage: boolean; approve: boolean; report: boolean };
 };
 
 export type HseHistoryEntry = {
@@ -30,8 +32,15 @@ export type HseIncident = {
   lostDays: number;
   environmentalRelease: boolean;
   investigatorId: string | null;
+  ownerId: string | null;
+  ownerName: string;
+  dueAt: string | null;
   rootCause: string;
   actions: string;
+  rectifiedBy: string | null;
+  rectifiedAt: string | null;
+  verifiedBy: string | null;
+  verifiedAt: string | null;
   closedBy: string | null;
   closedAt: string | null;
   status: string;
@@ -49,6 +58,7 @@ export type HseHazard = {
   description: string;
   location: string;
   discoveredAt: string;
+  ownerId: string | null;
   ownerName: string;
   dueAt: string | null;
   status: string;
@@ -127,6 +137,7 @@ export const incidentStatusKeys = [
   'reported',
   'investigating',
   'rectifying',
+  'verifying',
   'closed',
 ] as const;
 export const hazardSourceKeys = [

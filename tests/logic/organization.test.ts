@@ -14,6 +14,11 @@ import {
   findApiDocumentSchemaProblems,
 } from '@nocobase/app-server/router';
 import { createStandaloneServer } from '../../server/standalone.js';
+import {
+  ORG_MUTATION_LOCK_ID,
+  lockOrgMutation,
+} from '../../server/providers/organization-service.js';
+import type { DatabaseConnection } from '@nocobase/db';
 
 const test = createAppTest({
   createServer: createStandaloneServer,
@@ -288,6 +293,203 @@ test('maintains organization structure, rejects invalid changes and commits audi
       })
     ).status,
   ).toBe(404);
+});
+
+test('guards deactivation against residual permission mappings and asset references', async ({
+  testApp,
+  database,
+}) => {
+  const admin = await signIn(testApp, DEFAULT_ADMIN_CREDENTIALS);
+  const send = async (path: string, body: unknown, method = 'POST') =>
+    admin.fetch(`/organization/${path}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost',
+      },
+      body: JSON.stringify(body),
+    });
+  const create = async (kind: string, body: unknown) => {
+    const response = await send(kind, body);
+    const payload = await response.json();
+    expect(response.status).toBe(201);
+    return payload.data;
+  };
+  const putPermissions = (positionId: string, permissionSetKeys: string[]) =>
+    admin.fetch(`/position-permissions/${positionId}`, {
+      method: 'PUT',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost',
+      },
+      body: JSON.stringify({ permissionSetKeys }),
+    });
+  const errorOf = async (response: Awaited<ReturnType<typeof admin.fetch>>) =>
+    (await response.json()).error;
+  const sector = await create('sectors', {
+    name: 'Guard energy',
+    code: 'GUARD-ENERGY',
+  });
+  const company = await create('subjects', {
+    name: 'Guard company',
+    code: 'GUARD-CO',
+    type: 'company',
+    sectorId: sector.id,
+    regionId: '00000000-0000-4000-8000-000000000001',
+  });
+  const unit = await create('units', {
+    name: 'Guard unit',
+    code: 'GUARD-UNIT',
+    type: 'department',
+    subjectId: company.id,
+  });
+  const position = await create('positions', {
+    name: 'Guard manager',
+    code: 'GUARD-MGR',
+    unitId: unit.id,
+  });
+  expect((await putPermissions(position.id, ['organization-reader'])).status)
+    .toBe(200);
+
+  // A position with a residual mapping cannot be deactivated.
+  const deactivateMapped = await send(`positions/${position.id}/setStatus`, {
+    version: position.version,
+    reason: 'Mapping still attached',
+    status: 'inactive',
+  });
+  expect(deactivateMapped.status).toBe(400);
+  expect((await errorOf(deactivateMapped)).reason).toBe(
+    'ORG_POSITION_MAPPING_DEPENDENTS',
+  );
+
+  // A legacy mapping row under an already-inactive position still blocks
+  // deactivating the unit that holds the position.
+  const spareUnit = await create('units', {
+    name: 'Guard spare unit',
+    code: 'GUARD-UNIT2',
+    type: 'department',
+    subjectId: company.id,
+  });
+  const spare = await create('positions', {
+    name: 'Guard spare',
+    code: 'GUARD-SPARE',
+    unitId: spareUnit.id,
+  });
+  expect(
+    (
+      await send(`positions/${spare.id}/setStatus`, {
+        version: spare.version,
+        reason: 'Vacant',
+        status: 'inactive',
+      })
+    ).status,
+  ).toBe(200);
+  await database.repository('orgPositionPermissionSets').createOne({
+    values: {
+      id: randomUUID(),
+      positionId: spare.id,
+      permissionSetKey: 'organization-reader',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
+  const deactivateUnit = await send(`units/${spareUnit.id}/setStatus`, {
+    version: spareUnit.version,
+    reason: 'Legacy mapping below',
+    status: 'inactive',
+  });
+  expect(deactivateUnit.status).toBe(400);
+  expect((await errorOf(deactivateUnit)).reason).toBe(
+    'ORG_POSITION_MAPPING_DEPENDENTS',
+  );
+
+  // Saving a mapping for an inactive position is refused and writes nothing.
+  const saveInactive = await putPermissions(spare.id, ['organization-reader']);
+  expect(saveInactive.status).toBe(400);
+  expect((await errorOf(saveInactive)).reason).toBe('ORG_POSITION_NOT_ACTIVE');
+  expect(
+    await database
+      .repository('orgPositionPermissionSets')
+      .count({ filter: { positionId: spare.id } }),
+  ).toBe(1);
+
+  // A subject referenced by a registered asset cannot be deactivated.
+  const holding = await create('subjects', {
+    name: 'Guard holding company',
+    code: 'GUARD-HOLD',
+    type: 'company',
+    sectorId: sector.id,
+    regionId: '00000000-0000-4000-8000-000000000001',
+  });
+  await database.repository('assets').createOne({
+    values: {
+      id: randomUUID(),
+      subjectId: holding.id,
+      code: 'GUARD-AST-1',
+      name: 'Guard registered asset',
+      status: 'in_stock',
+      currency: 'CNY',
+      version: 1,
+      createdBy: 'test',
+      updatedBy: 'test',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
+  const deactivateHolding = await send(`subjects/${holding.id}/setStatus`, {
+    version: holding.version,
+    reason: 'Asset still registered',
+    status: 'inactive',
+  });
+  expect(deactivateHolding.status).toBe(400);
+  expect((await errorOf(deactivateHolding)).reason).toBe('ORG_ASSET_DEPENDENTS');
+
+  // Mapping saves run under the shared organization mutation lock.
+  const lockNonce = async () =>
+    String(
+      (
+        await database
+          .repository('orgMutationLock')
+          .findOne({ filter: { id: 'organization' } })
+      )?.nonce,
+    );
+  const nonceBefore = await lockNonce();
+  expect((await putPermissions(position.id, [])).status).toBe(200);
+  expect(await lockNonce()).not.toBe(nonceBefore);
+
+  // Position deactivation bumps the very same lock row, so mapping writes and
+  // deactivation are mutually exclusive even under concurrency.
+  const nonceBeforeDeactivate = await lockNonce();
+  const deactivate = await send(`positions/${position.id}/setStatus`, {
+    version: position.version,
+    reason: 'Guard cleared',
+    status: 'inactive',
+  });
+  expect(deactivate.status).toBe(200);
+  expect(await lockNonce()).not.toBe(nonceBeforeDeactivate);
+});
+
+test('shared lock helper always targets the single organization mutation row', async () => {
+  expect(ORG_MUTATION_LOCK_ID).toBe('organization');
+  const calls: Array<{ repository: string; args: unknown }> = [];
+  const connection = {
+    repository: (name: string) => ({
+      updateOne: async (args: unknown) => {
+        calls.push({ repository: name, args });
+        return {};
+      },
+    }),
+  };
+  await lockOrgMutation(connection as unknown as DatabaseConnection);
+  expect(calls).toEqual([
+    {
+      repository: 'orgMutationLock',
+      args: {
+        filter: { id: 'organization' },
+        values: { nonce: expect.any(String) },
+      },
+    },
+  ]);
 });
 
 test('declares all organization endpoints with valid API schemas', async ({

@@ -120,6 +120,15 @@ export const orderContent = z
     partnerId: id,
     occurredOn: z.iso.date(),
     sourceChannel: z.enum(executionSourceChannels).default('manual'),
+    sourceRef: z.string().trim().max(200).nullable().default(null),
+    sourceDoc: z.string().trim().max(200).nullable().default(null),
+    onBehalfOf: id.nullable().default(null),
+    period: z
+      .string()
+      .trim()
+      .regex(/^\d{4}-(0[1-9]|1[0-2])$/u)
+      .nullable()
+      .default(null),
     currency: z
       .string()
       .trim()

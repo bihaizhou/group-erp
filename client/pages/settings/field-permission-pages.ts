@@ -71,7 +71,6 @@ export const pageFieldResources: Readonly<Record<string, readonly string[]>> = {
   'warehouse-material-tags': ['materials.tag'],
   'warehouse-material-tagLinks': ['materials.tagLink'],
   'warehouse-material-requests': ['materials.request'],
-  'warehouse-material-subjectSettings': ['materials.subjectSetting'],
   'warehouse-material-warehouses': ['materials.warehouse'],
   'warehouse-material-history': ['materials.history'],
   // 销售

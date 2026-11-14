@@ -176,8 +176,12 @@ test('creates mixed demand with exact packaging and completes independent review
   await page.getByRole('button', { name: '新建采购申请', exact: true }).click();
   const form = liveForm(page);
   await expect(form.getByRole('textbox', { name: /用途/ })).toBeVisible();
-  await form.getByRole('radio', { name: /采购申请人（验收）/ }).click();
-  await form.getByRole('radio', { name: /设备保障部/ }).click();
+  await expect(form.locator('#purchase-requesterEmployeeId')).toContainText(
+    '采购申请人（验收）',
+  );
+  await expect(form.locator('#purchase-requestingUnitId')).toContainText(
+    '设备保障部',
+  );
   await form
     .getByRole('textbox', { name: /用途/ })
     .pressSequentially(`${term} equipment maintenance`);
@@ -186,8 +190,10 @@ test('creates mixed demand with exact packaging and completes independent review
   await page.locator(`button[data-day="${day}"]`).first().click();
   await form.getByRole('button', { name: '添加明细', exact: true }).click();
   let line = form.getByRole('group', { name: '明细1', exact: true });
-  await line.getByRole('radio', { name: '已有物料', exact: true }).click();
-  await line.getByRole('button', { name: '选择物料', exact: true }).click();
+  await line
+    .getByRole('textbox', { name: '物料名称 *', exact: true })
+    .fill('耐磨手套');
+  await line.getByRole('button', { name: '浏览全部物料', exact: true }).click();
   const dialog = page.locator('[data-slot=route-overlay-content]');
   await dialog.getByRole('radio', { name: /耐磨手套/ }).click();
   await dialog.getByRole('combobox', { name: '具体包装', exact: true }).click();
@@ -203,12 +209,12 @@ test('creates mixed demand with exact packaging and completes independent review
     '2',
   );
   await expect(
-    line.getByRole('button', { name: '选择物料', exact: true }),
-  ).toBeFocused();
+    line.getByRole('button', { name: '更换物料', exact: true }),
+  ).toBeVisible();
   await form.getByRole('button', { name: '添加明细', exact: true }).click();
   line = form.getByRole('group', { name: '明细2', exact: true });
   await line
-    .getByRole('textbox', { name: '原始名称 *', exact: true })
+    .getByRole('textbox', { name: '物料名称 *', exact: true })
     .fill('现场旧阀门');
   await line
     .getByRole('textbox', { name: '原始规格 *', exact: true })
@@ -316,8 +322,10 @@ test('preserves dirty input and filtered list through nested selection, cancella
   );
   await form.getByRole('button', { name: '添加明细', exact: true }).click();
   const line = form.getByRole('group', { name: '明细1', exact: true });
-  await line.getByRole('radio', { name: '已有物料', exact: true }).click();
-  await line.getByRole('button', { name: '选择物料', exact: true }).click();
+  await line
+    .getByRole('textbox', { name: '物料名称 *', exact: true })
+    .fill('耐磨手套');
+  await line.getByRole('button', { name: '浏览全部物料', exact: true }).click();
   await expect(page.locator('[data-slot=route-overlay-content]')).toBeVisible();
   await page
     .getByRole('dialog')
@@ -635,16 +643,13 @@ test('checks empty, pagination, sorting, IME, themes, narrow screens and English
     }
   await page.goto(`${root}/new?subjectId=${f.companyId}`);
   await expect(
-    liveForm(page).getByRole('radio', { name: /采购申请人（验收）/ }),
-  ).toBeVisible();
-  await expect(
-    liveForm(page).getByRole('radio', { name: /设备采购供应商/ }),
-  ).toBeVisible();
+    liveForm(page).locator('#purchase-requesterEmployeeId'),
+  ).toContainText('采购申请人（验收）');
   await take(page, 'request-form-mobile-dark');
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(
-    liveForm(page).getByRole('radio', { name: /设备采购供应商/ }),
-  ).toBeVisible();
+    liveForm(page).locator('#purchase-requesterEmployeeId'),
+  ).toContainText('采购申请人（验收）');
   await take(page, 'request-form');
   await page.setViewportSize({ width: 375, height: 1000 });
   const purpose = liveForm(page).getByRole('textbox', { name: /用途/ });
@@ -695,11 +700,8 @@ test('checks empty, pagination, sorting, IME, themes, narrow screens and English
     liveForm(page).getByRole('button', { name: 'Save draft', exact: true }),
   ).toBeVisible();
   await expect(
-    liveForm(page).getByRole('radio', { name: /设备采购供应商/ }),
-  ).toBeVisible();
-  await expect(
-    liveForm(page).getByRole('radio', { name: /采购申请人（验收）/ }),
-  ).toBeVisible();
+    liveForm(page).locator('#purchase-requesterEmployeeId'),
+  ).toContainText('采购申请人（验收）');
   await take(page, 'request-form-en');
   await context.request.put(`${f.base}api/i18n/locale`, {
     headers: { Origin: new URL(f.base).origin },

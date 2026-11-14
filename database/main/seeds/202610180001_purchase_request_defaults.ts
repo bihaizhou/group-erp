@@ -16,7 +16,6 @@ export default defineSeed({
       'personnelAssignments',
       'orgUnits',
       'partnerSubjectSettings',
-      'materialSubjectSettings',
     ];
     const referenceTables = [
       'materialAttributeTemplates',
@@ -86,54 +85,76 @@ export default defineSeed({
         })
       )
         continue;
+      const scopes = {
+        ...Object.fromEntries(
+          companyTables
+            .filter(
+              (table) =>
+                resource !== 'procurement.settings' ||
+                [
+                  'personnelEmployees',
+                  'personnelEmployments',
+                  'personnelAssignments',
+                  'orgUnits',
+                  'partnerSubjectSettings',
+                ].includes(table),
+            )
+            .map((table) => [table, 'procurement.ownRequestCompany']),
+        ),
+        ...Object.fromEntries(
+          referenceTables.map((table) => [table, 'allRecords']),
+        ),
+        ...(resource === 'procurement.requests'
+          ? {
+              purchaseRequests: own
+                ? 'procurement.ownRequests'
+                : 'procurement.ownRequestCompany',
+            }
+          : {}),
+        orgSubjects: 'supplyChain.ownSubject',
+      };
+      const grants: Array<{
+        resource: { type: string; id: string };
+        actions: Array<{ action: string; policy: unknown }>;
+      }> = [
+        {
+          resource: { type: 'composite', id: resource },
+          actions: actions.map((action) => ({
+            action,
+            policy: { type: 'composite', scopes },
+          })),
+        },
+      ];
+      // Submitting a request with unmatched lines creates the governance task
+      // inside the same transaction. Requesters therefore need the internal
+      // source-write scope; it is not a separate screen-level capability.
+      if (
+        resource === 'procurement.requests' &&
+        (key === 'procurement-requester' ||
+          key === 'procurement-request-agent')
+      )
+        grants.push({
+          resource: { type: 'composite', id: resource },
+          actions: [
+            {
+              action: 'requestGovernance',
+              policy: {
+                type: 'composite',
+                scopes: {
+                  ...scopes,
+                  materialRequests: 'procurement.ownRequestCompany',
+                  materialRequestSources: 'procurement.ownRequestCompany',
+                },
+              },
+            },
+          ],
+        });
       await repository('authorizationPermissionSets').createOne({
         values: {
           id: key,
           key,
           title: encodeAuthorizationTitle(title),
-          grants: [
-            {
-              resource: { type: 'composite', id: resource },
-              actions: actions.map((action) => ({
-                action,
-                policy: {
-                  type: 'composite',
-                  scopes: {
-                    ...Object.fromEntries(
-                      companyTables
-                        .filter(
-                          (table) =>
-                            resource !== 'procurement.settings' ||
-                            [
-                              'personnelEmployees',
-                              'personnelEmployments',
-                              'personnelAssignments',
-                              'orgUnits',
-                              'partnerSubjectSettings',
-                              'materialSubjectSettings',
-                            ].includes(table),
-                        )
-                        .map((table) => [
-                          table,
-                          'procurement.ownRequestCompany',
-                        ]),
-                    ),
-                    ...Object.fromEntries(
-                      referenceTables.map((table) => [table, 'allRecords']),
-                    ),
-                    ...(resource === 'procurement.requests'
-                      ? {
-                          purchaseRequests: own
-                            ? 'procurement.ownRequests'
-                            : 'procurement.ownRequestCompany',
-                        }
-                      : {}),
-                    orgSubjects: 'supplyChain.ownSubject',
-                  },
-                },
-              })),
-            },
-          ],
+          grants,
           createdAt: new Date(),
           updatedAt: new Date(),
         },

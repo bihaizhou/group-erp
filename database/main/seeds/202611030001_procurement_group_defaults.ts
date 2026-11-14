@@ -13,7 +13,6 @@ const groupTables = [
   'materialTags',
   'materialTagLinks',
   'orgSubjects',
-  'materialSubjectSettings',
   'orgRegions',
   'orgUnits',
   'orgPositions',

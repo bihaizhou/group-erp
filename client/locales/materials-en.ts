@@ -131,7 +131,10 @@ export const materials = {
   actionConsequence:
     'This changes the record status and retains its reason and history. Records with active dependencies cannot be deactivated.',
   resolveHelp:
-    'Select an approved, active SKU. The request remains linked to its result.',
+    'Select an approved, active SKU. The purchase request line is linked automatically; the requester does not confirm again.',
+  addAlias: 'Also add “{{name}}” as an alias for this material',
+  addAliasHelp:
+    'Future requests using the same name will match this material. Existing aliases are left unchanged.',
   requestHandling: 'Handle material request',
   requestHandlingHelp:
     'Resolve with an existing SKU, or create a new one from this request and resolve after it is approved.',
@@ -183,8 +186,7 @@ export const materials = {
     references: 'Aliases and legacy codes',
     tags: 'Tags',
     tagLinks: 'Tag assignments',
-    requests: 'Material requests',
-    subjectSettings: 'Company material settings',
+    requests: 'Materials to govern',
     warehouses: 'Warehouse settings',
   },
   descriptions: {
@@ -201,9 +203,7 @@ export const materials = {
     tagLinks:
       'Assign tags; SKUs display tags inherited from their standard name.',
     requests:
-      'Request missing materials and resolve requests with an approved SKU.',
-    subjectSettings:
-      'Set purchasing and selling availability for each company.',
+      'Unmatched materials submitted from purchase or requisition; linking updates the source line automatically.',
     warehouses:
       'Maintain warehouses using existing organization and position records.',
   },
@@ -235,10 +235,9 @@ export const materials = {
     specification: 'Specification',
     proposedUnit: 'Suggested unit',
     usage: 'Purpose',
-    canPurchase: 'Purchasing allowed',
-    canSell: 'Selling allowed',
     responsiblePositionId: 'Responsible position',
     resolvedSkuId: 'Resolved SKU',
+    resolvedUnitId: 'Resolution unit',
   },
   enums: {
     stock: 'Stock material',

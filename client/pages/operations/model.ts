@@ -11,14 +11,14 @@ export type OperationsUnit = {
 export type OperationsOverview = {
   date: string;
   subjectId: string | null;
-  subjectName: string;
+  subjectName: string | null;
   production: {
     reports: number;
     processed: string;
     metal: string;
     sand: string;
     metalRate: string | null;
-  };
+  } | null;
   warehouse: {
     receiptDraft: number;
     receiptPending: number;
@@ -26,28 +26,38 @@ export type OperationsOverview = {
     stockMetal: string;
     stockSand: string;
     stockConfigured: boolean;
-  };
+  } | null;
   hse: {
     incidentsOpen: number;
     hazardsOpen: number;
     hazardsOverdue: number;
     certificatesExpiring90: number;
-  };
-  sales: { openOrders: number; shippedToday: number };
-  procurement: { openOrders: number; receivedToday: number };
-  people: { active: number; production: number };
+  } | null;
+  sales: { openOrders: number; shippedToday: number } | null;
+  procurement: { openOrders: number; receivedToday: number } | null;
+  people: { active: number; production: number } | null;
   issues: { open: number; overdue: number };
-  maintenance: { openOrders: number };
-  downtime: { open: number; minutesToday: number };
+  maintenance: { openOrders: number } | null;
+  downtime: { open: number; minutesToday: number } | null;
   units: OperationsUnit[];
   notes: {
     salesConnected: boolean;
     procurementConnected: boolean;
     peopleConnected: boolean;
     peopleScope: 'active_primary_assignment';
+    maskedSources?: string[];
+    truncated?: string[];
   };
 };
-export type OperationsOptions = { subjects: OperationsSubject[] };
+export type OperationsPosition = {
+  id: string;
+  name: string;
+  subjectId: string;
+};
+export type OperationsOptions = {
+  subjects: OperationsSubject[];
+  positions: OperationsPosition[];
+};
 export type OperationsIssue = {
   id: string;
   code: string;
@@ -59,6 +69,7 @@ export type OperationsIssue = {
   description: string;
   severity: string;
   ownerName: string;
+  ownerId: string | null;
   dueAt: string;
   businessDate?: string | null;
   status: string;
@@ -88,7 +99,10 @@ export type OperationsTarget = {
   updatedAt: string;
 };
 
-export type OperationsTargets = { items: OperationsTarget[] };
+export type OperationsTargets = {
+  items: OperationsTarget[];
+  total: number;
+};
 
 export type OperationsCompanyOverview = {
   date: string;

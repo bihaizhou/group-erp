@@ -106,13 +106,6 @@ if (command === 'prepare') {
         attributeValues: { model: 'A' },
       }),
     );
-    await f.create('/materials/subjectSettings', {
-      name: 'Persistence admission',
-      subjectId: f.a.id,
-      skuId: sku.id,
-      canPurchase: true,
-      canSell: false,
-    });
     const pack = await activate(
       'unitRules',
       await f.create('/materials/unitRules', {

@@ -32,6 +32,7 @@ import {
   TableRow,
 } from '#components/ui/table';
 import { randomUuid } from '#lib/random-id';
+import { businessClock, businessInstant } from '#lib/business-date';
 import type {
   AttendanceRoster,
   AttendanceStatus,
@@ -108,23 +109,10 @@ const downtimeImpacts: DowntimeImpact[] = ['stop', 'speed_loss', 'other'];
 const overtimeTypes: OvertimeType[] = ['planned', 'temporary', 'holiday'];
 
 const quantity = (value: string) => value.trim() || '0';
-const shanghaiTime = () =>
-  new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Shanghai',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).format(new Date());
+const shanghaiTime = () => businessClock();
 /** A wall-clock time on the report date, read in the business timezone. */
-const instant = (date: string, time: string) =>
-  new Date(`${date}T${time}:00+08:00`).toISOString();
-const clock = (value: string) =>
-  new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Shanghai',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).format(new Date(value));
+const instant = (date: string, time: string) => businessInstant(date, time);
+const clock = (value: string) => businessClock(new Date(value));
 const emptyForm = (report: ShiftReport | null): ReportForm => ({
   runtimeMinutes: String(report?.runtimeMinutes ?? 0),
   downtimeMinutes: String(report?.downtimeMinutes ?? 0),

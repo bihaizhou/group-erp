@@ -110,6 +110,32 @@ test('authenticates and authorizes all paths before input validation; page grant
   );
 });
 
+test('persists source provenance fields on the request and rejects malformed periods', async ({
+  testApp,
+  database,
+}) => {
+  const f = await fixture(testApp, database);
+  const draft = await f.draft({
+    ...f.content(),
+    sourceRef: 'PO-2026-001',
+    sourceDoc: 'From procurement plan',
+    onBehalfOf: null,
+    period: '2026-11',
+  } as never);
+  expect(draft.sourceRef).toBe('PO-2026-001');
+  expect(draft.sourceDoc).toBe('From procurement plan');
+  expect(draft.period).toBe('2026-11');
+  const bad = await send(
+    f.applicant.session,
+    '/procurement/requests',
+    {
+      content: { ...f.content(), period: '2026/11' },
+      requestKey: randomUUID(),
+    },
+  );
+  expect(bad.status).toBe(400);
+});
+
 test('saves incomplete drafts without configured reviewers, while formal submission explains missing requirements', async ({
   testApp,
   database,
@@ -1335,7 +1361,7 @@ test('requires matching parent company, positive quantities and valid references
   expect(response.status).toBe(400);
 });
 
-test('stores known SKU and exact packaging quantities and revalidates company admission before submission', async ({
+test('stores known SKU and exact packaging quantities', async ({
   testApp,
   database,
 }) => {
@@ -1398,13 +1424,6 @@ test('stores known SKU and exact packaging quantities and revalidates company ad
       attributeValues: { model: 'A' },
     }),
   );
-  const setting = await f.create('/materials/subjectSettings', {
-    name: 'Purchase admission',
-    subjectId: f.a.id,
-    skuId: sku.id,
-    canPurchase: true,
-    canSell: false,
-  });
   const pack = await activate(
     'unitRules',
     await f.create('/materials/unitRules', {
@@ -1465,34 +1484,6 @@ test('stores known SKU and exact packaging quantities and revalidates company ad
   const pending = await f.fire(row, 'submit');
   const approved = await f.fire(pending, 'approve', f.reviewer.session);
   expect(approved.versions[0].payload.lines[0].baseQuantity).toBe('24');
-  const other = await f.draft({
-    ...content,
-    lines: [{ ...known, id: randomUUID() }],
-  });
-  const disabled = await send(
-    f.admin,
-    `/materials/subjectSettings/${setting.id}/deactivate`,
-    {
-      version: setting.lifecycleVersion,
-      requestKey: randomUUID(),
-      reason: 'End company admission',
-    },
-  );
-  expect(disabled.status).toBe(200);
-  const response = await send(
-    f.applicant.session,
-    `/procurement/requests/${other.id}/submit`,
-    mutation(other),
-  );
-  expect(response.status).toBe(400);
-  expect((await response.json()).error.reason).toBe(
-    'SUPPLY_MATERIAL_UNAVAILABLE',
-  );
-  expect(
-    (await database
-      .repository('purchaseRequests')
-      .findOne({ filter: { id: other.id } }))!.status,
-  ).toBe('draft');
 });
 
 test('projects scoped names and action capabilities without writing locks, lifecycle parameters, tasks or history', async ({

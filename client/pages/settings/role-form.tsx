@@ -369,17 +369,23 @@ function RoleEditor(): ReactElement {
         // an empty list) so the role enters the ladder model where nothing
         // checked really means nothing granted.
         if (fieldDirty || isCreate) {
-          await api.request({
-            path: 'field-policies',
-            method: 'PUT',
-            json: {
-              permissionSetKey: roleKey,
-              policies: buildFieldPolicies(
-                fieldCatalog.data?.data.resources ?? [],
-                fieldLevel,
-              ),
-            },
-          });
+          const fieldSaved = await submission.run(
+            { key: targetKey, creating: isCreate, fieldPolicies: true },
+            (idempotencyKey) =>
+              api.request({
+                path: 'field-policies',
+                method: 'PUT',
+                json: {
+                  permissionSetKey: roleKey,
+                  requestKey: idempotencyKey,
+                  policies: buildFieldPolicies(
+                    fieldCatalog.data?.data.resources ?? [],
+                    fieldLevel,
+                  ),
+                },
+              }),
+          );
+          if (!fieldSaved) return;
           setFieldDraft({});
         }
         setDirty(false);

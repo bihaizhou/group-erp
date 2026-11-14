@@ -1131,7 +1131,10 @@ export class MaterialService {
           Number(next.variancePercent) > 100
         )
           return fail('MATERIAL_INVALID_VARIANCE', 'variancePercent');
-      } else if (unit.unitType !== 'package' && unit.unitType !== base?.unitType)
+      } else if (
+        unit.unitType !== 'package' &&
+        unit.unitType !== base?.unitType
+      )
         return fail('MATERIAL_VARIABLE_CONVERSION', 'unitId');
       if (
         await c.repository('materialUnitRules').exists({
@@ -1195,20 +1198,6 @@ export class MaterialService {
         )
           return fail('MATERIAL_REFERENCE_EXISTS', 'tagId');
       }
-    }
-    if (kind === 'subjectSettings') {
-      await this.active(c, 'materialSkus', next.skuId, 'skuId', policies);
-      if (
-        await c.repository('materialSubjectSettings').exists({
-          filter: (f) =>
-            f.and([
-              f.string('subjectId').eq(scalar(next.subjectId)),
-              f.string('skuId').eq(scalar(next.skuId)),
-              f.string('id').ne(next.id),
-            ]),
-        })
-      )
-        return fail('MATERIAL_RULE_EXISTS', 'skuId');
     }
     if (kind === 'warehouses' && next.responsiblePositionId) {
       const position = await this.active(
@@ -1331,7 +1320,28 @@ export class MaterialService {
         input.resolvedSkuId,
         'resolvedSkuId',
       );
-      return { resolvedSkuId: sku.id };
+      const ruleId = scalar(input.resolvedUnitRuleId);
+      let unitId = scalar(input.resolvedUnitId) || scalar(sku.baseUnitId);
+      if (ruleId) {
+        const rule = await this.active(
+          c,
+          'materialUnitRules',
+          ruleId,
+          'resolvedUnitRuleId',
+        );
+        if (scalar(rule.skuId) !== scalar(sku.id))
+          return fail('MATERIAL_INVALID_REFERENCE', 'resolvedUnitRuleId');
+        if (unitId && unitId !== scalar(rule.unitId))
+          return fail('MATERIAL_INVALID_REFERENCE', 'resolvedUnitId');
+        unitId = scalar(rule.unitId);
+      } else if (unitId !== scalar(sku.baseUnitId)) {
+        return fail('MATERIAL_INVALID_REFERENCE', 'resolvedUnitId');
+      }
+      return {
+        resolvedSkuId: sku.id,
+        resolvedUnitId: unitId,
+        resolvedUnitRuleId: ruleId || null,
+      };
     }
     return {};
   }
@@ -1368,11 +1378,6 @@ export class MaterialService {
             record.targetKind === 'names' ? 'materialNames' : 'materialSkus',
           ],
         ];
-      case 'subjectSettings':
-        return [
-          ['subjectId', 'orgSubjects'],
-          ['skuId', 'materialSkus'],
-        ];
       case 'warehouses':
         return [
           ['subjectId', 'orgSubjects'],
@@ -1393,10 +1398,7 @@ export class MaterialService {
     const dependencies: Record<string, [string, string][]> = {
       templates: [['materialNames', 'templateId']],
       names: [['materialSkus', 'materialNameId']],
-      skus: [
-        ['materialUnitRules', 'skuId'],
-        ['materialSubjectSettings', 'skuId'],
-      ],
+      skus: [['materialUnitRules', 'skuId']],
       units: [
         ['materialSkus', 'baseUnitId'],
         ['materialUnitRules', 'unitId'],
@@ -1462,6 +1464,72 @@ export class MaterialService {
       context.entry.transition,
       scalar(context.input.reason) || context.entry.transition,
     );
+  }
+  /**
+   * A SKU created from an unmatched material request is linked as `proposed`.
+   * Once it becomes active, resolve the request so the submitted purchase line
+   * is associated without a second manual step. This runs after the approval
+   * transaction commits: SQLite has a single writer connection, so resolving
+   * inside the approval transaction would deadlock while reading authorization
+   * access on another connection. Failures leave the task pending for manual
+   * resolution and must never roll back the approval.
+   */
+  async autoLinkApprovedSku(
+    kind: MaterialKind,
+    id: string,
+    actor: MaterialActor,
+  ) {
+    if (!this.sources || kind !== 'skus') return;
+    const record = await this.db.repository('materialSkus').findOne({
+      filter: { id, status: 'active' },
+    });
+    if (!record) return;
+    const skuId = scalar(record.id);
+    const links = await this.db.repository('materialRequestLinks').findMany({
+      filter: { skuId, relation: 'proposed' },
+      limit: 101,
+    });
+    for (const link of links) {
+      const requestId = scalar(link.requestId);
+      if (!requestId) continue;
+      const task = await this.db.repository('materialRequests').findOne({
+        filter: { id: requestId, status: 'pending' },
+      });
+      if (!task) continue;
+      const source = await this.db
+        .repository('materialRequestSources')
+        .findOne({ filter: { requestId, status: 'pending' } });
+      if (!source || scalar(source.sourceKind) !== 'purchaseRequestLine')
+        continue;
+      if (!scalar(source.sourceHandlerId)) continue;
+      // Approving a SKU is the material center taking over the unmatched item,
+      // so the approver becomes the handler before the automatic resolution.
+      await this.db.repository('materialRequestSources').updateOne({
+        filter: { id: scalar(source.id), status: 'pending' },
+        values: { sourceHandlerId: actor.id, updatedAt: new Date() },
+      });
+      const version = Number(task.lifecycleVersion);
+      const key = `auto-link-${requestId}`;
+      try {
+        await this.sources.runTask(requestId, actor, async () => {
+          await this.runtime.fire('materialRequests', requestId, 'resolve', {
+            actor,
+            expect: { version },
+            requestId: key,
+            input: {
+              version,
+              requestKey: key,
+              reason: 'SYSTEM_SKU_APPROVED',
+              resolvedSkuId: skuId,
+              resolvedUnitId: scalar(record.baseUnitId),
+            },
+          });
+        });
+      } catch {
+        // The material is already approved; leave the governed task for the
+        // handler so a permission or validation problem cannot block approval.
+      }
+    }
   }
   private async audit(
     c: DatabaseConnection,

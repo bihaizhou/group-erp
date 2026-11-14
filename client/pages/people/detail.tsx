@@ -368,7 +368,7 @@ export default function PeopleDetailPage({
                   </p>
                   <p className='text-xs text-muted-foreground'>
                     {new Date(entry.at).toLocaleString(i18n.language)} ·{' '}
-                    {entry.actorId}
+                    {entry.actorName || '—'}
                   </p>
                   <LongText>{textValue(entry.input.reason ?? '—')}</LongText>
                 </div>

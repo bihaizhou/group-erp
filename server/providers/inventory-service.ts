@@ -242,19 +242,6 @@ export class InventoryService {
         stockMicros(text(line.baseQuantity)) <= 0n
       )
         return fail('STOCK_MATERIAL_UNAVAILABLE');
-      const admission = await c.repository('materialSubjectSettings').findOne({
-        filter: {
-          skuId: text(line.skuId),
-          subjectId: text(document.subjectId),
-          status: 'active',
-        },
-      });
-      if (
-        !admission ||
-        (document.kind === 'purchaseReceipt' && !admission.canPurchase) ||
-        (document.kind === 'salesShipment' && !admission.canSell)
-      )
-        return fail('STOCK_MATERIAL_UNAVAILABLE');
       if (
         sku.managementMode !== 'stock' &&
         (!['purchaseReceipt', 'purchaseReturn', 'reversal'].includes(

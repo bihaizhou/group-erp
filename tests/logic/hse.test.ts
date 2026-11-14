@@ -59,6 +59,55 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
     type: 'department',
     subjectId: subject.id,
   });
+  const position = await create('/organization/positions', {
+    code: `HSE-P-${randomUUID().slice(0, 6)}`,
+    name: 'HSE engineer',
+    unitId: unit.id,
+  });
+  const employee = await create('/people/employees', {
+    code: 'HSE-E-001',
+    name: 'HSE employee',
+    subjectId: subject.id,
+    data: {},
+  });
+  const change = await create('/people/changes', {
+    code: 'HSE-ENTRY-001',
+    name: 'Entry',
+    personId: employee.id,
+    data: {
+      type: 'entry',
+      effectiveDate: new Date().toISOString().slice(0, 10),
+      targetSubjectId: subject.id,
+      targetPositionId: position.id,
+      explanation: 'HSE test hire',
+    },
+  });
+  const firePeople = async (
+    kind: string,
+    row: { id: string; lifecycleVersion: number },
+    transition: string,
+    input: unknown = {},
+  ) => {
+    const r = await send(
+      admin,
+      `/people/${kind}/${row.id}/fire`,
+      {
+        transition,
+        version: row.lifecycleVersion,
+        requestId: randomUUID(),
+        reason: 'Test decision',
+        input,
+      },
+      'POST',
+    );
+    const p = await r.json();
+    expect(r.status).toBe(200);
+    return p.data;
+  };
+  const pending = await firePeople('changes', change, 'submit');
+  const effective = await firePeople('changes', pending, 'approve');
+  expect(effective.status).toBe('effective');
+
   const options = (await (await admin.fetch('/hse/options')).json()).data;
   expect(options.subjects).toContainEqual({
     id: subject.id,
@@ -71,7 +120,16 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
     name: 'HSE test line',
     subjectId: subject.id,
   });
-  expect(options.permissions).toEqual({ manage: true, approve: true });
+  expect(
+    options.employees.find(
+      (row: { id: string }) => row.id === employee.id,
+    ),
+  ).toMatchObject({ name: 'HSE employee', subjectId: subject.id });
+  expect(options.permissions).toEqual({
+    manage: true,
+    approve: true,
+    report: true,
+  });
 
   const incident = await create('/hse/incidents', {
     subjectId: subject.id,
@@ -110,10 +168,12 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
     description: 'Guardrail missing on conveyor',
     location: 'Conveyor 2',
     discoveredAt: new Date().toISOString().slice(0, 10),
-    ownerName: 'Line supervisor',
+    ownerId: employee.id,
+    ownerName: 'HSE employee',
     dueAt: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10),
     rectification: 'Install guardrail',
   });
+  expect(hazard.ownerId).toBe(employee.id);
   const overdueOverview = (await (await admin.fetch('/hse/overview')).json())
     .data;
   expect(overdueOverview.counts.hazardsOpen).toBe(1);
@@ -173,11 +233,19 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
   const managerOptions = (
     await (await manager.client.fetch('/hse/options')).json()
   ).data;
-  expect(managerOptions.permissions).toEqual({ manage: true, approve: false });
+  expect(managerOptions.permissions).toEqual({
+    manage: true,
+    approve: false,
+    report: false,
+  });
   const approverOptions = (
     await (await approver.client.fetch('/hse/options')).json()
   ).data;
-  expect(approverOptions.permissions).toEqual({ manage: false, approve: true });
+  expect(approverOptions.permissions).toEqual({
+    manage: false,
+    approve: true,
+    report: false,
+  });
 
   const investigated = await send(
     manager.client,
@@ -189,6 +257,33 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
   expect(investigating.status).toBe('investigating');
   expect(investigating.investigatorId).toBe(manager.id);
 
+  const rectifyNoOwner = await send(
+    manager.client,
+    `/hse/incidents/${incident.id}/transitions`,
+    {
+      version: investigating.version,
+      action: 'rectify',
+      rootCause: 'Guard was removed during maintenance',
+    },
+  );
+  expect(rectifyNoOwner.status).toBe(400);
+  expect(JSON.stringify(await rectifyNoOwner.json())).toContain(
+    'OWNER_REQUIRED',
+  );
+
+  const rectifyNoDue = await send(
+    manager.client,
+    `/hse/incidents/${incident.id}/transitions`,
+    {
+      version: investigating.version,
+      action: 'rectify',
+      rootCause: 'Guard was removed during maintenance',
+      ownerId: employee.id,
+    },
+  );
+  expect(rectifyNoDue.status).toBe(400);
+  expect(JSON.stringify(await rectifyNoDue.json())).toContain('DUE_REQUIRED');
+
   const rectified = await send(
     manager.client,
     `/hse/incidents/${incident.id}/transitions`,
@@ -196,32 +291,135 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
       version: investigating.version,
       action: 'rectify',
       rootCause: 'Guard was removed during maintenance',
+      ownerId: employee.id,
+      dueAt: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10),
       actions: 'Restore interlock and retrain the crew',
     },
   );
   expect(rectified.status).toBe(200);
   const rectifying = (await rectified.json()).data;
   expect(rectifying.status).toBe('rectifying');
+  expect(rectifying.ownerId).toBe(employee.id);
 
-  const managerClose = await send(
+  const submitNoActions = await send(
     manager.client,
     `/hse/incidents/${incident.id}/transitions`,
-    { version: rectifying.version, action: 'close' },
+    { version: rectifying.version, action: 'submit', actions: '' },
   );
-  expect(managerClose.status).toBe(403);
+  expect(submitNoActions.status).toBe(400);
+  expect(JSON.stringify(await submitNoActions.json())).toContain(
+    'ACTIONS_REQUIRED',
+  );
+
+  const submitted = await send(
+    manager.client,
+    `/hse/incidents/${incident.id}/transitions`,
+    {
+      version: rectifying.version,
+      action: 'submit',
+      actions: 'Interlock restored and crew retrained',
+    },
+  );
+  expect(submitted.status).toBe(200);
+  const verifying = (await submitted.json()).data;
+  expect(verifying.status).toBe('verifying');
+  expect(verifying.rectifiedBy).toBe(manager.id);
+
+  // While an incident is awaiting approval, a direct PATCH would let the
+  // submitter rewrite the evidence under the approver.
+  const verifyingEdit = await send(
+    manager.client,
+    `/hse/incidents/${incident.id}`,
+    { version: verifying.version, severity: 'major' },
+    'PATCH',
+  );
+  expect(verifyingEdit.status).toBe(400);
+  expect(JSON.stringify(await verifyingEdit.json())).toContain(
+    'INCIDENT_STATE',
+  );
+
+  const missingOwnerIncident = await create('/hse/incidents', {
+    subjectId: subject.id,
+    unitId: unit.id,
+    occurredAt: new Date().toISOString(),
+    type: 'near_miss',
+    severity: 'minor',
+    location: 'Packing line',
+    description: 'Pallet fell without injury',
+  });
+  const missingOwner = await send(
+    manager.client,
+    `/hse/incidents/${missingOwnerIncident.id}`,
+    { version: missingOwnerIncident.version, ownerId: randomUUID() },
+    'PATCH',
+  );
+  expect(missingOwner.status).toBe(400);
+  expect(JSON.stringify(await missingOwner.json())).toContain(
+    'OWNER_NOT_FOUND',
+  );
+
+  const managerVerify = await send(
+    manager.client,
+    `/hse/incidents/${incident.id}/transitions`,
+    { version: verifying.version, action: 'verify', note: 'Checked' },
+  );
+  expect(managerVerify.status).toBe(403);
+
+  const returned = await send(
+    approver.client,
+    `/hse/incidents/${incident.id}/transitions`,
+    {
+      version: verifying.version,
+      action: 'return',
+      note: 'Add training records',
+    },
+  );
+  expect(returned.status).toBe(200);
+  const returnedIncident = (await returned.json()).data;
+  expect(returnedIncident.status).toBe('rectifying');
+  expect(returnedIncident.rectifiedBy).toBeNull();
+
+  const rerectified = await send(
+    manager.client,
+    `/hse/incidents/${incident.id}/transitions`,
+    {
+      version: returnedIncident.version,
+      action: 'rectify',
+      rootCause: 'Guard was removed during maintenance; training missing',
+    },
+  );
+  expect(rerectified.status).toBe(200);
+  const rerectifying = (await rerectified.json()).data;
+  expect(rerectifying.status).toBe('rectifying');
+  expect(rerectifying.rootCause).toBe(
+    'Guard was removed during maintenance; training missing',
+  );
+
+  const resubmitted = await send(
+    manager.client,
+    `/hse/incidents/${incident.id}/transitions`,
+    {
+      version: rerectifying.version,
+      action: 'submit',
+      actions: 'Interlock restored, training recorded',
+    },
+  );
+  expect(resubmitted.status).toBe(200);
+  const reverifying = (await resubmitted.json()).data;
 
   const closed = await send(
     approver.client,
     `/hse/incidents/${incident.id}/transitions`,
-    { version: rectifying.version, action: 'close', note: 'Accepted' },
+    { version: reverifying.version, action: 'verify', note: 'Accepted' },
   );
   expect(closed.status).toBe(200);
   const closedIncident = (await closed.json()).data;
   expect(closedIncident.status).toBe('closed');
+  expect(closedIncident.verifiedBy).toBe(approver.id);
   expect(closedIncident.closedBy).toBe(approver.id);
   expect(closedIncident.history.at(-1)).toMatchObject({
-    action: 'close',
-    from: 'rectifying',
+    action: 'verify',
+    from: 'verifying',
     to: 'closed',
   });
 
@@ -233,47 +431,103 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
   );
   expect(closedEdit.status).toBe(400);
 
-  const start = await send(admin, `/hse/hazards/${hazard.id}/transitions`, {
+  const startNoOwner = await send(admin, `/hse/hazards/${hazard.id}/transitions`, {
     version: hazard.version,
     action: 'startRectification',
   });
-  expect(start.status).toBe(200);
-  const started = (await start.json()).data;
+  // ownerId/dueAt were carried by the row, so a bare start still succeeds;
+  // the guard is exercised on rows without them (see below).
+  expect(startNoOwner.status).toBe(200);
+  const started = (await startNoOwner.json()).data;
+  expect(started.status).toBe('rectifying');
+  expect(started.ownerId).toBe(employee.id);
+
+  const orphanHazard = await create('/hse/hazards', {
+    subjectId: subject.id,
+    unitId: unit.id,
+    source: 'inspection',
+    level: 'general',
+    description: 'Loose cable in corridor',
+    location: 'Corridor',
+    discoveredAt: new Date().toISOString().slice(0, 10),
+    ownerName: 'Unassigned',
+  });
+  const orphanStart = await send(
+    admin,
+    `/hse/hazards/${orphanHazard.id}/transitions`,
+    { version: orphanHazard.version, action: 'startRectification' },
+  );
+  expect(orphanStart.status).toBe(400);
+  expect(JSON.stringify(await orphanStart.json())).toContain('OWNER_REQUIRED');
+
+  const orphanStarted = await send(
+    admin,
+    `/hse/hazards/${orphanHazard.id}/transitions`,
+    {
+      version: orphanHazard.version,
+      action: 'startRectification',
+      ownerId: employee.id,
+      dueAt: new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10),
+      rectification: 'Fasten the cable',
+    },
+  );
+  expect(orphanStarted.status).toBe(200);
+  const orphanSubmitted = await send(
+    admin,
+    `/hse/hazards/${orphanHazard.id}/transitions`,
+    {
+      version: (await orphanStarted.json()).data.version,
+      action: 'submitVerification',
+      rectification: 'Cable fastened',
+    },
+  );
+  expect(orphanSubmitted.status).toBe(200);
+  const orphanVerified = await send(
+    approver.client,
+    `/hse/hazards/${orphanHazard.id}/transitions`,
+    {
+      version: (await orphanSubmitted.json()).data.version,
+      action: 'verify',
+      note: 'Checked',
+    },
+  );
+  expect(orphanVerified.status).toBe(200);
+
   const submit = await send(admin, `/hse/hazards/${hazard.id}/transitions`, {
     version: started.version,
     action: 'submitVerification',
     rectification: 'Guardrail reinstalled and inspected',
   });
   expect(submit.status).toBe(200);
-  const verifying = (await submit.json()).data;
-  expect(verifying.status).toBe('verifying');
-  expect(typeof verifying.rectifiedBy).toBe('string');
+  const verifyingHazard = (await submit.json()).data;
+  expect(verifyingHazard.status).toBe('verifying');
+  expect(typeof verifyingHazard.rectifiedBy).toBe('string');
 
   const selfVerify = await send(
     admin,
     `/hse/hazards/${hazard.id}/transitions`,
-    { version: verifying.version, action: 'verify' },
+    { version: verifyingHazard.version, action: 'verify' },
   );
   expect(selfVerify.status).toBe(400);
   expect(JSON.stringify(await selfVerify.json())).toContain(
     'SELF_VERIFICATION',
   );
 
-  const returned = await send(
+  const returnedStart = await send(
     approver.client,
     `/hse/hazards/${hazard.id}/transitions`,
     {
-      version: verifying.version,
+      version: verifyingHazard.version,
       action: 'return',
       note: 'Add photo evidence',
     },
   );
-  expect(returned.status).toBe(200);
-  const returnedHazard = (await returned.json()).data;
+  expect(returnedStart.status).toBe(200);
+  const returnedHazard = (await returnedStart.json()).data;
   expect(returnedHazard.status).toBe('rectifying');
   expect(returnedHazard.rectifiedBy).toBeNull();
 
-  const resubmitted = await send(
+  const resubmittedHazardRequest = await send(
     admin,
     `/hse/hazards/${hazard.id}/transitions`,
     {
@@ -282,8 +536,8 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
       rectification: 'Guardrail reinstalled, photo uploaded',
     },
   );
-  expect(resubmitted.status).toBe(200);
-  const resubmittedHazard = (await resubmitted.json()).data;
+  expect(resubmittedHazardRequest.status).toBe(200);
+  const resubmittedHazard = (await resubmittedHazardRequest.json()).data;
 
   const verified = await send(
     approver.client,
@@ -362,7 +616,133 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
     },
   );
   expect(reinstated.status).toBe(200);
-  expect((await reinstated.json()).data.status).toBe('active');
+  const reinstatedCertificate = (await reinstated.json()).data;
+  expect(reinstatedCertificate.status).toBe('active');
+
+  const activeDatePatch = await send(
+    manager.client,
+    `/hse/certificates/${certificate.id}`,
+    {
+      version: reinstatedCertificate.version,
+      expiresAt: new Date(Date.now() + 730 * 86_400_000)
+        .toISOString()
+        .slice(0, 10),
+    },
+    'PATCH',
+  );
+  expect(activeDatePatch.status).toBe(400);
+  expect(JSON.stringify(await activeDatePatch.json())).toContain(
+    'CERTIFICATE_ACTIVE',
+  );
+
+  // An already-expired certificate is corrected through PATCH rather than the
+  // renew flow: creating it with a past expiry is enough to reach that state.
+  const expiredCertificate = await create('/hse/certificates', {
+    subjectId: subject.id,
+    holderType: 'company',
+    holderName: 'HSE test company',
+    certType: 'safety',
+    certNo: `CERT-EXP-${randomUUID().slice(0, 8)}`,
+    issuedAt: new Date(Date.now() - 400 * 86_400_000)
+      .toISOString()
+      .slice(0, 10),
+    expiresAt: new Date(Date.now() - 10 * 86_400_000)
+      .toISOString()
+      .slice(0, 10),
+    authority: 'Bureau',
+  });
+  expect(expiredCertificate.status).toBe('expired');
+  const expiredDatePatch = await send(
+    manager.client,
+    `/hse/certificates/${expiredCertificate.id}`,
+    {
+      version: expiredCertificate.version,
+      issuedAt: new Date(Date.now() - 30 * 86_400_000)
+        .toISOString()
+        .slice(0, 10),
+      expiresAt: new Date(Date.now() + 400 * 86_400_000)
+        .toISOString()
+        .slice(0, 10),
+    },
+    'PATCH',
+  );
+  expect(expiredDatePatch.status).toBe(200);
+  const correctedExpired = (await expiredDatePatch.json()).data;
+  expect(correctedExpired.status).toBe('active');
+
+  const personHolderMissing = await send(
+    manager.client,
+    '/hse/certificates',
+    {
+      subjectId: subject.id,
+      holderType: 'person',
+      holderName: 'Nobody',
+      certType: 'special_operation',
+      certNo: `CERT-${randomUUID().slice(0, 8)}`,
+      expiresAt: new Date(Date.now() + 365 * 86_400_000)
+        .toISOString()
+        .slice(0, 10),
+    },
+  );
+  expect(personHolderMissing.status).toBe(400);
+  expect(JSON.stringify(await personHolderMissing.json())).toContain(
+    'HOLDER_REQUIRED',
+  );
+
+  const personCertificate = await send(
+    manager.client,
+    '/hse/certificates',
+    {
+      subjectId: subject.id,
+      holderType: 'person',
+      holderId: employee.id,
+      holderName: employee.name,
+      certType: 'special_operation',
+      certNo: `CERT-P-${randomUUID().slice(0, 8)}`,
+      expiresAt: new Date(Date.now() + 365 * 86_400_000)
+        .toISOString()
+        .slice(0, 10),
+    },
+  );
+  expect(personCertificate.status).toBe(201);
+  const createdPersonCertificate = (await personCertificate.json()).data;
+  expect(createdPersonCertificate.holderId).toBe(employee.id);
+  expect(createdPersonCertificate.holderType).toBe('person');
+
+  const firstOperationCertificate = await send(
+    manager.client,
+    '/hse/certificates',
+    {
+      subjectId: subject.id,
+      holderType: 'company',
+      holderName: subject.name,
+      certType: 'special_operation',
+      certNo: 'CERT-OP-1',
+      expiresAt: new Date(Date.now() + 365 * 86_400_000)
+        .toISOString()
+        .slice(0, 10),
+    },
+  );
+  expect(firstOperationCertificate.status).toBe(201);
+
+  const duplicateCertificate = await send(
+    manager.client,
+    '/hse/certificates',
+    {
+      subjectId: subject.id,
+      holderType: 'company',
+      holderName: subject.name,
+      certType: 'special_operation',
+      certNo: 'CERT-DUP-1',
+      expiresAt: new Date(Date.now() + 365 * 86_400_000)
+        .toISOString()
+        .slice(0, 10),
+    },
+  );
+  expect(duplicateCertificate.status).toBe(409);
+  expect(JSON.stringify(await duplicateCertificate.json())).toContain(
+    'CERTIFICATE_DUPLICATE',
+  );
 
   expect(findUndeclaredApiRoutes(testApp.application)).toEqual([]);
 
@@ -383,7 +763,7 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
     subject: { type: 'user', id: viewer.id },
   });
   expect((await client.fetch('/hse/overview')).status).toBe(200);
-  const denied = await client.fetch('/hse/incidents', {
+  const reported = await client.fetch('/hse/incidents', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -395,10 +775,125 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
       type: 'injury',
       severity: 'minor',
       location: 'Line',
-      description: 'Attempted write',
+      description: 'Reported by viewer',
     }),
   });
-  expect(denied.status).toBe(403);
+  // A read-all viewer has no company assignment: creating records is
+  // rejected even with the report action (reporters are scoped to the
+  // company of their own assignment).
+  expect(reported.status).toBe(403);
+  expect(JSON.stringify(await reported.json())).toContain('HSE_FORBIDDEN');
   await authz.permissionSets.revoke(assignment.id);
   expect((await client.fetch('/hse/overview')).status).toBe(403);
+
+  const reporter = await makeUser('HSE reporter', [
+    'read',
+    'report',
+    'readAll',
+  ]);
+  const reporterOptions = (
+    await (await reporter.client.fetch('/hse/options')).json()
+  ).data;
+  expect(reporterOptions.permissions).toEqual({
+    manage: false,
+    approve: false,
+    report: true,
+  });
+  // Give the reporter a company assignment: report creation must then be
+  // allowed in their own company but rejected for any other company.
+  const reporterPerson = await create('/people/employees', {
+    code: `HSE-E-R-${randomUUID().slice(0, 6)}`,
+    name: 'HSE reporter person',
+    subjectId: subject.id,
+    data: { accountId: reporter.id },
+  });
+  const reporterChange = await create('/people/changes', {
+    code: `HSE-ENTRY-R-${randomUUID().slice(0, 6)}`,
+    name: 'Entry',
+    personId: reporterPerson.id,
+    data: {
+      type: 'entry',
+      effectiveDate: new Date().toISOString().slice(0, 10),
+      targetSubjectId: subject.id,
+      targetPositionId: position.id,
+      explanation: 'HSE test reporter hire',
+    },
+  });
+  const reporterPendingChange = await firePeople(
+    'changes',
+    reporterChange,
+    'submit',
+  );
+  await firePeople('changes', reporterPendingChange, 'approve');
+  const foreignIncident = await send(
+    reporter.client,
+    '/hse/incidents',
+    {
+      subjectId: '00000000-0000-4000-8000-000000000000',
+      occurredAt: new Date().toISOString(),
+      type: 'injury',
+      severity: 'minor',
+      location: 'Line',
+      description: 'Reported for a foreign company',
+    },
+    'POST',
+  );
+  expect(foreignIncident.status).toBe(403);
+  expect(JSON.stringify(await foreignIncident.json())).toContain(
+    'HSE_FORBIDDEN',
+  );
+  const reporterIncident = await send(
+    reporter.client,
+    '/hse/incidents',
+    {
+      subjectId: subject.id,
+      occurredAt: new Date().toISOString(),
+      type: 'injury',
+      severity: 'minor',
+      location: 'Line',
+      description: 'Reported by reporter role',
+    },
+    'POST',
+  );
+  expect(reporterIncident.status).toBe(201);
+  const reporterHazard = await send(
+    reporter.client,
+    '/hse/hazards',
+    {
+      subjectId: subject.id,
+      unitId: unit.id,
+      source: 'inspection',
+      level: 'general',
+      description: 'Slippery floor near gate',
+      location: 'Gate',
+      discoveredAt: new Date().toISOString().slice(0, 10),
+      ownerName: 'To assign',
+    },
+    'POST',
+  );
+  expect(reporterHazard.status).toBe(201);
+  const reporterIncidentJson = (await reporterIncident.json()).data;
+  const reporterTransition = await send(
+    reporter.client,
+    `/hse/incidents/${reporterIncidentJson.id}/transitions`,
+    { version: reporterIncidentJson.version, action: 'investigate' },
+  );
+  expect(reporterTransition.status).toBe(403);
+  const reporterCertificate = await send(
+    reporter.client,
+    '/hse/certificates',
+    {
+      subjectId: subject.id,
+      holderType: 'company',
+      holderName: 'HSE test company',
+      certType: 'pollution',
+      certNo: 'PWL-REPORT-001',
+      expiresAt: new Date(Date.now() + 90 * 86_400_000)
+        .toISOString()
+        .slice(0, 10),
+      authority: 'Bureau',
+    },
+    'POST',
+  );
+  expect(reporterCertificate.status).toBe(403);
 });

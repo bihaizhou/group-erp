@@ -20,6 +20,7 @@ import { RouteChildPage } from '#components/route-child-page';
 import { DatePicker } from '#components/date-picker';
 import { Button } from '#components/ui/button';
 import { Textarea } from '#components/ui/textarea';
+import { Input } from '#components/ui/input';
 import {
   Field,
   FieldLabel,
@@ -43,12 +44,7 @@ import {
   useLeaveGuard,
   useConfirm,
 } from './hooks.js';
-import {
-  ReferencePicker,
-  ErrorNotice,
-  Loading,
-  ConflictChoices,
-} from './controls.js';
+import { ErrorNotice, Loading, ConflictChoices } from './controls.js';
 import {
   blankContent,
   requestContent,
@@ -249,7 +245,7 @@ function FormBody({
     [attempted, setAttempted] = useState(false),
     [latest, setLatest] = useState<PurchaseRequest>(),
     [choices, setChoices] = useState<Record<string, 'local' | 'server'>>({}),
-    [refs, setRefs] = useState<Record<string, Choice | undefined>>(() => {
+    [refs] = useState<Record<string, Choice | undefined>>(() => {
       const result: Record<string, Choice | undefined> = {};
       if (!identity) return result;
       if (identity.employee) result.requester = identity.employee;
@@ -349,7 +345,20 @@ function FormBody({
       return;
     }
     const body = {
-      content: draft,
+      // `supplierName` is a display-only companion of `supplierId`; the API
+      // validates line inputs strictly and resolves the name itself.
+      content: {
+        ...draft,
+        lines: draft.lines.map((line) => ({
+          id: line.id,
+          selection: line.selection,
+          supplierId: line.supplierId,
+          originalName: line.originalName,
+          originalSpecification: line.originalSpecification,
+          usage: line.usage,
+          notes: line.notes,
+        })),
+      },
       ...(mode !== 'new'
         ? {
             version: row!.revision,
@@ -406,13 +415,21 @@ function FormBody({
           e.payload as { error?: { fieldViolations?: { field: string }[] } }
         )?.error?.fieldViolations?.[0]?.field;
         const match =
-          violation && /^lines\.(\d+)\.selection(?:\.(.+))?$/.exec(violation);
+          violation &&
+          /^lines\.(\d+)\.(?:selection(?:\.(.+))?|supplierId)$/.exec(violation);
         const targetLine = match ? draft.lines[Number(match[1])] : undefined;
-        const field = targetLine
-          ? `line-${targetLine.id}-${match?.[2] === 'quantity' ? 'quantity' : 'selection'}`
-          : e.reason
-            ? fields[e.reason]
-            : undefined;
+        const field =
+          match && targetLine
+            ? `line-${targetLine.id}-${
+                match[0].includes('supplierId')
+                  ? 'supplier'
+                  : match[2] === 'quantity'
+                    ? 'quantity'
+                    : 'selection'
+              }`
+            : e.reason
+              ? fields[e.reason]
+              : undefined;
         if (field) {
           setServerErrors({
             [field]: e.reason?.includes('PRECISION')
@@ -571,6 +588,7 @@ function FormBody({
             `${t(ui('packaging'))}: ${preview?.numeratorSnapshot ?? '—'}/${preview?.denominatorSnapshot ?? '—'}`,
           ]
         : []),
+      `${t(ui('lineSupplier'))}: ${line.supplierName ?? (line.supplierId ? t(ui('unavailable')) : '—')}`,
       `${t(ui('lineUsage'))}: ${line.usage || '—'}`,
       `${t(ui('lineNotes'))}: ${line.notes || '—'}`,
     ].join('\n');
@@ -779,6 +797,43 @@ function FormBody({
                 />
               </Field>
               <Field>
+                <FieldLabel htmlFor='purchase-sourceRef'>
+                  {t(ui('sourceRef'))}
+                </FieldLabel>
+                <Input
+                  id='purchase-sourceRef'
+                  value={draft.sourceRef ?? ''}
+                  onChange={(e) =>
+                    update('sourceRef', e.target.value || null)
+                  }
+                  placeholder={t(ui('sourceRef'))}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor='purchase-sourceDoc'>
+                  {t(ui('sourceDoc'))}
+                </FieldLabel>
+                <Input
+                  id='purchase-sourceDoc'
+                  value={draft.sourceDoc ?? ''}
+                  onChange={(e) =>
+                    update('sourceDoc', e.target.value || null)
+                  }
+                  placeholder={t(ui('sourceDoc'))}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor='purchase-period'>
+                  {t(ui('period'))}
+                </FieldLabel>
+                <Input
+                  id='purchase-period'
+                  value={draft.period ?? ''}
+                  onChange={(e) => update('period', e.target.value || null)}
+                  placeholder={t(ui('periodHint'))}
+                />
+              </Field>
+              <Field>
                 <FieldLabel htmlFor='purchase-neededOn'>
                   {t(ui('neededOn'))} ({t(ui('requiredToSubmit'))})
                 </FieldLabel>
@@ -789,25 +844,6 @@ function FormBody({
                   label={t(ui('neededOn'))}
                 />
               </Field>
-              <ReferencePicker
-                id='purchase-suggestedSupplierId'
-                error={
-                  errors.suggestedSupplierId
-                    ? t(ui(errors.suggestedSupplierId))
-                    : undefined
-                }
-                key={`supplier-${draft.subjectId}`}
-                path='requestSupplierOptions'
-                query={{ subjectId: draft.subjectId }}
-                label={`${t(ui('supplier'))} (${t(ui('optional'))})`}
-                value={draft.suggestedSupplierId ?? ''}
-                selected={refs.supplier ?? row?.display.supplier}
-                disabled={!draft.subjectId}
-                onChange={(id, item) => {
-                  update('suggestedSupplierId', id || null);
-                  setRefs((old) => ({ ...old, supplier: item }));
-                }}
-              />
               <Field data-invalid={!!errors.notes} className='md:col-span-2'>
                 <FieldLabel htmlFor='purchase-notes'>
                   {t(ui('notes'))}

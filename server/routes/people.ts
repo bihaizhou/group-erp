@@ -268,15 +268,58 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
       }),
       apiValidator('param', idParam),
       async (c) => {
+        const who = actor(c);
         const policies = await authorize(c.get('authz'), 'profiles', 'read');
         const result = await service.talent(
           c.req.valid('param').id,
           policies,
-          actor(c),
+          who,
         );
+        // The talent aggregation mixes several kinds, so redact the rows the
+        // same way the employees/profiles list and get routes do: profile
+        // rows appear both under `profiles` and inside `options.profiles`.
+        const fields = await fieldPoliciesFor(database, {
+          type: 'user',
+          id: who.id,
+        });
+        const aggregated = result as unknown as {
+          person: Record<string, unknown>;
+          profiles: { rows: Record<string, unknown>[] };
+          options: { profiles?: { rows: Record<string, unknown>[] } };
+        };
+        const profileRows = aggregated.profiles.rows;
+        const options = aggregated.options;
         return c.json({
           data: {
             ...result,
+            person: redactRecord(
+              aggregated.person,
+              fields,
+              'people.employee.grade',
+            ),
+            profiles: {
+              ...(aggregated.profiles as object),
+              rows: redactRows(
+                profileRows,
+                fields,
+                'people.employee.grade',
+              ),
+            },
+            options: {
+              ...(options as object),
+              ...(options.profiles
+                ? {
+                    profiles: {
+                      ...options.profiles,
+                      rows: redactRows(
+                        options.profiles.rows,
+                        fields,
+                        'people.employee.grade',
+                      ),
+                    },
+                  }
+                : {}),
+            },
             photoUrl: result.photo
               ? `${app.publicBasePath}/uploads/peoplePhotos/${result.photo.id}${result.photo.ext ? '.' + result.photo.ext : ''}`
               : null,
@@ -476,7 +519,10 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
           );
           if (kind !== 'employees' && kind !== 'profiles')
             return c.json(result);
-          const policies = await fieldPoliciesFor(database, actor(c));
+          const policies = await fieldPoliciesFor(database, {
+            type: 'user',
+            id: actor(c).id,
+          });
           return c.json({
             ...result,
             data: redactRows(
@@ -517,7 +563,10 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
           );
           if (kind !== 'employees' && kind !== 'profiles')
             return c.json({ data });
-          const policies = await fieldPoliciesFor(database, actor(c));
+          const policies = await fieldPoliciesFor(database, {
+            type: 'user',
+            id: actor(c).id,
+          });
           return c.json({
             data: redactRecord(
               data as Record<string, unknown>,
@@ -746,7 +795,10 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
           c.req.valid('param').id,
           c.get('peoplePolicies'),
         );
-        const policies = await fieldPoliciesFor(database, actor(c));
+        const policies = await fieldPoliciesFor(database, {
+          type: 'user',
+          id: actor(c).id,
+        });
         return c.json({
           data: redactRecord(
             data as Record<string, unknown>,
@@ -786,7 +838,10 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
       async (c) => {
         const id = c.req.valid('param').id,
           input = c.req.valid('json'),
-          policies = await fieldPoliciesFor(database, actor(c)),
+          policies = await fieldPoliciesFor(database, {
+            type: 'user',
+            id: actor(c).id,
+          }),
           previous = (await service.contacts(id, c.get('peoplePolicies'))) as {
             phone?: string;
             email?: string;

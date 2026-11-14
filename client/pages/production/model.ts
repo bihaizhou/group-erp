@@ -74,6 +74,7 @@ export type ProductionUnitMaterial = {
   skuName: string | null;
   unit: string;
   role: ProductionMaterialRole;
+  outputType: 'metal' | 'sand' | null;
   defaultWarehouseId: string | null;
   warehouseName: string | null;
   sortOrder: number;

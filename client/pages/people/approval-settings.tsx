@@ -186,10 +186,13 @@ function ApprovalEditor({ settings }: { settings: Settings }) {
         options.accounts.map((account) => ({
           value: account.id,
           label: account.code
-            ? `${account.name}（${account.code}）`
+            ? t('people.accountWithCode', {
+                name: account.name,
+                code: account.code,
+              })
             : account.name,
         })),
-      [options.accounts],
+      [options.accounts, t],
     ),
     positionItems = useMemo(
       () =>

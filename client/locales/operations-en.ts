@@ -70,6 +70,13 @@ export const operations = {
   issueStart: 'Start',
   issueClose: 'Close',
   issueResolution: 'Resolution',
+  issueEdit: 'Edit',
+  issueEditTitle: 'Edit issue',
+  issueOwnerPlaceholder: 'Select an owner position',
+  issueOwnerEmpty: 'No active positions in this company',
+  issuesPagination: 'Page {{page}} of {{pages}} · {{total}} total',
+  issuesEmpty: 'No issues yet',
+  issuesClosedHint: 'Closed issues are listed at the end.',
   previous: 'Previous',
   next: 'Next',
   cancel: 'Cancel',
@@ -108,6 +115,7 @@ export const operations = {
   targetStatus_not_started: 'Not started',
   saveTarget: 'Save target',
   noTargets: 'No targets',
+  targetsTotal: '{{count}} target(s)',
   updatedAt: 'Updated',
   metric_processed: 'Processed',
   metric_metal: 'Metal output',
@@ -144,6 +152,13 @@ export const operations = {
   openPeople: 'People overview',
   openEquipment: 'Equipment',
   companiesTitle: 'Company comparison',
+  companiesTotal: 'Total',
+  companiesTotalPartial:
+    'Some company data is not visible; totals do not represent the full group.',
+  maskedTitle: 'No permission',
+  maskedDescription:
+    'Your role cannot view the corresponding module data; metrics are hidden.',
+  maskedHint: 'No permission',
   companiesDescription:
     'Compare production, stock and open items by company; select one for details.',
   noCompaniesDescription:
@@ -151,4 +166,19 @@ export const operations = {
   companyDetail: 'View operations for {{name}}',
   notes:
     'Production reports, receipt drafts, product stock, sales, procurement, headcount, maintenance/downtime, issues and HSE are connected. Shipments/receipts count posted documents only; headcount is not attendance.',
+  notesTruncated: 'Some data was truncated; totals may be incomplete.',
+  error: {
+    forbidden: 'No permission to view this company',
+    issueNotFound: 'Issue not found',
+    issueClosedImmutable: 'Closed issues cannot be changed',
+    issueTransitionInvalid: 'This status transition is not allowed',
+    resolutionRequired: 'A resolution is required before closing',
+    versionConflict: 'The issue was updated by someone else; refresh and retry',
+    subjectRequired: 'Select a company first',
+    subjectNotFound: 'Company not found',
+    unitNotFound: 'Production unit not found',
+    ownerNotFound: 'Owner position not found',
+    ownerNotInCompany: 'Owner position does not belong to this company',
+    fallback: 'The operation failed; please try again',
+  },
 };

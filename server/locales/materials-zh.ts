@@ -9,8 +9,7 @@ export const materials = {
     references: '别名与旧码',
     tags: '标签字典',
     tagLinks: '标签关联',
-    requests: '物料申请',
-    subjectSettings: '公司物料设置',
+    requests: '待治理物料',
     warehouses: '仓库设置',
   },
   actions: {

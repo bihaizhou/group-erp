@@ -31,6 +31,26 @@ describe('app client routes', () => {
     );
   });
 
+  it('does not resolve the retired create or edit URLs of read-only personnel kinds', () => {
+    const paths = pagePaths(resolveRoutes().routes);
+    for (const kind of ['employments', 'assignments']) {
+      // These kinds are maintained through personnel changes, so their list
+      // create route and both edit entry points are gone; a direct visit has
+      // to fail to resolve rather than reach a form that can never save.
+      expect(paths).not.toContain(`/functions/personnel/${kind}/new`);
+      expect(
+        paths.some((path) =>
+          new RegExp(`^/functions/personnel/${kind}/[^/]+/edit$`).test(path),
+        ),
+      ).toBe(false);
+      expect(
+        paths.some((path) =>
+          new RegExp(`^/functions/personnel/${kind}/edit/[^/]+$`).test(path),
+        ),
+      ).toBe(false);
+    }
+  });
+
   it('loads every page component', async () => {
     const resolved = resolveRoutes();
     const loaders = componentLoadersIn(resolved.routes);
@@ -69,6 +89,7 @@ describe('app client routes', () => {
       ['/functions/hse/hazards', 'hse/companies'],
       ['/functions/hse/incidents', 'hse/companies'],
       ['/functions/operations/issues', 'operations/companies'],
+      ['/functions/operations/overview', 'operations/companies'],
       ['/functions/operations/targets', 'operations/companies'],
       ['/functions/procurement/orders', 'procurement/orders/companies'],
       ['/functions/procurement/overview', 'procurement/requestCompanies'],
@@ -126,6 +147,8 @@ describe('app client routes', () => {
     ).toEqual([
       { name: 'home', authorizedAs: null },
       { name: 'inbox', authorizedAs: null },
+      { name: 'legacyUsers', authorizedAs: 'user:*' },
+      { name: 'legacyRoles', authorizedAs: 'settings:authorization.permission-sets' },
       { name: 'position-permissions', authorizedAs: 'position-permissions' },
       { name: 'operations-overview', authorizedAs: 'operations-overview' },
       { name: 'operations-issues', authorizedAs: 'operations-issues' },
@@ -154,6 +177,7 @@ describe('app client routes', () => {
       { name: 'hse-incidents', authorizedAs: 'hse-incidents' },
       { name: 'hse-hazards', authorizedAs: 'hse-hazards' },
       { name: 'hse-certificates', authorizedAs: 'hse-certificates' },
+      { name: 'settingsIndex', authorizedAs: null },
       { name: 'settingsUsers', authorizedAs: 'user:*' },
       { name: 'settingsUserCreate', authorizedAs: 'user:*' },
       { name: 'settingsUser', authorizedAs: 'user:*' },
@@ -186,7 +210,7 @@ describe('app client routes', () => {
     const materialRoutes = authorizations.filter((route) =>
       route.name.startsWith('warehouse-material'),
     );
-    expect(materialRoutes).toHaveLength(72);
+    expect(materialRoutes).toHaveLength(66);
     for (const prefix of [
       'procurement-orders',
       'sales-customers',

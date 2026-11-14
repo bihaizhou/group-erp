@@ -11,7 +11,6 @@ interface Fixture {
   employeeId: string;
   changeId: string;
   skuId: string;
-  admissionId: string;
   nameId: string;
   supplierId: string;
   requestId: string;
@@ -145,12 +144,10 @@ test('existing people, supplier and material forms show references and stop supp
   await page.locator('#people-action-reason').fill('后续协调交接');
   await take(page, 'people-change');
   await page.locator('#people-action-reason').fill('');
-  await page.goto(
-    `${f.base}functions/warehouse/materials/subjectSettings/edit/${f.admissionId}?subjectId=${f.companyId}`,
-  );
+  await page.goto(`${f.base}functions/warehouse/materials/edit/${f.skuId}`);
   await expect(notice(page).getByText(f.requestCode)).toBeVisible();
   await notice(page).scrollIntoViewIfNeeded();
-  await take(page, 'material-admission');
+  await take(page, 'material-sku');
   const current = await (
     await page.request.get(`${f.base}api/procurement/requests/${f.requestId}`)
   ).json();
@@ -366,7 +363,7 @@ test('long confirmations keep their footer visible at 375px with five references
     },
     {
       name: 'material',
-      url: `${f.base}functions/warehouse/materials/subjectSettings/${f.admissionId}/actions/deactivate?subjectId=${f.companyId}`,
+      url: `${f.base}functions/warehouse/materials/${f.skuId}/actions/deactivate`,
       reason: '#material-action-reason',
     },
     {

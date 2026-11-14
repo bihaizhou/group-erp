@@ -1032,3 +1032,282 @@ test('leaves future approved entries unapplied and prevents stale decisions afte
       .count({ filter: { personId: employee.id } }),
   ).toBe(0);
 });
+test('redacts the grade on the talent endpoint when a field policy hides it', async ({
+  testApp,
+  database,
+}) => {
+  const admin = await signIn(testApp, DEFAULT_ADMIN_CREDENTIALS);
+  const create = async (path: string, body: unknown) => {
+    const r = await admin.fetch(path, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost',
+      },
+      body: JSON.stringify(body),
+    });
+    const p = await r.json();
+    expect(r.status).toBe(201);
+    return p.data;
+  };
+  const subject = await create('/organization/subjects', {
+    code: 'GRADE-S',
+    name: 'Grade subject',
+    type: 'group',
+  });
+  const employee = await create('/people/employees', {
+    code: 'GRADE-E1',
+    name: 'Graded employee',
+    subjectId: subject.id,
+    data: {},
+  });
+  const profileRow = (
+    await (await admin.fetch(`/people/profiles?personId=${employee.id}`)).json()
+  ).data[0];
+  const gradeResponse = await admin.fetch(`/people/profiles/${profileRow.id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+    body: JSON.stringify({
+      version: profileRow.version,
+      reason: 'Set grade',
+      data: { ...profileRow.data, grade: 4 },
+    }),
+  });
+  expect(gradeResponse.status).toBe(200);
+  const profile = (await gradeResponse.json()).data;
+  expect(profile.grade).toBe(4);
+  const users = testApp.application.container.resolve(
+      userAdministrationServiceToken,
+    ),
+    authz = testApp.application.container.resolve(authorizationToken);
+  const email = `grade-${randomUUID()}@example.test`,
+    password = randomUUID();
+  const user = await users.create({
+    name: 'HR reader',
+    email,
+    password,
+  });
+  const allRecords = {
+    profiles: 'allRecords',
+    employees: 'allRecords',
+    employments: 'allRecords',
+    assignments: 'allRecords',
+    dimensions: 'allRecords',
+    models: 'allRecords',
+    evaluations: 'allRecords',
+    developmentPlans: 'allRecords',
+    workforcePlans: 'allRecords',
+    orgSubjects: 'allRecords',
+    orgUnits: 'allRecords',
+    orgPositions: 'allRecords',
+  };
+  const role = await authz.permissionSets.create({
+    key: `hr-${randomUUID()}`,
+    title: 'HR reader',
+    grants: [
+      {
+        resource: { type: 'composite', id: 'people.profiles' },
+        actions: [
+          { action: 'read', policy: { type: 'composite', scopes: allRecords } },
+        ],
+      },
+    ],
+  });
+  await authz.permissionSets.assign({
+    permissionSet: role.key,
+    subject: { type: 'user', id: user.id },
+  });
+  await database.repository('appFieldPolicies').createOne({
+    values: {
+      id: randomUUID(),
+      permissionSetKey: role.key,
+      settingsId: null,
+      resource: 'people.employee.grade',
+      field: 'grade',
+      access: 'hidden',
+      version: 1,
+      createdBy: 'system',
+      updatedBy: 'system',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
+  const member = await signIn(testApp, { email, password });
+  const talent = (await (
+    await member.fetch(`/people/talent/${employee.id}`)
+  ).json()).data;
+  expect(talent.person.grade).toBeUndefined();
+  const row = talent.profiles.rows.find(
+    (r: { id: string }) => r.id === profile.id,
+  );
+  expect(row).toBeTruthy();
+  expect(row.grade).toBeUndefined();
+  // The nested data mirror is redacted too, on every row.
+  expect(row.data?.grade).toBeUndefined();
+  for (const profileRow of talent.profiles.rows)
+    expect(profileRow.data?.grade).toBeUndefined();
+  const option = talent.options.profiles.rows.find(
+    (r: { id: string }) => r.id === profile.id,
+  );
+  expect(option).toBeTruthy();
+  expect(option.grade).toBeUndefined();
+  expect(option.data?.grade).toBeUndefined();
+  for (const profileRow of talent.options.profiles.rows)
+    expect(profileRow.data?.grade).toBeUndefined();
+  const adminTalent = (await (
+    await admin.fetch(`/people/talent/${employee.id}`)
+  ).json()).data;
+  const adminRow = adminTalent.profiles.rows.find(
+    (r: { id: string }) => r.id === profile.id,
+  );
+  expect(adminRow.grade).toBe(4);
+  expect(adminRow.data?.grade).toBe(4);
+});
+test('blocks a departure while the employee still holds a maintenance asset', async ({
+  testApp,
+  database,
+}) => {
+  const admin = await signIn(testApp, DEFAULT_ADMIN_CREDENTIALS);
+  const send = async (path: string, body: unknown, method = 'POST') =>
+    admin.fetch(path, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost',
+      },
+      body: JSON.stringify(body),
+    });
+  const create = async (path: string, body: unknown) => {
+    const response = await send(path, body);
+    const payload = await response.json();
+    expect(response.status).toBe(201);
+    return payload.data;
+  };
+  const fireResponse = (row: { id: string; lifecycleVersion: number }) =>
+    send(`/people/changes/${row.id}/fire`, {
+      transition: 'approve',
+      version: row.lifecycleVersion,
+      requestId: randomUUID(),
+      reason: 'Test decision',
+      input: {},
+    });
+  const fire = async (
+    row: { id: string; lifecycleVersion: number },
+    transition: string,
+  ) => {
+    const response = await send(`/people/changes/${row.id}/fire`, {
+      transition,
+      version: row.lifecycleVersion,
+      requestId: randomUUID(),
+      reason: 'Test decision',
+      input: {},
+    });
+    const payload = await response.json();
+    expect(response.status).toBe(200);
+    return payload.data;
+  };
+  const subject = await create('/organization/subjects', {
+    code: `MAINT-${randomUUID().slice(0, 6)}`,
+    name: 'Maintenance exit company',
+    type: 'group',
+  });
+  const unit = await create('/organization/units', {
+    code: `MAINT-U-${randomUUID().slice(0, 6)}`,
+    name: 'Maintenance exit unit',
+    type: 'department',
+    subjectId: subject.id,
+  });
+  const position = await create('/organization/positions', {
+    code: `MAINT-P-${randomUUID().slice(0, 6)}`,
+    name: 'Maintenance exit position',
+    unitId: unit.id,
+  });
+  const employee = await create('/people/employees', {
+    code: `MAINT-E-${randomUUID().slice(0, 6)}`,
+    name: 'Employee with a repairing asset',
+    subjectId: subject.id,
+    data: {},
+  });
+  await fire(
+    await fire(
+      await create('/people/changes', {
+        code: `MAINT-ENTRY-${randomUUID().slice(0, 6)}`,
+        name: 'Entry',
+        personId: employee.id,
+        data: {
+          type: 'entry',
+          effectiveDate: businessDate(),
+          targetSubjectId: subject.id,
+          targetPositionId: position.id,
+          explanation: 'Hire approved',
+        },
+      }),
+      'submit',
+    ),
+    'approve',
+  );
+  const assetId = randomUUID();
+  await database.repository('assets').createOne({
+    values: {
+      id: assetId,
+      subjectId: subject.id,
+      code: `MAINT-AST-${randomUUID().slice(0, 6)}`,
+      name: 'Repairing tester',
+      category: 'instrument',
+      status: 'maintenance',
+      custodianEmployeeId: employee.id,
+      currency: 'CNY',
+      version: 1,
+      createdBy: 'test',
+      updatedBy: 'test',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
+  const exit = await create('/people/changes', {
+    code: `MAINT-EXIT-${randomUUID().slice(0, 6)}`,
+    name: 'Departure',
+    personId: employee.id,
+    data: {
+      type: 'exit',
+      effectiveDate: businessDate(),
+      explanation: 'Departure approved',
+    },
+  });
+  const submitted = await fire(exit, 'submit');
+  const blocked = await fireResponse(submitted);
+  expect(blocked.status).toBe(400);
+  expect(
+    ((await blocked.json()) as { error: { reason: string } }).error.reason,
+  ).toBe('PEOPLE_ASSETS_OUTSTANDING');
+  expect(
+    (
+      await database
+        .repository('personnelEmployees')
+        .findOne({ filter: { id: employee.id } })
+    )?.status,
+  ).toBe('active');
+
+  // Returning the asset clears the blocker and the same departure can proceed.
+  await database.repository('assets').updateOne({
+    filter: { id: assetId },
+    values: {
+      status: 'in_stock',
+      custodianEmployeeId: null,
+      version: 2,
+      updatedAt: new Date(),
+    },
+  });
+  const applied = await fireResponse(submitted);
+  expect(applied.status).toBe(200);
+  expect(((await applied.json()) as { data: { status: string } }).data.status).toBe(
+    'effective',
+  );
+  expect(
+    (
+      await database
+        .repository('personnelEmployees')
+        .findOne({ filter: { id: employee.id } })
+    )?.status,
+  ).toBe('inactive');
+});

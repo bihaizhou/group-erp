@@ -78,7 +78,6 @@ test('removes retired category grants idempotently while preserving custom scope
                 scopes: {
                   materialCategories: 'allRecords',
                   orgSubjects: 'supplyChain.ownSubject',
-                  materialSubjectSettings: 'supplyChain.ownCompany',
                 },
               },
             },
@@ -110,7 +109,6 @@ test('removes retired category grants idempotently while preserving custom scope
   });
   expect(grants[2].actions[0].policy?.scopes).toEqual({
     orgSubjects: 'supplyChain.ownSubject',
-    materialSubjectSettings: 'supplyChain.ownCompany',
   });
   await categoryGrantRemoval.run({
     repository: (name) => database.repository(name),
@@ -384,25 +382,6 @@ test('governs identity, units, aliases, request links, activation, history and r
     type: 'group',
   });
   const group = (await groupResponse.json()).data;
-  const companySetting = await create('subjectSettings', {
-    name: 'Company purchase and sale availability',
-    subjectId: group.id,
-    skuId: sku.id,
-    canPurchase: true,
-    canSell: false,
-  });
-  const editedSetting = await send(
-    admin,
-    `/materials/subjectSettings/${companySetting.id}`,
-    {
-      version: companySetting.version,
-      reason: 'Allow sales as well',
-      canSell: true,
-    },
-    'PATCH',
-  );
-  expect(editedSetting.status).toBe(200);
-  expect((await editedSetting.json()).data.canSell).toBe(true);
 
   let request = await create('requests', {
     name: 'Need a black gel pen',

@@ -104,7 +104,6 @@ await writeFile(
     employeeId: f.reviewer.employee.id,
     changeId: change.id,
     skuId: m.sku.id,
-    admissionId: m.admission.id,
     nameId: m.name.id,
     supplierId: supplier.partnerId,
     requestId: pending.id,

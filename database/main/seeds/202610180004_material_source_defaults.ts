@@ -15,7 +15,6 @@ export default defineSeed({
       'personnelEmployments',
       'personnelAssignments',
       'orgUnits',
-      'materialSubjectSettings',
     ];
     const references = [
       'materialAttributeTemplates',

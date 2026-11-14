@@ -12,7 +12,6 @@ import {
   Tags,
   Tag,
   ClipboardList,
-  Building2,
   PanelsTopLeft,
   LayoutDashboard,
 } from 'lucide-react';
@@ -28,7 +27,6 @@ const icons = {
   tags: Tags,
   tagLinks: Tag,
   requests: ClipboardList,
-  subjectSettings: Building2,
   warehouses: Settings2,
 };
 function children(kind: Kind): AppClientRouteDefinition[] {

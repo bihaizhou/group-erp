@@ -3,11 +3,13 @@ import { useSearchParams } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { useSettingsAccess } from '#hooks/use-settings-access';
+import { businessDate } from '#hooks/business-date';
+import { operationsErrorKey } from './errors.js';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { Textarea } from '#components/ui/textarea';
@@ -27,15 +29,20 @@ import {
   TableHeader,
   TableRow,
 } from '#components/ui/table';
-import type { OperationsIssue, OperationsIssuePage } from './model.js';
+import type {
+  OperationsIssue,
+  OperationsIssuePage,
+  OperationsOptions,
+} from './model.js';
 import { nativeSelectClass } from '#components/native-controls';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessDate();
 const emptyForm = () => ({
   sourceType: 'other',
   title: '',
   description: '',
   severity: 'medium',
+  ownerId: '',
   ownerName: '',
   dueAt: today(),
   businessDate: today(),
@@ -52,6 +59,13 @@ export default function OperationsIssuesPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [closing, setClosing] = useState<OperationsIssue | null>(null);
+  const [editing, setEditing] = useState<OperationsIssue | null>(null);
+  const [editForm, setEditForm] = useState(() => ({
+    severity: 'medium',
+    ownerId: '',
+    ownerName: '',
+    dueAt: today(),
+  }));
   const [resolution, setResolution] = useState('');
   const list = useQuery({
     retry: false,
@@ -68,17 +82,32 @@ export default function OperationsIssuesPage() {
         signal,
       }),
   });
+  const options = useQuery({
+    retry: false,
+    queryKey: ['operations-options'],
+    queryFn: ({ signal }) =>
+      api.request<{ data: OperationsOptions }>({
+        path: 'operations/options',
+        signal,
+      }),
+  });
+  const positions = (options.data?.data.positions ?? []).filter(
+    (position) => position.subjectId === subjectId,
+  );
   const create = useMutation({
-    mutationFn: () =>
-      api.request({
+    mutationFn: () => {
+      const { ownerId, ...fields } = form;
+      return api.request({
         path: 'operations/issues',
         method: 'POST',
         json: {
-          ...form,
+          ...fields,
           subjectId,
           dueAt: form.dueAt,
+          ...(ownerId ? { ownerId } : {}),
         },
-      }),
+      });
+    },
     onSuccess: () => {
       setOpen(false);
       setForm(emptyForm());
@@ -92,6 +121,10 @@ export default function OperationsIssuesPage() {
       version: number;
       status?: string;
       resolution?: string;
+      severity?: string;
+      ownerId?: string;
+      ownerName?: string;
+      dueAt?: string;
     }) =>
       api.request({
         path: `operations/issues/${input.id}`,
@@ -102,10 +135,15 @@ export default function OperationsIssuesPage() {
           ...(input.resolution !== undefined
             ? { resolution: input.resolution }
             : {}),
+          ...(input.severity ? { severity: input.severity } : {}),
+          ...(input.ownerId !== undefined ? { ownerId: input.ownerId } : {}),
+          ...(input.ownerName ? { ownerName: input.ownerName } : {}),
+          ...(input.dueAt ? { dueAt: input.dueAt } : {}),
         },
       }),
     onSuccess: () => {
       setClosing(null);
+      setEditing(null);
       setResolution('');
       void queryClient.invalidateQueries({ queryKey: ['operations-issues'] });
       void queryClient.invalidateQueries({ queryKey: ['operations-overview'] });
@@ -114,6 +152,18 @@ export default function OperationsIssuesPage() {
   const result = list.data?.data;
   const access = useSettingsAccess('operations');
   const error = create.error ?? update.error ?? list.error;
+  const openEdit = (issue: OperationsIssue) => {
+    setEditing(issue);
+    setEditForm({
+      severity: issue.severity,
+      ownerId: issue.ownerId ?? '',
+      ownerName: issue.ownerName,
+      dueAt: issue.dueAt,
+    });
+  };
+  const editPosition = positions.find(
+    (position) => position.id === editForm.ownerId,
+  );
   return (
     <PageContainer>
       <PageHeader
@@ -154,9 +204,14 @@ export default function OperationsIssuesPage() {
           </select>
         </label>
       </div>
+      {!status ? (
+        <p className='text-sm text-muted-foreground'>
+          {t('operations.issuesClosedHint')}
+        </p>
+      ) : null}
       {error ? (
         <p className='text-sm text-destructive'>
-          {error instanceof Error ? error.message : String(error)}
+          {t(`operations.error.${operationsErrorKey(error)}`)}
         </p>
       ) : null}
       <div className='rounded-md border'>
@@ -195,7 +250,16 @@ export default function OperationsIssuesPage() {
                 </TableCell>
                 <TableCell>
                   {issue.status === 'closed' ? null : (
-                    <div className='flex gap-2'>
+                    <div className='flex flex-wrap gap-2'>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        disabled={update.isPending}
+                        onClick={() => openEdit(issue)}
+                      >
+                        <Pencil className='mr-1 size-3.5' />
+                        {t('operations.issueEdit')}
+                      </Button>
                       {issue.status === 'open' ? (
                         <Button
                           variant='outline'
@@ -224,30 +288,48 @@ export default function OperationsIssuesPage() {
                 </TableCell>
               </TableRow>
             ))}
+            {result && result.items.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={9}
+                  className='py-8 text-center text-muted-foreground'
+                >
+                  {t('operations.issuesEmpty')}
+                </TableCell>
+              </TableRow>
+            ) : null}
           </TableBody>
         </Table>
       </div>
-      {result && result.total > result.pageSize ? (
+      {result && result.total > 0 ? (
         <div className='flex items-center justify-end gap-2 text-sm'>
-          <Button
-            variant='outline'
-            size='sm'
-            disabled={page <= 1}
-            onClick={() => setPage((value) => value - 1)}
-          >
-            {t('operations.previous')}
-          </Button>
-          <span>
-            {page} / {Math.ceil(result.total / result.pageSize)}
+          <span className='text-muted-foreground'>
+            {t('operations.issuesPagination', {
+              page,
+              pages: Math.ceil(result.total / result.pageSize),
+              total: result.total,
+            })}
           </span>
-          <Button
-            variant='outline'
-            size='sm'
-            disabled={page >= Math.ceil(result.total / result.pageSize)}
-            onClick={() => setPage((value) => value + 1)}
-          >
-            {t('operations.next')}
-          </Button>
+          {result.total > result.pageSize ? (
+            <Button
+              variant='outline'
+              size='sm'
+              disabled={page <= 1}
+              onClick={() => setPage((value) => value - 1)}
+            >
+              {t('operations.previous')}
+            </Button>
+          ) : null}
+          {result.total > result.pageSize ? (
+            <Button
+              variant='outline'
+              size='sm'
+              disabled={page >= Math.ceil(result.total / result.pageSize)}
+              onClick={() => setPage((value) => value + 1)}
+            >
+              {t('operations.next')}
+            </Button>
+          ) : null}
         </div>
       ) : null}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -322,12 +404,31 @@ export default function OperationsIssuesPage() {
               </label>
               <label className='grid gap-1 text-sm'>
                 <span>{t('operations.issueOwner')}</span>
-                <Input
-                  value={form.ownerName}
-                  onChange={(event) =>
-                    setForm({ ...form, ownerName: event.target.value })
-                  }
-                />
+                <select
+                  className={nativeSelectClass}
+                  value={form.ownerId}
+                  onChange={(event) => {
+                    const position = positions.find(
+                      (item) => item.id === event.target.value,
+                    );
+                    setForm({
+                      ...form,
+                      ownerId: event.target.value,
+                      ownerName: position?.name ?? '',
+                    });
+                  }}
+                >
+                  <option value=''>
+                    {positions.length
+                      ? t('operations.issueOwnerPlaceholder')
+                      : t('operations.issueOwnerEmpty')}
+                  </option>
+                  {positions.map((position) => (
+                    <option key={position.id} value={position.id}>
+                      {position.name}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className='grid gap-1 text-sm'>
                 <span>{t('operations.issueBusinessDate')}</span>
@@ -361,9 +462,105 @@ export default function OperationsIssuesPage() {
                 !subjectId ||
                 !form.title.trim() ||
                 !form.description.trim() ||
+                !form.ownerId ||
                 !form.ownerName.trim()
               }
               onClick={() => create.mutate()}
+            >
+              {t('operations.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(editing)}
+        onOpenChange={(value) => !value && setEditing(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('operations.issueEditTitle')}</DialogTitle>
+            <DialogDescription>{editing?.title}</DialogDescription>
+          </DialogHeader>
+          <div className='grid gap-3'>
+            <label className='grid gap-1 text-sm'>
+              <span>{t('operations.issueOwner')}</span>
+              <select
+                className={nativeSelectClass}
+                value={editForm.ownerId}
+                onChange={(event) => {
+                  const position = positions.find(
+                    (item) => item.id === event.target.value,
+                  );
+                  setEditForm({
+                    ...editForm,
+                    ownerId: event.target.value,
+                    ownerName: position?.name ?? editForm.ownerName,
+                  });
+                }}
+              >
+                <option value=''>
+                  {positions.length
+                    ? t('operations.issueOwnerPlaceholder')
+                    : t('operations.issueOwnerEmpty')}
+                </option>
+                {positions.map((position) => (
+                  <option key={position.id} value={position.id}>
+                    {position.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className='grid gap-3 sm:grid-cols-2'>
+              <label className='grid gap-1 text-sm'>
+                <span>{t('operations.issueSeverityLabel')}</span>
+                <select
+                  className={nativeSelectClass}
+                  value={editForm.severity}
+                  onChange={(event) =>
+                    setEditForm({ ...editForm, severity: event.target.value })
+                  }
+                >
+                  {(['low', 'medium', 'high'] as const).map((value) => (
+                    <option key={value} value={value}>
+                      {t(`operations.issueSeverity.${value}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className='grid gap-1 text-sm'>
+                <span>{t('operations.issueDue')}</span>
+                <Input
+                  type='date'
+                  value={editForm.dueAt}
+                  onChange={(event) =>
+                    setEditForm({ ...editForm, dueAt: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setEditing(null)}>
+              {t('operations.cancel')}
+            </Button>
+            <Button
+              disabled={update.isPending || !editing}
+              onClick={() => {
+                if (!editing) return;
+                update.mutate({
+                  id: editing.id,
+                  version: editing.version,
+                  severity: editForm.severity,
+                  dueAt: editForm.dueAt,
+                  ...(editForm.ownerId
+                    ? {
+                        ownerId: editForm.ownerId,
+                        ownerName:
+                          editPosition?.name ?? editForm.ownerName,
+                      }
+                    : {}),
+                });
+              }}
             >
               {t('operations.save')}
             </Button>

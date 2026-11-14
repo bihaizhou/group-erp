@@ -203,13 +203,6 @@ const sku = await activate(
     attributeValues: { model: '加厚红色' },
   }),
 );
-await create('/materials/subjectSettings', {
-  name: '采购准入',
-  subjectId: company.id,
-  skuId: sku.id,
-  canPurchase: true,
-  canSell: false,
-});
 const pack12 = await activate(
     'unitRules',
     await create('/materials/unitRules', {

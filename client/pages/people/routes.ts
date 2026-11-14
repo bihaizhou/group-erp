@@ -17,7 +17,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import type { AppClientRouteDefinition } from '@nocobase/app-client/plugins';
-import type { Kind } from './model.js';
+import { readOnly, type Kind } from './model.js';
 const listLoaders = {
   employees: () => import('./entries/employees.js'),
   employments: () => import('./entries/employments.js'),
@@ -54,13 +54,20 @@ const icons = {
   developmentPlans: TrendingUp,
   workforcePlans: ChartNetwork,
 };
-function detailChildren(owner: string): AppClientRouteDefinition[] {
+function detailChildren(
+  owner: string,
+  kind: Kind,
+): AppClientRouteDefinition[] {
   return [
-    {
-      name: `${owner}-edit`,
-      path: 'edit',
-      componentLoader: () => import('./form.js'),
-    },
+    ...(!readOnly.includes(kind)
+      ? [
+          {
+            name: `${owner}-edit`,
+            path: 'edit',
+            componentLoader: () => import('./form.js'),
+          },
+        ]
+      : []),
     {
       name: `${owner}-action`,
       path: 'actions/:transition',
@@ -77,14 +84,14 @@ function page(kind: Kind): AppClientRouteDefinition {
             name: `${owner}-evaluation`,
             path: 'evaluations/:relatedId',
             componentLoader: () => import('./entries/related-evaluations.js'),
-            children: detailChildren(`${owner}-evaluation`),
+            children: detailChildren(`${owner}-evaluation`, 'profiles'),
           },
           {
             name: `${owner}-development`,
             path: 'developmentPlans/:relatedId',
             componentLoader: () =>
               import('./entries/related-developmentPlans.js'),
-            children: detailChildren(`${owner}-development`),
+            children: detailChildren(`${owner}-development`, 'profiles'),
           },
         ]
       : [];
@@ -102,21 +109,28 @@ function page(kind: Kind): AppClientRouteDefinition {
     navigation: { title: `people.${kind}`, icon: icons[kind] },
     componentLoader: listLoaders[kind],
     children: [
-      {
-        name: `${owner}-new`,
-        path: 'new',
-        componentLoader: () => import('./form.js'),
-      },
-      {
-        name: `${owner}-edit`,
-        path: 'edit/:recordId',
-        componentLoader: () => import('./form.js'),
-      },
+      // Employments and assignments are maintained through personnel changes,
+      // so their create/edit forms would never save: skip those routes for
+      // read-only kinds instead of showing a form that always fails.
+      ...(!readOnly.includes(kind)
+        ? [
+            {
+              name: `${owner}-new`,
+              path: 'new',
+              componentLoader: () => import('./form.js'),
+            },
+            {
+              name: `${owner}-edit`,
+              path: 'edit/:recordId',
+              componentLoader: () => import('./form.js'),
+            },
+          ]
+        : []),
       {
         name: `${owner}-detail`,
         path: ':recordId',
         componentLoader: detailLoaders[kind],
-        children: [...detailChildren(`${owner}-detail`), ...related],
+        children: [...detailChildren(`${owner}-detail`, kind), ...related],
       },
     ],
   };

@@ -83,7 +83,7 @@ export const dashboard = {
       activeSkus: '在用物料',
       names: '物料名称',
       templates: '物料模板',
-      pendingRequests: '待处理需求',
+      pendingRequests: '待治理物料',
     },
     recentSkus: '最近维护的物料',
     recentSkusDescription: '按更新时间显示最近维护的物料档案。',
@@ -93,7 +93,7 @@ export const dashboard = {
     todosDescription: '进入物料治理与需求办理。',
     todo: {
       newSku: '新建物料',
-      requests: '物料需求',
+      requests: '待治理物料',
       names: '物料名称',
       units: '计量单位',
     },

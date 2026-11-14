@@ -9,6 +9,8 @@ export const production = {
   setupDescription:
     '维护生产单元的生产属性与物料清单：原料、产品、副产品、辅料各配一行；生产报表与入库按这份清单执行。',
   setupDuplicateSkuError: '同一物料只能配置一行，请检查是否重复选择。',
+  setupOutputTypeDuplicateError:
+    '同一产出类型只能配置一个 SKU（金属/砂料各一个），请检查产品与副产品的产出类型。',
   setupSkuNotFoundError: '选中的物料已停用或不存在，请重新选择。',
   setupWarehouseError: '默认仓库必须是本公司启用仓库，请重新选择。',
   unitProfile: '单元信息',
@@ -35,6 +37,7 @@ export const production = {
     noWarehouse: '不指定',
     chooseMaterial: '选择物料',
     role: '用途',
+    outputType: '产出类型',
   },
   materialRoles: {
     feedstock: '原料',
@@ -332,6 +335,19 @@ export const production = {
   downtimeCloseConfirm: '确认关闭',
   downtimeCreated: '停机事件已登记。',
   downtimeClosedMessage: '停机事件已关闭。',
+  downtimeCancel: '取消停机',
+  downtimeCancelTitle: '取消停机',
+  downtimeCancelHint: '取消后该事件作废、分钟数不再计入。请填写取消原因。',
+  downtimeCancelReason: '取消原因',
+  downtimeCancelConfirm: '确认取消',
+  downtimeCancelledMessage: '停机事件已取消。',
+  error: {
+    SELF_APPROVAL: '班报和加班申请不能由录入人自己审批，请换一位审批人处理。',
+    DOWNTIME_MINUTES_MISMATCH:
+      '手填停机分钟与该单元当日的停机事件合计分钟不一致，请先关闭或修正停机事件。',
+    INPUT_LINE_OVER_ISSUED:
+      '该领用行被各班组班报引用的数量合计已超过领用数量。',
+  },
   businessDate: '业务日期',
   allStatuses: '全部状态',
   cancel: '取消',

@@ -34,6 +34,7 @@ import {
   HseStatus,
 } from './controls.js';
 import { nativeSelectClass } from '#components/native-controls';
+import { businessDate } from '#lib/business-date';
 import {
   incidentSeverityKeys,
   incidentStatusKeys,
@@ -67,11 +68,13 @@ export default function HseIncidentsPage() {
   const [form, setForm] = useState(emptyForm);
   const [transition, setTransition] = useState<{
     row: HseIncident;
-    action: 'investigate' | 'rectify' | 'close';
+    action: 'investigate' | 'rectify' | 'submit' | 'verify' | 'return';
   } | null>(null);
   const [rootCause, setRootCause] = useState('');
   const [corrective, setCorrective] = useState('');
   const [note, setNote] = useState('');
+  const [ownerId, setOwnerId] = useState('');
+  const [dueAt, setDueAt] = useState('');
   const [params] = useSearchParams(),
     subjectId = params.get('subjectId') ?? '';
   const options = useQuery({
@@ -98,6 +101,14 @@ export default function HseIncidentsPage() {
   });
   const canManage = options.data?.data.permissions.manage ?? false;
   const canApprove = options.data?.data.permissions.approve ?? false;
+  const canReport = options.data?.data.permissions.report ?? false;
+  const employees = useMemo(
+    () =>
+      (options.data?.data.employees ?? []).filter(
+        (employee) => employee.subjectId === transition?.row.subjectId,
+      ),
+    [options.data?.data.employees, transition?.row.subjectId],
+  );
   const units = useMemo(
     () =>
       (options.data?.data.units ?? []).filter(
@@ -143,6 +154,8 @@ export default function HseIncidentsPage() {
           action: transition.action,
           rootCause: rootCause.trim() || undefined,
           actions: corrective.trim() || undefined,
+          ownerId: ownerId || undefined,
+          dueAt: dueAt || undefined,
           note: note.trim() || undefined,
         },
       });
@@ -155,17 +168,46 @@ export default function HseIncidentsPage() {
   });
   const openTransition = (
     row: HseIncident,
-    action: 'investigate' | 'rectify' | 'close',
+    action: 'investigate' | 'rectify' | 'submit' | 'verify' | 'return',
   ) => {
     setRootCause(row.rootCause ?? '');
     setCorrective(row.actions ?? '');
     setNote('');
+    setOwnerId(row.ownerId ?? '');
+    setDueAt(row.dueAt ?? '');
     setTransition({ row, action });
   };
   const lastAction = (row: HseIncident) => {
     const entry = row.history?.at(-1);
     if (!entry) return '—';
     return `${t(`hse.action.${entry.action}`)} · ${new Date(entry.at).toLocaleDateString(i18n.language)}`;
+  };
+  const knownErrorCodes = [
+    'PERMISSION_DENIED',
+    'SUBJECT_REQUIRED',
+    'UNIT_NOT_IN_COMPANY',
+    'OWNER_NOT_FOUND',
+    'OWNER_NOT_IN_COMPANY',
+    'OWNER_REQUIRED',
+    'DUE_REQUIRED',
+    'ROOT_CAUSE_REQUIRED',
+    'ACTIONS_REQUIRED',
+    'RETURN_REASON_REQUIRED',
+    'SELF_VERIFICATION',
+    'INCIDENT_STATE',
+    'INCIDENT_CLOSED',
+    'HAZARD_STATE',
+    'HAZARD_LOCKED',
+    'HAZARD_CLOSED',
+    'RECTIFICATION_REQUIRED',
+  ];
+  const errorText = (error: unknown) => {
+    if (error instanceof Error && error.message) {
+      return knownErrorCodes.includes(error.message)
+        ? t(`hse.error.${error.message}`)
+        : error.message;
+    }
+    return t('hse.saveFailed');
   };
   const rows = list.data?.data ?? [];
   const total = list.data?.meta.total ?? 0;
@@ -185,7 +227,7 @@ export default function HseIncidentsPage() {
               busy={list.isFetching}
               onClick={() => void list.refetch()}
             />
-            {canManage ? (
+            {canManage || canReport ? (
               <Button
                 onClick={() => {
                   setForm({ ...emptyForm(), subjectId });
@@ -199,7 +241,10 @@ export default function HseIncidentsPage() {
           </>
         }
       />
-      <ReadOnlyNotice canManage={canManage} />
+      <ReadOnlyNotice
+        canManage={canManage || canReport}
+        canApprove={canApprove}
+      />
       <div className='flex flex-wrap items-end gap-3'>
         <label className='grid w-full gap-1 text-sm sm:w-36'>
           <span>{t('hse.fields.status')}</span>
@@ -252,6 +297,7 @@ export default function HseIncidentsPage() {
                 <TableHead>{t('hse.fields.subject')}</TableHead>
                 <TableHead>{t('hse.fields.type')}</TableHead>
                 <TableHead>{t('hse.fields.severity')}</TableHead>
+                <TableHead>{t('hse.fields.dueAt')}</TableHead>
                 <TableHead>{t('hse.fields.location')}</TableHead>
                 <TableHead>{t('hse.fields.status')}</TableHead>
                 <TableHead>{t('hse.fields.lastAction')}</TableHead>
@@ -273,6 +319,21 @@ export default function HseIncidentsPage() {
                   <TableCell>{row.subjectName || '—'}</TableCell>
                   <TableCell>{t(`hse.incidentType.${row.type}`)}</TableCell>
                   <TableCell>{t(`hse.severity.${row.severity}`)}</TableCell>
+                  <TableCell>
+                    {row.dueAt ? (
+                      <span
+                        className={
+                          row.status !== 'closed' && row.dueAt < businessDate()
+                            ? 'text-destructive'
+                            : undefined
+                        }
+                      >
+                        {row.dueAt}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </TableCell>
                   <TableCell className='max-w-48 truncate'>
                     {row.location}
                   </TableCell>
@@ -299,14 +360,39 @@ export default function HseIncidentsPage() {
                       >
                         {t('hse.rectify')}
                       </Button>
-                    ) : row.status === 'rectifying' && canApprove ? (
-                      <Button
-                        size='sm'
-                        variant='outline'
-                        onClick={() => openTransition(row, 'close')}
-                      >
-                        {t('hse.closeIncident')}
-                      </Button>
+                    ) : row.status === 'rectifying' && canManage ? (
+                      <div className='flex justify-end gap-2'>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          onClick={() => openTransition(row, 'rectify')}
+                        >
+                          {t('hse.rectify')}
+                        </Button>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          onClick={() => openTransition(row, 'submit')}
+                        >
+                          {t('hse.submitVerification')}
+                        </Button>
+                      </div>
+                    ) : row.status === 'verifying' && canApprove ? (
+                      <div className='flex justify-end gap-2'>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          onClick={() => openTransition(row, 'return')}
+                        >
+                          {t('hse.returnForCorrection')}
+                        </Button>
+                        <Button
+                          size='sm'
+                          onClick={() => openTransition(row, 'verify')}
+                        >
+                          {t('hse.verifyClose')}
+                        </Button>
+                      </div>
                     ) : (
                       '—'
                     )}
@@ -453,9 +539,7 @@ export default function HseIncidentsPage() {
             </label>
             {create.isError ? (
               <p className='text-sm text-destructive'>
-                {create.error instanceof Error
-                  ? create.error.message
-                  : t('hse.saveFailed')}
+                {errorText(create.error)}
               </p>
             ) : null}
           </div>
@@ -499,7 +583,7 @@ export default function HseIncidentsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className='grid gap-3'>
-            {transition?.action !== 'investigate' ? (
+            {transition?.action === 'rectify' ? (
               <label className='grid gap-1.5 text-sm'>
                 <span>{t('hse.fields.rootCause')}</span>
                 <Textarea
@@ -509,8 +593,29 @@ export default function HseIncidentsPage() {
                 />
               </label>
             ) : null}
+            {transition?.action === 'rectify' ? (
+              <div className='grid gap-2 sm:grid-cols-2'>
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.owner')}</span>
+                  <HseSelect
+                    value={ownerId}
+                    onChange={setOwnerId}
+                    options={employees}
+                    placeholder={t('hse.selectOwner')}
+                  />
+                </label>
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.dueAt')}</span>
+                  <Input
+                    type='date'
+                    value={dueAt}
+                    onChange={(event) => setDueAt(event.target.value)}
+                  />
+                </label>
+              </div>
+            ) : null}
             {transition?.action === 'rectify' ||
-            transition?.action === 'close' ? (
+            transition?.action === 'submit' ? (
               <label className='grid gap-1.5 text-sm'>
                 <span>{t('hse.fields.correctiveActions')}</span>
                 <Textarea
@@ -530,9 +635,7 @@ export default function HseIncidentsPage() {
             </label>
             {advance.isError ? (
               <p className='text-sm text-destructive'>
-                {advance.error instanceof Error
-                  ? advance.error.message
-                  : t('hse.saveFailed')}
+                {errorText(advance.error)}
               </p>
             ) : null}
           </div>
@@ -548,8 +651,10 @@ export default function HseIncidentsPage() {
               onClick={() => advance.mutate()}
               disabled={
                 advance.isPending ||
-                (transition?.action !== 'investigate' && !rootCause.trim()) ||
-                (transition?.action === 'close' && !corrective.trim())
+                (transition?.action === 'rectify' &&
+                  (!rootCause.trim() || !ownerId || !dueAt)) ||
+                (transition?.action === 'submit' && !corrective.trim()) ||
+                (transition?.action === 'return' && !note.trim())
               }
             >
               {advance.isPending ? t('hse.saving') : t('hse.save')}

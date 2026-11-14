@@ -7,6 +7,7 @@ import {
   type AuthorizationEnv,
 } from '@nocobase/app-plugin-authorization/server';
 import type { Application } from '@nocobase/app-server/application';
+import { databaseManagerToken } from '@nocobase/db';
 import {
   ApiError,
   apiErrorHandler,
@@ -39,8 +40,26 @@ import {
   assetServiceToken,
   type AssetScope,
 } from '../providers/asset-service.js';
+import {
+  assertFieldsWritable,
+  fieldPoliciesFor,
+  redactRecord,
+  redactRows,
+} from '../providers/field-access.js';
+import { resourceFieldNames } from '../providers/field-catalog.js';
 
 type Env = AuthEnv & AuthorizationEnv;
+/** Field-policy resource covering the fixed-asset catalog fields. */
+const ASSET_RESOURCE = 'people.assets';
+/** Null and the empty string both mean "not provided" on an asset form. */
+const isProvided = (value: unknown): boolean =>
+  value !== undefined && value !== null && value !== '';
+/** Compare a date by its calendar day; everything else as text. */
+const asComparable = (field: string, value: unknown): string | null => {
+  if (value === '' || value === null || value === undefined) return null;
+  const text = String(value);
+  return field === 'acquiredOn' && text.length >= 10 ? text.slice(0, 10) : text;
+};
 const errors = {
   ...apiErrorResponses,
   '400': apiErrorResponse(400),
@@ -77,6 +96,7 @@ export const assetRoutes: AppApiRouteContribution<Application> =
     const service = app.container.resolve(assetServiceToken),
       auth = app.container.resolve(authenticationToken),
       authz = app.container.resolve(authorizationToken),
+      db = app.container.resolve(databaseManagerToken),
       router = new Hono<Env>();
     router.use('*', auth.required(), authz.middleware());
     const actor = (c: Context<Env>) => ({
@@ -167,13 +187,15 @@ export const assetRoutes: AppApiRouteContribution<Application> =
       ),
       apiValidator('query', assetQuery),
       async (c) => {
+        const principal = actor(c);
+        const policies = await fieldPoliciesFor(db, principal);
         const result = await service.list(
-          actor(c),
+          principal,
           c.req.valid('query'),
           await scoped(c),
         );
         return c.json({
-          data: result.rows,
+          data: redactRows(result.rows, policies, ASSET_RESOURCE),
           meta: {
             page: result.page,
             pageSize: result.pageSize,
@@ -192,14 +214,21 @@ export const assetRoutes: AppApiRouteContribution<Application> =
         dataResponse(object),
       ),
       apiValidator('param', assetIdParams),
-      async (c) =>
-        c.json({
-          data: await service.detail(
-            actor(c),
-            c.req.valid('param').id,
-            await scoped(c),
+      async (c) => {
+        const principal = actor(c);
+        const policies = await fieldPoliciesFor(db, principal);
+        return c.json({
+          data: redactRecord(
+            await service.detail(
+              principal,
+              c.req.valid('param').id,
+              await scoped(c),
+            ),
+            policies,
+            ASSET_RESOURCE,
           ),
-        }),
+        });
+      },
     );
 
     router.post(
@@ -212,17 +241,25 @@ export const assetRoutes: AppApiRouteContribution<Application> =
         201,
       ),
       apiValidator('json', assetCreate),
-      async (c) =>
-        c.json(
+      async (c) => {
+        const principal = actor(c);
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal);
+        const catalogFields = await resourceFieldNames(db, ASSET_RESOURCE);
+        assertFieldsWritable(
+          policies,
+          ASSET_RESOURCE,
+          catalogFields.filter(
+            (field) => field in input && isProvided((input as Record<string, unknown>)[field]),
+          ),
+        );
+        return c.json(
           {
-            data: await service.create(
-              actor(c),
-              c.req.valid('json'),
-              await scoped(c),
-            ),
+            data: await service.create(principal, input, await scoped(c)),
           },
           201,
-        ),
+        );
+      },
     );
 
     router.patch(
@@ -235,15 +272,32 @@ export const assetRoutes: AppApiRouteContribution<Application> =
       ),
       apiValidator('param', assetIdParams),
       apiValidator('json', assetUpdate),
-      async (c) =>
-        c.json({
-          data: await service.update(
-            actor(c),
-            c.req.valid('param').id,
-            c.req.valid('json'),
-            await scoped(c),
-          ),
-        }),
+      async (c) => {
+        const principal = actor(c);
+        const id = c.req.valid('param').id;
+        const input = c.req.valid('json');
+        const scope = await scoped(c);
+        const policies = await fieldPoliciesFor(db, principal);
+        // Reject a patch that would change a field this account may not
+        // write, following the people contacts pattern: compare the patch
+        // against the current record so unchanged read-only fields still save.
+        const previous = await service.detail(principal, id, scope);
+        const catalogFields = await resourceFieldNames(db, ASSET_RESOURCE);
+        assertFieldsWritable(
+          policies,
+          ASSET_RESOURCE,
+          catalogFields.filter((field) => {
+            if (!(field in input)) return false;
+            return (
+              asComparable(field, (input as Record<string, unknown>)[field]) !==
+              asComparable(field, (previous as Record<string, unknown>)[field])
+            );
+          }),
+        );
+        return c.json({
+          data: await service.update(principal, id, input, scope),
+        });
+      },
     );
 
     for (const [action, schema] of [

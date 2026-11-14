@@ -140,16 +140,6 @@ export const pagePermissionTitles: PagePermissionTitles = {
     'pageTitles.warehouse-material-requests-linked-sku-edit',
   'warehouse-material-requests-linked-sku-action':
     'pageTitles.warehouse-material-requests-linked-sku-action',
-  'warehouse-material-subjectSettings-new':
-    'pageTitles.warehouse-material-subjectSettings-new',
-  'warehouse-material-subjectSettings-edit':
-    'pageTitles.warehouse-material-subjectSettings-edit',
-  'warehouse-material-subjectSettings-detail':
-    'pageTitles.warehouse-material-subjectSettings-detail',
-  'warehouse-material-subjectSettings-detail-edit':
-    'pageTitles.warehouse-material-subjectSettings-detail-edit',
-  'warehouse-material-subjectSettings-action':
-    'pageTitles.warehouse-material-subjectSettings-action',
   'warehouse-material-history': 'pageTitles.warehouse-material-history',
   'warehouse-inbounds-new': 'pageTitles.warehouse-inbounds-new',
   'warehouse-inbounds-list-edit': 'pageTitles.warehouse-inbounds-list-edit',
@@ -444,16 +434,10 @@ export const pagePermissionTitles: PagePermissionTitles = {
   'people-employees-detail': 'pageTitles.people-employees-detail',
   'people-employees-detail-edit': 'pageTitles.people-employees-detail-edit',
   'people-employees-detail-action': 'pageTitles.people-employees-detail-action',
-  'people-employments-new': 'pageTitles.people-employments-new',
-  'people-employments-edit': 'pageTitles.people-employments-edit',
   'people-employments-detail': 'pageTitles.people-employments-detail',
-  'people-employments-detail-edit': 'pageTitles.people-employments-detail-edit',
   'people-employments-detail-action':
     'pageTitles.people-employments-detail-action',
-  'people-assignments-new': 'pageTitles.people-assignments-new',
-  'people-assignments-edit': 'pageTitles.people-assignments-edit',
   'people-assignments-detail': 'pageTitles.people-assignments-detail',
-  'people-assignments-detail-edit': 'pageTitles.people-assignments-detail-edit',
   'people-assignments-detail-action':
     'pageTitles.people-assignments-detail-action',
   'people-changes-new': 'pageTitles.people-changes-new',

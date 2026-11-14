@@ -380,13 +380,6 @@ export async function purchaseMaterial(
       attributeValues: { model: 'A' },
     }),
   );
-  const admission = await f.create('/materials/subjectSettings', {
-    name: 'Reference company admission',
-    subjectId: f.a.id,
-    skuId: sku.id,
-    canPurchase: true,
-    canSell: false,
-  });
   const pack = await activate(
     'unitRules',
     await f.create('/materials/unitRules', {
@@ -414,7 +407,6 @@ export async function purchaseMaterial(
     each: each!,
     box: box!,
     sku,
-    admission,
     pack,
     content: { ...f.content(), lines: [known] },
   };

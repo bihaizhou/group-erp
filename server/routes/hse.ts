@@ -36,7 +36,6 @@ import {
   hseIncidentQuery,
   hseIncidentTransition,
   hseIncidentUpdate,
-  hseOverviewQuery,
 } from '../providers/hse-model.js';
 import {
   HseError,
@@ -112,9 +111,10 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
         readAll: await result('readAll'),
         manage: await result('manage'),
         approve: await result('approve'),
+        report: await result('report'),
       };
     };
-    const allowed = (action: 'read' | 'manage' | 'approve') =>
+    const allowed = (action: 'read' | 'manage' | 'approve' | 'report') =>
       createMiddleware<Env>(async (c, next) => {
         const result = await c.get('authz').authorize({
           resource: { type: 'settings', id: 'hse' },
@@ -124,7 +124,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
           throw new HseError('HSE_FORBIDDEN', 'PERMISSION_DENIED');
         await next();
       });
-    const allowedAny = (actions: ('read' | 'manage' | 'approve')[]) =>
+    const allowedAny = (actions: ('read' | 'manage' | 'approve' | 'report')[]) =>
       createMiddleware<Env>(async (c, next) => {
         for (const action of actions) {
           const result = await c.get('authz').authorize({
@@ -188,7 +188,6 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
         'Read HSE overview counts and recent records',
         dataResponse(object),
       ),
-      apiValidator('query', hseOverviewQuery),
       async (c) =>
         c.json({ data: await service.overview(actor(c), await scoped(c)) }),
     );
@@ -226,7 +225,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
 
     router.post(
       '/incidents',
-      allowed('manage'),
+      allowedAny(['manage', 'report']),
       describe(
         'hseIncidentCreate',
         'Create an HSE incident',
@@ -310,7 +309,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
 
     router.post(
       '/hazards',
-      allowed('manage'),
+      allowedAny(['manage', 'report']),
       describe(
         'hseHazardCreate',
         'Create an HSE hazard',

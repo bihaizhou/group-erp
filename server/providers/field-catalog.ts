@@ -1136,21 +1136,6 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
     },
   },
   {
-    resource: 'materials.subjectSetting',
-    collection: 'materialSubjectSettings',
-    titleKey: 'materials.kinds.subjectSettings',
-    descriptionKey: 'fieldPermission.description',
-    only: ['code', 'name', 'notes', 'status', 'canPurchase', 'canSell'],
-    labels: {
-      code: 'materials.fields.code',
-      name: 'materials.fields.name',
-      notes: 'materials.fields.notes',
-      status: 'materials.fields.status',
-      canPurchase: 'materials.fields.canPurchase',
-      canSell: 'materials.fields.canSell',
-    },
-  },
-  {
     resource: 'materials.warehouse',
     collection: 'warehouses',
     titleKey: 'materials.kinds.warehouses',

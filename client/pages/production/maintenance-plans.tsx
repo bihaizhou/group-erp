@@ -24,12 +24,13 @@ import type {
   ProductionMaintenancePlan,
   ProductionOptions,
 } from './model.js';
+import { businessDate } from '#lib/business-date';
 
 type OptionsResult = { data: ProductionOptions };
 type EquipmentResult = { data: { equipment: ProductionEquipment[] } };
 type PlansResult = { data: { plans: ProductionMaintenancePlan[] } };
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessDate();
 
 export default function ProductionMaintenancePlansPage() {
   const { t } = useTranslation();

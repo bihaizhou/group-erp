@@ -49,6 +49,8 @@ export type Selection =
 export interface DemandLine {
   id: string;
   selection: Selection;
+  supplierId: string | null;
+  supplierName?: string | null;
   originalName: string;
   originalSpecification: string;
   usage: string;
@@ -65,6 +67,10 @@ export interface Content {
   neededOn: string | null;
   businessDate: string | null;
   sourceChannel: SourceChannel;
+  sourceRef: string | null;
+  sourceDoc: string | null;
+  onBehalfOf: string | null;
+  period: string | null;
   suggestedSupplierId: string | null;
   projectId: null;
   notes: string;
@@ -95,6 +101,8 @@ export interface StoredLine extends Preview {
   status: string;
   lineNo: number;
   selectionInput: DemandLine;
+  supplierId?: string | null;
+  supplierSnapshot?: { identity?: Partial<Choice> } | null;
   originalName: string;
   originalSpecification: string;
   requestedUnitText: string;
@@ -147,6 +155,10 @@ export interface PurchaseRequest {
   neededOn: string | null;
   businessDate?: string | null;
   sourceChannel?: SourceChannel;
+  sourceRef?: string | null;
+  sourceDoc?: string | null;
+  onBehalfOf?: string | null;
+  period?: string | null;
   createdBy: string;
   status: State;
   revision: number;
@@ -267,13 +279,21 @@ export const blankContent = (subjectId = ''): Content => ({
   neededOn: null,
   businessDate: todayIso(),
   sourceChannel: 'manual',
+  sourceRef: null,
+  sourceDoc: null,
+  onBehalfOf: null,
+  period: null,
   suggestedSupplierId: null,
   projectId: null,
   notes: '',
   lines: [],
 });
-export const newLine = (subjectId: string): DemandLine => ({
+export const newLine = (
+  subjectId: string,
+  supplierId: string | null = null,
+): DemandLine => ({
   id: randomUuid(),
+  supplierId,
   selection: {
     kind: 'unknown',
     subjectId,
@@ -296,12 +316,20 @@ export const requestContent = (row: PurchaseRequest): Content => ({
   neededOn: row.neededOn,
   businessDate: row.businessDate ?? null,
   sourceChannel: row.sourceChannel ?? 'manual',
+  sourceRef: row.sourceRef ?? null,
+  sourceDoc: row.sourceDoc ?? null,
+  onBehalfOf: row.onBehalfOf ?? null,
+  period: row.period ?? null,
   suggestedSupplierId: row.suggestedSupplierId,
   projectId: null,
   notes: row.notes,
   lines: row.lines
     .filter((l) => l.status === 'active')
-    .map((l) => structuredClone(l.selectionInput)),
+    .map((l) => ({
+      ...structuredClone(l.selectionInput),
+      supplierId: l.selectionInput.supplierId ?? null,
+      supplierName: l.supplierSnapshot?.identity?.name ?? null,
+    })),
 });
 export const same = (a: unknown, b: unknown) =>
   JSON.stringify(a) === JSON.stringify(b);

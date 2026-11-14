@@ -26,6 +26,13 @@ export interface PermissionWorkspaceSelection {
   readonly settings: readonly {
     readonly id: string;
     readonly actions: readonly string[];
+    /**
+     * Route names of the application-owned page that configures this
+     * settings capability. A settings resource with no settings-authz route
+     * (e.g. a capability administered from its business page) is considered
+     * to have a configuration page when one of these names matches.
+     */
+    readonly configurationPages?: readonly string[];
   }[];
   readonly filterFieldTitles?: Readonly<
     Record<string, Readonly<Record<string, LocalizedText>>>
@@ -43,6 +50,11 @@ export const permissionWorkspaceSelection: PermissionWorkspaceSelection = {
     {
       id: 'authorization.default-access',
       actions: ['read', 'create', 'update', 'delete'],
+    },
+    {
+      id: 'production',
+      actions: ['read', 'manage', 'approve', 'readAll'],
+      configurationPages: ['production-setup'],
     },
   ],
 };
@@ -96,6 +108,7 @@ export function permissionFilterFieldLabel(
 function hasConfigurationPage(
   routes: readonly AppClientRegisteredRoute[],
   resourceId: string,
+  pageNames: readonly string[] = [],
 ): boolean {
   return routes.some(
     (route) =>
@@ -103,7 +116,8 @@ function hasConfigurationPage(
         typeof route.authz === 'object' &&
         route.authz.resource.type === 'settings' &&
         route.authz.resource.id === resourceId) ||
-      hasConfigurationPage(route.children ?? [], resourceId),
+      (route.componentLoader && pageNames.includes(route.name)) ||
+      hasConfigurationPage(route.children ?? [], resourceId, pageNames),
   );
 }
 
@@ -156,7 +170,11 @@ export function permissionWorkspaceCatalog(
       if (
         resource.type !== 'settings' ||
         !selected ||
-        !hasConfigurationPage(routes, resource.id)
+        !hasConfigurationPage(
+          routes,
+          resource.id,
+          selected.configurationPages ?? [],
+        )
       )
         return [];
       const actions = resource.actions.filter((action) =>

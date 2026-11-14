@@ -170,7 +170,6 @@ export const purchaseCompanyTables = [
   'personnelAssignments',
   'orgUnits',
   'partnerSubjectSettings',
-  'materialSubjectSettings',
 ];
 export const purchaseCompanyAccess = defineRecordAccess(
   'procurement.requestCompanies',

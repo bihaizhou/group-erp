@@ -375,6 +375,54 @@ describe('application-owned permission presentation', () => {
     ).toEqual([]);
   });
 
+  it('accepts a named business page as the configuration surface for a settings capability', () => {
+    const selection = {
+      business: [],
+      settings: [
+        {
+          id: 'unused',
+          actions: ['read'],
+          configurationPages: ['production-setup'],
+        },
+      ],
+    };
+    const pageRoute = {
+      name: 'production-setup',
+      path: '/production/setup',
+      componentLoader: async () => ({}),
+      authz: {
+        resource: { type: 'page', id: 'production-setup' },
+        action: 'access',
+      },
+    } as unknown as AppClientRegisteredRoute;
+    // Without the opt-in the capability stays hidden even though the page exists.
+    expect(
+      permissionWorkspaceCatalog(source, [pageRoute], [], {
+        business: [],
+        settings: [],
+      }).sections,
+    ).toEqual([]);
+    const catalog = permissionWorkspaceCatalog(
+      source,
+      [pageRoute],
+      [],
+      selection,
+    );
+    const resources = catalog.sections[0]?.subsections[0]?.resources;
+    expect(resources?.map((resource) => resource.id)).toEqual(['unused']);
+    expect(resources?.[0]?.actions.map((action) => action.name)).toEqual([
+      'read',
+    ]);
+    // The named page must be an actual routable component, not a wrapper.
+    const wrapper = {
+      ...pageRoute,
+      componentLoader: undefined,
+    } as unknown as AppClientRegisteredRoute;
+    expect(
+      permissionWorkspaceCatalog(source, [wrapper], [], selection).sections,
+    ).toEqual([]);
+  });
+
   it('adapts app-owned descriptions and scope captions without changing backend identifiers or supported choices', () => {
     const scoped = {
       ...source,

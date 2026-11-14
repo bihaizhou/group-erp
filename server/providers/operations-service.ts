@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import type { DatabaseManager } from '@nocobase/db';
+import type {
+  DatabaseManager,
+  FilterBuilder,
+  FilterNode,
+} from '@nocobase/db';
 import { createServiceToken } from '@nocobase/service-provider';
 import { businessDate } from './business-date.js';
 import { currentCompanyForUser } from './company-identity.js';
@@ -21,7 +25,23 @@ export const operationsServiceToken = createServiceToken<OperationsService>(
 export type OperationsPrincipal = { type: string; id: string };
 export type OperationsErrorCode =
   'OPERATIONS_FORBIDDEN' | 'OPERATIONS_INVALID' | 'OPERATIONS_CONFLICT';
-export type OperationsScope = { readAll: boolean };
+export type OperationsSource =
+  | 'hse'
+  | 'production'
+  | 'warehouse'
+  | 'sales'
+  | 'procurement'
+  | 'people';
+export type OperationsScope = {
+  readAll: boolean;
+  /**
+   * Per-source-module read grants. The overview aggregates source tables
+   * directly, so a block is only computed (and its tables only read) when
+   * the caller also holds the source module's own read permission.
+   * Absent sources (legacy callers) default to full access.
+   */
+  sources?: Record<OperationsSource, boolean>;
+};
 
 export class OperationsError extends Error {
   constructor(
@@ -36,6 +56,19 @@ export class OperationsError extends Error {
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
 const day = (value: unknown) => text(value).slice(0, 10);
 const scale = 1_000_000n;
+
+const issueTransitions: Record<string, ReadonlyArray<string>> = {
+  open: ['in_progress', 'closed'],
+  in_progress: ['open', 'closed'],
+  closed: [],
+};
+
+function issueTransitionAllowed(
+  from: string,
+  to: string,
+): boolean {
+  return (issueTransitions[from] ?? []).includes(to);
+}
 
 function amount(value: unknown): bigint {
   const raw = text(value).trim();
@@ -67,6 +100,83 @@ function addDays(date: string, days: number): string {
   const value = new Date(`${date}T00:00:00Z`);
   value.setUTCDate(value.getUTCDate() + days);
   return value.toISOString().slice(0, 10);
+}
+
+type OverviewTableKey =
+  | 'reports'
+  | 'units'
+  | 'profiles'
+  | 'mappings'
+  | 'balances'
+  | 'receipts'
+  | 'incidents'
+  | 'hazards'
+  | 'certificates'
+  | 'issues'
+  | 'salesOrders'
+  | 'purchaseOrders'
+  | 'salesShipments'
+  | 'purchaseReceipts'
+  | 'maintenanceOrders'
+  | 'downtimeEvents'
+  | 'assignments';
+
+type OverviewTables = Record<OverviewTableKey, Record<string, unknown>[]>;
+
+const overviewTableKeys: ReadonlyArray<OverviewTableKey> = [
+  'reports',
+  'units',
+  'profiles',
+  'mappings',
+  'balances',
+  'receipts',
+  'incidents',
+  'hazards',
+  'certificates',
+  'issues',
+  'salesOrders',
+  'purchaseOrders',
+  'salesShipments',
+  'purchaseReceipts',
+  'maintenanceOrders',
+  'downtimeEvents',
+  'assignments',
+];
+
+const emptyOverviewTables = (): OverviewTables => ({
+  reports: [],
+  units: [],
+  profiles: [],
+  mappings: [],
+  balances: [],
+  receipts: [],
+  incidents: [],
+  hazards: [],
+  certificates: [],
+  issues: [],
+  salesOrders: [],
+  purchaseOrders: [],
+  salesShipments: [],
+  purchaseReceipts: [],
+  maintenanceOrders: [],
+  downtimeEvents: [],
+  assignments: [],
+});
+
+/** IN-list on a string field; no repository `.in()` operator exists. */
+function subjectIdIn(
+  f: FilterBuilder,
+  field: string,
+  ids: readonly string[],
+): FilterNode {
+  if (!ids.length) return f.string(field).eq('__none__');
+  if (ids.length <= 100)
+    return f.or(ids.map((id) => f.string(field).eq(id)));
+  const middle = Math.floor(ids.length / 2);
+  return f.or([
+    subjectIdIn(f, field, ids.slice(0, middle)),
+    subjectIdIn(f, field, ids.slice(middle)),
+  ]);
 }
 
 export class OperationsService {
@@ -127,7 +237,10 @@ export class OperationsService {
     };
   }
 
-  async options(principal: OperationsPrincipal, scope: OperationsScope) {
+  private async subjectRows(
+    principal: OperationsPrincipal,
+    scope: OperationsScope,
+  ) {
     const company = await this.resolveSubject(principal, undefined, scope);
     const subjects = await this.database.repository('orgSubjects').findMany({
       filter: {
@@ -137,11 +250,46 @@ export class OperationsService {
       limit: 1000,
       sort: (sort) => [sort.field('sortOrder').asc(), sort.field('name').asc()],
     });
+    return { company, subjects };
+  }
+
+  async options(principal: OperationsPrincipal, scope: OperationsScope) {
+    const { company, subjects } = await this.subjectRows(principal, scope);
+    const units = await this.database.repository('orgUnits').findMany({
+      filter: {
+        status: 'active',
+        ...(company ? { subjectId: company } : {}),
+      },
+      limit: 5000,
+    });
+    const unitSubjects = new Map(
+      units.map((row) => [text(row.id), text(row.subjectId)]),
+    );
+    const unitIds = [...unitSubjects.keys()];
+    // The owner picker needs positions grouped by company. `orgPositions` has
+    // no company column, so resolve it through the position's unit.
+    const positions = unitIds.length
+      ? await this.database.repository('orgPositions').findMany({
+          filter: (f: FilterBuilder) =>
+            f.and([
+              f.string('status').eq('active'),
+              subjectIdIn(f, 'unitId', unitIds),
+            ]),
+          limit: 5000,
+          sort: (sort) => [sort.field('name').asc()],
+        })
+      : [];
     return {
       subjects: subjects.map((row) => ({
         id: text(row.id),
         name: text(row.name),
       })),
+      positions: positions.flatMap((row) => {
+        const subjectId = unitSubjects.get(text(row.unitId));
+        return subjectId
+          ? [{ id: text(row.id), name: text(row.name), subjectId }]
+          : [];
+      }),
     };
   }
 
@@ -156,6 +304,10 @@ export class OperationsService {
       scope,
     );
     const date = query.date ?? businessDate(this.timeZone);
+    // With no subjectId the overview aggregates across the whole group.
+    // That branch is currently reachable only through the API and through
+    // the CompanyComparison total row — the client's CompanyGate always
+    // injects the current company's subjectId.
     const subject = subjectId
       ? await this.database
           .repository('orgSubjects')
@@ -163,8 +315,270 @@ export class OperationsService {
       : null;
     if (subjectId && !subject)
       throw new OperationsError('OPERATIONS_INVALID', 'SUBJECT_NOT_FOUND');
+    const { tables, positions, truncated } = await this.loadOverviewTables(
+      subjectId ? [subjectId] : null,
+      date,
+      scope,
+    );
+    return this.buildOverview(
+      subjectId,
+      subject ? text(subject.name) : null,
+      date,
+      tables,
+      positions,
+      scope,
+      truncated,
+    );
+  }
 
-    const [
+  /**
+   * Loads every table the overview aggregates with all row-level filters
+   * pushed down to the repository (date windows, open/closed statuses,
+   * posted-only documents), so overviews no longer filter whole tables in
+   * memory. `subjectIds` selects the companies to load for (`null` = all
+   * companies, `[]` = none); one load serves a whole company batch and the
+   * caller groups rows per company. Positions are company-agnostic and loaded
+   * once. Each table is read with `limit + 1` rows so a result that exceeds
+   * its `limit` is reported in `truncated`; an exactly-full table is not
+   * mistaken for a truncated one.
+   */
+  private async loadOverviewTables(
+    subjectIds: string[] | null,
+    date: string,
+    scope: OperationsScope,
+  ): Promise<{
+    tables: OverviewTables;
+    positions: Record<string, unknown>[];
+    truncated: string[];
+  }> {
+    const today = businessDate(this.timeZone);
+    const expiryLimit = addDays(today, 90);
+    const can = (source: OperationsSource) =>
+      !scope.sources || scope.sources[source];
+    const specs: ReadonlyArray<{
+      key: OverviewTableKey;
+      source: OperationsSource | null;
+      repository: string;
+      limit: number;
+      base: (f: FilterBuilder) => FilterNode[];
+    }> = [
+      {
+        key: 'reports',
+        source: 'production',
+        repository: 'prdShiftReports',
+        limit: 20000,
+        base: (f) => [
+          f.string('status').eq('confirmed'),
+          f.date('reportDate').on(date),
+        ],
+      },
+      {
+        key: 'units',
+        source: 'production',
+        repository: 'orgUnits',
+        limit: 5000,
+        base: (f) => [f.string('status').eq('active')],
+      },
+      {
+        key: 'profiles',
+        source: 'production',
+        repository: 'prdUnitProfiles',
+        limit: 5000,
+        base: (f) => [f.string('status').eq('active')],
+      },
+      {
+        key: 'mappings',
+        source: 'production',
+        repository: 'prdUnitMaterials',
+        limit: 5000,
+        base: (f) => [f.string('status').eq('active')],
+      },
+      {
+        key: 'balances',
+        source: 'warehouse',
+        repository: 'stockBalances',
+        limit: 20000,
+        base: (f) => [f.string('subjectId').notEmpty()],
+      },
+      {
+        key: 'receipts',
+        source: 'warehouse',
+        repository: 'stockDocuments',
+        limit: 20000,
+        base: (f) => [
+          f.string('kind').eq('productionReceipt'),
+          f.date('occurredOn').on(date),
+        ],
+      },
+      {
+        key: 'incidents',
+        source: 'hse',
+        repository: 'hseIncidents',
+        limit: 5000,
+        base: (f) => [f.string('status').ne('closed')],
+      },
+      {
+        key: 'hazards',
+        source: 'hse',
+        repository: 'hseHazards',
+        limit: 5000,
+        base: (f) => [f.string('status').ne('closed')],
+      },
+      {
+        key: 'certificates',
+        source: 'hse',
+        repository: 'hseCertificates',
+        limit: 5000,
+        base: (f) => [
+          f.date('expiresAt').notBefore(today),
+          f.date('expiresAt').notAfter(expiryLimit),
+        ],
+      },
+      {
+        key: 'issues',
+        source: null,
+        repository: 'opsIssues',
+        limit: 20000,
+        base: (f) => [f.string('status').ne('closed')],
+      },
+      {
+        key: 'salesOrders',
+        source: 'sales',
+        repository: 'salesOrders',
+        limit: 20000,
+        base: (f) => [
+          f.or(
+            ['draft', 'pending', 'approved'].map((v) =>
+              f.string('status').eq(v),
+            ),
+          ),
+        ],
+      },
+      {
+        key: 'purchaseOrders',
+        source: 'procurement',
+        repository: 'purchaseOrders',
+        limit: 20000,
+        base: (f) => [
+          f.or(
+            ['draft', 'pending', 'approved'].map((v) =>
+              f.string('status').eq(v),
+            ),
+          ),
+        ],
+      },
+      {
+        key: 'salesShipments',
+        source: 'sales',
+        repository: 'stockDocuments',
+        limit: 20000,
+        base: (f) => [
+          f.string('kind').eq('salesShipment'),
+          f.date('occurredOn').on(date),
+          f.string('status').eq('posted'),
+        ],
+      },
+      {
+        key: 'purchaseReceipts',
+        source: 'procurement',
+        repository: 'stockDocuments',
+        limit: 20000,
+        base: (f) => [
+          f.string('kind').eq('purchaseReceipt'),
+          f.date('occurredOn').on(date),
+          f.string('status').eq('posted'),
+        ],
+      },
+      {
+        key: 'maintenanceOrders',
+        source: 'production',
+        repository: 'prdMaintenanceOrders',
+        limit: 5000,
+        base: (f) => [
+          f.or(
+            ['reported', 'in_progress'].map((v) => f.string('status').eq(v)),
+          ),
+        ],
+      },
+      {
+        key: 'downtimeEvents',
+        source: 'production',
+        repository: 'prdDowntimeEvents',
+        limit: 5000,
+        // Downtime rows stay whole: minutesToday aggregates every event that
+        // started on the business date, not only currently open ones.
+        base: (f) => [f.string('subjectId').notEmpty()],
+      },
+      {
+        key: 'assignments',
+        source: 'people',
+        repository: 'personnelAssignments',
+        limit: 20000,
+        base: (f) => [
+          f.string('status').eq('active'),
+          f.string('personId').notEmpty(),
+        ],
+      },
+    ];
+    if (subjectIds !== null && subjectIds.length === 0) {
+      return {
+        tables: emptyOverviewTables(),
+        positions: [],
+        truncated: [],
+      };
+    }
+    const truncated = new Set<string>();
+    const tables = {} as OverviewTables;
+    await Promise.all(
+      specs.map(async ({ key, source, repository, limit, base }) => {
+        if (source !== null && !can(source)) {
+          tables[key] = [];
+          return;
+        }
+        const rows = (await this.database.repository(repository).findMany({
+          filter: (f: FilterBuilder) => {
+            const nodes = base(f);
+            if (subjectIds !== null)
+              nodes.push(subjectIdIn(f, 'subjectId', subjectIds));
+            return f.and(nodes);
+          },
+          limit: limit + 1,
+        })) as Record<string, unknown>[];
+        if (rows.length > limit)
+          truncated.add(`${source ?? 'issues'}:${key}`);
+        tables[key] = rows.length > limit ? rows.slice(0, limit) : rows;
+      }),
+    );
+    const positions = can('people')
+      ? ((await this.database.repository('orgPositions').findMany({
+          filter: { status: 'active' },
+          limit: 5001,
+        })) as Record<string, unknown>[])
+      : [];
+    if (positions.length > 5000) {
+      truncated.add('people:positions');
+      positions.length = 5000;
+    }
+    return { tables, positions, truncated: [...truncated].sort() };
+  }
+
+  /**
+   * Aggregates one company's overview block from already-loaded rows. Kept
+   * separate from loading so the single-company overview and the batched
+   * company overview share exactly the same aggregation rules.
+   */
+  private buildOverview(
+    subjectId: string | null,
+    subjectName: string | null,
+    date: string,
+    tables: OverviewTables,
+    positions: Record<string, unknown>[],
+    scope: OperationsScope,
+    truncated: string[],
+  ) {
+    const can = (source: OperationsSource) =>
+      !scope.sources || scope.sources[source];
+    const {
       reports,
       units,
       profiles,
@@ -182,108 +596,10 @@ export class OperationsService {
       maintenanceOrders,
       downtimeEvents,
       assignments,
-      positions,
-    ] = await Promise.all([
-      this.database.repository('prdShiftReports').findMany({
-        filter: {
-          status: 'confirmed',
-          ...(subjectId ? { subjectId } : {}),
-        },
-        limit: 20000,
-      }),
-      this.database.repository('orgUnits').findMany({
-        filter: {
-          status: 'active',
-          ...(subjectId ? { subjectId } : {}),
-        },
-        limit: 5000,
-      }),
-      this.database.repository('prdUnitProfiles').findMany({
-        filter: {
-          status: 'active',
-          ...(subjectId ? { subjectId } : {}),
-        },
-        limit: 5000,
-      }),
-      this.database.repository('prdUnitMaterials').findMany({
-        filter: {
-          status: 'active',
-          ...(subjectId ? { subjectId } : {}),
-        },
-        limit: 5000,
-      }),
-      this.database.repository('stockBalances').findMany({
-        filter: subjectId ? { subjectId } : undefined,
-        limit: 20000,
-      }),
-      this.database.repository('stockDocuments').findMany({
-        filter: {
-          kind: 'productionReceipt',
-          ...(subjectId ? { subjectId } : {}),
-        },
-        limit: 20000,
-      }),
-      this.database.repository('hseIncidents').findMany({
-        filter: subjectId ? { subjectId } : undefined,
-        limit: 5000,
-      }),
-      this.database.repository('hseHazards').findMany({
-        filter: subjectId ? { subjectId } : undefined,
-        limit: 5000,
-      }),
-      this.database.repository('hseCertificates').findMany({
-        filter: subjectId ? { subjectId } : undefined,
-        limit: 5000,
-      }),
-      this.database.repository('opsIssues').findMany({
-        filter: subjectId ? { subjectId } : undefined,
-        limit: 20000,
-      }),
-      this.database.repository('salesOrders').findMany({
-        filter: subjectId ? { subjectId } : undefined,
-        limit: 20000,
-      }),
-      this.database.repository('purchaseOrders').findMany({
-        filter: subjectId ? { subjectId } : undefined,
-        limit: 20000,
-      }),
-      this.database.repository('stockDocuments').findMany({
-        filter: {
-          kind: 'salesShipment',
-          ...(subjectId ? { subjectId } : {}),
-        },
-        limit: 20000,
-      }),
-      this.database.repository('stockDocuments').findMany({
-        filter: {
-          kind: 'purchaseReceipt',
-          ...(subjectId ? { subjectId } : {}),
-        },
-        limit: 20000,
-      }),
-      this.database.repository('prdMaintenanceOrders').findMany({
-        filter: subjectId ? { subjectId } : undefined,
-        limit: 5000,
-      }),
-      this.database.repository('prdDowntimeEvents').findMany({
-        filter: subjectId ? { subjectId } : undefined,
-        limit: 5000,
-      }),
-      this.database.repository('personnelAssignments').findMany({
-        filter: {
-          status: 'active',
-          ...(subjectId ? { subjectId } : {}),
-        },
-        limit: 20000,
-      }),
-      this.database.repository('orgPositions').findMany({
-        filter: { status: 'active' },
-        limit: 5000,
-      }),
-    ]);
+    } = tables;
 
     const today = businessDate(this.timeZone);
-    const dayReports = reports.filter((row) => day(row.reportDate) === date);
+    const dayReports = reports;
     const unitMap = new Map(
       units.map((row) => [text(row.id), text(row.name)] as const),
     );
@@ -426,57 +742,81 @@ export class OperationsService {
     return {
       date,
       subjectId,
-      subjectName: subject ? text(subject.name) : '全部公司',
-      production: {
-        reports: dayReports.length,
-        processed: decimal(processed),
-        metal: decimal(metal),
-        sand: decimal(sand),
-        metalRate: rate(metal, processed),
-      },
-      warehouse: {
-        receiptDraft: receiptCount(['draft']),
-        receiptPending: receiptCount(['pending']),
-        receiptPosted: receiptCount(['posted']),
-        stockMetal: decimal(stockMetal),
-        stockSand: decimal(stockSand),
-        stockConfigured: mappings.length > 0,
-      },
-      hse: {
-        incidentsOpen: openIncidents.length,
-        hazardsOpen: openHazards.length,
-        hazardsOverdue: overdueHazards.length,
-        certificatesExpiring90: expiringCertificates.length,
-      },
-      sales: {
-        openOrders: salesOrders.filter(openOrder).length,
-        shippedToday: shippedToday.length,
-      },
-      procurement: {
-        openOrders: purchaseOrders.filter(openOrder).length,
-        receivedToday: receivedToday.length,
-      },
-      people: {
-        active: activePeople.size,
-        production: productionPeople.size,
-      },
+      subjectName,
+      production: can('production')
+        ? {
+            reports: dayReports.length,
+            processed: decimal(processed),
+            metal: decimal(metal),
+            sand: decimal(sand),
+            metalRate: rate(metal, processed),
+          }
+        : null,
+      warehouse: can('warehouse')
+        ? {
+            receiptDraft: receiptCount(['draft']),
+            receiptPending: receiptCount(['pending']),
+            receiptPosted: receiptCount(['posted']),
+            stockMetal: decimal(stockMetal),
+            stockSand: decimal(stockSand),
+            stockConfigured: mappings.length > 0,
+          }
+        : null,
+      hse: can('hse')
+        ? {
+            incidentsOpen: openIncidents.length,
+            hazardsOpen: openHazards.length,
+            hazardsOverdue: overdueHazards.length,
+            certificatesExpiring90: expiringCertificates.length,
+          }
+        : null,
+      sales: can('sales')
+        ? {
+            openOrders: salesOrders.filter(openOrder).length,
+            shippedToday: shippedToday.length,
+          }
+        : null,
+      procurement: can('procurement')
+        ? {
+            openOrders: purchaseOrders.filter(openOrder).length,
+            receivedToday: receivedToday.length,
+          }
+        : null,
+      people: can('people')
+        ? {
+            active: activePeople.size,
+            production: productionPeople.size,
+          }
+        : null,
       issues: {
         open: openIssues.length,
         overdue: overdueIssues.length,
       },
-      maintenance: { openOrders: openMaintenance.length },
-      downtime: {
-        open: openDowntime.length,
-        minutesToday: downtimeMinutesToday,
-      },
-      units: [...unitRows.values()].sort((a, b) =>
-        a.unitName.localeCompare(b.unitName, 'zh-CN'),
-      ),
+      maintenance: can('production')
+        ? { openOrders: openMaintenance.length }
+        : null,
+      downtime: can('production')
+        ? {
+            open: openDowntime.length,
+            minutesToday: downtimeMinutesToday,
+          }
+        : null,
+      units: can('production')
+        ? [...unitRows.values()].sort((a, b) =>
+            a.unitName.localeCompare(b.unitName, 'zh-CN'),
+          )
+        : [],
       notes: {
+        truncated,
         salesConnected: true,
         procurementConnected: true,
         peopleConnected: true,
         peopleScope: 'active_primary_assignment' as const,
+        maskedSources: scope.sources
+          ? (Object.entries(scope.sources)
+              .filter(([, allowed]) => !allowed)
+              .map(([source]) => source) as OperationsSource[])
+          : [],
       },
     };
   }
@@ -484,9 +824,10 @@ export class OperationsService {
   /**
    * One overview per authorized company, for the card view.
    *
-   * Early deployments have a handful of companies; running the existing
-   * per-company query keeps the aggregation rules in one place. Revisit with a
-   * grouped query when the company count grows.
+   * Loads every aggregated table once for the whole company batch (instead
+   * of re-running the overview per company), then groups the rows per
+   * company and runs the shared aggregation for each. Positions are
+   * company-agnostic and shared across the batch.
    */
   async companyOverview(
     principal: OperationsPrincipal,
@@ -494,12 +835,42 @@ export class OperationsService {
     scope: OperationsScope,
   ) {
     const date = query.date ?? businessDate(this.timeZone);
-    const { subjects } = await this.options(principal, scope);
-    const items = [];
-    for (const subject of subjects.slice(0, 100))
-      items.push(
-        await this.overview(principal, { subjectId: subject.id, date }, scope),
-      );
+    const { subjects } = await this.subjectRows(principal, scope);
+    // `subjectRows` caps the list at the query's own limit; the whole
+    // authorized batch is loaded here so a group larger than one IN-list
+    // chunk still renders every company card.
+    const batch = subjects;
+    const ids = batch.map((subject) => text(subject.id));
+    const names = new Map(
+      batch.map((subject) => [text(subject.id), text(subject.name)]),
+    );
+    const { tables, positions, truncated } = await this.loadOverviewTables(
+      ids,
+      date,
+      scope,
+    );
+    const buckets = new Map<string, OverviewTables>(
+      ids.map((id) => [id, emptyOverviewTables()]),
+    );
+    for (const key of overviewTableKeys) {
+      for (const row of tables[key]) {
+        const subjectId = text(row.subjectId);
+        const bucket = buckets.get(subjectId);
+        if (!bucket) continue;
+        bucket[key].push(row);
+      }
+    }
+    const items = ids.map((id) =>
+      this.buildOverview(
+        id,
+        names.get(id) ?? id,
+        date,
+        buckets.get(id) ?? emptyOverviewTables(),
+        positions,
+        scope,
+        truncated,
+      ),
+    );
     return { date, items };
   }
 
@@ -513,14 +884,21 @@ export class OperationsService {
       query.subjectId,
       scope,
     );
-    const rows = await this.database.repository('opsKpiTargets').findMany({
-      filter: {
-        ...(subjectId ? { subjectId } : {}),
-        ...(query.period ? { period: query.period } : {}),
-      },
-      limit: 500,
-      sort: (sort) => [sort.field('period').desc(), sort.field('metric').asc()],
-    });
+    const filter = {
+      ...(subjectId ? { subjectId } : {}),
+      ...(query.period ? { period: query.period } : {}),
+    };
+    const [rows, total] = await Promise.all([
+      this.database.repository('opsKpiTargets').findMany({
+        filter,
+        limit: 500,
+        sort: (sort) => [
+          sort.field('period').desc(),
+          sort.field('metric').asc(),
+        ],
+      }),
+      this.database.repository('opsKpiTargets').count({ filter }),
+    ]);
     const actuals = new Map<
       string,
       {
@@ -543,6 +921,7 @@ export class OperationsService {
         const key = `${text(row.subjectId)}:${text(row.period)}`;
         return this.target(row, actuals.get(key));
       }),
+      total,
     };
   }
 
@@ -563,60 +942,107 @@ export class OperationsService {
       .findOne({ filter: { id: subjectId } });
     if (!subject)
       throw new OperationsError('OPERATIONS_INVALID', 'SUBJECT_NOT_FOUND');
-    const existing = await this.database.repository('opsKpiTargets').findOne({
-      filter: {
-        subjectId,
-        period: input.period,
-        metric: input.metric,
-      },
-    });
     const now = new Date();
-    if (existing) {
-      await this.database.repository('opsKpiTargets').updateOne({
-        filter: { id: text(existing.id) },
-        values: {
-          targetValue: input.targetValue,
-          version: Number(existing.version) + 1,
-          updatedBy: principal.id,
-          updatedAt: now,
-        },
-      });
-    } else {
-      await this.database.repository('opsKpiTargets').createOne({
-        values: {
-          id: randomUUID(),
+    const saved = await this.database.transaction(async (connection) => {
+      const existing = await connection.repository('opsKpiTargets').findOne({
+        filter: {
           subjectId,
           period: input.period,
           metric: input.metric,
-          targetValue: input.targetValue,
-          version: 1,
-          createdBy: principal.id,
-          updatedBy: principal.id,
-          createdAt: now,
-          updatedAt: now,
         },
       });
-    }
-    const row = await this.database.repository('opsKpiTargets').findOne({
-      filter: {
-        subjectId,
-        period: input.period,
-        metric: input.metric,
-      },
+      const targetId = existing ? text(existing.id) : randomUUID();
+      const nextVersion = existing ? Number(existing.version) + 1 : 1;
+      if (existing) {
+        // `opsKpiTargets` is versioned, so claim the row by its current version
+        // to reject a concurrent save instead of overwriting it. The filter
+        // still keys on the row id when a version column is absent, keeping the
+        // conditional update inside the transaction.
+        const updated = await connection.repository('opsKpiTargets').updateOne({
+          filter: {
+            id: targetId,
+            ...(existing.version !== undefined
+              ? { version: Number(existing.version) }
+              : {}),
+          },
+          values: {
+            targetValue: input.targetValue,
+            version: nextVersion,
+            updatedBy: principal.id,
+            updatedAt: now,
+          },
+        });
+        if (!updated.record)
+          throw new OperationsError('OPERATIONS_CONFLICT', 'VERSION_CONFLICT');
+      } else {
+        await connection.repository('opsKpiTargets').createOne({
+          values: {
+            id: targetId,
+            subjectId,
+            period: input.period,
+            metric: input.metric,
+            targetValue: input.targetValue,
+            version: 1,
+            createdBy: principal.id,
+            updatedBy: principal.id,
+            createdAt: now,
+            updatedAt: now,
+          },
+        });
+      }
+      await connection.repository('opsKpiTargetHistory').createOne({
+        values: {
+          id: randomUUID(),
+          targetId,
+          subjectId,
+          period: input.period,
+          metric: input.metric,
+          beforeValue: existing
+            ? {
+                targetValue: text(existing.targetValue),
+                version: Number(existing.version),
+                updatedBy: text(existing.updatedBy),
+              }
+            : null,
+          afterValue: {
+            targetValue: input.targetValue,
+            version: nextVersion,
+          },
+          version: nextVersion,
+          actorId: principal.id,
+          createdAt: now,
+        },
+      });
+      return connection.repository('opsKpiTargets').findOne({
+        filter: {
+          subjectId,
+          period: input.period,
+          metric: input.metric,
+        },
+      });
     });
-    return this.target(row ?? {});
+    return this.target(saved ?? {});
   }
 
   private async targetActuals(subjectId: string, period: string) {
+    const [year, month] = period.split('-').map(Number);
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
     const rows = await this.database.repository('prdShiftReports').findMany({
-      filter: { subjectId, status: 'confirmed' },
+      filter: (f: FilterBuilder) =>
+        f.and([
+          f.string('subjectId').eq(subjectId),
+          f.string('status').eq('confirmed'),
+          f.date('reportDate').notBefore(`${period}-01`),
+          f.date('reportDate').notAfter(
+            `${period}-${String(lastDay).padStart(2, '0')}`,
+          ),
+        ]),
       limit: 50_000,
     });
     let processed = 0n;
     let metal = 0n;
     let sand = 0n;
     for (const row of rows) {
-      if (!text(row.reportDate).slice(0, 10).startsWith(`${period}-`)) continue;
       processed += amount(row.processedQuantity);
       metal += amount(row.metalQuantity);
       sand += amount(row.sandQuantity);
@@ -711,7 +1137,7 @@ export class OperationsService {
         limit: query.pageSize,
         offset: (query.page - 1) * query.pageSize,
         sort: (sort) => [
-          sort.field('status').asc(),
+          sort.field('status').desc(),
           sort.field('dueAt').asc(),
           sort.field('createdAt').desc(),
         ],
@@ -750,6 +1176,7 @@ export class OperationsService {
       if (!unit || text(unit.subjectId) !== subjectId)
         throw new OperationsError('OPERATIONS_INVALID', 'UNIT_NOT_FOUND');
     }
+    await this.assertOwner(subjectId, input.ownerId);
     const id = randomUUID();
     const now = new Date();
     const code = `OPS-${businessDate(this.timeZone).replaceAll('-', '')}-${id.slice(0, 4).toUpperCase()}`;
@@ -759,6 +1186,7 @@ export class OperationsService {
         code,
         subjectId,
         unitId: input.unitId ?? null,
+        ownerId: input.ownerId ?? null,
         sourceType: input.sourceType,
         sourceId: input.sourceId ?? null,
         title: input.title,
@@ -790,8 +1218,21 @@ export class OperationsService {
     const existing = await this.getIssue(principal, id, scope);
     if (Number(existing.version) !== input.version)
       throw new OperationsError('OPERATIONS_CONFLICT', 'VERSION_CONFLICT');
+    if (existing.status === 'closed')
+      throw new OperationsError('OPERATIONS_CONFLICT', 'ISSUE_CLOSED_IMMUTABLE');
+    if (
+      input.status &&
+      input.status !== existing.status &&
+      !issueTransitionAllowed(existing.status, input.status)
+    )
+      throw new OperationsError(
+        'OPERATIONS_INVALID',
+        'ISSUE_TRANSITION_INVALID',
+      );
     if (input.status === 'closed' && !input.resolution?.trim())
       throw new OperationsError('OPERATIONS_INVALID', 'RESOLUTION_REQUIRED');
+    if (input.ownerId !== undefined)
+      await this.assertOwner(existing.subjectId, input.ownerId);
     const now = new Date();
     const status = input.status ?? existing.status;
     await this.database.repository('opsIssues').updateOne({
@@ -800,19 +1241,41 @@ export class OperationsService {
         ...(input.status ? { status: input.status } : {}),
         ...(input.severity ? { severity: input.severity } : {}),
         ...(input.ownerName ? { ownerName: input.ownerName } : {}),
+        ...(input.ownerId !== undefined ? { ownerId: input.ownerId } : {}),
         ...(input.dueAt ? { dueAt: input.dueAt } : {}),
         ...(input.resolution !== undefined
           ? { resolution: input.resolution }
           : {}),
         ...(status === 'closed'
           ? { closedAt: now, closedBy: principal.id }
-          : { closedAt: null, closedBy: null }),
+          : {}),
         version: input.version + 1,
         updatedBy: principal.id,
         updatedAt: now,
       },
     });
     return this.getIssue(principal, id, scope);
+  }
+
+  private async assertOwner(
+    subjectId: string,
+    ownerId: string | null | undefined,
+  ) {
+    if (!ownerId) return;
+    const position = await this.database
+      .repository('orgPositions')
+      .findOne({ filter: { id: ownerId } });
+    if (!position)
+      throw new OperationsError('OPERATIONS_INVALID', 'OWNER_NOT_FOUND');
+    if (text(position.status) !== 'active')
+      throw new OperationsError('OPERATIONS_INVALID', 'OWNER_NOT_IN_COMPANY');
+    const unit = position.unitId
+      ? await this.database
+          .repository('orgUnits')
+          .findOne({ filter: { id: text(position.unitId) } })
+      : null;
+    if (!unit || text(unit.subjectId) !== subjectId)
+      throw new OperationsError('OPERATIONS_INVALID', 'OWNER_NOT_IN_COMPANY');
   }
 
   private async getIssue(
@@ -841,6 +1304,7 @@ export class OperationsService {
       code: text(row.code),
       subjectId: text(row.subjectId),
       unitId: row.unitId ? text(row.unitId) : null,
+      ownerId: row.ownerId ? text(row.ownerId) : null,
       sourceType: text(row.sourceType),
       sourceId: row.sourceId ? text(row.sourceId) : null,
       title: text(row.title),

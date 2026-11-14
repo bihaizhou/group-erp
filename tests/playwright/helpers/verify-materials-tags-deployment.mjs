@@ -164,13 +164,6 @@ try {
         type: 'group',
       })
     ).data;
-    await create('subjectSettings', {
-      name: 'Isolated purchase eligibility',
-      subjectId: group.id,
-      skuId: sku.id,
-      canPurchase: true,
-      canSell: false,
-    });
     await writeFile(
       `${directory}/fixture.json`,
       JSON.stringify(
@@ -245,7 +238,6 @@ try {
       'tags',
       'tagLinks',
       'requests',
-      'subjectSettings',
       'warehouses',
     ])
       await get(root, `materials/${kind}`);

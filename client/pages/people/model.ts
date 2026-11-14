@@ -36,7 +36,13 @@ export type Row = {
       allowed: boolean;
       blockers: { code: string }[];
     }[];
-    history: { transition: string; actorId: string; at: string; input: Data }[];
+    history: {
+      transition: string;
+      actorId: string;
+      actorName?: string;
+      at: string;
+      input: Data;
+    }[];
   };
   // Present on personnel changes: the approval chain around the current round.
   profileId?: string | null;

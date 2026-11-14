@@ -50,7 +50,7 @@ type Asset = {
 };
 type Options = {
   subjects: { id: string; name: string }[];
-  employees: { id: string; code: string; name: string }[];
+  employees: { id: string; code: string; name: string; subjectId: string | null }[];
   categories: string[];
   permissions: { manage: boolean; readAll: boolean; approve: boolean };
 };
@@ -92,6 +92,7 @@ export default function AssetsPage() {
   const [status, setStatus] = useState('');
   const [custodian, setCustodian] = useState('');
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Asset | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [action, setAction] = useState<{
     row: Asset;
@@ -129,26 +130,74 @@ export default function AssetsPage() {
   const rows = list.data?.data ?? [];
   const meta = list.data?.meta;
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['assets'] });
-  const create = useMutation({
+  const openCreate = () => {
+    setEditing(null);
+    setForm(emptyForm(subjectId));
+    setOpen(true);
+  };
+  const openEdit = (row: Asset) => {
+    setEditing(row);
+    setForm({
+      subjectId: row.subjectId,
+      code: row.code,
+      name: row.name,
+      category: row.category ?? '',
+      custodianEmployeeId: row.custodianEmployeeId ?? '',
+      location: row.location ?? '',
+      acquiredOn: row.acquiredOn ?? '',
+      originalCost: row.originalCost ?? '',
+      notes: row.notes ?? '',
+    });
+    setOpen(true);
+  };
+  const categoryLabel = (category: string) => {
+    const key = `assets.category.${category}`;
+    const label = t(key);
+    return label === key ? category : label;
+  };
+  // Legacy rows still store the old Chinese category text. Keep that value in
+  // the select so editing an unrelated field neither shows an empty choice nor
+  // silently drops the category; it is only replaced when the user picks a code.
+  const legacyCategory =
+    form.category && !categories.includes(form.category) ? form.category : '';
+  const formEmployees = employees.filter(
+    (employee) => !form.subjectId || employee.subjectId === form.subjectId,
+  );
+  const save = useMutation({
     retry: false,
     mutationFn: () =>
-      api.request({
-        path: 'assets',
-        method: 'POST',
-        json: {
-          subjectId: form.subjectId,
-          ...(form.code.trim() ? { code: form.code.trim() } : {}),
-          name: form.name.trim(),
-          category: form.category || null,
-          custodianEmployeeId: form.custodianEmployeeId || null,
-          location: form.location.trim() || null,
-          acquiredOn: form.acquiredOn || null,
-          originalCost: form.originalCost.trim() || null,
-          notes: form.notes.trim() || null,
-        },
-      }),
+      editing
+        ? api.request({
+            path: `assets/${editing.id}`,
+            method: 'PATCH',
+            json: {
+              version: editing.version,
+              name: form.name.trim(),
+              category: form.category || null,
+              location: form.location.trim() || null,
+              acquiredOn: form.acquiredOn || null,
+              originalCost: form.originalCost.trim() || null,
+              notes: form.notes.trim() || null,
+            },
+          })
+        : api.request({
+            path: 'assets',
+            method: 'POST',
+            json: {
+              subjectId: form.subjectId,
+              ...(form.code.trim() ? { code: form.code.trim() } : {}),
+              name: form.name.trim(),
+              category: form.category || null,
+              custodianEmployeeId: form.custodianEmployeeId || null,
+              location: form.location.trim() || null,
+              acquiredOn: form.acquiredOn || null,
+              originalCost: form.originalCost.trim() || null,
+              notes: form.notes.trim() || null,
+            },
+          }),
     onSuccess: async () => {
       setOpen(false);
+      setEditing(null);
       await refresh();
     },
   });
@@ -198,7 +247,7 @@ export default function AssetsPage() {
     setLocation(row.location ?? '');
     setNote('');
   };
-  const error = list.error ?? options.error ?? create.error ?? act.error;
+  const error = list.error ?? options.error ?? save.error ?? act.error;
   return (
     <PageContainer>
       <PageHeader
@@ -216,12 +265,7 @@ export default function AssetsPage() {
               <RefreshCw className='size-4' />
             </Button>
             {canManage ? (
-              <Button
-                onClick={() => {
-                  setForm(emptyForm(subjectId));
-                  setOpen(true);
-                }}
-              >
+              <Button onClick={openCreate}>
                 <Plus />
                 {t('assets.create')}
               </Button>
@@ -302,7 +346,9 @@ export default function AssetsPage() {
                     {row.code}
                   </TableCell>
                   <TableCell>{row.name}</TableCell>
-                  <TableCell>{row.category ?? '—'}</TableCell>
+                  <TableCell>
+                    {row.category ? categoryLabel(row.category) : '—'}
+                  </TableCell>
                   <TableCell>
                     {t(`assets.status.${row.status}`)}
                     {row.scrapPending ? (
@@ -340,6 +386,13 @@ export default function AssetsPage() {
                       row.status !== 'scrapped' &&
                       !row.scrapPending ? (
                       <span className='inline-flex gap-2'>
+                        <Button
+                          size='sm'
+                          variant='ghost'
+                          onClick={() => openEdit(row)}
+                        >
+                          {t('assets.edit')}
+                        </Button>
                         <Button
                           size='sm'
                           variant='outline'
@@ -410,14 +463,19 @@ export default function AssetsPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('assets.create')}</DialogTitle>
-            <DialogDescription>{t('assets.createHint')}</DialogDescription>
+            <DialogTitle>
+              {editing ? t('assets.edit') : t('assets.create')}
+            </DialogTitle>
+            <DialogDescription>
+              {editing ? t('assets.editHint') : t('assets.createHint')}
+            </DialogDescription>
           </DialogHeader>
           <div className='grid gap-3 sm:grid-cols-2'>
             <label className='grid gap-1 text-sm'>
               <span>{t('assets.fields.code')}</span>
               <Input
                 value={form.code}
+                disabled={!!editing}
                 onChange={(event) =>
                   setForm({ ...form, code: event.target.value })
                 }
@@ -442,30 +500,38 @@ export default function AssetsPage() {
                 }
               >
                 <option value=''>{t('assets.fields.category')}</option>
+                {legacyCategory ? (
+                  <option value={legacyCategory}>{legacyCategory}</option>
+                ) : null}
                 {categories.map((category) => (
                   <option key={category} value={category}>
-                    {category}
+                    {categoryLabel(category)}
                   </option>
                 ))}
               </select>
             </label>
-            <label className='grid gap-1 text-sm'>
-              <span>{t('assets.fields.custodian')}</span>
-              <select
-                className={nativeSelectClass}
-                value={form.custodianEmployeeId}
-                onChange={(event) =>
-                  setForm({ ...form, custodianEmployeeId: event.target.value })
-                }
-              >
-                <option value=''>{t('assets.noCustodian')}</option>
-                {employees.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employee.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {editing ? null : (
+              <label className='grid gap-1 text-sm'>
+                <span>{t('assets.fields.custodian')}</span>
+                <select
+                  className={nativeSelectClass}
+                  value={form.custodianEmployeeId}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      custodianEmployeeId: event.target.value,
+                    })
+                  }
+                >
+                  <option value=''>{t('assets.noCustodian')}</option>
+                  {formEmployees.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className='grid gap-1 text-sm'>
               <span>{t('assets.fields.location')}</span>
               <Input
@@ -509,8 +575,8 @@ export default function AssetsPage() {
               {t('assets.cancel')}
             </Button>
             <Button
-              disabled={!form.name.trim() || create.isPending}
-              onClick={() => create.mutate()}
+              disabled={!form.name.trim() || save.isPending}
+              onClick={() => save.mutate()}
             >
               {t('assets.save')}
             </Button>
@@ -538,11 +604,16 @@ export default function AssetsPage() {
                 onChange={(event) => setEmployeeId(event.target.value)}
               >
                 <option value=''>{t('assets.chooseEmployee')}</option>
-                {employees.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employee.name}
-                  </option>
-                ))}
+                {employees
+                  .filter(
+                    (employee) =>
+                      employee.subjectId === action.row.subjectId,
+                  )
+                  .map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.name}
+                    </option>
+                  ))}
               </select>
             ) : null}
             {action?.kind === 'return' ? (

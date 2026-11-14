@@ -82,6 +82,10 @@ export const executionColumns: Record<string, string[]> = {
   purchaseOrders: [
     ...common,
     'sourceChannel',
+    'sourceRef',
+    'sourceDoc',
+    'onBehalfOf',
+    'period',
     'partnerId',
     'currency',
     'deliveryOn',
@@ -95,6 +99,10 @@ export const executionColumns: Record<string, string[]> = {
   salesOrders: [
     ...common,
     'sourceChannel',
+    'sourceRef',
+    'sourceDoc',
+    'onBehalfOf',
+    'period',
     'partnerId',
     'currency',
     'deliveryOn',
@@ -312,10 +320,6 @@ export const executionColumns: Record<string, string[]> = {
 };
 export const executionReferences: Record<string, string[]> = {
   ...businessMaterialColumns,
-  materialSubjectSettings: [
-    ...businessMaterialColumns.materialSubjectSettings,
-    'canSell',
-  ],
   orgSubjects: ['id', 'code', 'name', 'status', 'type', 'regionId'],
   warehouses: [
     'id',
@@ -450,7 +454,6 @@ export const executionCompanyCollections = [
   'materialIssueRequests',
   'materialIssueRequestLines',
   'supplyChainAudit',
-  'materialSubjectSettings',
   'partnerSubjectSettings',
   'personnelEmployees',
   'personnelEmployments',

@@ -143,16 +143,6 @@ export const pageTitles = {
     'Material requests · Materials · Requests · Linked · SKU · Edit',
   'warehouse-material-requests-linked-sku-action':
     'Material requests · Materials · Requests · Linked · SKU · Action',
-  'warehouse-material-subjectSettings-new':
-    'Company material settings · Materials · Subject settings · New',
-  'warehouse-material-subjectSettings-edit':
-    'Company material settings · Materials · Subject settings · Edit',
-  'warehouse-material-subjectSettings-detail':
-    'Company material settings · Materials · Subject settings · Details',
-  'warehouse-material-subjectSettings-detail-edit':
-    'Company material settings · Materials · Subject settings · Details · Edit',
-  'warehouse-material-subjectSettings-action':
-    'Company material settings · Materials · Subject settings · Action',
   'warehouse-material-history': 'Material center · Materials · History',
   'warehouse-inbounds-new': 'Receipts · New',
   'warehouse-inbounds-list-edit': 'Receipts · List · Edit',
@@ -424,18 +414,10 @@ export const pageTitles = {
     'Employee records · Employees · Details · Edit',
   'people-employees-detail-action':
     'Employee records · Employees · Details · Action',
-  'people-employments-new': 'Employment records · Employments · New',
-  'people-employments-edit': 'Employment records · Employments · Edit',
   'people-employments-detail': 'Employment records · Employments · Details',
-  'people-employments-detail-edit':
-    'Employment records · Employments · Details · Edit',
   'people-employments-detail-action':
     'Employment records · Employments · Details · Action',
-  'people-assignments-new': 'Assignments · Assignments · New',
-  'people-assignments-edit': 'Assignments · Assignments · Edit',
   'people-assignments-detail': 'Assignments · Assignments · Details',
-  'people-assignments-detail-edit':
-    'Assignments · Assignments · Details · Edit',
   'people-assignments-detail-action':
     'Assignments · Assignments · Details · Action',
   'people-changes-new': 'Personnel changes · Changes · New',

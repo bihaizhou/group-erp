@@ -23,14 +23,7 @@ export const purchaseReferenceQuery = z.discriminatedUnion('domain', [
   }),
   z.strictObject({
     domain: z.literal('materials'),
-    kind: z.enum([
-      'names',
-      'templates',
-      'skus',
-      'units',
-      'unitRules',
-      'subjectSettings',
-    ]),
+    kind: z.enum(['names', 'templates', 'skus', 'units', 'unitRules']),
     id,
   }),
   z
@@ -145,7 +138,6 @@ export async function purchaseReferenceImpact(
     'materials.skus': 'materialSkus',
     'materials.units': 'measureUnits',
     'materials.unitRules': 'materialUnitRules',
-    'materials.subjectSettings': 'materialSubjectSettings',
     'suppliers.identity': 'businessPartners',
     'suppliers.applicability': 'businessPartners',
     'suppliers.company': 'businessPartners',
@@ -162,11 +154,7 @@ export async function purchaseReferenceImpact(
   ).findOne({ filter: { id: target.id } });
   if (!record) return unavailable();
   const joinColumns =
-    target.domain === 'people' && target.kind === 'changes'
-      ? ['personId']
-      : target.domain === 'materials' && target.kind === 'subjectSettings'
-        ? ['skuId', 'subjectId']
-        : [];
+    target.domain === 'people' && target.kind === 'changes' ? ['personId'] : [];
   if (
     !purchasePolicies ||
     (ownerPolicies && !allowed(ownerPolicies, table, joinColumns))
@@ -350,18 +338,16 @@ export async function purchaseReferenceImpact(
         await lines((line) => names.has(str(line.materialNameId)));
       } else {
         await lines((line) =>
-          target.kind === 'subjectSettings'
-            ? line.skuId === record.skuId && line.subjectId === record.subjectId
-            : (target.kind === 'units'
-                ? ['requestedUnitId', 'unitId', 'baseUnitId']
-                : [
-                    target.kind === 'names'
-                      ? 'materialNameId'
-                      : target.kind === 'skus'
-                        ? 'skuId'
-                        : 'unitRuleId',
-                  ]
-              ).some((field) => line[field] === target.id),
+          (target.kind === 'units'
+            ? ['requestedUnitId', 'unitId', 'baseUnitId']
+            : [
+                target.kind === 'names'
+                  ? 'materialNameId'
+                  : target.kind === 'skus'
+                    ? 'skuId'
+                    : 'unitRuleId',
+              ]
+          ).some((field) => line[field] === target.id),
         );
       }
     }

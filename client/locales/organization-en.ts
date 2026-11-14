@@ -194,6 +194,12 @@ export const org = {
     ORG_DATE_RANGE: 'The end date must be on or after the start date.',
     ORG_ACTIVE_DEPENDENTS:
       'Active subordinate records or relationships reference this record. Handle them first.',
+    ORG_POSITION_MAPPING_DEPENDENTS:
+      'Position permission mappings still reference this record. Clear the mappings on the position permissions page before deactivating it.',
+    ORG_ASSET_DEPENDENTS:
+      'Registered assets still reference this entity. Handle the assets before deactivating it.',
+    ORG_POSITION_NOT_ACTIVE:
+      'This position is inactive, so its permission mappings cannot be saved.',
     INVALID_INPUT: 'Check the highlighted fields.',
     INVALID_ORIGIN:
       'The access address is not configured correctly. Contact an administrator.',
@@ -219,6 +225,7 @@ export const erp = {
   developmentDescription:
     'Project development, investment decisions, construction and handover.',
   open: 'Open organization',
+  boundary: 'Organization changes take effect immediately once saved. Please verify carefully.',
   organizationBoundary:
     'Maintains subjects, units, positions and segments; changes flow into assignments and data scope.',
   hrBoundary:
