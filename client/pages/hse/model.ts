@@ -58,6 +58,8 @@ export type HseHazard = {
   description: string;
   location: string;
   discoveredAt: string;
+  sourceRef: string | null;
+  inspectorId: string | null;
   ownerId: string | null;
   ownerName: string;
   dueAt: string | null;

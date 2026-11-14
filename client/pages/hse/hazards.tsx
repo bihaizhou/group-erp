@@ -44,6 +44,7 @@ import {
   type HseOptions,
   type HsePage,
 } from './model.js';
+import { HseDetailDialog } from './detail-dialog.js';
 
 const emptyForm = () => ({
   subjectId: '',
@@ -68,6 +69,7 @@ export default function HseHazardsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [levelFilter, setLevelFilter] = useState('');
   const [open, setOpen] = useState(false);
+  const [detailRow, setDetailRow] = useState<HseHazard | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [transition, setTransition] = useState<{
     row: HseHazard;
@@ -354,6 +356,13 @@ export default function HseHazardsPage() {
                     {lastAction(row)}
                   </TableCell>
                   <TableCell className='text-right'>
+                    <Button
+                      size='sm'
+                      variant='ghost'
+                      onClick={() => setDetailRow(row)}
+                    >
+                      {t('hse.detail')}
+                    </Button>
                     <HseAttachments
                       scope='hazard'
                       scopeId={row.id}
@@ -671,6 +680,11 @@ export default function HseHazardsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <HseDetailDialog
+        kind='hazard'
+        row={detailRow}
+        onClose={() => setDetailRow(null)}
+      />
     </PageContainer>
   );
 }
