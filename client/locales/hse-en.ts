@@ -67,6 +67,7 @@ export const hse = {
   allStatus: 'All statuses',
   allType: 'All types',
   selectOwner: 'Select owner',
+  selectInspector: 'Select inspector',
   attachments: {
     open: 'View attachments',
     title: 'Evidence attachments',
@@ -103,6 +104,8 @@ export const hse = {
     level: 'Level',
     ownerName: 'Owner',
     owner: 'Owner',
+    sourceRef: 'Inspection no.',
+    inspector: 'Inspector',
     actions: 'Actions',
     source: 'Source',
     discoveredAt: 'Discovered',
@@ -209,6 +212,8 @@ export const hse = {
     HAZARD_LOCKED: 'The hazard is locked and cannot be changed',
     HAZARD_CLOSED: 'The hazard is closed and cannot be changed',
     RECTIFICATION_REQUIRED: 'Rectification measures are required',
+    INSPECTION_REF_REQUIRED:
+      'Inspection number is required when the source is an inspection',
     CERTIFICATE_ACTIVE:
       'An active certificate cannot have its issue/expiry dates changed directly; use "Renew"',
     HOLDER_REQUIRED: 'Select the certificate holder',

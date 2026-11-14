@@ -128,6 +128,8 @@ export const hseHazardCreate = z.object({
   ownerName: z.string().trim().min(1).max(100),
   dueAt,
   rectification: z.string().max(5000).default(''),
+  sourceRef: z.string().trim().max(64).nullable().optional(),
+  inspectorId: optionalId,
 });
 
 export const hseHazardUpdate = z.object({
@@ -137,6 +139,8 @@ export const hseHazardUpdate = z.object({
   ownerName: z.string().trim().min(1).max(100).optional(),
   dueAt,
   rectification: z.string().max(5000).optional(),
+  sourceRef: z.string().trim().max(64).nullable().optional(),
+  inspectorId: optionalId,
 });
 
 export const hseHazardTransition = z.object({

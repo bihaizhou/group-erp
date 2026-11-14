@@ -56,6 +56,8 @@ const emptyForm = () => ({
   ownerId: '',
   dueAt: '',
   rectification: '',
+  sourceRef: '',
+  inspectorId: '',
 });
 
 export default function HseHazardsPage() {
@@ -150,6 +152,8 @@ export default function HseHazardsPage() {
               ?.name ?? '',
           dueAt: form.dueAt || null,
           rectification: form.rectification,
+          sourceRef: form.sourceRef.trim() || null,
+          inspectorId: form.inspectorId || null,
         },
       }),
     onSuccess: () => {
@@ -208,6 +212,7 @@ export default function HseHazardsPage() {
     'HAZARD_LOCKED',
     'HAZARD_CLOSED',
     'RECTIFICATION_REQUIRED',
+    'INSPECTION_REF_REQUIRED',
   ];
   const errorText = (error: unknown) => {
     if (error instanceof Error && error.message) {
@@ -472,6 +477,15 @@ export default function HseHazardsPage() {
                   }))}
                 />
               </label>
+              {form.source === 'inspection' ? (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.sourceRef')}</span>
+                  <Input
+                    value={form.sourceRef}
+                    onChange={(event) => set('sourceRef', event.target.value)}
+                  />
+                </label>
+              ) : null}
               <label className='grid gap-1.5 text-sm'>
                 <span>{t('hse.fields.level')}</span>
                 <HseSelect
@@ -513,6 +527,15 @@ export default function HseHazardsPage() {
                   type='date'
                   value={form.dueAt}
                   onChange={(event) => set('dueAt', event.target.value)}
+                />
+              </label>
+              <label className='grid gap-1.5 text-sm'>
+                <span>{t('hse.fields.inspector')}</span>
+                <HseSelect
+                  value={form.inspectorId}
+                  onChange={(value) => set('inspectorId', value)}
+                  options={employees}
+                  placeholder={t('hse.selectInspector')}
                 />
               </label>
             </div>

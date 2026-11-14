@@ -639,6 +639,9 @@ export class HseService {
     if (!subjectId) throw new HseError('HSE_INVALID', 'SUBJECT_REQUIRED');
     await this.assertUnit(subjectId, input.unitId);
     await this.assertOwner(subjectId, input.ownerId);
+    await this.assertOwner(subjectId, input.inspectorId);
+    if (input.source === 'inspection' && !input.sourceRef)
+      throw new HseError('HSE_INVALID', 'INSPECTION_REF_REQUIRED');
     const now = new Date().toISOString();
     const record = await this.database.repository('hseHazards').createOne({
       values: {
@@ -653,6 +656,8 @@ export class HseService {
         ownerId: input.ownerId ?? null,
         ownerName: input.ownerName,
         dueAt: input.dueAt ?? null,
+        sourceRef: input.sourceRef ?? null,
+        inspectorId: input.inspectorId ?? null,
         status: 'open',
         history: [],
         rectification: input.rectification,
@@ -695,6 +700,8 @@ export class HseService {
       if (!subjectId) throw new HseError('HSE_FORBIDDEN');
       await this.assertOwner(subjectId, input.ownerId);
     }
+    if (input.inspectorId !== undefined && subjectId)
+      await this.assertOwner(subjectId, input.inspectorId);
     const now = new Date().toISOString();
     const values: Record<string, unknown> = {
       version: input.version + 1,
@@ -717,6 +724,8 @@ export class HseService {
       'ownerName',
       'dueAt',
       'rectification',
+      'sourceRef',
+      'inspectorId',
     ] as const) {
       if (input[key] !== undefined) values[key] = input[key];
     }

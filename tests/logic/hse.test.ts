@@ -162,10 +162,29 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
   });
   expect(invalid.status).toBe(400);
 
+  const missingInspectionRef = await send(admin, '/hse/hazards', {
+    subjectId: subject.id,
+    unitId: unit.id,
+    source: 'inspection',
+    level: 'general',
+    description: 'Missing inspection reference',
+    location: 'Line 1',
+    discoveredAt: new Date().toLocaleDateString('en-CA', {
+      timeZone: 'Asia/Shanghai',
+    }),
+    ownerName: 'Unassigned',
+  });
+  expect(missingInspectionRef.status).toBe(400);
+  expect(JSON.stringify(await missingInspectionRef.json())).toContain(
+    'INSPECTION_REF_REQUIRED',
+  );
+
   const hazard = await create('/hse/hazards', {
     subjectId: subject.id,
     unitId: unit.id,
     source: 'inspection',
+    sourceRef: 'INSP-2026-001',
+    inspectorId: employee.id,
     level: 'major',
     description: 'Guardrail missing on conveyor',
     location: 'Conveyor 2',
@@ -175,6 +194,8 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
     dueAt: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10),
     rectification: 'Install guardrail',
   });
+  expect(hazard.sourceRef).toBe('INSP-2026-001');
+  expect(hazard.inspectorId).toBe(employee.id);
   expect(hazard.ownerId).toBe(employee.id);
   const overdueOverview = (await (await admin.fetch('/hse/overview')).json())
     .data;
@@ -448,6 +469,7 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
     subjectId: subject.id,
     unitId: unit.id,
     source: 'inspection',
+    sourceRef: 'INSP-2026-002',
     level: 'general',
     description: 'Loose cable in corridor',
     location: 'Corridor',
@@ -974,6 +996,7 @@ test('runs HSE incident, hazard and certificate lifecycles with independent appr
       subjectId: subject.id,
       unitId: unit.id,
       source: 'inspection',
+      sourceRef: 'INSP-2026-003',
       level: 'general',
       description: 'Slippery floor near gate',
       location: 'Gate',
