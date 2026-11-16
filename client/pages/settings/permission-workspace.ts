@@ -56,6 +56,21 @@ export const permissionWorkspaceSelection: PermissionWorkspaceSelection = {
       actions: ['read', 'manage', 'approve', 'readAll'],
       configurationPages: ['production-setup'],
     },
+    {
+      id: 'organization',
+      actions: ['read', 'update'],
+      configurationPages: ['organization-overview', 'organization-subjects'],
+    },
+    {
+      id: 'assets',
+      actions: ['read', 'manage', 'approve', 'readAll'],
+      configurationPages: ['assets-list'],
+    },
+    {
+      id: 'hse',
+      actions: ['read', 'manage', 'approve', 'readAll', 'report'],
+      configurationPages: ['hse-overview', 'hse-incidents'],
+    },
   ],
 };
 

@@ -344,11 +344,9 @@ describe('app client routes', () => {
       route.name.startsWith('organization-'),
     );
     expect(organizationRoutes).toHaveLength(32);
-    expect(
-      organizationRoutes.every(
-        (route) => route.authorizedAs === 'settings:organization',
-      ),
-    ).toBe(true);
+    // 组织架构页面各自持有页面资源；子页面继承上级页面（如 organization-subjects）。
+    for (const route of organizationRoutes)
+      expect(route.authorizedAs).toMatch(/^organization-/);
   });
 
   it('keeps the inbox out of the application navigation', () => {

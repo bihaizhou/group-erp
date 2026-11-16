@@ -6,10 +6,7 @@ import type {
   PermissionEditorSection,
   PermissionEditorGroup,
 } from '#components/permission-editor';
-import {
-  buildRouteNavigation,
-  type RouteNavigationItem,
-} from '../../routing/route-navigation.js';
+import type { RouteNavigationItem } from '../../routing/route-navigation.js';
 
 /** Application route names are stable within their owner; labels never change stored grants. */
 export type PagePermissionTitles = Readonly<Record<string, string>>;
@@ -117,8 +114,16 @@ export function pagePermissionNavigation(
   };
   collectPaths(routes);
   const seen = new Set<string>();
+  const childKind = (route: AppClientRegisteredRoute): string | undefined => {
+    const segment = route.path.split('/').filter(Boolean).pop() ?? '';
+    if (segment === 'new') return 'newPage';
+    if (segment === 'edit' || segment.startsWith('edit/')) return 'editPage';
+    if (segment.startsWith(':')) return 'detailPage';
+    return undefined;
+  };
   const visit = (
     items: readonly RouteNavigationItem[],
+    parentLabel?: string,
   ): PermissionEditorNavigationNode[] =>
     items.flatMap(({ route, children }) => {
       const resource =
@@ -132,26 +137,54 @@ export function pagePermissionNavigation(
           ? permissionRowId(resource, 'access')
           : undefined;
       if (rowId && resource) seen.add(resource.id);
-      const descendants = visit(children);
-      if (!rowId && !descendants.length) return [];
+      // 子页面（新建/编辑/详情）不单独授权，随上级页面开放；仍要出现在树里，
+      // 否则权限编辑器的页面清单与真实路由不一致。只读行没有 rowId。
+      const inherited =
+        !rowId &&
+        Boolean(route.componentLoader) &&
+        typeof route.authz === 'object' &&
+        route.authz.resource.type === 'page';
+      const kind = childKind(route);
+      const kindLabel = kind
+        ? text({ key: `permissionGuide.${kind}` })
+        : undefined;
+      const base =
+        rowId && resource
+          ? text(resource.title)
+          : pagePermissionTitle(route, titles)
+            ? text(pagePermissionTitle(route, titles)!)
+            : undefined;
+      const label =
+        base ??
+        (parentLabel && kindLabel
+          ? `${parentLabel} · ${kindLabel}`
+          : unnamed(route.path));
+      const descendants = visit(children, label);
+      if (!rowId && !inherited && !descendants.length) return [];
       return [
         {
           id: `menu:${route.packageName}:${route.id}:${route.path}`,
-          label: text(
-            rowId && resource
-              ? resource.title
-              : route.navigation?.title
-                ? { key: route.navigation.title, ns: route.packageName }
-                : unnamed(route.path),
-          ),
+          label,
           rowId,
+          ...(inherited
+            ? { hint: text({ key: 'permissionGuide.inheritedPage' }) }
+            : {}),
           path: route.path,
           children: descendants,
         },
       ];
     });
-  // Author the catalog from the complete menu, not the signed-in editor's filtered navigation.
-  const navigation = visit(buildRouteNavigation(routes, new Set()));
+  // 目录要覆盖所有真实页面，而不只是侧边栏里的菜单项：子页面（新建/编辑/详情）
+  // 没有 navigation，却同样是可访问页面，必须出现在清单里。
+  const walk = (
+    items: readonly AppClientRegisteredRoute[],
+  ): RouteNavigationItem[] =>
+    items.flatMap((route) => {
+      const children = walk(route.children ?? []);
+      const visible = Boolean(route.navigation) || Boolean(route.componentLoader);
+      return visible || children.length ? [{ route, children }] : [];
+    });
+  const navigation = visit(walk(routes));
   const outside = pages
     .filter((page) => !seen.has(page.id))
     .map((page) => ({

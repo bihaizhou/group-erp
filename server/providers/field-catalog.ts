@@ -1602,10 +1602,9 @@ const collectionFields = async (
         .map((name) => available.find((field) => String(field.name) === name))
         .filter(Boolean) as typeof available)
     : available;
-  // Fields configured in the UI carry a title; append any such field that
-  // is not listed yet, so content fields added later show up in the
-  // permission editor automatically. Untitled columns (foreign keys,
-  // internal links) and relation fields stay out.
+  // 权限编辑器必须覆盖集合里的每一个内容字段：先列人工整理的顺序，再接上
+  // 其余非系统、非关系字段（新增字段无需改代码就会出现）。关系字段不是列，
+  // 仍不列入；已经 `exclude` 的结构字段也不列入。
   const pickedNames = new Set(picked.map((field) => String(field.name)));
   const relationTypes = new Set([
     'belongsTo',
@@ -1613,6 +1612,10 @@ const collectionFields = async (
     'hasMany',
     'belongsToMany',
   ]);
+  // Business fields configured in the collection UI carry a title; append any
+  // such field that is not listed yet, so new content fields show up in the
+  // permission editor without a code change. Untitled columns are internal
+  // bookkeeping (revisions, governance counters, foreign keys) and stay out.
   const titledExtras = resource.only
     ? available.filter((field) => {
         if (pickedNames.has(String(field.name))) return false;

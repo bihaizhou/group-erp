@@ -54,6 +54,10 @@ const zhCN: AppResource = {
     admin: '后台管理',
     adminHint: '管理角色、默认范围、用户与账号安全等系统功能。',
     saveHint: '页面、字段和后台权限会在点“保存”后一起生效。',
+    inheritedPage: '随上级页面开放',
+    newPage: '新建',
+    editPage: '编辑',
+    detailPage: '详情',
     defaultAccessNote:
       '这里只补充已有操作权限的用户能访问哪些记录，不控制页面与字段；页面和字段权限请到角色里配置。',
     rolesLink: '去角色与权限配置',

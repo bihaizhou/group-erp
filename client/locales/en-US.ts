@@ -60,6 +60,10 @@ const enUS = {
     adminHint: 'Manage roles, default access, users and account security.',
     saveHint:
       'Page, field and administration changes take effect when you save.',
+    inheritedPage: 'Inherited from the parent page',
+    newPage: 'New',
+    editPage: 'Edit',
+    detailPage: 'Detail',
     defaultAccessNote:
       'This only extends which records users with existing operation access can reach. It does not control pages or fields; configure those on the role.',
     rolesLink: 'Configure pages and fields in Roles',

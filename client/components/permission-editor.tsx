@@ -242,7 +242,10 @@ function visibleNavigation(
           : undefined;
       if (rowId) used.add(rowId);
       const children = visit(node.children ?? []);
-      return rowId || children.length ? [{ ...node, rowId, children }] : [];
+      // 只读节点（如随上级页面开放的新建/编辑页）没有 rowId，但带说明时仍要显示。
+      return rowId || children.length || node.hint
+        ? [{ ...node, rowId, children }]
+        : [];
     });
   const visible = visit(nodes);
   // An incomplete presentation tree must not silently remove caller-supplied controls.

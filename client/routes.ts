@@ -19,10 +19,6 @@ import {
   type AppClientRouteDefinition,
 } from '@nocobase/app-client/plugins';
 
-const organizationAuth = {
-  resource: { type: 'settings', id: 'organization' },
-  action: 'read',
-} as const;
 const organizationLoaders = {
   subjects: () => import('./pages/organization/subjects.js'),
   units: () => import('./pages/organization/units.js'),
@@ -83,7 +79,10 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
         name: 'organization-overview',
         path: '/organization',
         auth: 'required',
-        authz: organizationAuth,
+        authz: {
+          resource: { type: 'page', id: 'organization-overview' },
+          action: 'access',
+        },
         navigation: { title: 'org.overview', icon: GitBranch },
         componentLoader: () => import('./pages/organization/overview.js'),
       },
@@ -91,7 +90,10 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
         name: `organization-${kind}`,
         path: `/organization/${kind}`,
         auth: 'required' as const,
-        authz: organizationAuth,
+        authz: {
+          resource: { type: 'page', id: `organization-${kind}` },
+          action: 'access',
+        },
         navigation: {
           title: `org.${kind}`,
           icon: organizationIcons[kind as keyof typeof organizationIcons],
@@ -118,7 +120,10 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
         name: 'organization-history',
         path: '/organization/history',
         auth: 'required',
-        authz: organizationAuth,
+        authz: {
+          resource: { type: 'page', id: 'organization-history' },
+          action: 'access',
+        },
         breadcrumb: { title: 'org.history' },
         componentLoader: () => import('./pages/organization/history.js'),
       },

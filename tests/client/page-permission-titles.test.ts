@@ -34,13 +34,23 @@ const application = resolveAppClientContributions([
     routes: applicationRoutes,
   },
 ]);
-const pages = flatten(application.routes).filter(
-  (route) =>
-    route.source === 'application' &&
-    route.componentLoader &&
-    typeof route.authz === 'object' &&
-    route.authz.resource.type === 'page',
-);
+// 子页面（新建/编辑/详情）继承上级页面的授权资源，不单独命名；只有资源的
+// 第一个持有者需要标题，否则同一个资源会被要求写多个标题。
+const seenResources = new Set<string>();
+const pages = flatten(application.routes).filter((route) => {
+  if (
+    route.source !== 'application' ||
+    !route.componentLoader ||
+    typeof route.authz !== 'object' ||
+    route.authz.resource.type !== 'page'
+  ) {
+    return false;
+  }
+  const id = String(route.authz.resource.id);
+  if (seenResources.has(id)) return false;
+  seenResources.add(id);
+  return true;
+});
 
 describe('page permission labels', () => {
   it('names every application page permission and translates it in both languages', () => {
