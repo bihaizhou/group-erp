@@ -314,7 +314,7 @@ export const execution = {
   reverseHint:
     'A reversal appends inverse facts and preserves the original posting. Downstream stock and reservations are checked.',
   noPriceCalculation:
-    'Unit price and currency are recorded as entered. Amount, tax and cost calculations are outside this stage.',
+    'Unit price and currency are recorded as entered. The line amount is computed as unit price × quantity and kept in the order currency; tax, cost and margin are outside this stage.',
   readOnly: 'Read-only business history',
   postedHint:
     'This posting is immutable. Corrections use an authorized reversal.',
