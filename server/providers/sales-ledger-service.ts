@@ -128,7 +128,9 @@ function ledgerError(reason: string, field?: string): never {
             : status === 'INVALID_ARGUMENT'
               ? 'The sales ledger input is invalid.'
               : 'The sales ledger operation could not be completed.',
-    ...(field ? { fieldViolations: { [field]: reason } } : {}),
+    ...(field
+      ? { fieldViolations: [{ field, description: reason }] }
+      : {}),
   });
 }
 

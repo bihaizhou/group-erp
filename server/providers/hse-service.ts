@@ -1740,7 +1740,6 @@ export class HseService {
       'completedAt',
       'score',
       'certificateId',
-      'status',
     ] as const) {
       if (input[key] !== undefined) values[key] = input[key];
     }

@@ -31,7 +31,6 @@ import {
   assertFieldsWritable,
   fieldPoliciesFor,
   redactRecord,
-  redactRows,
 } from '../providers/field-access.js';
 import {
   supplierQuery,

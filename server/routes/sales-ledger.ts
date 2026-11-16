@@ -22,7 +22,6 @@ import {
 import { Hono, type Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { bodyLimit } from 'hono/body-limit';
-import { z } from 'zod';
 import type { MaterialPolicies } from '../providers/material-service.js';
 import { executionResourceIds } from '../providers/execution-resources.js';
 import {
