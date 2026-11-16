@@ -94,6 +94,77 @@ export type HseCertificate = {
   history: HseHistoryEntry[];
 };
 
+export type HseInspection = {
+  id: string;
+  subjectId: string;
+  subjectName: string;
+  unitId: string | null;
+  type: string;
+  plannedAt: string;
+  completedAt: string | null;
+  inspectorId: string | null;
+  inspectorName: string;
+  checklist: string[];
+  findingsCount: number;
+  status: string;
+  version: number;
+};
+
+export type HseWorkPermit = {
+  id: string;
+  subjectId: string;
+  subjectName: string;
+  unitId: string | null;
+  permitNo: string;
+  type: string;
+  workDescription: string;
+  location: string;
+  contractorId: string | null;
+  applicantId: string;
+  validFrom: string;
+  validTo: string;
+  riskMeasures: string[];
+  gasTest: Record<string, unknown> | null;
+  approverId: string | null;
+  approvedAt: string | null;
+  status: string;
+  linkedMaintenanceOrderId: string | null;
+  version: number;
+};
+
+export type HseTrainingRecord = {
+  id: string;
+  subjectId: string;
+  subjectName: string;
+  personId: string;
+  personName: string;
+  courseType: string;
+  courseName: string;
+  completedAt: string;
+  score: number | null;
+  certificateId: string | null;
+  status: string;
+  version: number;
+};
+
+export type HseAction = {
+  id: string;
+  subjectId: string;
+  subjectName: string;
+  unitId: string | null;
+  sourceType: string;
+  sourceId: string;
+  description: string;
+  ownerId: string | null;
+  ownerName: string;
+  dueAt: string | null;
+  status: string;
+  completedAt: string | null;
+  verifiedBy: string | null;
+  verifiedAt: string | null;
+  version: number;
+};
+
 export type HseOverview = {
   businessDate: string;
   scope: 'company' | 'group';
@@ -172,3 +243,44 @@ export const hazardStatusKeys = [
   'verifying',
   'closed',
 ] as const;
+export const inspectionTypeKeys = [
+  'routine',
+  'special',
+  'comprehensive',
+  'follow_up',
+] as const;
+export const inspectionStatusKeys = ['planned', 'completed'] as const;
+export const workPermitTypeKeys = [
+  'hot_work',
+  'confined_space',
+  'work_at_height',
+  'lifting',
+  'electrical',
+  'excavation',
+  'other',
+] as const;
+export const workPermitStatusKeys = [
+  'draft',
+  'submitted',
+  'approved',
+  'rejected',
+  'closed',
+] as const;
+export const trainingCourseTypeKeys = [
+  'safety',
+  'fire',
+  'occupational',
+  'emergency',
+  'special_operation',
+  'other',
+] as const;
+export const trainingStatusKeys = ['completed', 'expired'] as const;
+export const actionSourceTypeKeys = [
+  'inspection',
+  'hazard',
+  'incident',
+  'permit',
+  'training',
+  'other',
+] as const;
+export const actionStatusKeys = ['open', 'completed', 'verified'] as const;

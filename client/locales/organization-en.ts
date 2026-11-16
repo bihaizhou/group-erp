@@ -69,10 +69,11 @@ export const org = {
     'Leave empty to apply immediately; a future date queues this change as a scheduled change.',
   immediate: 'Apply immediately',
   noScheduledChanges: 'No field changes to schedule.',
+  approve: 'Approve organization changes',
   pending: {
     title: 'Scheduled changes',
     description:
-      'Future-dated changes queue here, apply automatically on their effective date, and can be cancelled.',
+      'Future-dated changes queue here. Changes scheduled by maintainers need an approver before they apply on their effective date.',
     empty: 'No scheduled changes yet.',
     effectiveFrom: 'Effective date',
     actor: 'Scheduled by',
@@ -80,6 +81,12 @@ export const org = {
     cancelReason: 'Reason for cancelling',
     cancelConfirm: 'Confirm cancellation',
     cancelled: 'Scheduled change cancelled.',
+    approve: 'Approve',
+    approveReason: 'Review note (optional)',
+    approveConfirm: 'Approve change',
+    approved: 'Approved. It will apply on its effective date.',
+    awaitingApproval: 'Awaiting approval',
+    ready: 'Ready to apply',
   },
   statusTitle: '{{action}} "{{name}}"?',
   disableConsequence:
@@ -180,6 +187,8 @@ export const org = {
     applySchedule: 'Apply schedule',
   },
   errors: {
+    ORG_SELF_APPROVAL:
+      'You cannot approve an organization change you scheduled yourself.',
     ORG_ISSUE_DEPENDENTS:
       'Open issue requests reference this company or department. Coordinate or cancel them before changing ownership or deactivating it.',
     ORG_PURCHASE_DEPENDENTS:

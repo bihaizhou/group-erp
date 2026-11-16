@@ -12,6 +12,17 @@ const centScale = 100n;
 const divisor = 1_000_000_000_000n;
 const maxWhole = 999_999_999_999_999_999n;
 
+export function amountCents(amount: string): bigint {
+  const [whole, fraction = ''] = amount.split('.');
+  return (
+    BigInt(whole) * centScale + BigInt(fraction.padEnd(2, '0').slice(0, 2))
+  );
+}
+
+export function amountText(cents: bigint): string {
+  return formatCents(cents);
+}
+
 function formatCents(cents: bigint): string {
   const integer = cents / centScale;
   if (integer > maxWhole)
@@ -38,8 +49,7 @@ export function orderTotal(amounts: (string | null)[]): string | null {
   let cents = 0n;
   for (const amount of amounts) {
     if (amount === null) continue;
-    const [whole, fraction = ''] = amount.split('.');
-    cents += BigInt(whole) * centScale + BigInt(fraction.padEnd(2, '0'));
+    cents += amountCents(amount);
   }
   return formatCents(cents);
 }

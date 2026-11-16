@@ -95,7 +95,7 @@ export type OrgPendingChange = {
   operation: string;
   payload: Record<string, unknown>;
   effectiveFrom: string;
-  status: 'pending' | 'applied' | 'cancelled' | 'failed';
+  status: 'awaiting_approval' | 'pending' | 'applied' | 'cancelled' | 'failed';
   reason: string;
   actorId: string;
   actorName: string;

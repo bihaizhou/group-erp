@@ -69,7 +69,13 @@ const pendingRecord = z.object({
   operation: z.string(),
   payload: z.record(z.string(), z.json()),
   effectiveFrom: z.string(),
-  status: z.enum(['pending', 'applied', 'cancelled', 'failed']),
+  status: z.enum([
+    'awaiting_approval',
+    'pending',
+    'applied',
+    'cancelled',
+    'failed',
+  ]),
   reason: z.string(),
   actorId: z.string(),
   actorName: z.string(),
@@ -109,7 +115,7 @@ export const organizationRoutes: AppApiRouteContribution<Application> =
     const router = new Hono<AuthEnv & AuthorizationEnv>();
     const access =
       (
-        action: 'read' | 'update',
+        action: 'read' | 'update' | 'approve',
       ): MiddlewareHandler<AuthEnv & AuthorizationEnv> =>
       async (c, next) => {
         await c.get('authz').require({ resource: orgResource, action });
@@ -141,7 +147,8 @@ export const organizationRoutes: AppApiRouteContribution<Application> =
               : error.reason === 'ORG_CODE_EXISTS'
                 ? 'ALREADY_EXISTS'
                 : error.reason === 'ORG_VERSION_CONFLICT' ||
-                    error.reason === 'ORG_PENDING_STATE'
+                    error.reason === 'ORG_PENDING_STATE' ||
+                    error.reason === 'ORG_SELF_APPROVAL'
                   ? 'ABORTED'
                   : error.reason === 'ORG_INVALID_EFFECTIVE_DATE'
                     ? 'INVALID_ARGUMENT'
@@ -250,6 +257,36 @@ export const organizationRoutes: AppApiRouteContribution<Application> =
         });
       },
     );
+    router.post(
+      '/pending/:id/approve',
+      access('approve'),
+      describeRoute({
+        tags: ['Organization'],
+        summary: 'Approve a scheduled organization change',
+        operationId: 'approveOrganizationPendingChange',
+        responses: { '200': dataResponse(pendingRecord), ...errors },
+      }),
+      apiValidator('param', params),
+      apiValidator(
+        'json',
+        z
+          .strictObject({
+            reason: z.string().trim().max(1000).optional(),
+            version: version.optional(),
+          })
+          .optional(),
+      ),
+      async (c) => {
+        const { user } = c.get('auth')!;
+        return c.json({
+          data: await service.approvePending(
+            c.req.valid('param').id,
+            { id: user.id, name: user.name || user.email },
+            c.req.valid('json') ?? {},
+          ),
+        });
+      },
+    );
     for (const kind of kinds) {
       router.get(
         `/${kind}`,
@@ -342,6 +379,10 @@ export const organizationRoutes: AppApiRouteContribution<Application> =
         apiValidator('json', scheduleInput(kind)),
         async (c) => {
           const { user } = c.get('auth')!;
+          const decision = await c.get('authz').authorize({
+            resource: orgResource,
+            action: 'approve',
+          });
           return c.json(
             {
               data: await service.scheduleChange(
@@ -349,6 +390,7 @@ export const organizationRoutes: AppApiRouteContribution<Application> =
                 c.req.valid('param').id,
                 c.req.valid('json'),
                 { id: user.id, name: user.name || user.email },
+                { canApprove: decision.effect !== 'deny' },
               ),
             },
             201,

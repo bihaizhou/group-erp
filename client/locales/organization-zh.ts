@@ -67,9 +67,11 @@ export const org = {
     '留空立即生效；选择未来日期后，本次修改会进入计划变更队列。',
   immediate: '立即生效',
   noScheduledChanges: '没有需要安排的字段变更。',
+  approve: '审核组织变更',
   pending: {
     title: '计划变更',
-    description: '未来日期的调整先进入队列，到期后自动应用；可在此取消。',
+    description:
+      '未来日期的调整先进入队列；维护人提交的变更需审核人通过后再按生效日期自动应用。',
     empty: '暂无待生效的计划变更。',
     effectiveFrom: '生效日期',
     actor: '发起人',
@@ -77,6 +79,12 @@ export const org = {
     cancelReason: '填写取消原因',
     cancelConfirm: '确认取消',
     cancelled: '已取消计划变更。',
+    approve: '审核',
+    approveReason: '审核意见（可选）',
+    approveConfirm: '确认通过',
+    approved: '已通过，将于生效日期自动应用。',
+    awaitingApproval: '待审核',
+    ready: '待生效',
   },
   statusTitle: '{{action}}“{{name}}”？',
   disableConsequence:
@@ -173,6 +181,7 @@ export const org = {
     applySchedule: '应用计划',
   },
   errors: {
+    ORG_SELF_APPROVAL: '不能审核自己提交的组织变更，请由其他审核人处理。',
     ORG_ISSUE_DEPENDENTS:
       '此公司或部门存在未完领用申请，请先协调处理或取消相关申请，再变更归属或停用。',
     ORG_PURCHASE_DEPENDENTS:

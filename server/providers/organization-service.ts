@@ -81,6 +81,14 @@ export type ScheduleChangeInput = {
   changes: Record<string, unknown>;
 };
 
+export type ScheduleChangeOptions = {
+  /**
+   * Whether the actor may approve organization changes. Maintainers only queue
+   * changes for review; approvers can queue an already-approved change.
+   */
+  canApprove: boolean;
+};
+
 const payloadOf = (value: unknown): Record<string, unknown> => {
   const parsed =
     typeof value === 'string'
@@ -367,6 +375,7 @@ export class OrganizationService {
     recordId: string,
     input: ScheduleChangeInput,
     actor: Actor,
+    options: ScheduleChangeOptions = { canApprove: false },
   ): Promise<PendingChange> {
     if (!isCalendarDate(input.effectiveFrom))
       return fail('ORG_INVALID_EFFECTIVE_DATE', 'effectiveFrom');
@@ -407,7 +416,7 @@ export class OrganizationService {
             operation,
             payload: input.changes as RepositoryRecord,
             effectiveFrom: input.effectiveFrom,
-            status: 'pending',
+            status: options.canApprove ? 'pending' : 'awaiting_approval',
             reason: input.reason,
             actorId: actor.id,
             actorName: actor.name,
@@ -471,7 +480,8 @@ export class OrganizationService {
         .repository('orgPendingChanges')
         .findOne({ filter: { id } });
       if (!pending) return fail('ORG_PENDING_NOT_FOUND');
-      if (pending.status !== 'pending') return fail('ORG_PENDING_STATE');
+      if (!['pending', 'awaiting_approval'].includes(scalar(pending.status)))
+        return fail('ORG_PENDING_STATE');
       if (
         input.version !== undefined &&
         Number(pending.version) !== input.version
@@ -497,6 +507,61 @@ export class OrganizationService {
           actorId: actor.id,
           actorName: actor.name,
           reason: input.reason,
+          beforeValue: null,
+          afterValue: pendingView(updated.record),
+          createdAt: new Date(),
+        },
+      });
+      return pendingView(updated.record);
+    });
+  }
+
+  /**
+   * Approve a change queued by a maintainer. Approval moves the row to
+   * `pending`, after which the sweep applies it on its effective date. The
+   * requester can never approve their own change, mirroring the review rules
+   * used elsewhere in the ERP.
+   */
+  async approvePending(
+    id: string,
+    actor: Actor,
+    input: { reason?: string; version?: number },
+  ): Promise<PendingChange> {
+    return this.db.transaction(async (connection) => {
+      await lockOrgMutation(connection);
+      const pending = await connection
+        .repository('orgPendingChanges')
+        .findOne({ filter: { id } });
+      if (!pending) return fail('ORG_PENDING_NOT_FOUND');
+      if (scalar(pending.status) !== 'awaiting_approval')
+        return fail('ORG_PENDING_STATE');
+      if (scalar(pending.actorId) === actor.id)
+        return fail('ORG_SELF_APPROVAL');
+      if (
+        input.version !== undefined &&
+        Number(pending.version) !== input.version
+      )
+        return fail('ORG_VERSION_CONFLICT');
+      const updated = await connection
+        .repository('orgPendingChanges')
+        .updateOne({
+          filter: { id },
+          values: { status: 'pending', updatedAt: new Date() },
+        });
+      const kind = scalar(pending.kind) as OrgKind;
+      const record = await connection
+        .repository(tables[kind])
+        .findOne({ filter: { id: scalar(pending.recordId) } });
+      await connection.repository('orgAudit').createOne({
+        values: {
+          id: randomUUID(),
+          kind,
+          recordId: scalar(pending.recordId),
+          recordName: record ? scalar(record.name) : '',
+          operation: 'approveSchedule',
+          actorId: actor.id,
+          actorName: actor.name,
+          reason: input.reason?.trim() || '',
           beforeValue: null,
           afterValue: pendingView(updated.record),
           createdAt: new Date(),

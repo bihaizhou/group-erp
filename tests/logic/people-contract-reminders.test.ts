@@ -82,3 +82,60 @@ test('ignores contracts whose employment has not started yet', async () => {
   });
   expect(deliveries).toHaveLength(0);
 });
+
+test('also delivers a copy to the current supervisor position', async () => {
+  const deliveries: any[] = [];
+  const collections: Record<string, unknown[]> = {
+    personnelEmployments: [
+      {
+        id: 'soon',
+        employeeId: 'emp-1',
+        name: 'Li Ming',
+        data: { contractEnd: '2026-12-01', startDate: '2024-01-01' },
+      },
+    ],
+    personnelEmployees: [
+      { id: 'emp-1', data: { accountId: 'account-1' } },
+      { id: 'boss', data: { accountId: 'account-boss' } },
+    ],
+    personnelAssignments: [
+      {
+        id: 'a1',
+        personId: 'emp-1',
+        positionId: 'pos-worker',
+        data: { type: 'primary', startDate: '2024-01-01' },
+      },
+      {
+        id: 'a2',
+        personId: 'boss',
+        positionId: 'pos-lead',
+        data: { type: 'primary', startDate: '2023-01-01' },
+      },
+    ],
+    orgPositions: [
+      { id: 'pos-worker', reportsToId: 'pos-lead' },
+      { id: 'pos-lead', reportsToId: null },
+    ],
+  };
+  const reminders = new ContractReminders(
+    {
+      repository: (name: string) => ({
+        findMany: async () => collections[name] ?? [],
+      }),
+    } as never,
+    {
+      deliver: async (input: unknown) => {
+        deliveries.push(input);
+        return input;
+      },
+    } as never,
+    'Asia/Shanghai',
+  );
+  const result = await reminders.run(new Date('2026-11-20T02:00:00Z'));
+  expect(result).toEqual({ delivered: 2, skipped: false });
+  const ids = deliveries.map((item) => item.userId).sort();
+  expect(ids).toEqual(['account-1', 'account-boss']);
+  expect(
+    deliveries.some((item) => String(item.deliveryId).endsWith(':manager')),
+  ).toBe(true);
+});

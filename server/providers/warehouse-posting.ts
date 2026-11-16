@@ -15,6 +15,11 @@ import {
   lockIssueFulfillment,
   refreshIssueFulfillment,
 } from './inventory-issue-source.js';
+import {
+  postShipmentReceivables,
+  reverseShipmentReceivables,
+  type ShipmentReceivableLine,
+} from './sales-ledger-service.js';
 
 type CacheTable =
   | 'purchaseOrderLines'
@@ -47,7 +52,13 @@ export async function warehousePosting(
     >(),
     sourceRows = new Map<string, { table: CacheTable; id: string }>(),
     affectedIssues = new Set<string>(),
+    receivableLines: ShipmentReceivableLine[] = [],
     originalHeaders = new Map<string, RepositoryRecord>();
+  let receivableHeader: {
+    orderId: string;
+    customerId: string;
+    currency: string;
+  } | null = null;
   const addHead = (
       table:
         | 'purchaseOrders'
@@ -320,13 +331,29 @@ export async function warehousePosting(
         const purchase = head.kind === 'purchaseReceipt',
           table = purchase ? 'purchaseOrderLines' : 'salesOrderLines',
           id = purchase ? line.purchaseOrderLineId : line.salesOrderLineId;
-        await approvedTradeLine(
+        const source = await approvedTradeLine(
           c,
           purchase ? 'purchaseOrders' : 'salesOrders',
           text(purchase ? head.purchaseOrderId : head.salesOrderId),
           text(id),
           text(head.subjectId),
         );
+        if (!purchase) {
+          receivableHeader ??= {
+            orderId: text(head.salesOrderId),
+            customerId: text(source.head.partnerId),
+            currency: text(source.head.currency) || 'CNY',
+          };
+          receivableLines.push({
+            orderLineId: text(id),
+            quantity: text(line.quantity),
+            unitPrice:
+              source.frozen.unitPrice === null ||
+              source.frozen.unitPrice === undefined
+                ? null
+                : text(source.frozen.unitPrice),
+          });
+        }
         adjust(table, id, 'fulfilledQuantity', amount);
         if (isStock) entry(line, purchase ? amount : -amount);
       } else if (head.kind === 'issue') {
@@ -495,6 +522,26 @@ export async function warehousePosting(
             },
           });
       for (const id of affectedIssues) await refreshIssueFulfillment(c, id);
+      const actorId = text(head.postedBy) || text(head.updatedBy);
+      if (head.kind === 'salesShipment' && receivableHeader)
+        await postShipmentReceivables(c, {
+          documentId: text(head.id),
+          subjectId: text(head.subjectId),
+          orderId: receivableHeader.orderId,
+          customerId: receivableHeader.customerId,
+          currency: receivableHeader.currency,
+          actorId,
+          lines: receivableLines,
+        });
+      if (
+        head.kind === 'reversal' &&
+        original &&
+        text(original.kind) === 'salesShipment'
+      )
+        await reverseShipmentReceivables(c, {
+          shipmentId: text(original.id),
+          actorId,
+        });
       if (head.kind === 'initial') {
         const reference = text(head.initializationReference);
         if (!reference) return fail('STOCK_INITIALIZATION_REFERENCE_REQUIRED');

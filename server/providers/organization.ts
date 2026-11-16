@@ -33,6 +33,7 @@ export default class OrganizationProvider extends ServiceProvider<Application> {
       actions: [
         { name: 'read', title: { key: 'org.read', ns: 'group-erp' } },
         { name: 'update', title: { key: 'org.maintain', ns: 'group-erp' } },
+        { name: 'approve', title: { key: 'org.approve', ns: 'group-erp' } },
       ],
     });
     authz.ui.sections.add({
@@ -76,10 +77,7 @@ export default class OrganizationProvider extends ServiceProvider<Application> {
             'Scheduled organization change could not be applied and was marked failed.',
           );
       } catch (error) {
-        logger.error(
-          { error },
-          'Scheduled organization change sweep failed.',
-        );
+        logger.error({ error }, 'Scheduled organization change sweep failed.');
       } finally {
         this.sweeping = false;
       }

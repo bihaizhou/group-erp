@@ -545,3 +545,139 @@ test('HSE workflow actions enforce field policies on the fields they write', asy
   expect(rejectedRenew.status).toBe(403);
   expect(await rejectedRenew.text()).toContain('FIELD_NOT_WRITABLE');
 });
+
+const inspectionFields = [
+  'type',
+  'plannedAt',
+  'inspectorId',
+  'checklist',
+  'findingsCount',
+  'completedAt',
+  'status',
+];
+
+test('HSE inspection records enforce field policies', async ({ testApp }) => {
+  const admin = await signIn(testApp, DEFAULT_ADMIN_CREDENTIALS);
+  const users = testApp.application.container.resolve(
+    userAdministrationServiceToken,
+  );
+  const authz = testApp.application.container.resolve(authorizationToken);
+  const send = async (
+    client: Client,
+    path: string,
+    body: unknown,
+    method = 'POST',
+  ) => client.fetch(path, json(body, method));
+  const create = async <T>(path: string, body: unknown): Promise<T> => {
+    const response = await send(admin, path, body);
+    expect(response.status).toBe(201);
+    return ((await response.json()) as { data: T }).data;
+  };
+  const makeUser = async (name: string) => {
+    const email = `${randomUUID()}@example.test`;
+    const password = randomUUID();
+    const account = await users.create({ name, email, password });
+    const role = await authz.permissionSets.create({
+      key: `fp-${randomUUID()}`,
+      title: name,
+      grants: [
+        {
+          resource: { type: 'settings' as const, id: 'hse' },
+          actions: [
+            { action: 'read' },
+            { action: 'manage' },
+            { action: 'readAll' },
+          ],
+        },
+      ],
+    });
+    await authz.permissionSets.assign({
+      permissionSet: role.key,
+      subject: { type: 'user', id: account.id },
+    });
+    return {
+      id: account.id,
+      client: await signIn(testApp, { email, password }),
+    };
+  };
+  const savePolicies = async (
+    userId: string,
+    policies: { resource: string; field: string; access: string }[],
+  ) => {
+    const key = `fp-pol-${randomUUID()}`;
+    await authz.permissionSets.create({ key, grants: [] });
+    await authz.permissionSets.assign({
+      permissionSet: key,
+      subject: { type: 'user', id: userId },
+    });
+    const response = await admin.fetch(
+      '/field-policies',
+      json({ permissionSetKey: key, requestKey: randomUUID(), policies }),
+    );
+    expect(response.status).toBe(200);
+  };
+
+  const subject = await create<{ id: string }>('/organization/subjects', {
+    code: `FPI-${randomUUID().slice(0, 6)}`,
+    name: 'Inspection policy company',
+    type: 'group',
+  });
+  const planned = await create<{ id: string; version: number }>(
+    '/hse/inspections',
+    {
+      subjectId: subject.id,
+      type: 'routine',
+      plannedAt: new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
+      checklist: ['Check guards', 'Verify signage'],
+    },
+  );
+
+  const user = await makeUser('Inspection policy manager');
+  await savePolicies(
+    user.id,
+    policiesFor('hse.inspection', inspectionFields, ['inspectorId']),
+  );
+
+  const blocked = await user.client.fetch(
+    '/hse/inspections',
+    json(
+      {
+        subjectId: subject.id,
+        type: 'routine',
+        plannedAt: new Date(Date.now() + 2 * 86_400_000)
+          .toISOString()
+          .slice(0, 10),
+        inspectorId: 'someone',
+        checklist: ['Check guards'],
+      },
+      'POST',
+    ),
+  );
+  expect(blocked.status).toBe(403);
+  expect(
+    ((await blocked.json()) as { error: { reason: string } }).error.reason,
+  ).toBe('FIELD_NOT_WRITABLE');
+
+  const listed = await user.client.fetch(
+    `/hse/inspections?subjectId=${subject.id}`,
+    { method: 'GET', headers: { origin: 'http://localhost' } },
+  );
+  expect(listed.status).toBe(200);
+  const rows = ((await listed.json()) as { data: Record<string, unknown>[] })
+    .data;
+  expect(rows.length).toBeGreaterThan(0);
+  for (const row of rows) expect('inspectorId' in row).toBe(false);
+
+  const done = await user.client.fetch(
+    `/hse/inspections/${planned.id}/transitions`,
+    json(
+      { version: planned.version, action: 'complete', findingsCount: 2 },
+      'POST',
+    ),
+  );
+  expect(done.status).toBe(200);
+  expect(
+    ((await done.json()) as { data: { status: string; findingsCount: number } })
+      .data,
+  ).toMatchObject({ status: 'completed', findingsCount: 2 });
+});

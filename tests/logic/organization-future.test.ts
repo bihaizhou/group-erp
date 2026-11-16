@@ -6,6 +6,8 @@ import {
   DEFAULT_ADMIN_CREDENTIALS,
   signIn,
 } from '@nocobase/app-plugin-authentication/testing';
+import { userAdministrationServiceToken } from '@nocobase/app-plugin-authentication';
+import { authorizationToken } from '@nocobase/app-plugin-authorization/server';
 import { createStandaloneServer } from '../../server/standalone.js';
 import { businessDate } from '../../server/providers/business-date.js';
 import { organizationServiceToken } from '../../server/providers/organization.js';
@@ -274,4 +276,136 @@ test('queues future organization changes, applies them on time, and handles canc
   expect(failedPending.rows[0].status).toBe('failed');
   expect(failedPending.rows[0].errorReason).toBe('ORG_ACTIVE_DEPENDENTS');
   expect((await readRecord('subjects', company.id)).status).toBe('active');
+});
+
+test('requires an approver for changes scheduled by maintainers', async ({
+  testApp,
+}) => {
+  const admin = await signIn(testApp, DEFAULT_ADMIN_CREDENTIALS);
+  const send = async (path: string, body: unknown, method = 'POST') =>
+    admin.fetch(`/organization/${path}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost',
+      },
+      body: JSON.stringify(body),
+    });
+  const create = async (kind: string, body: unknown) => {
+    const response = await send(kind, body);
+    const payload = await response.json();
+    expect(response.status).toBe(201);
+    return payload.data;
+  };
+  const suffix = randomUUID().slice(0, 8);
+  const sector = await create('sectors', {
+    name: `Approval sector ${suffix}`,
+    code: `APR-SEC-${suffix}`,
+  });
+  const group = await create('subjects', {
+    name: `Approval group ${suffix}`,
+    code: `APR-GRP-${suffix}`,
+    type: 'group',
+  });
+  const company = await create('subjects', {
+    name: `Approval company ${suffix}`,
+    code: `APR-CO-${suffix}`,
+    type: 'company',
+    parentId: group.id,
+    sectorId: sector.id,
+    regionId: '00000000-0000-4000-8000-000000000001',
+  });
+  const unit = await create('units', {
+    name: `Approval unit ${suffix}`,
+    code: `APR-UNIT-${suffix}`,
+    type: 'department',
+    subjectId: company.id,
+  });
+
+  const users = testApp.application.container.resolve(
+    userAdministrationServiceToken,
+  );
+  const authz = testApp.application.container.resolve(authorizationToken);
+  const makeUser = async (name: string, set: string) => {
+    const email = `org-apr-${randomUUID()}@example.test`;
+    const password = randomUUID();
+    const user = await users.create({ name, email, password });
+    const assignment = await authz.permissionSets.assign({
+      permissionSet: set,
+      subject: { type: 'user', id: user.id },
+    });
+    const client = await signIn(testApp, { email, password });
+    return { user, assignment, client };
+  };
+  const maintainer = await makeUser(
+    'Organization maintainer',
+    'organization-maintainer',
+  );
+  const approver = await makeUser(
+    'Organization approver',
+    'organization-approver',
+  );
+  const tomorrow = shiftDate(businessDate('Asia/Shanghai'), 1);
+
+  const scheduled = await maintainer.client.fetch(
+    `/organization/units/${unit.id}/schedule`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost',
+      },
+      body: JSON.stringify({
+        version: unit.version,
+        reason: 'Rename by maintainer',
+        effectiveFrom: tomorrow,
+        changes: { name: `Approved rename ${suffix}` },
+      }),
+    },
+  );
+  const pending = await scheduled.json();
+  expect(scheduled.status).toBe(201);
+  expect(pending.data.status).toBe('awaiting_approval');
+
+  const selfApprove = await approver.client.fetch(
+    `/organization/pending/${pending.data.id}/approve`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost',
+      },
+      body: JSON.stringify({}),
+    },
+  );
+  expect(selfApprove.status).toBe(200);
+  expect((await selfApprove.json()).data.status).toBe('pending');
+
+  const maintainerApprove = await maintainer.client.fetch(
+    `/organization/pending/${pending.data.id}/approve`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost',
+      },
+      body: JSON.stringify({}),
+    },
+  );
+  expect(maintainerApprove.status).toBe(403);
+
+  const assigned = await authz.permissionSets.assign({
+    permissionSet: 'organization-approver',
+    subject: { type: 'user', id: maintainer.user.id },
+  });
+  const service = testApp.application.container.resolve(
+    organizationServiceToken,
+  );
+  const failures = await service.applyDue(tomorrow);
+  expect(failures).toEqual([]);
+  const renamed = await admin.fetch(`/organization/units/${unit.id}`);
+  expect((await renamed.json()).data.name).toBe(`Approved rename ${suffix}`);
+  await authz.permissionSets.revoke(assigned.id);
+  await authz.permissionSets.revoke(maintainer.assignment.id);
+  await authz.permissionSets.revoke(approver.assignment.id);
 });

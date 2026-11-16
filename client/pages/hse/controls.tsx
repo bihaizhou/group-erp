@@ -64,6 +64,13 @@ const tones: Record<string, 'neutral' | 'info' | 'warning' | 'success'> = {
   expiring: 'warning',
   expired: 'warning',
   revoked: 'neutral',
+  planned: 'info',
+  completed: 'success',
+  draft: 'neutral',
+  submitted: 'warning',
+  approved: 'success',
+  rejected: 'warning',
+  verified: 'success',
 };
 
 export function HseStatus({ status }: { status: string }) {

@@ -22,11 +22,13 @@ export function OrganizationPendingChanges({
   recordId,
   options,
   canWrite,
+  canApprove,
 }: {
   readonly kind: string;
   readonly recordId: string;
   readonly options?: OrgOptions;
   readonly canWrite: boolean;
+  readonly canApprove: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const api = useApiClient();
@@ -35,12 +37,38 @@ export function OrganizationPendingChanges({
   const errorText = useOrgError();
   const pending = usePendingChanges(kind, recordId);
   const [cancelling, setCancelling] = useState<string>();
+  const [approving, setApproving] = useState<string>();
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const rows = (pending.data?.rows ?? []).filter(
-    (row) => row.status === 'pending',
+    (row) => row.status === 'pending' || row.status === 'awaiting_approval',
   );
+  const approve = async (id: string) => {
+    if (busy) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      await api.request({
+        path: `organization/pending/${id}/approve`,
+        method: 'POST',
+        json: { reason: reason.trim() || undefined },
+      });
+      await cache.invalidateQueries({
+        queryKey: ['org-pending', kind, recordId],
+      });
+      await cache.invalidateQueries({
+        queryKey: ['org-record-history', recordId],
+      });
+      toaster.show({ type: 'success', title: t('org.pending.approved') });
+      setApproving(undefined);
+      setReason('');
+    } catch (cause) {
+      setError(cause);
+    } finally {
+      setBusy(false);
+    }
+  };
   const cancel = async (id: string) => {
     if (busy || !reason.trim()) return;
     setBusy(true);
@@ -107,10 +135,27 @@ export function OrganizationPendingChanges({
                         })}
                       </p>
                       <p className='text-xs text-muted-foreground'>
-                        {t('org.pending.effectiveFrom')} ·{' '}
-                        {row.effectiveFrom}
+                        {t('org.pending.effectiveFrom')} · {row.effectiveFrom}
+                      </p>
+                      <p className='text-xs text-muted-foreground'>
+                        {row.status === 'awaiting_approval'
+                          ? t('org.pending.awaitingApproval')
+                          : t('org.pending.ready')}
                       </p>
                     </div>
+                    {canApprove && row.status === 'awaiting_approval' ? (
+                      <Button
+                        type='button'
+                        size='sm'
+                        onClick={() => {
+                          setApproving(row.id);
+                          setCancelling(undefined);
+                          setReason('');
+                        }}
+                      >
+                        {t('org.pending.approve')}
+                      </Button>
+                    ) : null}
                     {canWrite && cancelling !== row.id ? (
                       <Button
                         type='button'
@@ -199,6 +244,43 @@ export function OrganizationPendingChanges({
                           {busy
                             ? t('org.saving')
                             : t('org.pending.cancelConfirm')}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {approving === row.id ? (
+                    <div className='flex flex-col gap-2 border-t pt-3'>
+                      <Input
+                        value={reason}
+                        onChange={(event) => setReason(event.target.value)}
+                        placeholder={t('org.pending.approveReason')}
+                        aria-label={t('org.pending.approveReason')}
+                        maxLength={1000}
+                        autoFocus
+                        disabled={busy}
+                      />
+                      <div className='flex justify-end gap-2'>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          disabled={busy}
+                          onClick={() => {
+                            setApproving(undefined);
+                            setReason('');
+                          }}
+                        >
+                          {t('org.cancel')}
+                        </Button>
+                        <Button
+                          type='button'
+                          size='sm'
+                          disabled={busy}
+                          onClick={() => void approve(row.id)}
+                        >
+                          {busy
+                            ? t('org.saving')
+                            : t('org.pending.approveConfirm')}
                         </Button>
                       </div>
                     </div>

@@ -27,6 +27,10 @@ export default function OrganizationDetailPage() {
     resource: { type: 'settings', id: 'organization' },
     action: 'update',
   }).can;
+  const canApprove = useCan({
+    resource: { type: 'settings', id: 'organization' },
+    action: 'approve',
+  }).can;
   const data = record.data?.data;
   const title = data?.name ?? t(`org.${kind}`);
   const edit =
@@ -94,6 +98,7 @@ export default function OrganizationDetailPage() {
         recordId={data.id}
         options={options.data?.data}
         canWrite={canWrite}
+        canApprove={canApprove}
       />
       <OrganizationRecordHistory
         recordId={data.id}

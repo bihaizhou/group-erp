@@ -19,6 +19,7 @@ import { WarehouseService } from './warehouse-service.js';
 import { StockTransferService } from './stock-transfer-service.js';
 import { StockCountService } from './stock-count-service.js';
 import { InventoryReadService } from './inventory-read-service.js';
+import { SalesLedgerService } from './sales-ledger-service.js';
 import {
   customerResource,
   executionResources,
@@ -53,6 +54,9 @@ export const stockCountServiceToken =
   createServiceToken<StockCountService>('group-erp/counts');
 export const inventoryReadServiceToken =
   createServiceToken<InventoryReadService>('group-erp/inventory-reads');
+export const salesLedgerServiceToken = createServiceToken<SalesLedgerService>(
+  'group-erp/sales-ledger',
+);
 export default class ExecutionProvider extends ServiceProvider<Application> {
   readonly name = 'group-erp/supply-chain-execution';
   override register() {
@@ -127,6 +131,10 @@ export default class ExecutionProvider extends ServiceProvider<Application> {
           this.app.container.resolve(executionRecordsToken),
           this.app.container.resolve(inventoryServiceToken),
         ),
+    );
+    this.app.container.singleton(
+      salesLedgerServiceToken,
+      () => new SalesLedgerService(db()),
     );
   }
   override async boot() {

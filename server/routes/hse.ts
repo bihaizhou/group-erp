@@ -24,6 +24,10 @@ import { Hono, type Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { z } from 'zod';
 import {
+  hseActionCreate,
+  hseActionQuery,
+  hseActionTransition,
+  hseActionUpdate,
   hseCertificateCreate,
   hseCertificateQuery,
   hseCertificateTransition,
@@ -39,7 +43,18 @@ import {
   hseIncidentQuery,
   hseIncidentTransition,
   hseIncidentUpdate,
+  hseInspectionCreate,
+  hseInspectionQuery,
+  hseInspectionTransition,
+  hseInspectionUpdate,
   hseOverviewQuery,
+  hseTrainingRecordCreate,
+  hseTrainingRecordQuery,
+  hseTrainingRecordUpdate,
+  hseWorkPermitCreate,
+  hseWorkPermitQuery,
+  hseWorkPermitTransition,
+  hseWorkPermitUpdate,
 } from '../providers/hse-model.js';
 import {
   HseError,
@@ -60,6 +75,10 @@ type Env = AuthEnv & AuthorizationEnv;
 const INCIDENT_RESOURCE = 'hse.incident';
 const HAZARD_RESOURCE = 'hse.hazard';
 const CERTIFICATE_RESOURCE = 'hse.certificate';
+const INSPECTION_RESOURCE = 'hse.inspection';
+const WORK_PERMIT_RESOURCE = 'hse.workPermit';
+const TRAINING_RESOURCE = 'hse.trainingRecord';
+const ACTION_RESOURCE = 'hse.action';
 /** Stored calendar-date columns; compare them by day, not by timestamp. */
 const DATE_FIELDS = new Set(['discoveredAt', 'dueAt', 'issuedAt', 'expiresAt']);
 /** Null and the empty string both mean "not provided" on an HSE form. */
@@ -137,6 +156,14 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       '/hazards/*',
       '/certificates',
       '/certificates/*',
+      '/inspections',
+      '/inspections/*',
+      '/work-permits',
+      '/work-permits/*',
+      '/training-records',
+      '/training-records/*',
+      '/actions',
+      '/actions/*',
       '/operations-summary',
     ])
       router.use(path, auth.required(), authz.middleware());
@@ -686,6 +713,399 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
         );
         return c.json({
           data: redactRecord(updated, policies, CERTIFICATE_RESOURCE),
+        });
+      },
+    );
+
+    router.get(
+      '/inspections',
+      allowed('read'),
+      describe(
+        'hseInspectionList',
+        'List HSE inspections',
+        listResponse(object, pageMeta),
+      ),
+      apiValidator('query', hseInspectionQuery),
+      async (c) => {
+        const principal = actor(c);
+        const policies = await fieldPoliciesFor(db, principal);
+        const result = await service.listInspections(
+          principal,
+          c.req.valid('query'),
+          await scoped(c),
+        );
+        return c.json({
+          ...result,
+          data: redactRows(result.data, policies, INSPECTION_RESOURCE),
+        });
+      },
+    );
+
+    router.post(
+      '/inspections',
+      allowed('manage'),
+      describe(
+        'hseInspectionCreate',
+        'Create an HSE inspection',
+        dataResponse(object),
+        201,
+      ),
+      apiValidator('json', hseInspectionCreate),
+      async (c) => {
+        const principal = actor(c);
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal);
+        await rejectHiddenWrites(policies, INSPECTION_RESOURCE, input);
+        const created = await service.createInspection(
+          principal,
+          input,
+          await scoped(c),
+        );
+        return c.json(
+          { data: redactRecord(created, policies, INSPECTION_RESOURCE) },
+          201,
+        );
+      },
+    );
+
+    router.post(
+      '/inspections/:id/transitions',
+      allowed('manage'),
+      describe(
+        'hseInspectionTransition',
+        'Complete an HSE inspection and record its findings',
+        dataResponse(object),
+      ),
+      apiValidator('param', hseIdParams),
+      apiValidator('json', hseInspectionTransition),
+      async (c) => {
+        const principal = actor(c);
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal);
+        await rejectHiddenWrites(policies, INSPECTION_RESOURCE, input);
+        const record = await service.transitionInspection(
+          principal,
+          c.req.valid('param').id,
+          input,
+          await scoped(c),
+        );
+        return c.json({
+          data: redactRecord(record, policies, INSPECTION_RESOURCE),
+        });
+      },
+    );
+
+    router.patch(
+      '/inspections/:id',
+      allowed('manage'),
+      describe(
+        'hseInspectionUpdate',
+        'Update a planned HSE inspection',
+        dataResponse(object),
+      ),
+      apiValidator('param', hseIdParams),
+      apiValidator('json', hseInspectionUpdate),
+      async (c) => {
+        const principal = actor(c);
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal);
+        await rejectHiddenWrites(policies, INSPECTION_RESOURCE, input);
+        const updated = await service.updateInspection(
+          principal,
+          c.req.valid('param').id,
+          input,
+          await scoped(c),
+        );
+        return c.json({
+          data: redactRecord(updated, policies, INSPECTION_RESOURCE),
+        });
+      },
+    );
+
+    router.get(
+      '/work-permits',
+      allowed('read'),
+      describe(
+        'hseWorkPermitList',
+        'List HSE work permits',
+        listResponse(object, pageMeta),
+      ),
+      apiValidator('query', hseWorkPermitQuery),
+      async (c) => {
+        const principal = actor(c);
+        const policies = await fieldPoliciesFor(db, principal);
+        const result = await service.listWorkPermits(
+          principal,
+          c.req.valid('query'),
+          await scoped(c),
+        );
+        return c.json({
+          ...result,
+          data: redactRows(result.data, policies, WORK_PERMIT_RESOURCE),
+        });
+      },
+    );
+
+    router.post(
+      '/work-permits',
+      allowed('manage'),
+      describe(
+        'hseWorkPermitCreate',
+        'Create an HSE work permit',
+        dataResponse(object),
+        201,
+      ),
+      apiValidator('json', hseWorkPermitCreate),
+      async (c) => {
+        const principal = actor(c);
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal);
+        await rejectHiddenWrites(policies, WORK_PERMIT_RESOURCE, input);
+        const created = await service.createWorkPermit(
+          principal,
+          input,
+          await scoped(c),
+        );
+        return c.json(
+          { data: redactRecord(created, policies, WORK_PERMIT_RESOURCE) },
+          201,
+        );
+      },
+    );
+
+    router.post(
+      '/work-permits/:id/transitions',
+      allowedAny(['manage', 'approve']),
+      describe(
+        'hseWorkPermitTransition',
+        'Submit, approve, reject or close an HSE work permit',
+        dataResponse(object),
+      ),
+      apiValidator('param', hseIdParams),
+      apiValidator('json', hseWorkPermitTransition),
+      async (c) => {
+        const principal = actor(c);
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal);
+        await rejectHiddenWrites(policies, WORK_PERMIT_RESOURCE, input);
+        const record = await service.transitionWorkPermit(
+          principal,
+          c.req.valid('param').id,
+          input,
+          await scoped(c),
+        );
+        return c.json({
+          data: redactRecord(record, policies, WORK_PERMIT_RESOURCE),
+        });
+      },
+    );
+
+    router.patch(
+      '/work-permits/:id',
+      allowed('manage'),
+      describe(
+        'hseWorkPermitUpdate',
+        'Update a draft HSE work permit',
+        dataResponse(object),
+      ),
+      apiValidator('param', hseIdParams),
+      apiValidator('json', hseWorkPermitUpdate),
+      async (c) => {
+        const principal = actor(c);
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal);
+        await rejectHiddenWrites(policies, WORK_PERMIT_RESOURCE, input);
+        const updated = await service.updateWorkPermit(
+          principal,
+          c.req.valid('param').id,
+          input,
+          await scoped(c),
+        );
+        return c.json({
+          data: redactRecord(updated, policies, WORK_PERMIT_RESOURCE),
+        });
+      },
+    );
+
+    router.get(
+      '/training-records',
+      allowed('read'),
+      describe(
+        'hseTrainingRecordList',
+        'List HSE training records',
+        listResponse(object, pageMeta),
+      ),
+      apiValidator('query', hseTrainingRecordQuery),
+      async (c) => {
+        const principal = actor(c);
+        const policies = await fieldPoliciesFor(db, principal);
+        const result = await service.listTrainingRecords(
+          principal,
+          c.req.valid('query'),
+          await scoped(c),
+        );
+        return c.json({
+          ...result,
+          data: redactRows(result.data, policies, TRAINING_RESOURCE),
+        });
+      },
+    );
+
+    router.post(
+      '/training-records',
+      allowed('manage'),
+      describe(
+        'hseTrainingRecordCreate',
+        'Create an HSE training record',
+        dataResponse(object),
+        201,
+      ),
+      apiValidator('json', hseTrainingRecordCreate),
+      async (c) => {
+        const principal = actor(c);
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal);
+        await rejectHiddenWrites(policies, TRAINING_RESOURCE, input);
+        const created = await service.createTrainingRecord(
+          principal,
+          input,
+          await scoped(c),
+        );
+        return c.json(
+          { data: redactRecord(created, policies, TRAINING_RESOURCE) },
+          201,
+        );
+      },
+    );
+
+    router.patch(
+      '/training-records/:id',
+      allowed('manage'),
+      describe(
+        'hseTrainingRecordUpdate',
+        'Update an HSE training record',
+        dataResponse(object),
+      ),
+      apiValidator('param', hseIdParams),
+      apiValidator('json', hseTrainingRecordUpdate),
+      async (c) => {
+        const principal = actor(c);
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal);
+        await rejectHiddenWrites(policies, TRAINING_RESOURCE, input);
+        const updated = await service.updateTrainingRecord(
+          principal,
+          c.req.valid('param').id,
+          input,
+          await scoped(c),
+        );
+        return c.json({
+          data: redactRecord(updated, policies, TRAINING_RESOURCE),
+        });
+      },
+    );
+
+    router.get(
+      '/actions',
+      allowed('read'),
+      describe(
+        'hseActionList',
+        'List HSE corrective actions',
+        listResponse(object, pageMeta),
+      ),
+      apiValidator('query', hseActionQuery),
+      async (c) => {
+        const principal = actor(c);
+        const policies = await fieldPoliciesFor(db, principal);
+        const result = await service.listActions(
+          principal,
+          c.req.valid('query'),
+          await scoped(c),
+        );
+        return c.json({
+          ...result,
+          data: redactRows(result.data, policies, ACTION_RESOURCE),
+        });
+      },
+    );
+
+    router.post(
+      '/actions',
+      allowedAny(['manage', 'report']),
+      describe(
+        'hseActionCreate',
+        'Create an HSE corrective action',
+        dataResponse(object),
+        201,
+      ),
+      apiValidator('json', hseActionCreate),
+      async (c) => {
+        const principal = actor(c);
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal);
+        await rejectHiddenWrites(policies, ACTION_RESOURCE, input);
+        const created = await service.createAction(
+          principal,
+          input,
+          await scoped(c),
+        );
+        return c.json(
+          { data: redactRecord(created, policies, ACTION_RESOURCE) },
+          201,
+        );
+      },
+    );
+
+    router.post(
+      '/actions/:id/transitions',
+      allowedAny(['manage', 'approve']),
+      describe(
+        'hseActionTransition',
+        'Complete or verify an HSE corrective action',
+        dataResponse(object),
+      ),
+      apiValidator('param', hseIdParams),
+      apiValidator('json', hseActionTransition),
+      async (c) => {
+        const principal = actor(c);
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal);
+        await rejectHiddenWrites(policies, ACTION_RESOURCE, input);
+        const record = await service.transitionAction(
+          principal,
+          c.req.valid('param').id,
+          input,
+          await scoped(c),
+        );
+        return c.json({
+          data: redactRecord(record, policies, ACTION_RESOURCE),
+        });
+      },
+    );
+
+    router.patch(
+      '/actions/:id',
+      allowed('manage'),
+      describe(
+        'hseActionUpdate',
+        'Update an open HSE corrective action',
+        dataResponse(object),
+      ),
+      apiValidator('param', hseIdParams),
+      apiValidator('json', hseActionUpdate),
+      async (c) => {
+        const principal = actor(c);
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal);
+        await rejectHiddenWrites(policies, ACTION_RESOURCE, input);
+        const updated = await service.updateAction(
+          principal,
+          c.req.valid('param').id,
+          input,
+          await scoped(c),
+        );
+        return c.json({
+          data: redactRecord(updated, policies, ACTION_RESOURCE),
         });
       },
     );

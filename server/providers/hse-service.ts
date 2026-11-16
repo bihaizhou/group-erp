@@ -4,6 +4,10 @@ import { createServiceToken } from '@nocobase/service-provider';
 import { currentCompanyForUser } from './company-identity.js';
 import { businessDate } from './business-date.js';
 import type {
+  HseActionCreate,
+  HseActionQuery,
+  HseActionTransition,
+  HseActionUpdate,
   HseCertificateCreate,
   HseCertificateQuery,
   HseCertificateTransition,
@@ -16,6 +20,17 @@ import type {
   HseIncidentQuery,
   HseIncidentTransition,
   HseIncidentUpdate,
+  HseInspectionCreate,
+  HseInspectionQuery,
+  HseInspectionTransition,
+  HseInspectionUpdate,
+  HseTrainingRecordCreate,
+  HseTrainingRecordQuery,
+  HseTrainingRecordUpdate,
+  HseWorkPermitCreate,
+  HseWorkPermitQuery,
+  HseWorkPermitTransition,
+  HseWorkPermitUpdate,
 } from './hse-model.js';
 
 export const hseServiceToken = createServiceToken<HseService>('group-erp/hse');
@@ -156,12 +171,7 @@ export class HseService {
       .findOne({ filter: { id: recordId } });
     if (!row) throw new HseError('HSE_NOT_FOUND');
     const subjectId = text(row.subjectId);
-    await this.resolveSubject(
-      principal,
-      subjectId || undefined,
-      scope,
-      false,
-    );
+    await this.resolveSubject(principal, subjectId || undefined, scope, false);
     if (!subjectId) throw new HseError('HSE_NOT_FOUND');
     return subjectId;
   }
@@ -184,12 +194,10 @@ export class HseService {
   ) {
     const names = new Map<string, string>();
     if (!ids.length || !subjectId) return names;
-    const rows = await this.database
-      .repository('personnelEmployees')
-      .findMany({
-        filter: (f) => f.string('subjectId').eq(subjectId),
-        limit: 5001,
-      });
+    const rows = await this.database.repository('personnelEmployees').findMany({
+      filter: (f) => f.string('subjectId').eq(subjectId),
+      limit: 5001,
+    });
     for (const row of rows) {
       const id = text(row.id);
       if (ids.includes(id)) names.set(id, text(row.name));
@@ -206,7 +214,10 @@ export class HseService {
       .repository('personnelEmployees')
       .findOne({ filter: { id: ownerId } });
     if (!employee) throw new HseError('HSE_INVALID', 'OWNER_NOT_FOUND');
-    if (text(employee.subjectId) !== subjectId || text(employee.status) !== 'active')
+    if (
+      text(employee.subjectId) !== subjectId ||
+      text(employee.status) !== 'active'
+    )
       throw new HseError('HSE_INVALID', 'OWNER_NOT_IN_COMPANY');
   }
 
@@ -215,7 +226,10 @@ export class HseService {
       .repository('personnelEmployees')
       .findOne({ filter: { id: holderId } });
     if (!employee) throw new HseError('HSE_INVALID', 'HOLDER_NOT_FOUND');
-    if (text(employee.subjectId) !== subjectId || text(employee.status) !== 'active')
+    if (
+      text(employee.subjectId) !== subjectId ||
+      text(employee.status) !== 'active'
+    )
       throw new HseError('HSE_INVALID', 'HOLDER_NOT_IN_COMPANY');
   }
 
@@ -975,8 +989,7 @@ export class HseService {
           status: 'active',
         },
       });
-    if (duplicate)
-      throw new HseError('HSE_CONFLICT', 'CERTIFICATE_DUPLICATE');
+    if (duplicate) throw new HseError('HSE_CONFLICT', 'CERTIFICATE_DUPLICATE');
     const now = new Date().toISOString();
     const record = await this.database.repository('hseCertificates').createOne({
       values: {
@@ -1158,6 +1171,754 @@ export class HseService {
         businessDate(this.timeZone),
       ),
     };
+  }
+
+  private pageRows<T>(rows: readonly T[], page: number, pageSize: number) {
+    const start = (page - 1) * pageSize;
+    return {
+      data: rows.slice(start, start + pageSize),
+      meta: { page, pageSize, total: rows.length },
+    };
+  }
+
+  /** A training attendee/owner must be an active employee of the company. */
+  private async assertPerson(
+    subjectId: string,
+    personId: string | null | undefined,
+  ) {
+    if (!personId) throw new HseError('HSE_INVALID', 'PERSON_REQUIRED');
+    const employee = await this.database
+      .repository('personnelEmployees')
+      .findOne({ filter: { id: personId } });
+    if (!employee) throw new HseError('HSE_INVALID', 'PERSON_NOT_FOUND');
+    if (
+      text(employee.subjectId) !== subjectId ||
+      text(employee.status) !== 'active'
+    )
+      throw new HseError('HSE_INVALID', 'PERSON_NOT_IN_COMPANY');
+  }
+
+  private async inspectionRows(
+    principal: HsePrincipal,
+    query: { subjectId?: string; status?: string; type?: string },
+    scope: HseScope,
+  ) {
+    const company = await this.resolveSubject(
+      principal,
+      query.subjectId,
+      scope,
+    );
+    const names = await this.subjectNames(company);
+    let rows = await this.scopedRows('hseInspections', company, 'plannedAt');
+    if (query.status) rows = rows.filter((row) => row.status === query.status);
+    if (query.type) rows = rows.filter((row) => row.type === query.type);
+    const inspectorIds = [
+      ...new Set(
+        rows
+          .map((row) => text(row.inspectorId))
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const inspectorNames = await this.employeeNames(company, inspectorIds);
+    return {
+      rows: rows.map((row) => ({
+        ...row,
+        checklist: this.jsonList(row.checklist),
+        subjectName: names.get(text(row.subjectId)) ?? '',
+        inspectorName: inspectorNames.get(text(row.inspectorId)) ?? '',
+      })),
+    };
+  }
+
+  private jsonList(value: unknown): string[] {
+    let parsed: unknown = value;
+    if (typeof parsed === 'string') {
+      try {
+        parsed = JSON.parse(parsed);
+      } catch {
+        return [];
+      }
+    }
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry): entry is string => typeof entry === 'string');
+  }
+
+  async listInspections(
+    principal: HsePrincipal,
+    query: HseInspectionQuery,
+    scope: HseScope,
+  ) {
+    const { rows } = await this.inspectionRows(principal, query, scope);
+    return this.pageRows(rows, query.page, query.pageSize);
+  }
+
+  async createInspection(
+    principal: HsePrincipal,
+    input: HseInspectionCreate,
+    scope: HseScope,
+  ) {
+    const subjectId = await this.resolveSubject(
+      principal,
+      input.subjectId,
+      scope,
+      true,
+    );
+    if (!subjectId) throw new HseError('HSE_INVALID', 'SUBJECT_REQUIRED');
+    await this.assertUnit(subjectId, input.unitId);
+    const now = new Date().toISOString();
+    const record = await this.database.repository('hseInspections').createOne({
+      values: {
+        id: randomUUID(),
+        subjectId,
+        unitId: input.unitId ?? null,
+        type: input.type,
+        plannedAt: input.plannedAt,
+        completedAt: null,
+        inspectorId: input.inspectorId ?? null,
+        checklist: input.checklist,
+        findingsCount: 0,
+        status: 'planned',
+        version: 1,
+        createdBy: principal.id,
+        updatedBy: principal.id,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    return {
+      ...record.record,
+      checklist: this.jsonList(record.record.checklist),
+    };
+  }
+
+  async updateInspection(
+    principal: HsePrincipal,
+    id: string,
+    input: HseInspectionUpdate,
+    scope: HseScope,
+  ) {
+    const existing = await this.database
+      .repository('hseInspections')
+      .findOne({ filter: { id } });
+    if (!existing) throw new HseError('HSE_NOT_FOUND');
+    const subjectId = await this.resolveSubject(
+      principal,
+      text(existing.subjectId),
+      scope,
+    );
+    if (subjectId && subjectId !== text(existing.subjectId))
+      throw new HseError('HSE_FORBIDDEN');
+    if (number(existing.version) !== input.version)
+      throw new HseError('HSE_CONFLICT');
+    if (text(existing.status) !== 'planned')
+      throw new HseError('HSE_INVALID', 'INSPECTION_STATE');
+    const values: Record<string, unknown> = {
+      version: input.version + 1,
+      updatedBy: principal.id,
+      updatedAt: new Date().toISOString(),
+    };
+    for (const key of [
+      'type',
+      'plannedAt',
+      'inspectorId',
+      'checklist',
+    ] as const) {
+      if (input[key] !== undefined) values[key] = input[key];
+    }
+    const result = await this.database.repository('hseInspections').updateOne({
+      filter: { id, version: input.version },
+      values: values as never,
+    });
+    if (!result.record) throw new HseError('HSE_CONFLICT');
+    return {
+      ...result.record,
+      checklist: this.jsonList(result.record.checklist),
+    };
+  }
+
+  async transitionInspection(
+    principal: HsePrincipal,
+    id: string,
+    input: HseInspectionTransition,
+    scope: HseScope,
+  ) {
+    const existing = await this.database
+      .repository('hseInspections')
+      .findOne({ filter: { id } });
+    if (!existing) throw new HseError('HSE_NOT_FOUND');
+    const subjectId = await this.resolveSubject(
+      principal,
+      text(existing.subjectId),
+      scope,
+    );
+    if (subjectId && subjectId !== text(existing.subjectId))
+      throw new HseError('HSE_FORBIDDEN');
+    if (number(existing.version) !== input.version)
+      throw new HseError('HSE_CONFLICT');
+    if (!scope.manage) throw new HseError('HSE_FORBIDDEN');
+    if (text(existing.status) !== 'planned')
+      throw new HseError('HSE_INVALID', 'INSPECTION_STATE');
+    const now = new Date().toISOString();
+    const result = await this.database.repository('hseInspections').updateOne({
+      filter: { id, version: input.version },
+      values: {
+        status: 'completed',
+        completedAt: now,
+        findingsCount: input.findingsCount,
+        version: input.version + 1,
+        updatedBy: principal.id,
+        updatedAt: now,
+      } as never,
+    });
+    if (!result.record) throw new HseError('HSE_CONFLICT');
+    return {
+      ...result.record,
+      checklist: this.jsonList(result.record.checklist),
+    };
+  }
+
+  private assertPermitPeriod(validFrom: string, validTo: string) {
+    const from = Date.parse(validFrom);
+    const to = Date.parse(validTo);
+    if (Number.isNaN(from) || Number.isNaN(to) || from >= to)
+      throw new HseError('HSE_INVALID', 'PERMIT_PERIOD_INVALID');
+    return {
+      validFrom: new Date(from).toISOString(),
+      validTo: new Date(to).toISOString(),
+    };
+  }
+
+  private async assertPermitNoFree(
+    subjectId: string,
+    permitNo: string,
+    excludeId?: string,
+  ) {
+    const duplicate = await this.database
+      .repository('hseWorkPermits')
+      .findOne({ filter: { subjectId, permitNo } });
+    if (duplicate && text(duplicate.id) !== excludeId)
+      throw new HseError('HSE_CONFLICT', 'PERMIT_NO_DUPLICATE');
+  }
+
+  private async workPermitRows(
+    principal: HsePrincipal,
+    query: { subjectId?: string; status?: string; type?: string },
+    scope: HseScope,
+  ) {
+    const company = await this.resolveSubject(
+      principal,
+      query.subjectId,
+      scope,
+    );
+    const names = await this.subjectNames(company);
+    let rows = await this.scopedRows('hseWorkPermits', company, 'validTo');
+    if (query.status) rows = rows.filter((row) => row.status === query.status);
+    if (query.type) rows = rows.filter((row) => row.type === query.type);
+    return {
+      rows: rows.map((row) => ({
+        ...row,
+        riskMeasures: this.jsonList(row.riskMeasures),
+        subjectName: names.get(text(row.subjectId)) ?? '',
+      })),
+    };
+  }
+
+  async listWorkPermits(
+    principal: HsePrincipal,
+    query: HseWorkPermitQuery,
+    scope: HseScope,
+  ) {
+    const { rows } = await this.workPermitRows(principal, query, scope);
+    return this.pageRows(rows, query.page, query.pageSize);
+  }
+
+  async createWorkPermit(
+    principal: HsePrincipal,
+    input: HseWorkPermitCreate,
+    scope: HseScope,
+  ) {
+    const subjectId = await this.resolveSubject(
+      principal,
+      input.subjectId,
+      scope,
+      true,
+    );
+    if (!subjectId) throw new HseError('HSE_INVALID', 'SUBJECT_REQUIRED');
+    await this.assertUnit(subjectId, input.unitId);
+    await this.assertPermitNoFree(subjectId, input.permitNo);
+    const period = this.assertPermitPeriod(input.validFrom, input.validTo);
+    const now = new Date().toISOString();
+    let record;
+    try {
+      record = await this.database.repository('hseWorkPermits').createOne({
+        values: {
+          id: randomUUID(),
+          subjectId,
+          unitId: input.unitId ?? null,
+          permitNo: input.permitNo,
+          type: input.type,
+          workDescription: input.workDescription,
+          location: input.location,
+          contractorId: input.contractorId ?? null,
+          // The applicant is always the authenticated creator: accepting an
+          // applicantId from the body would let the creator nominate somebody
+          // else and then approve their own permit.
+          applicantId: principal.id,
+          validFrom: period.validFrom,
+          validTo: period.validTo,
+          riskMeasures: input.riskMeasures,
+          gasTest: input.gasTest ?? null,
+          approverId: null,
+          approvedAt: null,
+          status: 'draft',
+          linkedMaintenanceOrderId: input.linkedMaintenanceOrderId ?? null,
+          version: 1,
+          createdBy: principal.id,
+          updatedBy: principal.id,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+    } catch (error) {
+      // The unique (subjectId, permitNo) index is the last line of defence
+      // against two concurrent creates passing the pre-check above.
+      if (/unique|duplicate|constraint/iu.test(String(error)))
+        throw new HseError('HSE_CONFLICT', 'PERMIT_NO_DUPLICATE');
+      throw error;
+    }
+    return {
+      ...record.record,
+      riskMeasures: this.jsonList(record.record.riskMeasures),
+    };
+  }
+
+  async updateWorkPermit(
+    principal: HsePrincipal,
+    id: string,
+    input: HseWorkPermitUpdate,
+    scope: HseScope,
+  ) {
+    const existing = await this.database
+      .repository('hseWorkPermits')
+      .findOne({ filter: { id } });
+    if (!existing) throw new HseError('HSE_NOT_FOUND');
+    const subjectId = await this.resolveSubject(
+      principal,
+      text(existing.subjectId),
+      scope,
+    );
+    if (subjectId && subjectId !== text(existing.subjectId))
+      throw new HseError('HSE_FORBIDDEN');
+    if (number(existing.version) !== input.version)
+      throw new HseError('HSE_CONFLICT');
+    if (text(existing.status) !== 'draft')
+      throw new HseError('HSE_INVALID', 'PERMIT_STATE');
+    if (input.unitId !== undefined)
+      await this.assertUnit(text(existing.subjectId), input.unitId);
+    const values: Record<string, unknown> = {
+      version: input.version + 1,
+      updatedBy: principal.id,
+      updatedAt: new Date().toISOString(),
+    };
+    if (input.validFrom !== undefined || input.validTo !== undefined) {
+      const current = (value: unknown) =>
+        value instanceof Date ? value.toISOString() : text(value);
+      const period = this.assertPermitPeriod(
+        input.validFrom ?? current(existing.validFrom),
+        input.validTo ?? current(existing.validTo),
+      );
+      values.validFrom = period.validFrom;
+      values.validTo = period.validTo;
+    }
+    for (const key of [
+      'unitId',
+      'workDescription',
+      'location',
+      'contractorId',
+      'riskMeasures',
+      'gasTest',
+      'linkedMaintenanceOrderId',
+    ] as const) {
+      if (input[key] !== undefined) values[key] = input[key];
+    }
+    const result = await this.database.repository('hseWorkPermits').updateOne({
+      filter: { id, version: input.version },
+      values: values as never,
+    });
+    if (!result.record) throw new HseError('HSE_CONFLICT');
+    return {
+      ...result.record,
+      riskMeasures: this.jsonList(result.record.riskMeasures),
+    };
+  }
+
+  async transitionWorkPermit(
+    principal: HsePrincipal,
+    id: string,
+    input: HseWorkPermitTransition,
+    scope: HseScope,
+  ) {
+    const existing = await this.database
+      .repository('hseWorkPermits')
+      .findOne({ filter: { id } });
+    if (!existing) throw new HseError('HSE_NOT_FOUND');
+    const subjectId = await this.resolveSubject(
+      principal,
+      text(existing.subjectId),
+      scope,
+    );
+    if (subjectId && subjectId !== text(existing.subjectId))
+      throw new HseError('HSE_FORBIDDEN');
+    if (number(existing.version) !== input.version)
+      throw new HseError('HSE_CONFLICT');
+    const from = text(existing.status);
+    const now = new Date().toISOString();
+    const values: Record<string, unknown> = {
+      version: input.version + 1,
+      updatedBy: principal.id,
+      updatedAt: now,
+    };
+    let to: string;
+    if (input.action === 'submit') {
+      if (!scope.manage) throw new HseError('HSE_FORBIDDEN');
+      if (!['draft', 'rejected'].includes(from))
+        throw new HseError('HSE_INVALID', 'PERMIT_STATE');
+      to = 'submitted';
+      values.status = to;
+      values.approverId = null;
+      values.approvedAt = null;
+    } else if (input.action === 'approve') {
+      if (!scope.approve) throw new HseError('HSE_FORBIDDEN');
+      if (from !== 'submitted')
+        throw new HseError('HSE_INVALID', 'PERMIT_STATE');
+      if (text(existing.applicantId) === principal.id)
+        throw new HseError('HSE_INVALID', 'PERMIT_SELF_APPROVAL');
+      to = 'approved';
+      values.status = to;
+      values.approverId = principal.id;
+      values.approvedAt = now;
+    } else if (input.action === 'reject') {
+      if (!scope.approve) throw new HseError('HSE_FORBIDDEN');
+      if (from !== 'submitted')
+        throw new HseError('HSE_INVALID', 'PERMIT_STATE');
+      const note = (input.note ?? '').trim();
+      if (!note) throw new HseError('HSE_INVALID', 'REJECT_REASON_REQUIRED');
+      to = 'rejected';
+      values.status = to;
+      values.approverId = principal.id;
+      values.approvedAt = null;
+    } else {
+      if (!scope.manage && !scope.approve) throw new HseError('HSE_FORBIDDEN');
+      if (from !== 'approved')
+        throw new HseError('HSE_INVALID', 'PERMIT_STATE');
+      to = 'closed';
+      values.status = to;
+    }
+    const result = await this.database.repository('hseWorkPermits').updateOne({
+      filter: { id, version: input.version },
+      values: values as never,
+    });
+    if (!result.record) throw new HseError('HSE_CONFLICT');
+    return {
+      ...result.record,
+      riskMeasures: this.jsonList(result.record.riskMeasures),
+    };
+  }
+
+  private async trainingRecordRows(
+    principal: HsePrincipal,
+    query: { subjectId?: string; status?: string; courseType?: string },
+    scope: HseScope,
+  ) {
+    const company = await this.resolveSubject(
+      principal,
+      query.subjectId,
+      scope,
+    );
+    const names = await this.subjectNames(company);
+    let rows = await this.scopedRows(
+      'hseTrainingRecords',
+      company,
+      'completedAt',
+    );
+    if (query.status) rows = rows.filter((row) => row.status === query.status);
+    if (query.courseType)
+      rows = rows.filter((row) => row.courseType === query.courseType);
+    const personIds = [
+      ...new Set(
+        rows
+          .map((row) => text(row.personId))
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const personNames = await this.employeeNames(company, personIds);
+    return {
+      rows: rows.map((row) => ({
+        ...row,
+        subjectName: names.get(text(row.subjectId)) ?? '',
+        personName: personNames.get(text(row.personId)) ?? '',
+      })),
+    };
+  }
+
+  async listTrainingRecords(
+    principal: HsePrincipal,
+    query: HseTrainingRecordQuery,
+    scope: HseScope,
+  ) {
+    const { rows } = await this.trainingRecordRows(principal, query, scope);
+    return this.pageRows(rows, query.page, query.pageSize);
+  }
+
+  async createTrainingRecord(
+    principal: HsePrincipal,
+    input: HseTrainingRecordCreate,
+    scope: HseScope,
+  ) {
+    const subjectId = await this.resolveSubject(
+      principal,
+      input.subjectId,
+      scope,
+      true,
+    );
+    if (!subjectId) throw new HseError('HSE_INVALID', 'SUBJECT_REQUIRED');
+    await this.assertPerson(subjectId, input.personId);
+    const now = new Date().toISOString();
+    const record = await this.database
+      .repository('hseTrainingRecords')
+      .createOne({
+        values: {
+          id: randomUUID(),
+          subjectId,
+          personId: input.personId,
+          courseType: input.courseType,
+          courseName: input.courseName,
+          completedAt: input.completedAt,
+          score: input.score ?? null,
+          certificateId: input.certificateId ?? null,
+          status: input.status,
+          version: 1,
+          createdBy: principal.id,
+          updatedBy: principal.id,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+    return record.record;
+  }
+
+  async updateTrainingRecord(
+    principal: HsePrincipal,
+    id: string,
+    input: HseTrainingRecordUpdate,
+    scope: HseScope,
+  ) {
+    const existing = await this.database
+      .repository('hseTrainingRecords')
+      .findOne({ filter: { id } });
+    if (!existing) throw new HseError('HSE_NOT_FOUND');
+    const subjectId = await this.resolveSubject(
+      principal,
+      text(existing.subjectId),
+      scope,
+    );
+    if (subjectId && subjectId !== text(existing.subjectId))
+      throw new HseError('HSE_FORBIDDEN');
+    if (number(existing.version) !== input.version)
+      throw new HseError('HSE_CONFLICT');
+    const values: Record<string, unknown> = {
+      version: input.version + 1,
+      updatedBy: principal.id,
+      updatedAt: new Date().toISOString(),
+    };
+    for (const key of [
+      'courseType',
+      'courseName',
+      'completedAt',
+      'score',
+      'certificateId',
+      'status',
+    ] as const) {
+      if (input[key] !== undefined) values[key] = input[key];
+    }
+    const result = await this.database
+      .repository('hseTrainingRecords')
+      .updateOne({
+        filter: { id, version: input.version },
+        values: values as never,
+      });
+    if (!result.record) throw new HseError('HSE_CONFLICT');
+    return result.record;
+  }
+
+  private async actionRows(
+    principal: HsePrincipal,
+    query: { subjectId?: string; status?: string; sourceType?: string },
+    scope: HseScope,
+  ) {
+    const company = await this.resolveSubject(
+      principal,
+      query.subjectId,
+      scope,
+    );
+    const names = await this.subjectNames(company);
+    let rows = await this.scopedRows('hseActions', company, 'dueAt');
+    if (query.status) rows = rows.filter((row) => row.status === query.status);
+    if (query.sourceType)
+      rows = rows.filter((row) => row.sourceType === query.sourceType);
+    return {
+      rows: rows.map((row) => ({
+        ...row,
+        subjectName: names.get(text(row.subjectId)) ?? '',
+      })),
+    };
+  }
+
+  async listActions(
+    principal: HsePrincipal,
+    query: HseActionQuery,
+    scope: HseScope,
+  ) {
+    const { rows } = await this.actionRows(principal, query, scope);
+    return this.pageRows(rows, query.page, query.pageSize);
+  }
+
+  async createAction(
+    principal: HsePrincipal,
+    input: HseActionCreate,
+    scope: HseScope,
+  ) {
+    const subjectId = await this.resolveSubject(
+      principal,
+      input.subjectId,
+      scope,
+      true,
+    );
+    if (!subjectId) throw new HseError('HSE_INVALID', 'SUBJECT_REQUIRED');
+    await this.assertUnit(subjectId, input.unitId);
+    await this.assertOwner(subjectId, input.ownerId);
+    const now = new Date().toISOString();
+    const record = await this.database.repository('hseActions').createOne({
+      values: {
+        id: randomUUID(),
+        subjectId,
+        unitId: input.unitId ?? null,
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        description: input.description,
+        ownerId: input.ownerId ?? null,
+        ownerName: input.ownerName,
+        dueAt: input.dueAt ?? null,
+        status: 'open',
+        completedAt: null,
+        verifiedBy: null,
+        verifiedAt: null,
+        version: 1,
+        createdBy: principal.id,
+        updatedBy: principal.id,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    return record.record;
+  }
+
+  async updateAction(
+    principal: HsePrincipal,
+    id: string,
+    input: HseActionUpdate,
+    scope: HseScope,
+  ) {
+    const existing = await this.database
+      .repository('hseActions')
+      .findOne({ filter: { id } });
+    if (!existing) throw new HseError('HSE_NOT_FOUND');
+    const subjectId = await this.resolveSubject(
+      principal,
+      text(existing.subjectId),
+      scope,
+    );
+    if (subjectId && subjectId !== text(existing.subjectId))
+      throw new HseError('HSE_FORBIDDEN');
+    if (number(existing.version) !== input.version)
+      throw new HseError('HSE_CONFLICT');
+    if (text(existing.status) !== 'open')
+      throw new HseError('HSE_INVALID', 'ACTION_LOCKED');
+    if (input.unitId !== undefined)
+      await this.assertUnit(text(existing.subjectId), input.unitId);
+    if (input.ownerId !== undefined)
+      await this.assertOwner(text(existing.subjectId), input.ownerId);
+    const values: Record<string, unknown> = {
+      version: input.version + 1,
+      updatedBy: principal.id,
+      updatedAt: new Date().toISOString(),
+    };
+    for (const key of [
+      'unitId',
+      'description',
+      'ownerId',
+      'ownerName',
+      'dueAt',
+    ] as const) {
+      if (input[key] !== undefined) values[key] = input[key];
+    }
+    const result = await this.database.repository('hseActions').updateOne({
+      filter: { id, version: input.version },
+      values: values as never,
+    });
+    if (!result.record) throw new HseError('HSE_CONFLICT');
+    return result.record;
+  }
+
+  async transitionAction(
+    principal: HsePrincipal,
+    id: string,
+    input: HseActionTransition,
+    scope: HseScope,
+  ) {
+    const existing = await this.database
+      .repository('hseActions')
+      .findOne({ filter: { id } });
+    if (!existing) throw new HseError('HSE_NOT_FOUND');
+    const subjectId = await this.resolveSubject(
+      principal,
+      text(existing.subjectId),
+      scope,
+    );
+    if (subjectId && subjectId !== text(existing.subjectId))
+      throw new HseError('HSE_FORBIDDEN');
+    if (number(existing.version) !== input.version)
+      throw new HseError('HSE_CONFLICT');
+    const from = text(existing.status);
+    const now = new Date().toISOString();
+    const values: Record<string, unknown> = {
+      version: input.version + 1,
+      updatedBy: principal.id,
+      updatedAt: now,
+    };
+    if (input.action === 'complete') {
+      if (!scope.manage) throw new HseError('HSE_FORBIDDEN');
+      if (from !== 'open') throw new HseError('HSE_INVALID', 'ACTION_STATE');
+      values.status = 'completed';
+      values.completedAt = now;
+    } else {
+      if (!scope.approve) throw new HseError('HSE_FORBIDDEN');
+      if (from !== 'completed')
+        throw new HseError('HSE_INVALID', 'ACTION_STATE');
+      // hseActions has no completedBy column; the last writer at completion
+      // time is the completer, and a verifier cannot verify their own work.
+      if (text(existing.updatedBy) === principal.id)
+        throw new HseError('HSE_INVALID', 'SELF_VERIFICATION');
+      values.status = 'verified';
+      values.verifiedBy = principal.id;
+      values.verifiedAt = now;
+    }
+    const result = await this.database.repository('hseActions').updateOne({
+      filter: { id, version: input.version },
+      values: values as never,
+    });
+    if (!result.record) throw new HseError('HSE_CONFLICT');
+    return result.record;
   }
 
   async operationsSummary(principal: HsePrincipal, scope: HseScope) {

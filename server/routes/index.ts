@@ -11,6 +11,7 @@ import { requisitionsRequestRoutes } from './requisitions.js';
 import { purchaseReferenceRoutes } from './purchase-references.js';
 import { materialSourceRoutes } from './material-sources.js';
 import { salesCustomerRoutes } from './sales-customers.js';
+import { salesLedgerRoutes } from './sales-ledger.js';
 import { tradeOrderRoutes } from './trade-orders.js';
 import { executionSettingsRoutes } from './execution-settings.js';
 import { warehouseRoutes } from './warehouse.js';
@@ -55,6 +56,7 @@ const routes: readonly AppRouteContribution<Application>[] = [
   purchaseReferenceRoutes,
   materialSourceRoutes,
   salesCustomerRoutes,
+  salesLedgerRoutes,
   tradeOrderRoutes,
   executionSettingsRoutes,
   warehouseRoutes,

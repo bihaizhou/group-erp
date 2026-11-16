@@ -9,6 +9,8 @@ import {
   Users,
   SlidersHorizontal,
   LayoutDashboard,
+  Tags,
+  Wallet,
 } from 'lucide-react';
 import type { AppClientRouteDefinition as Route } from '@nocobase/app-client/plugins';
 import { executionPages } from './model.js';
@@ -182,6 +184,24 @@ export const salesRoutes: Route[] = [
         companyScope: 'sales/orders/companies',
         navigation: { title: 'dashboard.menu', icon: LayoutDashboard },
         componentLoader: () => import('./sales-overview.js'),
+      },
+      {
+        name: 'sales-price-lists',
+        path: '/functions/sales/prices',
+        auth: 'required',
+        authz: authz('sales-price-lists'),
+        companyScope: 'sales/orders/companies',
+        navigation: { title: 'execution.priceLists.title', icon: Tags },
+        componentLoader: () => import('./price-lists.js'),
+      },
+      {
+        name: 'sales-receivables',
+        path: '/functions/sales/receivables',
+        auth: 'required',
+        authz: authz('sales-receivables'),
+        companyScope: 'sales/orders/companies',
+        navigation: { title: 'execution.receivables.title', icon: Wallet },
+        componentLoader: () => import('./receivables.js'),
       },
       {
         name: 'sales-customers',

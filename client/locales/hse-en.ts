@@ -13,6 +13,18 @@ export const hse = {
   certificates: 'Certificates',
   certificatesDescription:
     'Company licences and personnel certificates with expiry reminders.',
+  inspections: 'Inspections',
+  inspectionsDescription:
+    'Plan inspections and record the number of findings when they are completed.',
+  workPermits: 'Work permits',
+  workPermitsDescription:
+    'High-risk work permits approved by someone other than the applicant.',
+  trainingRecords: 'Training records',
+  trainingRecordsDescription:
+    'Employee HSE training, scores and linked certificates.',
+  actions: 'Corrective actions',
+  actionsDescription:
+    'Actions raised from incidents, hazards and inspections, verified by another approver.',
   createIncident: 'Record incident',
   createIncidentDescription:
     'Record the facts first; investigation and corrective actions continue in the incident detail.',
@@ -22,6 +34,19 @@ export const hse = {
   createCertificate: 'Record certificate',
   createCertificateDescription:
     'Capture the key fields first; upload the scan later.',
+  createInspection: 'Record inspection',
+  createInspectionDescription:
+    'Plan the inspection and checklist; record findings when it is completed.',
+  createWorkPermit: 'Record work permit',
+  createWorkPermitDescription:
+    'Work scope, risk measures and validity are the basis for approval.',
+  createTrainingRecord: 'Record training',
+  createTrainingRecordDescription:
+    'Capture the course, completion date, score and optional certificate.',
+  createAction: 'Record corrective action',
+  createActionDescription:
+    'Capture the source, owner and due date; another approver verifies completion.',
+  edit: 'Edit',
   viewAll: 'View all',
   optional: 'Not specified',
   detail: 'Details',
@@ -46,6 +71,10 @@ export const hse = {
   clearFilters: 'Clear filters',
   emptyHazards: 'No hazards recorded.',
   emptyCertificates: 'No certificates recorded.',
+  emptyInspections: 'No inspections recorded.',
+  emptyWorkPermits: 'No work permits recorded.',
+  emptyTrainingRecords: 'No training records.',
+  emptyActions: 'No corrective actions.',
   recentIncidents: 'Recent incidents',
   recentIncidentsDescription: 'Newest first.',
   recentHazards: 'Recent hazards',
@@ -71,6 +100,12 @@ export const hse = {
     'A different approver verifies the correction; the submitter cannot self-verify.',
   certificateTransitionDescription:
     'Renewal, revocation and reinstatement are kept in the certificate trail.',
+  inspectionTransitionDescription:
+    'Completing records the finding count; completed inspections are read-only.',
+  permitTransitionDescription:
+    'After submission a different approver with approval permission grants the permit.',
+  actionTransitionDescription:
+    'The owner completes the action; a different approver verifies it.',
   allLevel: 'All levels',
   allStatus: 'All statuses',
   allType: 'All types',
@@ -87,6 +122,7 @@ export const hse = {
     close: 'Close',
   },
   selectHolder: 'Select holder',
+  selectPerson: 'Select person',
   fields: {
     incidentNo: 'Incident no.',
     occurredAt: 'Occurred at',
@@ -123,6 +159,31 @@ export const hse = {
     correctiveActions: 'Corrective and preventive actions',
     note: 'Handling note',
     newExpiresAt: 'New expiry date',
+    plannedAt: 'Planned date',
+    completedAt: 'Completed at',
+    checklist: 'Checklist (one item per line)',
+    findingsCount: 'Findings',
+    inspectorName: 'Inspector',
+    permitNo: 'Permit no.',
+    workDescription: 'Work description',
+    validFrom: 'Valid from',
+    validTo: 'Valid to',
+    riskMeasures: 'Risk control measures (one per line)',
+    gasTest: 'Gas test',
+    applicant: 'Applicant',
+    approver: 'Approver',
+    approvedAt: 'Approved at',
+    contractor: 'Contractor',
+    linkedMaintenanceOrderId: 'Linked maintenance order',
+    person: 'Trainee',
+    courseType: 'Course type',
+    courseName: 'Course name',
+    score: 'Score',
+    certificateId: 'Linked certificate',
+    sourceType: 'Source type',
+    sourceId: 'Source record',
+    verifiedBy: 'Verified by',
+    verifiedAt: 'Verified at',
   },
   metrics: {
     incidentsOpen: 'Open incidents',
@@ -146,6 +207,13 @@ export const hse = {
     expiring: 'Expiring',
     expired: 'Expired',
     revoked: 'Revoked',
+    planned: 'Planned',
+    completed: 'Completed',
+    draft: 'Draft',
+    submitted: 'Submitted',
+    approved: 'Approved',
+    rejected: 'Rejected',
+    verified: 'Verified',
   },
   incidentType: {
     injury: 'Injury',
@@ -197,6 +265,42 @@ export const hse = {
     revoke: 'Revoke',
     reinstate: 'Reinstate',
     update: 'Updated',
+    complete: 'Complete',
+    approve: 'Approve',
+    reject: 'Reject',
+    submitApproval: 'Submit for approval',
+    closePermit: 'Close permit',
+  },
+  inspectionType: {
+    routine: 'Routine',
+    special: 'Special',
+    comprehensive: 'Comprehensive',
+    follow_up: 'Follow-up',
+  },
+  workPermitType: {
+    hot_work: 'Hot work',
+    confined_space: 'Confined space',
+    work_at_height: 'Work at height',
+    lifting: 'Lifting',
+    electrical: 'Temporary power',
+    excavation: 'Excavation',
+    other: 'Other',
+  },
+  trainingCourseType: {
+    safety: 'Work safety',
+    fire: 'Fire safety',
+    occupational: 'Occupational health',
+    emergency: 'Emergency management',
+    special_operation: 'Special operation',
+    other: 'Other',
+  },
+  actionSource: {
+    inspection: 'Inspection',
+    hazard: 'Hazard',
+    incident: 'Incident',
+    permit: 'Work permit',
+    training: 'Training record',
+    other: 'Other',
   },
   holderType: {
     company: 'Company',
@@ -234,5 +338,19 @@ export const hse = {
     EXPIRES_AT_REQUIRED: 'A new expiry date is required',
     EXPIRY_NOT_EXTENDED:
       'The new expiry date must be later than the current expiry date',
+    INSPECTION_STATE: 'The inspection status does not allow this action',
+    PERMIT_STATE: 'The work permit status does not allow this action',
+    PERMIT_SELF_APPROVAL: 'You cannot approve your own work permit',
+    PERMIT_PERIOD_INVALID: 'Valid-to must be later than valid-from',
+    PERMIT_NO_DUPLICATE:
+      'A work permit with this number already exists for this company',
+    REJECT_REASON_REQUIRED: 'A reason is required when rejecting',
+    PERSON_REQUIRED: 'Select the trainee',
+    PERSON_NOT_FOUND: 'Person not found',
+    PERSON_NOT_IN_COMPANY:
+      'The person does not belong to this company or is not active',
+    ACTION_STATE: 'The corrective action status does not allow this action',
+    ACTION_LOCKED:
+      'The corrective action has entered its workflow and cannot be changed',
   },
 };
