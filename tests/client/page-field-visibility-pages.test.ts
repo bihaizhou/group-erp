@@ -81,6 +81,54 @@ describe('page field visibility registry', () => {
     );
   });
 
+  it('covers the supplier create page and its extra note field', () => {
+    expect(pageFieldVisibilityPageKeys.has('procurement-suppliers-new')).toBe(
+      true,
+    );
+    expect(pageFieldVisibilityFields['procurement-suppliers-new']).toEqual([
+      'procurement.supplier.base.code',
+      'procurement.supplier.base.name',
+      'procurement.supplier.base.registrationCode',
+      'procurement.supplier.base.notes',
+    ]);
+    expect(pageFieldVisibilityExtraFields['procurement-suppliers-new']).toEqual(
+      [
+        expect.objectContaining({
+          resource: 'procurement.supplier.base',
+          field: 'notes',
+          titleKey: 'procurement.notes',
+        }),
+      ],
+    );
+    expect(
+      pageFieldVisibilityRequiredFields['procurement-suppliers-new'],
+    ).toEqual([
+      'procurement.supplier.base.code',
+      'procurement.supplier.base.name',
+    ]);
+  });
+
+  it('covers the sales customer create page that reuses the partner form', () => {
+    expect(pageFieldVisibilityPageKeys.has('sales-customers-new')).toBe(true);
+    expect(pageFieldVisibilityFields['sales-customers-new']).toEqual([
+      'sales.customer.code',
+      'sales.customer.name',
+      'sales.customer.registrationCode',
+      'sales.customer.notes',
+    ]);
+    expect(pageFieldVisibilityExtraFields['sales-customers-new']).toEqual([
+      expect.objectContaining({
+        resource: 'sales.customer',
+        field: 'notes',
+        titleKey: 'procurement.notes',
+      }),
+    ]);
+    expect(pageFieldVisibilityRequiredFields['sales-customers-new']).toEqual([
+      'sales.customer.code',
+      'sales.customer.name',
+    ]);
+  });
+
   it('covers every people create page from the shared field model', () => {
     for (const [kind, resource] of [
       ['employees', 'employee'],

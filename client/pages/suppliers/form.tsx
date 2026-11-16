@@ -28,6 +28,7 @@ import {
   FieldError,
 } from '#components/ui/field';
 import { randomUuid } from '#lib/random-id';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { useDiscardConfirm } from '../people/use-discard-confirm.js';
 import { useFieldAccess } from '../../hooks/use-field-access.js';
 import {
@@ -177,6 +178,13 @@ export default function SupplierForm() {
     <SupplierFormBody
       key={`${mode}-${partnerId ?? subjectId}`}
       mode={mode}
+      pageKey={
+        mode === 'new'
+          ? location.pathname.includes('/sales/customers')
+            ? 'sales-customers-new'
+            : 'procurement-suppliers-new'
+          : undefined
+      }
       row={mode === 'new' ? undefined : row}
       subjectId={subjectId}
       partnerId={partnerId ?? ''}
@@ -195,6 +203,7 @@ export default function SupplierForm() {
 }
 function SupplierFormBody({
   mode,
+  pageKey,
   row,
   subjectId,
   partnerId,
@@ -202,6 +211,7 @@ function SupplierFormBody({
   name,
 }: {
   mode: Mode;
+  pageKey?: string;
   row?: Availability | Identity | Applicability;
   subjectId: string;
   partnerId: string;
@@ -453,50 +463,58 @@ function SupplierFormBody({
     mode === 'scope' &&
       Boolean(draft.regionIds.length || draft.subjectIds.length),
   );
+  const pageFields = usePageFieldVisibility(pageKey ?? '');
+  const pageResource =
+    pageKey === 'sales-customers-new'
+      ? 'sales.customer'
+      : 'procurement.supplier.base';
   const field = (
     key: 'code' | 'name' | 'registrationCode' | 'notes' | 'reason',
     required = false,
-  ) => (
-    <Field data-invalid={Boolean(errors[key])}>
-      <FieldLabel htmlFor={`supplier-${key}`}>
-        {t(`procurement.${key}`)}
-        {required && <span aria-hidden='true'> *</span>}
-      </FieldLabel>
-      {key === 'notes' || key === 'reason' ? (
-        <Textarea
-          id={`supplier-${key}`}
-          aria-required={required}
-          aria-invalid={Boolean(errors[key])}
-          aria-describedby={errors[key] ? `supplier-${key}-error` : undefined}
-          value={draft[key]}
-          onChange={(e) => change(key, e.target.value)}
-          maxLength={key === 'notes' ? 2000 : 1000}
-          disabled={busy || loadingLatest}
-        />
-      ) : (
-        <Input
-          id={`supplier-${key}`}
-          aria-required={required}
-          aria-invalid={Boolean(errors[key])}
-          aria-describedby={errors[key] ? `supplier-${key}-error` : undefined}
-          value={draft[key]}
-          onChange={(e) => change(key, e.target.value)}
-          maxLength={key === 'code' ? 64 : key === 'name' ? 200 : 128}
-          disabled={
-            busy ||
-            loadingLatest ||
-            (key === 'registrationCode' && registrationLocked)
-          }
-        />
-      )}
-      {key === 'reason' && (
-        <FieldDescription>{t('procurement.reasonHint')}</FieldDescription>
-      )}
-      {errors[key] && (
-        <FieldError id={`supplier-${key}-error`}>{errors[key]}</FieldError>
-      )}
-    </Field>
-  );
+  ) => {
+    if (!pageFields.visible(pageResource, key)) return null;
+    return (
+      <Field data-invalid={Boolean(errors[key])}>
+        <FieldLabel htmlFor={`supplier-${key}`}>
+          {t(`procurement.${key}`)}
+          {required && <span aria-hidden='true'> *</span>}
+        </FieldLabel>
+        {key === 'notes' || key === 'reason' ? (
+          <Textarea
+            id={`supplier-${key}`}
+            aria-required={required}
+            aria-invalid={Boolean(errors[key])}
+            aria-describedby={errors[key] ? `supplier-${key}-error` : undefined}
+            value={draft[key]}
+            onChange={(e) => change(key, e.target.value)}
+            maxLength={key === 'notes' ? 2000 : 1000}
+            disabled={busy || loadingLatest}
+          />
+        ) : (
+          <Input
+            id={`supplier-${key}`}
+            aria-required={required}
+            aria-invalid={Boolean(errors[key])}
+            aria-describedby={errors[key] ? `supplier-${key}-error` : undefined}
+            value={draft[key]}
+            onChange={(e) => change(key, e.target.value)}
+            maxLength={key === 'code' ? 64 : key === 'name' ? 200 : 128}
+            disabled={
+              busy ||
+              loadingLatest ||
+              (key === 'registrationCode' && registrationLocked)
+            }
+          />
+        )}
+        {key === 'reason' && (
+          <FieldDescription>{t('procurement.reasonHint')}</FieldDescription>
+        )}
+        {errors[key] && (
+          <FieldError id={`supplier-${key}-error`}>{errors[key]}</FieldError>
+        )}
+      </Field>
+    );
+  };
   const directory = location.pathname.includes('/directory/');
   return (
     <>

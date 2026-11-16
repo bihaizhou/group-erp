@@ -29,6 +29,8 @@ export const pageFieldVisibilityPageKeys: ReadonlySet<string> = new Set([
     .map((kind) => `${materialPageId(kind)}-new`),
   'sales-orders-new',
   'procurement-orders-new',
+  'procurement-suppliers-new',
+  'sales-customers-new',
   'warehouse-inbounds-new',
   'warehouse-outbounds-new',
   'warehouse-transfers-new',
@@ -89,6 +91,18 @@ const executionDocumentFields: Record<string, readonly string[]> = {
 export const pageFieldVisibilityFields: Readonly<
   Record<string, readonly string[]>
 > = {
+  'procurement-suppliers-new': [
+    'procurement.supplier.base.code',
+    'procurement.supplier.base.name',
+    'procurement.supplier.base.registrationCode',
+    'procurement.supplier.base.notes',
+  ],
+  'sales-customers-new': [
+    'sales.customer.code',
+    'sales.customer.name',
+    'sales.customer.registrationCode',
+    'sales.customer.notes',
+  ],
   'procurement-requests-new': [
     'purchase.request.requesterEmployeeId',
     'purchase.request.requestingUnitId',
@@ -214,6 +228,20 @@ export const pageFieldVisibilityExtraFields: Readonly<
         })),
     ]),
   ),
+  'procurement-suppliers-new': [
+    {
+      resource: 'procurement.supplier.base',
+      field: 'notes',
+      titleKey: 'procurement.notes',
+    },
+  ],
+  'sales-customers-new': [
+    {
+      resource: 'sales.customer',
+      field: 'notes',
+      titleKey: 'procurement.notes',
+    },
+  ],
   ...Object.fromEntries(
     peopleKinds
       .filter((kind) => peopleFields[kind].length > 0)
@@ -232,6 +260,11 @@ export const pageFieldVisibilityExtraFields: Readonly<
 export const pageFieldVisibilityRequiredFields: Readonly<
   Record<string, readonly string[]>
 > = {
+  'procurement-suppliers-new': [
+    'procurement.supplier.base.code',
+    'procurement.supplier.base.name',
+  ],
+  'sales-customers-new': ['sales.customer.code', 'sales.customer.name'],
   'procurement-requests-new': [
     'purchase.request.requesterEmployeeId',
     'purchase.request.requestingUnitId',
