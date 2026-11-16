@@ -231,6 +231,33 @@ describe('page permission navigation projection', () => {
     ).toEqual(result);
   });
 
+  it('labels edit subpages as edit when the record id is the last segment', () => {
+    const { routes } = resolveAppClientContributions([
+      {
+        packageName: 'edit-app',
+        source: 'application',
+        routes: defineAppRoutes([
+          {
+            name: 'projects',
+            path: '/projects',
+            navigation: { title: 'Projects' },
+            authz: resource('projects'),
+            componentLoader,
+            children: [
+              { name: 'projectEdit', path: 'edit/:id', componentLoader },
+              { name: 'projectDetail', path: ':id', componentLoader },
+            ],
+          },
+        ]),
+      },
+    ]);
+    const result = pagePermissionNavigation(routes, {}, () => 'Unnamed', text);
+    expect(result[0]?.children?.map((node) => node.label)).toEqual([
+      'Projects · permissionGuide.editPage',
+      'Projects · permissionGuide.detailPage',
+    ]);
+  });
+
   it('renders single-level menus at a single level without inventing groups', () => {
     const { routes } = resolveAppClientContributions([
       {

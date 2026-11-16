@@ -55,7 +55,7 @@ const enUS = {
       'Every page is configured through its fields: open a page and tick "Visible" or "Writable" per field; unticked fields stay hidden. Back-office permissions live in the Administration tab. Save once.',
     pages: 'Pages & Fields',
     pageHint:
-      'Open a page and tick permissions per field: "Writable" implies "Visible", unticking "Writable" falls back to "Visible"; unticked means hidden. A green dot marks pages with field settings.',
+      'Tick the box on the left to allow access; click the page name to configure fields: "Writable" implies "Visible", unticking it falls back to "Visible"; unticked means hidden. New, edit and detail pages follow their parent page and cannot be ticked separately. A green dot marks pages with field settings.',
     admin: 'Administration',
     adminHint: 'Manage roles, default access, users and account security.',
     saveHint:

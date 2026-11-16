@@ -115,10 +115,10 @@ export function pagePermissionNavigation(
   collectPaths(routes);
   const seen = new Set<string>();
   const childKind = (route: AppClientRegisteredRoute): string | undefined => {
-    const segment = route.path.split('/').filter(Boolean).pop() ?? '';
-    if (segment === 'new') return 'newPage';
-    if (segment === 'edit' || segment.startsWith('edit/')) return 'editPage';
-    if (segment.startsWith(':')) return 'detailPage';
+    const segments = route.path.split('/').filter(Boolean);
+    if (segments.includes('new')) return 'newPage';
+    if (segments.includes('edit')) return 'editPage';
+    if (segments.some((segment) => segment.startsWith(':'))) return 'detailPage';
     return undefined;
   };
   const visit = (
