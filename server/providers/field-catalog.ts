@@ -22,6 +22,14 @@ export interface FieldCatalogResource {
    * automatically, so the permission editor stays in sync with the page.
    */
   readonly only?: readonly string[];
+  /**
+   * Append every other non-system, non-relation field even without a UI
+   * title. Use this for collections whose columns are generated from the
+   * database and therefore carry no title metadata; `exclude` must name the
+   * structural foreign keys and governance columns that should stay hidden.
+   * New columns then appear in the permission editor without a code change.
+   */
+  readonly complete?: boolean;
   /** Fields for pages without a backing collection (dashboards, settings). */
   readonly manual?: readonly { field: string; titleKey: string }[];
   /** Localized titles for known fields; other fields keep their column name. */
@@ -39,6 +47,8 @@ export interface FieldCatalogResource {
    * to false so every offered field drops the write option.
    */
   readonly manualWritable?: boolean;
+  /** Whole resource is read-only (audit history); every field drops write. */
+  readonly readOnly?: boolean;
 }
 
 export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
@@ -687,12 +697,15 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   },
   {
     resource: 'hse.inspection',
+    exclude: ['subjectId'],
+    complete: true,
     collection: 'hseInspections',
     readonlyFields: ['status'],
     titleKey: 'hse.inspections',
     descriptionKey: 'fieldPermission.description',
     only: [
       'type',
+      'unitId',
       'plannedAt',
       'inspectorId',
       'checklist',
@@ -702,6 +715,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
     ],
     labels: {
       type: 'hse.fields.type',
+      unitId: 'hse.fields.unit',
       plannedAt: 'hse.fields.plannedAt',
       inspectorId: 'hse.fields.inspectorName',
       checklist: 'hse.fields.checklist',
@@ -712,6 +726,8 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   },
   {
     resource: 'hse.workPermit',
+    exclude: ['subjectId'],
+    complete: true,
     collection: 'hseWorkPermits',
     readonlyFields: ['status', 'permitNo'],
     titleKey: 'hse.workPermits',
@@ -719,6 +735,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
     only: [
       'permitNo',
       'type',
+      'unitId',
       'workDescription',
       'location',
       'contractorId',
@@ -734,6 +751,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
     ],
     labels: {
       permitNo: 'hse.fields.permitNo',
+      unitId: 'hse.fields.unit',
       applicantId: 'hse.fields.applicant',
       type: 'hse.fields.type',
       workDescription: 'hse.fields.workDescription',
@@ -751,6 +769,8 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   },
   {
     resource: 'hse.trainingRecord',
+    exclude: ['subjectId'],
+    complete: true,
     collection: 'hseTrainingRecords',
     readonlyFields: ['status'],
     titleKey: 'hse.trainingRecords',
@@ -776,6 +796,8 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   },
   {
     resource: 'hse.action',
+    exclude: ['subjectId'],
+    complete: true,
     collection: 'hseActions',
     readonlyFields: ['status', 'verifiedBy', 'verifiedAt'],
     titleKey: 'hse.actions',
@@ -1384,6 +1406,67 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
     },
   },
   {
+    resource: 'sales.priceList',
+    collection: 'salesPriceLists',
+    complete: true,
+    exclude: ['subjectId'],
+    titleKey: 'execution.priceLists.title',
+    descriptionKey: 'fieldPermission.description',
+    only: [
+      'customerId',
+      'skuId',
+      'unitPrice',
+      'currency',
+      'effectiveFrom',
+      'effectiveTo',
+      'status',
+      'note',
+    ],
+    labels: {
+      customerId: 'execution.priceLists.customer',
+      skuId: 'execution.priceLists.material',
+      unitPrice: 'execution.priceLists.unitPrice',
+      currency: 'execution.priceLists.currency',
+      effectiveFrom: 'execution.priceLists.effectiveFrom',
+      effectiveTo: 'execution.priceLists.effectiveTo',
+      status: 'execution.priceLists.status',
+      note: 'execution.priceLists.note',
+    },
+  },
+  {
+    resource: 'sales.receivable',
+    collection: 'salesReceivables',
+    complete: true,
+    exclude: ['subjectId', 'orderLineId'],
+    readonlyFields: ['amount', 'status'],
+    titleKey: 'execution.receivables.title',
+    descriptionKey: 'fieldPermission.description',
+    only: [
+      'customerId',
+      'orderId',
+      'documentId',
+      'amount',
+      'currency',
+      'status',
+      'dueDate',
+      'note',
+    ],
+    labels: {
+      customerId: 'execution.receivables.customer',
+      orderId: 'execution.receivables.order',
+      documentId: 'execution.receivables.document',
+      amount: 'execution.receivables.amount',
+      currency: 'execution.currency',
+      status: 'execution.receivables.status',
+      dueDate: 'execution.receivables.dueDate',
+      note: 'execution.receivables.note',
+    },
+    computed: [
+      { field: 'paid', titleKey: 'execution.receivables.paid' },
+      { field: 'outstanding', titleKey: 'execution.receivables.outstanding' },
+    ],
+  },
+  {
     resource: 'procurement.supplier.base',
     collection: 'businessPartners',
     readonlyFields: ['status'],
@@ -1554,6 +1637,208 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
     ],
   },
   {
+    resource: 'organization.overview',
+    titleKey: 'org.overview',
+    descriptionKey: 'fieldPermission.description',
+    manualWritable: false,
+    manual: [
+      { field: 'subjects', titleKey: 'org.subjects' },
+      { field: 'units', titleKey: 'org.units' },
+      { field: 'positions', titleKey: 'org.positions' },
+    ],
+  },
+  {
+    resource: 'organization.subject',
+    collection: 'orgSubjects',
+    complete: true,
+    titleKey: 'org.subjects',
+    descriptionKey: 'fieldPermission.description',
+    only: [
+      'name',
+      'code',
+      'shortName',
+      'type',
+      'parentId',
+      'sectorId',
+      'regionId',
+      'registrationCountry',
+      'registrationNumber',
+      'status',
+      'sortOrder',
+      'notes',
+    ],
+    labels: {
+      name: 'org.fields.name',
+      code: 'org.fields.code',
+      shortName: 'org.fields.shortName',
+      type: 'org.fields.type',
+      parentId: 'org.fields.parentId',
+      sectorId: 'org.fields.sectorId',
+      regionId: 'org.fields.regionId',
+      registrationCountry: 'org.fields.registrationCountry',
+      registrationNumber: 'org.fields.registrationNumber',
+      status: 'org.fields.status',
+      sortOrder: 'org.fields.sortOrder',
+      notes: 'org.fields.notes',
+    },
+  },
+  {
+    resource: 'organization.unit',
+    collection: 'orgUnits',
+    complete: true,
+    titleKey: 'org.units',
+    descriptionKey: 'fieldPermission.description',
+    only: [
+      'name',
+      'code',
+      'type',
+      'subjectId',
+      'parentId',
+      'leaderPositionId',
+      'duties',
+      'status',
+      'sortOrder',
+      'notes',
+    ],
+    labels: {
+      name: 'org.fields.name',
+      code: 'org.fields.code',
+      type: 'org.fields.type',
+      subjectId: 'org.fields.subjectId',
+      parentId: 'org.fields.parentId',
+      leaderPositionId: 'org.fields.leaderPositionId',
+      duties: 'org.fields.duties',
+      status: 'org.fields.status',
+      sortOrder: 'org.fields.sortOrder',
+      notes: 'org.fields.notes',
+    },
+  },
+  {
+    resource: 'organization.position',
+    collection: 'orgPositions',
+    complete: true,
+    titleKey: 'org.positions',
+    descriptionKey: 'fieldPermission.description',
+    only: [
+      'name',
+      'code',
+      'productionRole',
+      'unitId',
+      'reportsToId',
+      'duties',
+      'requirements',
+      'status',
+      'sortOrder',
+      'notes',
+    ],
+    labels: {
+      name: 'org.fields.name',
+      code: 'org.fields.code',
+      productionRole: 'org.fields.productionRole',
+      unitId: 'org.fields.unitId',
+      reportsToId: 'org.fields.reportsToId',
+      duties: 'org.fields.duties',
+      requirements: 'org.fields.requirements',
+      status: 'org.fields.status',
+      sortOrder: 'org.fields.sortOrder',
+      notes: 'org.fields.notes',
+    },
+  },
+  {
+    resource: 'organization.sector',
+    collection: 'orgSectors',
+    complete: true,
+    titleKey: 'org.sectors',
+    descriptionKey: 'fieldPermission.description',
+    only: ['name', 'code', 'parentId', 'status', 'sortOrder', 'notes'],
+    labels: {
+      name: 'org.fields.name',
+      code: 'org.fields.code',
+      parentId: 'org.fields.parentId',
+      status: 'org.fields.status',
+      sortOrder: 'org.fields.sortOrder',
+      notes: 'org.fields.notes',
+    },
+  },
+  {
+    resource: 'organization.region',
+    collection: 'orgRegions',
+    complete: true,
+    titleKey: 'org.regions',
+    descriptionKey: 'fieldPermission.description',
+    only: ['name', 'code', 'parentId', 'status', 'sortOrder', 'notes'],
+    labels: {
+      name: 'org.fields.name',
+      code: 'org.fields.code',
+      parentId: 'org.fields.parentId',
+      status: 'org.fields.status',
+      sortOrder: 'org.fields.sortOrder',
+      notes: 'org.fields.notes',
+    },
+  },
+  {
+    resource: 'organization.relation',
+    collection: 'orgRelations',
+    complete: true,
+    titleKey: 'org.relations',
+    descriptionKey: 'fieldPermission.description',
+    only: [
+      'name',
+      'code',
+      'type',
+      'sourceKind',
+      'sourceId',
+      'targetKind',
+      'targetId',
+      'startDate',
+      'endDate',
+      'status',
+      'sortOrder',
+      'notes',
+    ],
+    labels: {
+      name: 'org.fields.name',
+      code: 'org.fields.code',
+      type: 'org.fields.type',
+      sourceKind: 'org.fields.sourceKind',
+      sourceId: 'org.fields.sourceId',
+      targetKind: 'org.fields.targetKind',
+      targetId: 'org.fields.targetId',
+      startDate: 'org.fields.startDate',
+      endDate: 'org.fields.endDate',
+      status: 'org.fields.status',
+      sortOrder: 'org.fields.sortOrder',
+      notes: 'org.fields.notes',
+    },
+  },
+  {
+    resource: 'organization.audit',
+    collection: 'orgAudit',
+    complete: true,
+    readOnly: true,
+    exclude: ['recordId', 'actorId'],
+    titleKey: 'org.history',
+    descriptionKey: 'fieldPermission.description',
+    only: [
+      'kind',
+      'recordName',
+      'operation',
+      'actorName',
+      'reason',
+      'beforeValue',
+      'afterValue',
+    ],
+    labels: {
+      kind: 'org.fields.kind',
+      recordName: 'org.fields.recordName',
+      operation: 'org.fields.operation',
+      actorName: 'org.fields.actorName',
+      reason: 'org.fields.reason',
+      beforeValue: 'org.before',
+      afterValue: 'org.after',
+    },
+  },
+  {
     resource: 'organization.positionPermissions',
     titleKey: 'org.positionPermissions',
     descriptionKey: 'fieldPermission.description',
@@ -1614,20 +1899,22 @@ const collectionFields = async (
   ]);
   // Business fields configured in the collection UI carry a title; append any
   // such field that is not listed yet, so new content fields show up in the
-  // permission editor without a code change. Untitled columns are internal
-  // bookkeeping (revisions, governance counters, foreign keys) and stay out.
-  const titledExtras = resource.only
+  // permission editor without a code change. For collections generated from
+  // the database (`complete`), even untitled columns are business fields:
+  // appending them is what keeps a newly added migration column visible.
+  const extras = resource.only
     ? available.filter((field) => {
         if (pickedNames.has(String(field.name))) return false;
         const type = (field as { type?: unknown }).type;
         if (typeof type === 'string' && relationTypes.has(type)) {
           return false;
         }
+        if (resource.complete) return true;
         const title = (field as { title?: unknown }).title;
         return typeof title === 'string' && title.trim().length > 0;
       })
     : [];
-  return [...picked, ...titledExtras].map((field) => {
+  return [...picked, ...extras].map((field) => {
     const title = (field as { title?: unknown }).title;
     return {
       field: String(field.name),
@@ -1651,7 +1938,7 @@ export async function fieldCatalog(
           }))
         : (await collectionFields(database, resource)).map((field) => ({
             ...field,
-            writable: !readonlyFields.has(field.field),
+            writable: !resource.readOnly && !readonlyFields.has(field.field),
           }));
       const fields = stored.map((field) => ({
         ...field,

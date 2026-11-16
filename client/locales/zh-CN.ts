@@ -55,6 +55,7 @@ const zhCN: AppResource = {
     adminHint: '管理角色、默认范围、用户与账号安全等系统功能。',
     saveHint: '页面、字段和后台权限会在点“保存”后一起生效。',
     inheritedPage: '随上级页面开放',
+    sharedPage: '与关联入口共用同一页面权限',
     newPage: '新建',
     editPage: '编辑',
     detailPage: '详情',

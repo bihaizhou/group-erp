@@ -42,10 +42,7 @@ import { RouteChildPage } from '#components/route-child-page';
 import { BackButton } from '#components/back-button';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
-import {
-  PermissionEditor,
-  type PermissionEditorNavigationNode,
-} from '#components/permission-editor';
+import { PermissionEditor } from '#components/permission-editor';
 import { PageFieldPermissionEditor } from '#components/field-permission-editor';
 import {
   buildFieldPolicies,
@@ -73,7 +70,6 @@ import { Badge } from '#components/ui/badge';
 import { ConfirmAction, SettingsError, SettingsLoading } from './shared.js';
 import { configurePermissionScopes } from './permission-filters.js';
 import {
-  permissionRowId,
   permissionSections,
   unconfiguredFilter,
   setPermissions,
@@ -291,42 +287,9 @@ function RoleEditor(): ReactElement {
         form.querySelector<HTMLInputElement>('input:invalid')?.focus();
         return;
       }
-      const pageIds = new Set<string>();
-      for (const section of sections) {
-        if (section.id !== 'pages') continue;
-        if (section.navigation) {
-          const walk = (nodes: readonly PermissionEditorNavigationNode[]) => {
-            for (const node of nodes) {
-              const pageId = pageIdFromPermissionRow(node.rowId);
-              if (pageId) pageIds.add(pageId);
-              if (node.children) walk(node.children);
-            }
-          };
-          walk(section.navigation);
-        }
-        for (const group of section.groups) {
-          for (const row of group.rows) {
-            const pageId = pageIdFromPermissionRow(row.id);
-            if (pageId) pageIds.add(pageId);
-          }
-        }
-      }
-      // 页面树的来源是 pagePermissionResources；把未出现在 sections
-      // 分组里的页面（仅存在于导航节点的页面）也纳入，确保全部业务页面授权。
-      for (const page of pagePermissionResources(
-        app.runtime.routes,
-        pagePermissionTitles,
-        (path) => t('settings.unnamedPage', { path }),
-      )) {
-        pageIds.add(page.id);
-      }
-      const pageGrants = [...pageIds].map((pageId) => ({
-        id: permissionRowId({ type: 'page', id: pageId }, 'access'),
-        enabled: true,
-      }));
-      const effectiveGrants = pageGrants.length
-        ? setPermissions(grants, catalog, pageGrants)
-        : grants;
+      // 页面权限以用户在页面树里的勾选为准；未勾选的页面不能因为“补全
+      // 清单”而被自动授权，否则保存任何角色都会获得全部页面。
+      const effectiveGrants = grants;
       const incomplete = unconfiguredFilter(effectiveGrants);
       if (incomplete) {
         setEditingScope(incomplete);

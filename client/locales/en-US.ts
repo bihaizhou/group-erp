@@ -61,6 +61,7 @@ const enUS = {
     saveHint:
       'Page, field and administration changes take effect when you save.',
     inheritedPage: 'Inherited from the parent page',
+    sharedPage: 'Shares one page permission',
     newPage: 'New',
     editPage: 'Edit',
     detailPage: 'Detail',

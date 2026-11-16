@@ -31,6 +31,10 @@ export const pageFieldResources: Readonly<Record<string, readonly string[]>> = {
   'hse-incidents': ['hse.incident'],
   'hse-hazards': ['hse.hazard'],
   'hse-certificates': ['hse.certificate'],
+  'hse-inspections': ['hse.inspection'],
+  'hse-work-permits': ['hse.workPermit'],
+  'hse-training-records': ['hse.trainingRecord'],
+  'hse-actions': ['hse.action'],
   // 运营
   'operations-overview': ['operations.overview'],
   'operations-issues': ['operations.issue'],
@@ -76,6 +80,8 @@ export const pageFieldResources: Readonly<Record<string, readonly string[]>> = {
   // 销售
   'sales-overview': ['sales.overview'],
   'sales-customers': ['sales.customer'],
+  'sales-price-lists': ['sales.priceList'],
+  'sales-receivables': ['sales.receivable'],
   'sales-orders': ['execution.document', 'execution.document.line'],
   // 仓库
   'warehouse-overview': ['warehouse.overview'],
@@ -102,6 +108,14 @@ export const pageFieldResources: Readonly<Record<string, readonly string[]>> = {
   'procurement-review-settings': ['review.procurement'],
   'requisitions-review-settings': ['review.requisitions'],
   // 组织
+  'organization-overview': ['organization.overview'],
+  'organization-subjects': ['organization.subject'],
+  'organization-units': ['organization.unit'],
+  'organization-positions': ['organization.position'],
+  'organization-sectors': ['organization.sector'],
+  'organization-regions': ['organization.region'],
+  'organization-relations': ['organization.relation'],
+  'organization-history': ['organization.audit'],
   'position-permissions': ['organization.positionPermissions'],
 };
 

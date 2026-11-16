@@ -467,6 +467,7 @@ export const execution = {
   },
   receivables: {
     title: 'Receivables',
+    dueDate: 'Due date',
     description:
       'Posting a shipment creates a receivable from the order line price; collections only add paid amounts.',
     status: 'Status',

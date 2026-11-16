@@ -57,7 +57,7 @@ export function pagePermissionResources(
 }
 
 /** Resource ownership follows the application's real settings branch, not translated labels or URL guesses. */
-function configurationResources(
+export function configurationResources(
   routes: readonly AppClientRegisteredRoute[],
 ): ReadonlySet<string> {
   const resources = new Set<string>();
@@ -145,6 +145,10 @@ export function pagePermissionNavigation(
         typeof route.authz === 'object' &&
         route.authz.resource.type === 'page';
       const kind = childKind(route);
+      // 同一页面资源也可能挂在另一条菜单路径下（例如别名入口）。它和子页面
+      // 一样共用授权，但不是“随上级开放”，需要不同的说明。
+      const shared =
+        inherited && !kind && resource !== undefined && seen.has(resource.id);
       const kindLabel = kind
         ? text({ key: `permissionGuide.${kind}` })
         : undefined;
@@ -167,7 +171,13 @@ export function pagePermissionNavigation(
           label,
           rowId,
           ...(inherited
-            ? { hint: text({ key: 'permissionGuide.inheritedPage' }) }
+            ? {
+                hint: text({
+                  key: shared
+                    ? 'permissionGuide.sharedPage'
+                    : 'permissionGuide.inheritedPage',
+                }),
+              }
             : {}),
           path: route.path,
           children: descendants,
@@ -180,8 +190,16 @@ export function pagePermissionNavigation(
     items: readonly AppClientRegisteredRoute[],
   ): RouteNavigationItem[] =>
     items.flatMap((route) => {
+      // 系统设置整棵子树都不属于业务页面授权，由 configuration 分类管理。
+      // 即使设置页内部有 page 资源（如日志页），也不能在这里生成第二个入口。
+      if (
+        route.source === 'application' &&
+        ['settings', 'systemManagement'].includes(route.name)
+      )
+        return [];
       const children = walk(route.children ?? []);
-      const visible = Boolean(route.navigation) || Boolean(route.componentLoader);
+      const visible =
+        Boolean(route.navigation) || Boolean(route.componentLoader);
       return visible || children.length ? [{ route, children }] : [];
     });
   const navigation = visit(walk(routes));

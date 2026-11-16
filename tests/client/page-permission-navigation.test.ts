@@ -142,7 +142,7 @@ describe('page permission navigation projection', () => {
     expect(result.map((node) => node.label)).toEqual([
       'Basic data',
       'Loans',
-      'settings.pagesOutsideNavigation',
+      'Loan alias',
     ]);
     expect(result[0]?.rowId).toBeUndefined();
     expect(result[0]?.children?.map((node) => node.label)).toEqual([
@@ -158,9 +158,15 @@ describe('page permission navigation projection', () => {
         (node) => node.rowId === '["page","legacy-audit","access"]',
       )?.path,
     ).toBe('/loans/audit');
-    expect(result[1]?.children?.[0]?.rowId).toBe(
-      '["page","legacy-reviews","access"]',
-    );
+    expect(
+      flatten(result).find((node) => node.label === 'Reviews')?.rowId,
+    ).toBe('["page","legacy-reviews","access"]');
+    const detail = result[1]?.children?.[0];
+    expect(detail?.rowId).toBeUndefined();
+    expect(detail?.hint).toBe('permissionGuide.inheritedPage');
+    // 共用同一 page 资源的另一条菜单入口仍要出现，但不能生成第二个授权行。
+    expect(result[2]?.rowId).toBeUndefined();
+    expect(result[2]?.hint).toBe('permissionGuide.sharedPage');
     expect(
       flatten(result)
         .filter((node) => node.rowId)
@@ -172,6 +178,9 @@ describe('page permission navigation projection', () => {
       '["page","legacy-reviews","access"]',
       '["page","legacy-audit","access"]',
     ]);
+    expect(
+      flatten(result).some((node) => node.id === 'pages:outside-navigation'),
+    ).toBe(false);
   });
 
   it('keeps actual non-menu independent pages and deduplicates inherited and aliased grants', () => {
@@ -188,20 +197,27 @@ describe('page permission navigation projection', () => {
       (path) => `Unnamed (${path})`,
       text,
     );
-    expect(result.at(-1)?.children).toEqual([
-      {
-        id: 'page:legacy-audit',
-        label: 'Audit details',
-        path: '/loans/audit',
-        rowId: '["page","legacy-audit","access"]',
-      },
-    ]);
+    // audit 现在进入 loans 菜单，不再被兜底到“菜单外页面”。
+    expect(
+      flatten(result).find(
+        (node) => node.rowId === '["page","legacy-audit","access"]',
+      ),
+    ).toMatchObject({
+      label: 'Audit details',
+      path: '/loans/audit',
+    });
+    expect(
+      flatten(result).some((node) => node.id === 'pages:outside-navigation'),
+    ).toBe(false);
     expect(flatten(result).filter((node) => node.rowId)).toHaveLength(
       pages.length,
     );
-    expect(flatten(result).map((node) => node.label)).not.toContain(
-      'Loan alias',
-    );
+    const alias = result.at(-1);
+    expect(alias).toMatchObject({
+      label: 'Loan alias',
+      hint: 'permissionGuide.sharedPage',
+    });
+    expect(alias?.rowId).toBeUndefined();
     expect(flatten(result).map((node) => node.label)).not.toContain('Landing');
     expect(flatten(result).map((node) => node.label)).not.toContain('Settings');
     expect(JSON.stringify(routes)).toBe(before);

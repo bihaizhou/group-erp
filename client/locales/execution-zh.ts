@@ -421,6 +421,7 @@ export const execution = {
   },
   receivables: {
     title: '应收款',
+    dueDate: '到期日',
     description: '发货过账后按订单行单价生成应收，回款只累加已收金额。',
     status: '状态',
     customer: '客户',
