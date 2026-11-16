@@ -54,12 +54,19 @@ export default class PeopleProvider extends ServiceProvider<Application> {
         onSweep: async () => {
           const service = this.app.container.resolve(peopleServiceToken);
           const reminders = this.app.container.resolve(contractRemindersToken);
-          const result = await reminders.run();
-          if (result.delivered)
-            logger.info(
-              { delivered: result.delivered },
-              'Delivered labour-contract expiry reminders.',
+          try {
+            const result = await reminders.run();
+            if (result.delivered)
+              logger.info(
+                { delivered: result.delivered },
+                'Delivered labour-contract expiry reminders.',
+              );
+          } catch (error) {
+            logger.warn(
+              { error },
+              'Labour-contract reminder sweep failed; retrying on the next sweep.',
             );
+          }
           const failures = await service.applyDue();
           for (const failure of failures)
             logger.warn(

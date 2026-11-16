@@ -205,6 +205,9 @@ export default function HseActionsPage() {
     'ACTION_STATE',
     'ACTION_LOCKED',
     'SELF_VERIFICATION',
+    'HSE_CONFLICT',
+    'HSE_FORBIDDEN',
+    'HSE_NOT_FOUND',
   ];
   const errorText = (error: unknown) => {
     if (error instanceof Error && error.message) {

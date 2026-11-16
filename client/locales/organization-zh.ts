@@ -179,6 +179,7 @@ export const org = {
     schedule: '安排变更',
     cancelSchedule: '取消计划',
     applySchedule: '应用计划',
+    approveSchedule: '审核通过',
   },
   errors: {
     ORG_SELF_APPROVAL: '不能审核自己提交的组织变更，请由其他审核人处理。',

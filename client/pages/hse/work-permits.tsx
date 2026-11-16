@@ -203,6 +203,9 @@ export default function HseWorkPermitsPage() {
     'PERMIT_PERIOD_INVALID',
     'PERMIT_NO_DUPLICATE',
     'REJECT_REASON_REQUIRED',
+    'HSE_CONFLICT',
+    'HSE_FORBIDDEN',
+    'HSE_NOT_FOUND',
   ];
   const errorText = (error: unknown) => {
     if (error instanceof Error && error.message) {

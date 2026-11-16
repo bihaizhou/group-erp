@@ -136,6 +136,8 @@ test('also delivers a copy to the current supervisor position', async () => {
   const ids = deliveries.map((item) => item.userId).sort();
   expect(ids).toEqual(['account-1', 'account-boss']);
   expect(
-    deliveries.some((item) => String(item.deliveryId).endsWith(':manager')),
+    deliveries.some((item) =>
+      String(item.deliveryId).includes(':manager:account-boss'),
+    ),
   ).toBe(true);
 });

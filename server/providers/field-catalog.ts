@@ -726,6 +726,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
       'validTo',
       'riskMeasures',
       'gasTest',
+      'applicantId',
       'approverId',
       'approvedAt',
       'status',
@@ -733,6 +734,7 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
     ],
     labels: {
       permitNo: 'hse.fields.permitNo',
+      applicantId: 'hse.fields.applicant',
       type: 'hse.fields.type',
       workDescription: 'hse.fields.workDescription',
       location: 'hse.fields.location',
@@ -781,8 +783,10 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
     only: [
       'sourceType',
       'sourceId',
+      'unitId',
       'description',
       'ownerName',
+      'ownerId',
       'dueAt',
       'status',
       'completedAt',
@@ -792,8 +796,10 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
     labels: {
       sourceType: 'hse.fields.sourceType',
       sourceId: 'hse.fields.sourceId',
+      unitId: 'hse.fields.unit',
       description: 'hse.fields.description',
       ownerName: 'hse.fields.ownerName',
+      ownerId: 'hse.fields.owner',
       dueAt: 'hse.fields.dueAt',
       status: 'hse.fields.status',
       completedAt: 'hse.fields.completedAt',

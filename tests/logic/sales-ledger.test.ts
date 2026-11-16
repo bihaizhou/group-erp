@@ -330,3 +330,70 @@ test('the ledger obeys the company scope of the sales-order grant', async ({
       .status,
   ).toBe(200);
 });
+
+test('a sales return reduces the receivable in proportion to the returned quantity', async ({
+  testApp,
+  database,
+}) => {
+  const f = await setup(testApp, database);
+  await f.initial('10');
+  await f.orderRules('salesOrders');
+  const content = f.orderContent('6');
+  delete content.demandMode;
+  delete content.temporaryReason;
+  content.lines[0].unitPrice = '19.90';
+  let order = await f.create('/sales/orders', {
+    content,
+    requestKey: randomUUID(),
+  });
+  order = await f.fire('/sales/orders', order, 'submit');
+  order = await f.fire('/sales/orders', order, 'approve', f.reviewer.session);
+  const line = content.lines[0];
+  const shipment = await f.doc({
+    ...f.header,
+    kind: 'salesShipment',
+    salesOrderId: order.id,
+    lines: [
+      {
+        id: randomUUID(),
+        salesOrderLineId: line.id,
+        quantity: '4',
+        notes: '',
+      },
+    ],
+  });
+  await f.fire('/warehouse/documents', shipment, 'post');
+  const receivable = async () => {
+    const response = await f.admin.fetch(
+      `/sales/receivables?subjectId=${f.a.id}&documentId=${shipment.id}`,
+    );
+    expect(response.status).toBe(200);
+    return ((await response.json()) as { data: Record<string, unknown>[] })
+      .data[0];
+  };
+  expect((await receivable()).amount).toBe('79.6');
+  const sendBack = async (quantity: string) => {
+    const row = await f.doc({
+      ...f.header,
+      kind: 'salesReturn',
+      originalDocumentId: shipment.id,
+      lines: [
+        {
+          id: randomUUID(),
+          originalLineId: shipment.lines[0].id,
+          quantity,
+          condition: 'Packaging damaged, inspection required',
+          notes: '',
+        },
+      ],
+    });
+    await f.fire('/warehouse/documents', row, 'post');
+  };
+  await sendBack('1');
+  expect((await receivable()).amount).toBe('59.7');
+  await sendBack('3');
+  const cleared = await receivable();
+  expect(cleared.amount).toBe('0');
+  expect(cleared.status).toBe('void');
+  expect(cleared.outstanding).toBe('0');
+});

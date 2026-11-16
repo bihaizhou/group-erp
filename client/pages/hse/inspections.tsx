@@ -195,6 +195,9 @@ export default function HseInspectionsPage() {
     'SUBJECT_REQUIRED',
     'UNIT_NOT_IN_COMPANY',
     'INSPECTION_STATE',
+    'HSE_CONFLICT',
+    'HSE_FORBIDDEN',
+    'HSE_NOT_FOUND',
   ];
   const errorText = (error: unknown) => {
     if (error instanceof Error && error.message) {

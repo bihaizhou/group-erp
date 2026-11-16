@@ -167,6 +167,9 @@ export default function HseTrainingRecordsPage() {
     'PERSON_REQUIRED',
     'PERSON_NOT_FOUND',
     'PERSON_NOT_IN_COMPANY',
+    'HSE_CONFLICT',
+    'HSE_FORBIDDEN',
+    'HSE_NOT_FOUND',
   ];
   const errorText = (error: unknown) => {
     if (error instanceof Error && error.message) {

@@ -62,6 +62,7 @@ import {
   hseServiceToken,
 } from '../providers/hse-service.js';
 import {
+  accessFor,
   assertFieldsWritable,
   fieldPoliciesFor,
   redactRecord,
@@ -249,6 +250,36 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
           );
         }),
       );
+    };
+    /**
+     * PATCH bodies come from a form that echoes every visible field. A hidden
+     * field is absent from the form, so the client sends `null`; silently
+     * clearing the stored value would let a field policy destroy data. Hidden
+     * fields are therefore dropped from the update, and a concrete value that
+     * differs from the stored row is rejected as a hidden write.
+     */
+    const stripHiddenOnPatch = (
+      policies: FieldPolicyView[],
+      resource: string,
+      input: Record<string, unknown>,
+      previous: Record<string, unknown> | null,
+    ) => {
+      if (!policies.length) return;
+      for (const [field, value] of Object.entries(input)) {
+        if (accessFor(policies, resource, field) !== 'hidden') continue;
+        if (value === null || value === undefined) {
+          delete input[field];
+          continue;
+        }
+        if (
+          previous &&
+          asComparable(field, value) === asComparable(field, previous[field])
+        ) {
+          delete input[field];
+          continue;
+        }
+        assertFieldsWritable(policies, resource, [field]);
+      }
     };
     router.onError((error, c) => {
       if (error instanceof HseError)
@@ -439,6 +470,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
             .repository('hseIncidents')
             .findOne({ filter: { id } })) as Record<string, unknown> | null;
           if (previous) {
+            stripHiddenOnPatch(policies, INCIDENT_RESOURCE, input, previous);
             await rejectHiddenWrites(
               policies,
               INCIDENT_RESOURCE,
@@ -582,6 +614,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
             .repository('hseHazards')
             .findOne({ filter: { id } })) as Record<string, unknown> | null;
           if (previous) {
+            stripHiddenOnPatch(policies, HAZARD_RESOURCE, input, previous);
             await rejectHiddenWrites(policies, HAZARD_RESOURCE, raw, previous);
           }
         }
@@ -697,6 +730,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
             .repository('hseCertificates')
             .findOne({ filter: { id } })) as Record<string, unknown> | null;
           if (previous) {
+            stripHiddenOnPatch(policies, CERTIFICATE_RESOURCE, input, previous);
             await rejectHiddenWrites(
               policies,
               CERTIFICATE_RESOURCE,
@@ -809,7 +843,15 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
         const principal = actor(c);
         const input = c.req.valid('json');
         const policies = await fieldPoliciesFor(db, principal);
-        await rejectHiddenWrites(policies, INSPECTION_RESOURCE, input);
+        const previous = policies.length
+          ? ((await db
+              .repository('hseInspections')
+              .findOne({ filter: { id: c.req.valid('param').id } })) as
+              | Record<string, unknown>
+              | null)
+          : null;
+        stripHiddenOnPatch(policies, INSPECTION_RESOURCE, input, previous);
+        await rejectHiddenWrites(policies, INSPECTION_RESOURCE, input, previous);
         const updated = await service.updateInspection(
           principal,
           c.req.valid('param').id,
@@ -914,7 +956,15 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
         const principal = actor(c);
         const input = c.req.valid('json');
         const policies = await fieldPoliciesFor(db, principal);
-        await rejectHiddenWrites(policies, WORK_PERMIT_RESOURCE, input);
+        const previous = policies.length
+          ? ((await db
+              .repository('hseWorkPermits')
+              .findOne({ filter: { id: c.req.valid('param').id } })) as
+              | Record<string, unknown>
+              | null)
+          : null;
+        stripHiddenOnPatch(policies, WORK_PERMIT_RESOURCE, input, previous);
+        await rejectHiddenWrites(policies, WORK_PERMIT_RESOURCE, input, previous);
         const updated = await service.updateWorkPermit(
           principal,
           c.req.valid('param').id,
@@ -992,7 +1042,15 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
         const principal = actor(c);
         const input = c.req.valid('json');
         const policies = await fieldPoliciesFor(db, principal);
-        await rejectHiddenWrites(policies, TRAINING_RESOURCE, input);
+        const previous = policies.length
+          ? ((await db
+              .repository('hseTrainingRecords')
+              .findOne({ filter: { id: c.req.valid('param').id } })) as
+              | Record<string, unknown>
+              | null)
+          : null;
+        stripHiddenOnPatch(policies, TRAINING_RESOURCE, input, previous);
+        await rejectHiddenWrites(policies, TRAINING_RESOURCE, input, previous);
         const updated = await service.updateTrainingRecord(
           principal,
           c.req.valid('param').id,
@@ -1097,7 +1155,15 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
         const principal = actor(c);
         const input = c.req.valid('json');
         const policies = await fieldPoliciesFor(db, principal);
-        await rejectHiddenWrites(policies, ACTION_RESOURCE, input);
+        const previous = policies.length
+          ? ((await db
+              .repository('hseActions')
+              .findOne({ filter: { id: c.req.valid('param').id } })) as
+              | Record<string, unknown>
+              | null)
+          : null;
+        stripHiddenOnPatch(policies, ACTION_RESOURCE, input, previous);
+        await rejectHiddenWrites(policies, ACTION_RESOURCE, input, previous);
         const updated = await service.updateAction(
           principal,
           c.req.valid('param').id,

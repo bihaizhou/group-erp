@@ -667,6 +667,77 @@ export async function postShipmentReceivables(
 }
 
 /**
+ * Reduces the receivable of one shipment line when goods are returned.
+ *
+ * The reduction is proportional to the returned quantity against the shipped
+ * quantity, using the amount already frozen on the receivable. Money already
+ * collected is never lowered below the paid total, so a return cannot turn a
+ * collected receivable into a credit without a separate refund.
+ */
+export async function reduceShipmentReceivables(
+  c: DatabaseConnection,
+  input: {
+    shipmentId: string;
+    orderLineId: string;
+    returnedQuantity: string;
+    totalReturnedQuantity: string;
+    shippedQuantity: string;
+    actorId: string;
+  },
+): Promise<number> {
+  if (!input.shipmentId || !input.orderLineId) return 0;
+  const row = await c.repository('salesReceivables').findOne({
+    filter: { documentId: input.shipmentId, orderLineId: input.orderLineId },
+  });
+  if (!row || text(row.status) === 'void') return 0;
+  const shipped = Number(input.shippedQuantity);
+  const returned = Number(input.returnedQuantity);
+  const totalReturned = Number(input.totalReturnedQuantity);
+  if (!Number.isFinite(shipped) || shipped <= 0) return 0;
+  if (!Number.isFinite(returned) || returned <= 0) return 0;
+  // Reduce by this return's share of what was still on the shipment, so
+  // successive partial returns add up to the full amount instead of leaving a
+  // rounding remainder behind.
+  const remainingBefore = Number.isFinite(totalReturned)
+    ? shipped - (totalReturned - returned)
+    : shipped;
+  const current = amountCents(text(row.amount));
+  const reduction =
+    remainingBefore <= 0
+      ? current
+      : BigInt(
+          Math.round(Number(current) * Math.min(1, returned / remainingBefore)),
+        );
+  if (reduction <= 0n) return 0;
+  const paid = (await sumPayments(c, [text(row.id)])).get(text(row.id)) ?? 0n;
+  let next = current - reduction;
+  if (next < 0n) next = 0n;
+  if (next < paid) next = paid;
+  if (next === current) return 0;
+  const status =
+    next === 0n
+      ? paid > 0n
+        ? 'paid'
+        : 'void'
+      : paid >= next
+        ? 'paid'
+        : paid > 0n
+          ? 'partially_paid'
+          : 'open';
+  const result = await c.repository('salesReceivables').updateOne({
+    filter: { id: text(row.id), version: Number(row.version) },
+    values: {
+      amount: amountText(next),
+      status,
+      version: Number(row.version) + 1,
+      updatedBy: input.actorId,
+      updatedAt: new Date(),
+    },
+  });
+  return result.record ? 1 : 0;
+}
+
+/**
  * Reversal of a shipment voids its receivables instead of writing a negative
  * receivable. Money already collected cannot be reversed here: a refund is a
  * separate business fact, so the reversal is refused and the caller keeps the

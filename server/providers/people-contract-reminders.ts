@@ -62,9 +62,12 @@ export class ContractReminders {
     this.lastRun = today;
     if (!due.length) return { delivered: 0, skipped: false };
     const employeeIds = [...new Set(due.map((row) => row.employeeId))];
-    const employees = await this.database
-      .repository('personnelEmployees')
-      .findMany({ filter: { id: { $in: employeeIds } }, limit: 5001 });
+    const employeeSet = new Set(employeeIds);
+    const employees = (
+      await this.database.repository('personnelEmployees').findMany({
+        limit: 5001,
+      })
+    ).filter((row) => employeeSet.has(text(row.id)));
     const accounts = new Map(
       employees.map((row) => [
         text(row.id),
@@ -116,7 +119,7 @@ export class ContractReminders {
         const copy = `${row.name} 的劳动合同将于 ${contractEnd} 到期，请安排续签或离职流程。 / The labour contract of ${row.name} ends on ${contractEnd}; plan the renewal or exit.`;
         if (
           await send(
-            `contract-expiry:${row.id}:${contractEnd}:manager`,
+            `contract-expiry:${row.id}:${contractEnd}:manager:${managerId}`,
             managerId,
             copy,
           )
@@ -138,12 +141,12 @@ export class ContractReminders {
   ): Promise<Map<string, string[]>> {
     const result = new Map<string, string[]>();
     try {
-      const assignments = await this.database
-        .repository('personnelAssignments')
-        .findMany({
-          filter: { personId: { $in: employeeIds } },
+      const employeeSet = new Set(employeeIds);
+      const assignments = (
+        await this.database.repository('personnelAssignments').findMany({
           limit: 5001,
-        });
+        })
+      ).filter((row) => employeeSet.has(text(row.personId)));
       const primary = new Map<string, string>();
       for (const row of assignments) {
         const data = (row.data ?? {}) as Record<string, unknown>;
@@ -158,9 +161,10 @@ export class ContractReminders {
       }
       const positionIds = [...new Set([...primary.values()].filter(Boolean))];
       if (!positionIds.length) return result;
-      const positions = await this.database
-        .repository('orgPositions')
-        .findMany({ filter: { id: { $in: positionIds } }, limit: 5001 });
+      const positionSet = new Set(positionIds);
+      const positions = (
+        await this.database.repository('orgPositions').findMany({ limit: 5001 })
+      ).filter((row) => positionSet.has(text(row.id)));
       const reportTo = new Map(
         positions.map((row) => [text(row.id), text(row.reportsToId)]),
       );
@@ -172,12 +176,12 @@ export class ContractReminders {
         ),
       ];
       if (!supervisorPositionIds.length) return result;
-      const reports = await this.database
-        .repository('personnelAssignments')
-        .findMany({
-          filter: { positionId: { $in: supervisorPositionIds } },
+      const supervisorPositionSet = new Set(supervisorPositionIds);
+      const reports = (
+        await this.database.repository('personnelAssignments').findMany({
           limit: 5001,
-        });
+        })
+      ).filter((row) => supervisorPositionSet.has(text(row.positionId)));
       const supervisorPersons = new Map<string, string[]>();
       for (const row of reports) {
         const data = (row.data ?? {}) as Record<string, unknown>;
@@ -196,9 +200,12 @@ export class ContractReminders {
         ...new Set([...supervisorPersons.values()].flat()),
       ];
       if (!managerPersonIds.length) return result;
-      const managers = await this.database
-        .repository('personnelEmployees')
-        .findMany({ filter: { id: { $in: managerPersonIds } }, limit: 5001 });
+      const managerSet = new Set(managerPersonIds);
+      const managers = (
+        await this.database.repository('personnelEmployees').findMany({
+          limit: 5001,
+        })
+      ).filter((row) => managerSet.has(text(row.id)));
       const managerAccounts = new Map(
         managers.map((row) => [
           text(row.id),

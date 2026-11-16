@@ -17,6 +17,7 @@ import {
 } from './inventory-issue-source.js';
 import {
   postShipmentReceivables,
+  reduceShipmentReceivables,
   reverseShipmentReceivables,
   type ShipmentReceivableLine,
 } from './sales-ledger-service.js';
@@ -53,6 +54,13 @@ export async function warehousePosting(
     sourceRows = new Map<string, { table: CacheTable; id: string }>(),
     affectedIssues = new Set<string>(),
     receivableLines: ShipmentReceivableLine[] = [],
+    receivableReturns: {
+      shipmentId: string;
+      orderLineId: string;
+      returnedQuantity: string;
+      totalReturnedQuantity: string;
+      shippedQuantity: string;
+    }[] = [],
     originalHeaders = new Map<string, RepositoryRecord>();
   let receivableHeader: {
     orderId: string;
@@ -380,6 +388,21 @@ export async function warehousePosting(
           amount,
         );
         sourceReturn(line, amount);
+        if (head.kind === 'salesReturn' && text(prior.salesOrderLineId)) {
+          const returnedLine = cache(
+            'stockDocumentLines',
+            line.originalLineId,
+          );
+          receivableReturns.push({
+            shipmentId: text(prior.documentId),
+            orderLineId: text(prior.salesOrderLineId),
+            returnedQuantity: stockQuantity(amount),
+            totalReturnedQuantity: stockQuantity(
+              value(returnedLine, 'returnedQuantity'),
+            ),
+            shippedQuantity: stockQuantity(stockMicros(text(prior.quantity))),
+          });
+        }
         if (isStock)
           entry(line, head.kind === 'purchaseReturn' ? -amount : amount);
       } else if (
@@ -540,6 +563,15 @@ export async function warehousePosting(
       )
         await reverseShipmentReceivables(c, {
           shipmentId: text(original.id),
+          actorId,
+        });
+      for (const returned of receivableReturns)
+        await reduceShipmentReceivables(c, {
+          shipmentId: returned.shipmentId,
+          orderLineId: returned.orderLineId,
+          returnedQuantity: returned.returnedQuantity,
+          totalReturnedQuantity: returned.totalReturnedQuantity,
+          shippedQuantity: returned.shippedQuantity,
           actorId,
         });
       if (head.kind === 'initial') {

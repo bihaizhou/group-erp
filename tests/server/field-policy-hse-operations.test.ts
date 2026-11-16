@@ -668,10 +668,27 @@ test('HSE inspection records enforce field policies', async ({ testApp }) => {
   expect(rows.length).toBeGreaterThan(0);
   for (const row of rows) expect('inspectorId' in row).toBe(false);
 
+  // A hidden field echoed as null must not clear the stored value...
+  const nullPatch = await user.client.fetch(
+    `/hse/inspections/${planned.id}`,
+    json({ version: planned.version, inspectorId: null }, 'PATCH'),
+  );
+  expect(nullPatch.status).toBe(200);
+
+  // ...while a concrete value for the hidden field is still rejected.
+  const hiddenPatch = await user.client.fetch(
+    `/hse/inspections/${planned.id}`,
+    json({ version: planned.version + 1, inspectorId: 'someone' }, 'PATCH'),
+  );
+  expect(hiddenPatch.status).toBe(403);
+  expect(
+    ((await hiddenPatch.json()) as { error: { reason: string } }).error.reason,
+  ).toBe('FIELD_NOT_WRITABLE');
+
   const done = await user.client.fetch(
     `/hse/inspections/${planned.id}/transitions`,
     json(
-      { version: planned.version, action: 'complete', findingsCount: 2 },
+      { version: planned.version + 1, action: 'complete', findingsCount: 2 },
       'POST',
     ),
   );

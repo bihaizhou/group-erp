@@ -442,6 +442,25 @@ export class OrganizationService {
           createdAt: new Date(),
         },
       });
+      // Scheduling a change is an approval in its own right when the author
+      // holds the approve action; record it so a self-approved change is still
+      // visible in the audit trail next to reviewed ones.
+      if (options.canApprove)
+        await connection.repository('orgAudit').createOne({
+          values: {
+            id: randomUUID(),
+            kind,
+            recordId,
+            recordName: scalar(record.name),
+            operation: 'approveSchedule',
+            actorId: actor.id,
+            actorName: actor.name,
+            reason: `${input.reason} (scheduled directly by an approver)`,
+            beforeValue: null,
+            afterValue: view(record),
+            createdAt: new Date(),
+          },
+        });
       return pendingView(created.record);
     });
   }

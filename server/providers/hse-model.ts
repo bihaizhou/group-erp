@@ -360,7 +360,6 @@ export const hseTrainingRecordUpdate = z.object({
   completedAt: civilDate.optional(),
   score: z.coerce.number().int().min(0).max(1000).nullable().optional(),
   certificateId: z.string().max(36).nullable().optional(),
-  status: z.enum(hseTrainingStatuses).optional(),
 });
 
 export const hseTrainingRecordQuery = z.object({

@@ -185,6 +185,7 @@ export const org = {
     schedule: 'Schedule change',
     cancelSchedule: 'Cancel schedule',
     applySchedule: 'Apply schedule',
+    approveSchedule: 'Approve',
   },
   errors: {
     ORG_SELF_APPROVAL:

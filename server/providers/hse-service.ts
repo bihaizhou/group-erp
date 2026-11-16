@@ -1265,6 +1265,7 @@ export class HseService {
     );
     if (!subjectId) throw new HseError('HSE_INVALID', 'SUBJECT_REQUIRED');
     await this.assertUnit(subjectId, input.unitId);
+    if (input.inspectorId) await this.assertPerson(subjectId, input.inspectorId);
     const now = new Date().toISOString();
     const record = await this.database.repository('hseInspections').createOne({
       values: {
@@ -1312,6 +1313,8 @@ export class HseService {
       throw new HseError('HSE_CONFLICT');
     if (text(existing.status) !== 'planned')
       throw new HseError('HSE_INVALID', 'INSPECTION_STATE');
+    if (input.inspectorId)
+      await this.assertPerson(text(existing.subjectId), input.inspectorId);
     const values: Record<string, unknown> = {
       version: input.version + 1,
       updatedBy: principal.id,
