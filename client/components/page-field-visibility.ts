@@ -4,6 +4,7 @@ import { useApiClient } from '@nocobase/app-client';
 interface EffectiveVisibility {
   configured: boolean;
   visible: string[];
+  fields?: { resource: string; field: string; visible: boolean }[];
 }
 
 interface PageState {
@@ -51,11 +52,16 @@ export function usePageFieldVisibility(pageKey: string): PageFieldVisibility {
 
   const current = state?.pageKey === pageKey ? state : undefined;
   const configured = current?.visibility?.configured === true;
-  const visible = new Set(current?.visibility?.visible ?? []);
+  const visible = new Map(
+    (current?.visibility?.fields ?? []).map((row) => [
+      keyOf(row.resource, row.field),
+      row.visible,
+    ]),
+  );
   return {
     loading: !current,
     configured,
     visible: (resource, field) =>
-      !configured || visible.has(keyOf(resource, field)),
+      !configured || (visible.get(keyOf(resource, field)) ?? true),
   };
 }

@@ -21,7 +21,60 @@ export const pageFieldVisibilityPageKeys: ReadonlySet<string> = new Set([
   ...materialKinds
     .filter((kind) => materialFields[kind].length > 0)
     .map((kind) => `${materialPageId(kind)}-new`),
+  'sales-orders-new',
+  'procurement-orders-new',
+  'warehouse-inbounds-new',
+  'warehouse-outbounds-new',
+  'warehouse-transfers-new',
+  'warehouse-counts-new',
 ]);
+
+const executionDocumentFields: Record<string, readonly string[]> = {
+  'sales-orders-new': [
+    'currency',
+    'sourceRef',
+    'sourceDoc',
+    'period',
+    'deliveryTerms',
+    'notes',
+  ],
+  'procurement-orders-new': [
+    'currency',
+    'sourceRef',
+    'sourceDoc',
+    'period',
+    'deliveryTerms',
+    'notes',
+  ],
+  'warehouse-inbounds-new': [
+    'reason',
+    'sourceRef',
+    'sourceDoc',
+    'period',
+    'notes',
+  ],
+  'warehouse-outbounds-new': [
+    'reason',
+    'sourceRef',
+    'sourceDoc',
+    'period',
+    'notes',
+  ],
+  'warehouse-transfers-new': [
+    'reason',
+    'sourceRef',
+    'sourceDoc',
+    'period',
+    'notes',
+  ],
+  'warehouse-counts-new': [
+    'reason',
+    'sourceRef',
+    'sourceDoc',
+    'period',
+    'notes',
+  ],
+};
 
 /**
  * Fields the page's form actually consults. Keeping this list beside the page
@@ -72,6 +125,12 @@ export const pageFieldVisibilityFields: Readonly<
           (field) => `materials.${materialResource(kind)}.${field.key}`,
         ),
       ]),
+  ),
+  ...Object.fromEntries(
+    Object.entries(executionDocumentFields).map(([pageKey, fields]) => [
+      pageKey,
+      fields.map((field) => `execution.document.${field}`),
+    ]),
   ),
 };
 
@@ -126,6 +185,18 @@ export const pageFieldVisibilityExtraFields: Readonly<
         })),
       ]),
   ),
+  ...Object.fromEntries(
+    Object.entries(executionDocumentFields).map(([pageKey, fields]) => [
+      pageKey,
+      fields
+        .filter((field) => !['reason', 'notes'].includes(field))
+        .map((field) => ({
+          resource: 'execution.document',
+          field,
+          titleKey: `execution.${field}`,
+        })),
+    ]),
+  ),
   'people-changes-new': [
     ['personId', 'people.fields.personId'],
     ['type', 'people.fields.type'],
@@ -172,6 +243,22 @@ export const pageFieldVisibilityRequiredFields: Readonly<
         ),
     ]),
   ),
+  ...Object.fromEntries(
+    materialKinds
+      .filter((kind) => materialFields[kind].length > 0)
+      .map((kind) => [
+        `${materialPageId(kind)}-new`,
+        materialFields[kind]
+          .filter((field) => field.required)
+          .map((field) => `materials.${materialResource(kind)}.${field.key}`),
+      ]),
+  ),
+  'sales-orders-new': ['execution.document.currency'],
+  'procurement-orders-new': ['execution.document.currency'],
+  'warehouse-inbounds-new': ['execution.document.reason'],
+  'warehouse-outbounds-new': ['execution.document.reason'],
+  'warehouse-transfers-new': ['execution.document.reason'],
+  'warehouse-counts-new': ['execution.document.reason'],
 };
 
 export function supportsPageFieldVisibility(

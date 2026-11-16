@@ -12,6 +12,7 @@ describe('page field visibility', () => {
     expect(mergePageFieldVisibility([])).toEqual({
       configured: false,
       visible: [],
+      fields: [],
     });
   });
 
@@ -19,13 +20,18 @@ describe('page field visibility', () => {
     expect(mergePageFieldVisibility([row('notes', false)])).toEqual({
       configured: true,
       visible: [],
+      fields: [row('notes', false)],
     });
   });
 
   it('shows a field when any permission set shows it', () => {
     expect(
       mergePageFieldVisibility([row('notes', false), row('notes', true)]),
-    ).toEqual({ configured: true, visible: ['purchase.request.notes'] });
+    ).toEqual({
+      configured: true,
+      visible: ['purchase.request.notes'],
+      fields: [row('notes', true)],
+    });
   });
 
   it('unions fields across permission sets without duplicates', () => {
@@ -46,12 +52,25 @@ describe('page field visibility', () => {
         'purchase.request.notes',
         'purchase.request.line.notes',
       ],
+      fields: [
+        row('sourceDoc', true),
+        row('notes', true),
+        {
+          resource: 'purchase.request.line',
+          field: 'notes',
+          visible: true,
+        },
+      ],
     });
   });
 
   it('does not let a false row remove another set’s visible row', () => {
     expect(
       mergePageFieldVisibility([row('period', false), row('period', true)]),
-    ).toEqual({ configured: true, visible: ['purchase.request.period'] });
+    ).toEqual({
+      configured: true,
+      visible: ['purchase.request.period'],
+      fields: [row('period', true)],
+    });
   });
 });

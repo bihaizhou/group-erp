@@ -53,6 +53,7 @@ const response = z.object({
 const effectiveResponse = z.object({
   configured: z.boolean(),
   visible: z.array(z.string()),
+  fields: z.array(field),
 });
 
 const denied = () =>

@@ -81,6 +81,40 @@ describe('page field visibility registry', () => {
     );
   });
 
+  it('covers sales and warehouse document create pages', () => {
+    for (const pageKey of [
+      'sales-orders-new',
+      'procurement-orders-new',
+      'warehouse-inbounds-new',
+      'warehouse-outbounds-new',
+      'warehouse-transfers-new',
+      'warehouse-counts-new',
+    ]) {
+      expect(pageFieldVisibilityPageKeys.has(pageKey)).toBe(true);
+      expect(pageFieldVisibilityFields[pageKey]).toContain(
+        'execution.document.notes',
+      );
+    }
+    expect(pageFieldVisibilityFields['sales-orders-new']).toContain(
+      'execution.document.deliveryTerms',
+    );
+    expect(pageFieldVisibilityExtraFields['sales-orders-new']).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          resource: 'execution.document',
+          field: 'deliveryTerms',
+          titleKey: 'execution.deliveryTerms',
+        }),
+      ]),
+    );
+    expect(pageFieldVisibilityRequiredFields['sales-orders-new']).toContain(
+      'execution.document.currency',
+    );
+    expect(
+      pageFieldVisibilityRequiredFields['warehouse-inbounds-new'],
+    ).toContain('execution.document.reason');
+  });
+
   it('covers all six organization create pages with required identity fields', () => {
     for (const kind of [
       'subjects',

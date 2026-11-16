@@ -53,12 +53,30 @@ export interface PageFieldVisibilityRow {
 export function mergePageFieldVisibility(
   rows: readonly PageFieldVisibilityRow[],
   configured = rows.length > 0,
-): { configured: boolean; visible: string[] } {
-  const visible = new Set<string>();
+): {
+  configured: boolean;
+  visible: string[];
+  fields: PageFieldVisibilityRow[];
+} {
+  const merged = new Map<string, PageFieldVisibilityRow>();
   for (const row of rows) {
-    if (row.visible) visible.add(`${row.resource}.${row.field}`);
+    const key = `${row.resource}.${row.field}`;
+    const current = merged.get(key);
+    merged.set(
+      key,
+      current
+        ? { ...current, visible: current.visible || row.visible }
+        : { ...row },
+    );
   }
-  return { configured, visible: [...visible] };
+  const fields = [...merged.values()];
+  return {
+    configured,
+    visible: fields
+      .filter((row) => row.visible)
+      .map((row) => `${row.resource}.${row.field}`),
+    fields,
+  };
 }
 
 /**
@@ -70,10 +88,14 @@ export async function effectivePageFieldVisibility(
   database: DatabaseManager,
   principal: { type?: string; id?: string },
   pageKey: string,
-): Promise<{ configured: boolean; visible: string[] }> {
+): Promise<{
+  configured: boolean;
+  visible: string[];
+  fields: PageFieldVisibilityRow[];
+}> {
   const userId = principal.type === 'user' ? principal.id : undefined;
   if (!userId) {
-    return { configured: false, visible: [] };
+    return { configured: false, visible: [], fields: [] };
   }
   const assignments = await database
     .repository('authorizationPermissionSetAssignments')
@@ -89,7 +111,8 @@ export async function effectivePageFieldVisibility(
     assignments.map((row) => asText(row.permissionSetKey)).filter(Boolean),
   );
   sets.delete('');
-  if (!sets.size || sets.has('root')) return { configured: false, visible: [] };
+  if (!sets.size || sets.has('root'))
+    return { configured: false, visible: [], fields: [] };
   const rows = await database.repository('appPageFieldVisibilities').findMany({
     filter: (filter) =>
       filter.and([

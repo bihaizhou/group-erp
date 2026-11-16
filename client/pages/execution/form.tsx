@@ -9,6 +9,7 @@ import { ApiClientError, useApiClient, useToaster } from '@nocobase/app-client';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { randomUuid } from '#lib/random-id';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { BackButton } from '#components/back-button';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
@@ -96,6 +97,7 @@ export default function ExecutionForm() {
               : 'outbounds'),
         )!
       : parent,
+    pageKey = mode === 'new' && !nested ? `${config.page}-new` : undefined,
     capabilities = useExecutionQuery<{ data: Capabilities }>(
       `${parent.api}/${id}/capabilities`,
       {},
@@ -161,6 +163,7 @@ export default function ExecutionForm() {
             nested={nested}
             title={title}
             date={clock.data?.meta.businessDate ?? ''}
+            pageKey={pageKey}
           />
         ) : sourceRecord.error || capabilities.error || clock.error ? (
           <>
@@ -197,6 +200,7 @@ function FormBody({
   nested,
   title,
   date,
+  pageKey,
 }: {
   config: ExecutionPage;
   mode: 'new' | 'edit' | 'copy';
@@ -204,7 +208,9 @@ function FormBody({
   nested?: string;
   title: string;
   date: string;
+  pageKey?: string;
 }) {
+  const pageFields = usePageFieldVisibility(pageKey ?? '');
   const { t } = useTranslation(),
     location = useLocation(),
     navigate = useNavigate(),
@@ -368,6 +374,7 @@ function FormBody({
       });
     },
     field = (name: keyof Draft, textarea = false, required = false) => {
+      if (!pageFields.visible('execution.document', name)) return null;
       const value = draft[name];
       return (
         <Field data-invalid={!!errors[name]}>
