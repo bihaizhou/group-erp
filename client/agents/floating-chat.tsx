@@ -3,6 +3,7 @@ import {
   useChatApi,
   useChatPanel,
 } from '@nocobase/app-plugin-agents/client/chat';
+import { useTranslation } from '@nocobase/i18n/client';
 import { BotMessageSquareIcon } from 'lucide-react';
 import { useCallback, useEffect, useRef, type ReactElement } from 'react';
 import { useLocation } from 'react-router';
@@ -10,6 +11,8 @@ import { useLocation } from 'react-router';
 import { Button } from '#components/ui/button';
 
 import { ChatPanel } from '#extensions/nocobase-agent-chat/chat-panel';
+
+import { useLauncherDrag } from './use-launcher-drag';
 
 /** One assistant per module: the scope comes from `server/providers/agents.ts`. */
 interface Assistant {
@@ -93,10 +96,12 @@ const assistantFor = (pathname: string): Assistant =>
  * The agent chat as a window of its own: a button in the bottom-right corner, and the panel floating above it instead
  * of taking a column from the page. Above `md` only; the block's own launcher covers smaller screens.
  *
- * The window follows the module the person is on: each module gets its own assistant, its own scope, and its own
- * conversation, kept while the session lasts.
+ * The button can be dragged out of the way and keeps its place across page loads; the panel opens with its
+ * bottom-right corner at the button, held inside the viewport. The window follows the module the person is on: each
+ * module gets its own assistant, its own scope, and its own conversation, kept while the session lasts.
  */
 export function FloatingChat(): ReactElement | null {
+  const { t } = useTranslation();
   const panel = useChatPanel();
   const api = useChatApi();
   const { pathname } = useLocation();
@@ -129,6 +134,10 @@ export function FloatingChat(): ReactElement | null {
     }
   }, [api, assistant.scope, assistant.title, panel]);
 
+  const { chatWindow, dragging, launcherProps } = useLauncherDrag(
+    () => void open(),
+  );
+
   // Switching modules closes the window instead of silently swapping the assistant under the open conversation.
   useEffect(() => {
     if (moduleRef.current === assistant.scope) return;
@@ -154,12 +163,14 @@ export function FloatingChat(): ReactElement | null {
   if (!panel.open)
     return (
       <Button
+        {...launcherProps}
         variant='outline'
         size='icon'
+        title={t('chat.dragLauncher')}
         aria-label={assistant.title}
         aria-controls={CHAT_PANEL_ID}
-        className='fixed right-6 bottom-6 z-40 hidden size-12 rounded-full border-border bg-background text-foreground shadow-lg md:inline-flex'
-        onClick={() => void open()}
+        className='fixed z-40 hidden size-12 rounded-full border-border bg-background text-foreground shadow-lg md:inline-flex'
+        data-dragging={dragging ? 'true' : undefined}
         data-testid='agent-chat-launcher'
       >
         <BotMessageSquareIcon className='size-5' />
@@ -191,7 +202,11 @@ export function FloatingChat(): ReactElement | null {
     <div
       role='dialog'
       aria-label={assistant.title}
-      className='fixed right-6 bottom-6 z-40 hidden h-[min(40rem,calc(100dvh-7rem))] w-[22rem] overflow-hidden rounded-xl border bg-background shadow-2xl md:flex 2xl:w-[26.25rem] [&>aside]:w-full [&>aside]:border-l-0'
+      style={{
+        right: `${chatWindow.right}px`,
+        bottom: `${chatWindow.bottom}px`,
+      }}
+      className='fixed z-40 hidden h-[min(40rem,calc(100dvh-7rem))] w-[22rem] overflow-hidden rounded-xl border bg-background shadow-2xl md:flex 2xl:w-[26.25rem] [&>aside]:w-full [&>aside]:border-l-0'
       data-testid='agent-chat-window'
     >
       <ChatPanel />

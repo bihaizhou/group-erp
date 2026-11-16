@@ -64,6 +64,7 @@ const agentChatZhCN: AgentChatLocale = {
     allowAnother: '允许再次发送（可能重复）',
     refreshHistory: '刷新历史',
     title: 'Agent 对话',
+    dragLauncher: '拖动可移动位置',
     ask: '问 Agent',
     close: '关闭',
     expand: '全屏',

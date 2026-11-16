@@ -57,6 +57,7 @@ export interface AgentChatLocale {
     readonly allowAnother: string;
     readonly refreshHistory: string;
     readonly title: string;
+    readonly dragLauncher: string;
     readonly ask: string;
     readonly close: string;
     readonly expand: string;
@@ -370,6 +371,7 @@ const agentChatEnUS: AgentChatLocale = {
     allowAnother: 'Allow another send (may duplicate)',
     refreshHistory: 'Refresh history',
     title: 'Agent chat',
+    dragLauncher: 'Drag to move',
     ask: 'Ask agent',
     close: 'Close',
     expand: 'Full width',
