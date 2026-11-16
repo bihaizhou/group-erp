@@ -964,19 +964,27 @@ describe('compact permission controls', () => {
     );
   });
 
-  it('opens page rows instead of toggling checkboxes and marks configured fields', async () => {
+  it('keeps the page access checkbox next to the field editor and marks configured fields', async () => {
     const user = userEvent.setup();
     const open = vi.fn();
+    const change = vi.fn();
     render(
       <PermissionEditor
         sections={[treeSection]}
-        onEnabledChange={vi.fn()}
+        onEnabledChange={change}
         onLevelChange={vi.fn()}
         onNavigationOpen={open}
         navigationConfigured={(node) => node.label === 'Books'}
       />,
     );
-    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    // 页面访问仍然靠复选框授予；行内按钮只负责字段配置，两者不能互相取代。
+    expect(screen.getByRole('checkbox', { name: 'Catalog' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Books' })).toBeChecked();
+    expect(
+      screen.getByRole('checkbox', { name: 'Review loans' }),
+    ).not.toBeChecked();
+    await user.click(screen.getByRole('checkbox', { name: 'Books' }));
+    expect(change).toHaveBeenCalledExactlyOnceWith('books', false);
     await user.click(screen.getByRole('button', { name: /Configure Books/ }));
     expect(open).toHaveBeenCalledWith(
       expect.objectContaining({ label: 'Books', rowId: 'books' }),

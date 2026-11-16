@@ -304,12 +304,16 @@ function PermissionPageRow({
   row,
   configured,
   labels,
+  readOnly,
+  onAccessChange,
   onOpen,
 }: {
   readonly node: PermissionEditorNavigationNode;
   readonly row: PermissionEditorRow;
   readonly configured: boolean;
   readonly labels: Required<PermissionEditorLabels>;
+  readonly readOnly: boolean;
+  readonly onAccessChange: (id: string, enabled: boolean) => void;
   readonly onOpen: (node: PermissionEditorNavigationNode) => void;
 }): ReactElement {
   const state = [
@@ -320,6 +324,13 @@ function PermissionPageRow({
     .join(', ');
   return (
     <div className='group flex w-full min-w-0 items-start gap-2 rounded-md px-2 py-2 transition-colors hover:bg-hover'>
+      <Checkbox
+        className='mt-0.5 shrink-0'
+        checked={row.enabled}
+        aria-label={node.label}
+        disabled={readOnly || row.toggleable === false}
+        onCheckedChange={(on: boolean) => onAccessChange(row.id, on)}
+      />
       <button
         type='button'
         data-slot='permission-page-row'
@@ -445,6 +456,8 @@ function PermissionNavigation({
                       row={row}
                       configured={navigationConfigured?.(node) ?? false}
                       labels={rowProps.labels}
+                      readOnly={rowProps.readOnly}
+                      onAccessChange={rowProps.onEnabledChange}
                       onOpen={onNavigationOpen}
                     />
                   ) : (
