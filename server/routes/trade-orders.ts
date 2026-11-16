@@ -7,6 +7,7 @@ import {
   authenticationToken,
   type AuthEnv,
 } from '@nocobase/app-plugin-authentication';
+import { databaseManagerToken } from '@nocobase/db';
 import {
   authorizationToken,
   type AuthorizationEnv,
@@ -62,9 +63,23 @@ import {
 } from '../providers/inventory-quantity.js';
 import { materialIdFilter } from '../providers/material-filters.js';
 import type { TradeKind } from '../providers/trade-order-service.js';
+import {
+  accessFor,
+  assertFieldsWritable,
+  fieldPoliciesFor,
+  redactRecord,
+  redactRows,
+  type FieldPolicyView,
+} from '../providers/field-access.js';
+import { resourceFieldNames } from '../providers/field-catalog.js';
 
 type Env = AuthEnv &
-  AuthorizationEnv & { Variables: { executionPolicies: MaterialPolicies } };
+  AuthorizationEnv & {
+    Variables: {
+      executionPolicies: MaterialPolicies;
+      fieldRules: FieldPolicyView[] | undefined;
+    };
+  };
 export const tradeOrderRoutes: AppApiRouteContribution<Application> =
   defineApiRoutes((app) => {
     const router = new Hono<Env>(),
@@ -73,7 +88,12 @@ export const tradeOrderRoutes: AppApiRouteContribution<Application> =
       service = app.container.resolve(tradeOrderServiceToken),
       records = app.container.resolve(executionRecordsToken),
       materials = app.container.resolve(supplyChainMaterialServiceToken),
+      db = app.container.resolve(databaseManagerToken),
       actor = (c: Context<Env>) => ({ id: c.get('auth')!.user.id }),
+      principal = (c: Context<Env>) => ({
+        type: 'user' as const,
+        id: c.get('auth')!.user.id,
+      }),
       policies = (c: Context<Env>) => c.get('executionPolicies'),
       errors = {
         ...apiErrorResponses,
@@ -93,6 +113,149 @@ export const tradeOrderRoutes: AppApiRouteContribution<Application> =
             message: 'Payload too large.',
           });
         },
+      });
+    const HEAD_RESOURCE = 'execution.document';
+    const LINE_RESOURCE = 'execution.document.line';
+    const isProvided = (value: unknown) =>
+      value !== undefined && value !== null && value !== '';
+    const comparable = (field: string, value: unknown): string | null => {
+      if (value === undefined || value === null || value === '') return null;
+      if (field === 'occurredOn' || field === 'deliveryOn')
+        return String(value).slice(0, 10);
+      if (
+        field === 'quantity' ||
+        field === 'baseQuantity' ||
+        field === 'unitPrice' ||
+        field === 'amount'
+      ) {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) return numeric.toString();
+      }
+      return String(value);
+    };
+    const lineFieldValues = (line: Record<string, unknown>) => {
+      const values: Record<string, unknown> = { ...line };
+      const selection = line.selection;
+      if (
+        selection &&
+        typeof selection === 'object' &&
+        !Array.isArray(selection)
+      ) {
+        const quantity = (selection as Record<string, unknown>).quantity;
+        if (quantity !== undefined) values.quantity = quantity;
+      }
+      return values;
+    };
+    const fieldRules = async (c: Context<Env>): Promise<FieldPolicyView[]> => {
+      const cached = c.get('fieldRules');
+      if (cached) return cached;
+      const rules = await fieldPoliciesFor(db, principal(c));
+      c.set('fieldRules', rules);
+      return rules;
+    };
+    const redactOrder = <T extends Record<string, unknown>>(
+      rules: readonly FieldPolicyView[],
+      order: T,
+    ): T => {
+      if (!rules.length) return order;
+      const head = redactRecord(order, rules, HEAD_RESOURCE),
+        lines = head.lines;
+      if (Array.isArray(lines))
+        (head as Record<string, unknown>).lines = redactRows(
+          lines as Record<string, unknown>[],
+          rules,
+          LINE_RESOURCE,
+        ).map((line) => {
+          // Selection snapshots mirror the unit price; strip the nested copy
+          // when the column itself is hidden.
+          if (accessFor(rules, LINE_RESOURCE, 'unitPrice') !== 'hidden')
+            return line;
+          const snapshot = line.selectionInput;
+          if (
+            !snapshot ||
+            typeof snapshot !== 'object' ||
+            Array.isArray(snapshot)
+          )
+            return line;
+          const next = { ...(snapshot as Record<string, unknown>) };
+          delete next.unitPrice;
+          return { ...line, selectionInput: next };
+        });
+      return head;
+    };
+    const assertOrderWritable = async (
+      rules: readonly FieldPolicyView[],
+      content: Record<string, unknown>,
+      previous?: Record<string, unknown>,
+    ) => {
+      if (!rules.length) return;
+      const headFields = await resourceFieldNames(db, HEAD_RESOURCE);
+      assertFieldsWritable(
+        rules,
+        HEAD_RESOURCE,
+        headFields.filter((field) => {
+          if (!(field in content) || !isProvided(content[field])) return false;
+          return (
+            !previous ||
+            comparable(field, content[field]) !==
+              comparable(field, previous[field])
+          );
+        }),
+      );
+      const lineFields = await resourceFieldNames(db, LINE_RESOURCE),
+        previousLines = Array.isArray(previous?.lines)
+          ? (previous.lines as Record<string, unknown>[])
+          : [],
+        lines = Array.isArray(content.lines) ? content.lines : [];
+      for (const entry of lines) {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry))
+          continue;
+        const line = entry as Record<string, unknown>,
+          values = lineFieldValues(line),
+          prior = previousLines.find((item) => item.id === line.id);
+        assertFieldsWritable(
+          rules,
+          LINE_RESOURCE,
+          lineFields.filter((field) => {
+            if (!(field in values) || !isProvided(values[field])) return false;
+            return (
+              !prior ||
+              comparable(field, values[field]) !==
+                comparable(field, prior[field])
+            );
+          }),
+        );
+      }
+    };
+    const writeGuard = (kind: TradeKind, update: boolean) =>
+      createMiddleware<Env>(async (c, next) => {
+        const rules = await fieldRules(c);
+        if (!rules.length) return next();
+        let raw: unknown;
+        try {
+          raw = await c.req.raw.clone().json();
+        } catch {
+          return next();
+        }
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+          return next();
+        const content = (raw as Record<string, unknown>).content;
+        if (!content || typeof content !== 'object' || Array.isArray(content))
+          return next();
+        const previous = update
+          ? ((await records.view(
+              records.db.connection(),
+              kind,
+              c.req.param('id')!,
+              policies(c),
+            )) as Record<string, unknown>)
+          : undefined;
+        await assertOrderWritable(
+          rules,
+          content as Record<string, unknown>,
+          previous,
+        );
+        await next();
       });
     router.onError((error, c) => {
       return apiErrorHandler(executionApiError(error), c);
@@ -449,13 +612,24 @@ export const tradeOrderRoutes: AppApiRouteContribution<Application> =
           listResponse(executionProjection, executionMeta),
         ),
         apiValidator('query', executionQuery),
-        async (c) =>
-          c.json(await records.list(kind, c.req.valid('query'), policies(c))),
+        async (c) => {
+          const result = await records.list(
+              kind,
+              c.req.valid('query'),
+              policies(c),
+            ),
+            rules = await fieldRules(c);
+          return c.json({
+            ...result,
+            data: result.data.map((row) => redactOrder(rules, row)),
+          });
+        },
       );
       router.post(
         base,
         allowed(kind, 'create'),
         limit,
+        writeGuard(kind, false),
         describe(
           kind,
           'Create',
@@ -467,12 +641,15 @@ export const tradeOrderRoutes: AppApiRouteContribution<Application> =
         async (c) =>
           c.json(
             {
-              data: await service.save(
-                kind,
-                undefined,
-                c.req.valid('json'),
-                actor(c),
-                policies(c),
+              data: redactOrder(
+                await fieldRules(c),
+                await service.save(
+                  kind,
+                  undefined,
+                  c.req.valid('json'),
+                  actor(c),
+                  policies(c),
+                ),
               ),
             },
             201,
@@ -602,11 +779,14 @@ export const tradeOrderRoutes: AppApiRouteContribution<Application> =
         apiValidator('param', executionParams),
         async (c) =>
           c.json({
-            data: await records.view(
-              records.db.connection(),
-              kind,
-              c.req.valid('param').id,
-              policies(c),
+            data: redactOrder(
+              await fieldRules(c),
+              await records.view(
+                records.db.connection(),
+                kind,
+                c.req.valid('param').id,
+                policies(c),
+              ),
             ),
           }),
       );
@@ -614,6 +794,7 @@ export const tradeOrderRoutes: AppApiRouteContribution<Application> =
         `${base}/:id`,
         allowed(kind, 'update'),
         limit,
+        writeGuard(kind, true),
         describe(
           kind,
           'Update',
@@ -624,12 +805,15 @@ export const tradeOrderRoutes: AppApiRouteContribution<Application> =
         apiValidator('json', orderUpdate),
         async (c) =>
           c.json({
-            data: await service.save(
-              kind,
-              c.req.valid('param').id,
-              c.req.valid('json'),
-              actor(c),
-              policies(c),
+            data: redactOrder(
+              await fieldRules(c),
+              await service.save(
+                kind,
+                c.req.valid('param').id,
+                c.req.valid('json'),
+                actor(c),
+                policies(c),
+              ),
             ),
           }),
       );
@@ -637,6 +821,7 @@ export const tradeOrderRoutes: AppApiRouteContribution<Application> =
         `${base}/:id/copy`,
         allowed(kind, 'copy'),
         limit,
+        writeGuard(kind, false),
         describe(
           kind,
           'Copy',
@@ -649,13 +834,16 @@ export const tradeOrderRoutes: AppApiRouteContribution<Application> =
         async (c) =>
           c.json(
             {
-              data: await service.save(
-                kind,
-                undefined,
-                c.req.valid('json'),
-                actor(c),
-                policies(c),
-                c.req.valid('param').id,
+              data: redactOrder(
+                await fieldRules(c),
+                await service.save(
+                  kind,
+                  undefined,
+                  c.req.valid('json'),
+                  actor(c),
+                  policies(c),
+                  c.req.valid('param').id,
+                ),
               ),
             },
             201,
@@ -687,13 +875,16 @@ export const tradeOrderRoutes: AppApiRouteContribution<Application> =
           apiValidator('json', executionMutation),
           async (c) =>
             c.json({
-              data: await service.fire(
-                kind,
-                c.req.valid('param').id,
-                action,
-                c.req.valid('json'),
-                actor(c),
-                policies(c),
+              data: redactOrder(
+                await fieldRules(c),
+                await service.fire(
+                  kind,
+                  c.req.valid('param').id,
+                  action,
+                  c.req.valid('json'),
+                  actor(c),
+                  policies(c),
+                ),
               ),
             }),
         );
@@ -711,13 +902,16 @@ export const tradeOrderRoutes: AppApiRouteContribution<Application> =
         apiValidator('json', executionQuantityAction),
         async (c) =>
           c.json({
-            data: await service.fire(
-              kind,
-              c.req.valid('param').id,
-              'closeRemainder',
-              c.req.valid('json'),
-              actor(c),
-              policies(c),
+            data: redactOrder(
+              await fieldRules(c),
+              await service.fire(
+                kind,
+                c.req.valid('param').id,
+                'closeRemainder',
+                c.req.valid('json'),
+                actor(c),
+                policies(c),
+              ),
             ),
           }),
       );

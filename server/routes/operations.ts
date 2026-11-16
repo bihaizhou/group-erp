@@ -18,6 +18,7 @@ import {
   describeRoute,
   type AppApiRouteContribution,
 } from '@nocobase/app-server/router';
+import { databaseManagerToken } from '@nocobase/db';
 import { Hono, type Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { z } from 'zod';
@@ -36,8 +37,47 @@ import {
   type OperationsScope,
   operationsServiceToken,
 } from '../providers/operations-service.js';
+import {
+  assertFieldsWritable,
+  fieldPoliciesFor,
+  redactRecord,
+  redactRows,
+  type FieldPolicyView,
+} from '../providers/field-access.js';
+import { resourceFieldNames } from '../providers/field-catalog.js';
 
 type Env = AuthEnv & AuthorizationEnv;
+/** Field-policy resources covering the operations catalog fields. */
+const ISSUE_RESOURCE = 'operations.issue';
+const TARGET_RESOURCE = 'operations.target';
+/** Stored calendar-date columns; compare them by day, not by timestamp. */
+const DATE_FIELDS = new Set(['dueAt']);
+/** Null and the empty string both mean "not provided". */
+const isProvided = (value: unknown): boolean =>
+  value !== undefined && value !== null && value !== '';
+const asComparable = (field: string, value: unknown): string | null => {
+  if (!isProvided(value)) return null;
+  if (typeof value === 'boolean') return value ? '1' : '0';
+  const text = String(value);
+  return DATE_FIELDS.has(field) && text.length >= 10 ? text.slice(0, 10) : text;
+};
+/**
+ * The raw JSON body of a request whose validator strips unknown keys.
+ * Hono caches the parsed body, so this returns the same object the validator
+ * read instead of consuming the request again.
+ */
+const requestBody = async (
+  c: Context<Env>,
+): Promise<Record<string, unknown>> => {
+  try {
+    const body: unknown = await c.req.json();
+    return body && typeof body === 'object' && !Array.isArray(body)
+      ? (body as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+};
 const object = z.record(z.string(), z.unknown());
 const issueIdParams = z.object({ id: z.string().length(36) });
 const errors = {
@@ -97,8 +137,7 @@ export function compositeSourceGranted(
 ): boolean {
   if (decision.effect === 'deny') return false;
   const database = decision.conditions?.database as
-    | Record<string, { read?: unknown }>
-    | undefined;
+    Record<string, { read?: unknown }> | undefined;
   if (!database) return false;
   if (source === 'people' && !database[peopleTables.employees]) return false;
   return Object.values(database).every((policy) =>
@@ -109,6 +148,7 @@ export function compositeSourceGranted(
 export const operationsRoutes: AppApiRouteContribution<Application> =
   defineApiRoutes((app) => {
     const service = app.container.resolve(operationsServiceToken);
+    const db = app.container.resolve(databaseManagerToken);
     const auth = app.container.resolve(authenticationToken);
     const authz = app.container.resolve(authorizationToken);
     const router = new Hono<Env>();
@@ -131,8 +171,7 @@ export const operationsRoutes: AppApiRouteContribution<Application> =
       const granted = async (
         resource: { type: string; id: string },
         action: string,
-      ) =>
-        (await context.authorize({ resource, action })).effect !== 'deny';
+      ) => (await context.authorize({ resource, action })).effect !== 'deny';
       const grantedComposite = async (
         source: CompositeSource,
         resource: { type: 'composite'; id: string },
@@ -204,6 +243,31 @@ export const operationsRoutes: AppApiRouteContribution<Application> =
         tags: ['Operations'],
         responses: { '200': dataResponse(object), ...errors },
       });
+    /**
+     * Field-policy write guard for the catalog fields present in a payload.
+     * Runs only for accounts that actually have field policies, so the
+     * no-policy path adds no catalog/previous reads and keeps its error order.
+     */
+    const rejectHiddenWrites = async (
+      policies: FieldPolicyView[],
+      resource: string,
+      input: Record<string, unknown>,
+      previous?: Record<string, unknown> | null,
+    ) => {
+      if (!policies.length) return;
+      assertFieldsWritable(
+        policies,
+        resource,
+        (await resourceFieldNames(db, resource)).filter((field) => {
+          if (!(field in input) || !isProvided(input[field])) return false;
+          return (
+            !previous ||
+            asComparable(field, input[field]) !==
+              asComparable(field, previous[field])
+          );
+        }),
+      );
+    };
     router.onError((error, c) => {
       if (error instanceof OperationsError)
         return apiErrorHandler(toApiError(error), c);
@@ -274,14 +338,21 @@ export const operationsRoutes: AppApiRouteContribution<Application> =
       allowed,
       describe('operationsIssueList', 'List operations issues'),
       apiValidator('query', operationsIssueQuery),
-      async (c) =>
-        c.json({
-          data: await service.listIssues(
-            actor(c),
-            c.req.valid('query'),
-            await scoped(c),
-          ),
-        }),
+      async (c) => {
+        const principal = actor(c);
+        const policies = await fieldPoliciesFor(db, principal);
+        const result = await service.listIssues(
+          principal,
+          c.req.valid('query'),
+          await scoped(c),
+        );
+        return c.json({
+          data: {
+            ...result,
+            items: redactRows(result.items, policies, ISSUE_RESOURCE),
+          },
+        });
+      },
     );
 
     router.get(
@@ -289,14 +360,21 @@ export const operationsRoutes: AppApiRouteContribution<Application> =
       allowed,
       describe('operationsTargetList', 'List monthly KPI targets'),
       apiValidator('query', operationsTargetQuery),
-      async (c) =>
-        c.json({
-          data: await service.listTargets(
-            actor(c),
-            c.req.valid('query'),
-            await scoped(c),
-          ),
-        }),
+      async (c) => {
+        const principal = actor(c);
+        const policies = await fieldPoliciesFor(db, principal);
+        const result = await service.listTargets(
+          principal,
+          c.req.valid('query'),
+          await scoped(c),
+        );
+        return c.json({
+          data: {
+            ...result,
+            items: redactRows(result.items, policies, TARGET_RESOURCE),
+          },
+        });
+      },
     );
 
     router.put(
@@ -304,14 +382,32 @@ export const operationsRoutes: AppApiRouteContribution<Application> =
       canManage,
       describe('operationsTargetSave', 'Save a monthly KPI target'),
       apiValidator('json', operationsTargetInput),
-      async (c) =>
-        c.json({
-          data: await service.saveTarget(
-            actor(c),
-            c.req.valid('json'),
-            await scoped(c),
-          ),
-        }),
+      async (c) => {
+        const principal = actor(c);
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal);
+        if (policies.length) {
+          // Targets are an upsert: diff an existing row so an unchanged
+          // read-only value can still be resubmitted, but treat a new row as
+          // a create where every submitted field must be writable.
+          const previous = (await db.repository('opsKpiTargets').findOne({
+            filter: {
+              subjectId: input.subjectId,
+              period: input.period,
+              metric: input.metric,
+            },
+          })) as Record<string, unknown> | null;
+          await rejectHiddenWrites(policies, TARGET_RESOURCE, input, previous);
+        }
+        const saved = await service.saveTarget(
+          principal,
+          input,
+          await scoped(c),
+        );
+        return c.json({
+          data: redactRecord(saved, policies, TARGET_RESOURCE),
+        });
+      },
     );
 
     router.post(
@@ -319,17 +415,21 @@ export const operationsRoutes: AppApiRouteContribution<Application> =
       canManage,
       describe('operationsIssueCreate', 'Create an operations issue'),
       apiValidator('json', operationsIssueInput),
-      async (c) =>
-        c.json(
-          {
-            data: await service.createIssue(
-              actor(c),
-              c.req.valid('json'),
-              await scoped(c),
-            ),
-          },
+      async (c) => {
+        const principal = actor(c);
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal);
+        await rejectHiddenWrites(policies, ISSUE_RESOURCE, input);
+        const created = await service.createIssue(
+          principal,
+          input,
+          await scoped(c),
+        );
+        return c.json(
+          { data: redactRecord(created, policies, ISSUE_RESOURCE) },
           201,
-        ),
+        );
+      },
     );
 
     router.patch(
@@ -338,15 +438,30 @@ export const operationsRoutes: AppApiRouteContribution<Application> =
       describe('operationsIssueUpdate', 'Update an operations issue'),
       apiValidator('param', issueIdParams),
       apiValidator('json', operationsIssueUpdate),
-      async (c) =>
-        c.json({
-          data: await service.updateIssue(
-            actor(c),
-            c.req.valid('param').id,
-            c.req.valid('json'),
-            await scoped(c),
-          ),
-        }),
+      async (c) => {
+        const principal = actor(c);
+        const id = c.req.valid('param').id;
+        const input = c.req.valid('json');
+        const policies = await fieldPoliciesFor(db, principal);
+        if (policies.length) {
+          const raw = await requestBody(c);
+          const previous = (await db
+            .repository('opsIssues')
+            .findOne({ filter: { id } })) as Record<string, unknown> | null;
+          if (previous) {
+            await rejectHiddenWrites(policies, ISSUE_RESOURCE, raw, previous);
+          }
+        }
+        const updated = await service.updateIssue(
+          principal,
+          id,
+          input,
+          await scoped(c),
+        );
+        return c.json({
+          data: redactRecord(updated, policies, ISSUE_RESOURCE),
+        });
+      },
     );
 
     const root = new Hono();

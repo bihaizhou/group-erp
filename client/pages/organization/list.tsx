@@ -1,5 +1,6 @@
 import { PurchaseReferenceNotice } from '#components/purchase-reference-notice';
 import { useOptions, useRecord, useOrgError } from './hooks.js';
+import { businessDate } from '#lib/business-date';
 import { ApiClientError, useApiClient, useToaster } from '@nocobase/app-client';
 import { useCan } from '@nocobase/app-plugin-authorization/client';
 import { useTranslation } from '@nocobase/i18n/client';
@@ -484,16 +485,40 @@ function StatusDialog({
   const toast = useToaster();
   const record = useRecord(kind, initial.id);
   const [reason, setReason] = useState('');
+  const [effectiveFrom, setEffectiveFrom] = useState('');
   const [error, setError] = useState<unknown>();
   const [pending, setPending] = useState(false);
   const errorText = useOrgError();
   const latest = record.isError ? undefined : record.data?.data;
   const status = initial.status === 'active' ? 'inactive' : 'active';
+  const tomorrow = nextBusinessDate();
   const submit = async () => {
     if (!reason.trim() || !latest || pending) return;
     setPending(true);
     setError(undefined);
     try {
+      if (effectiveFrom) {
+        await api.request({
+          path: `organization/${kind}/${latest.id}/schedule`,
+          method: 'POST',
+          json: {
+            version: latest.version,
+            reason: reason.trim(),
+            effectiveFrom,
+            changes: { status },
+          },
+        });
+        void cache.invalidateQueries({
+          queryKey: ['org-pending', kind, latest.id],
+        });
+        void cache.invalidateQueries({ queryKey: ['org-list'] });
+        toast.show({
+          type: 'success',
+          title: t('org.scheduled', { name: latest.name, date: effectiveFrom }),
+        });
+        close();
+        return;
+      }
       const result = await api.request<{ data: OrgRecord }>({
         path: `organization/${kind}/${latest.id}/setStatus`,
         method: 'POST',
@@ -576,6 +601,18 @@ function StatusDialog({
               disabled={pending}
               maxLength={1000}
             />
+            <Label htmlFor='status-effective'>{t('org.fields.effectiveFrom')}</Label>
+            <Input
+              id='status-effective'
+              type='date'
+              min={tomorrow}
+              value={effectiveFrom}
+              onChange={(e) => setEffectiveFrom(e.target.value)}
+              disabled={pending}
+            />
+            <p className='text-xs text-muted-foreground'>
+              {t('org.effectiveFromHint')}
+            </p>
           </form>
         </div>
         <AlertDialogFooter className='shrink-0'>
@@ -596,4 +633,10 @@ function StatusDialog({
       </AlertDialogContent>
     </AlertDialog>
   );
+}
+
+/** Tomorrow in the business timezone, the first valid schedule date. */
+function nextBusinessDate(): string {
+  const [year, month, day] = businessDate().split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
 }
