@@ -1748,7 +1748,9 @@ export class SupplierService {
       {
         code: input.code,
         name: input.name,
-        registrationCode: input.registrationCode,
+        ...(input.registrationCode === undefined
+          ? {}
+          : { registrationCode: input.registrationCode }),
       },
       actor,
       p,

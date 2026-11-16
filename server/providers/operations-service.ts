@@ -1,9 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type {
-  DatabaseManager,
-  FilterBuilder,
-  FilterNode,
-} from '@nocobase/db';
+import type { DatabaseManager, FilterBuilder, FilterNode } from '@nocobase/db';
 import { createServiceToken } from '@nocobase/service-provider';
 import { businessDate } from './business-date.js';
 import { currentCompanyForUser } from './company-identity.js';
@@ -24,14 +20,12 @@ export const operationsServiceToken = createServiceToken<OperationsService>(
 
 export type OperationsPrincipal = { type: string; id: string };
 export type OperationsErrorCode =
-  'OPERATIONS_FORBIDDEN' | 'OPERATIONS_INVALID' | 'OPERATIONS_CONFLICT';
+  | 'OPERATIONS_FORBIDDEN'
+  | 'OPERATIONS_INVALID'
+  | 'OPERATIONS_CONFLICT'
+  | 'OPERATIONS_NOT_FOUND';
 export type OperationsSource =
-  | 'hse'
-  | 'production'
-  | 'warehouse'
-  | 'sales'
-  | 'procurement'
-  | 'people';
+  'hse' | 'production' | 'warehouse' | 'sales' | 'procurement' | 'people';
 export type OperationsScope = {
   readAll: boolean;
   /**
@@ -63,10 +57,7 @@ const issueTransitions: Record<string, ReadonlyArray<string>> = {
   closed: [],
 };
 
-function issueTransitionAllowed(
-  from: string,
-  to: string,
-): boolean {
+function issueTransitionAllowed(from: string, to: string): boolean {
   return (issueTransitions[from] ?? []).includes(to);
 }
 
@@ -170,8 +161,7 @@ function subjectIdIn(
   ids: readonly string[],
 ): FilterNode {
   if (!ids.length) return f.string(field).eq('__none__');
-  if (ids.length <= 100)
-    return f.or(ids.map((id) => f.string(field).eq(id)));
+  if (ids.length <= 100) return f.or(ids.map((id) => f.string(field).eq(id)));
   const middle = Math.floor(ids.length / 2);
   return f.or([
     subjectIdIn(f, field, ids.slice(0, middle)),
@@ -235,6 +225,25 @@ export class OperationsService {
         pageSize: query.pageSize,
       },
     };
+  }
+
+  /**
+   * Resolve the company that owns an issue bound to a file, after checking
+   * that `principal` may see that company under the current operations scope.
+   * Returns `null` when the issue does not exist so the route can answer 404.
+   */
+  async fileSubject(
+    principal: OperationsPrincipal,
+    scope: OperationsScope,
+    issueId: string,
+  ): Promise<string | null> {
+    const row = await this.database
+      .repository('opsIssues')
+      .findOne({ filter: { id: issueId } });
+    if (!row) return null;
+    const subjectId = text(row.subjectId);
+    await this.resolveSubject(principal, subjectId || undefined, scope);
+    return subjectId || null;
   }
 
   private async subjectRows(
@@ -544,8 +553,7 @@ export class OperationsService {
           },
           limit: limit + 1,
         })) as Record<string, unknown>[];
-        if (rows.length > limit)
-          truncated.add(`${source ?? 'issues'}:${key}`);
+        if (rows.length > limit) truncated.add(`${source ?? 'issues'}:${key}`);
         tables[key] = rows.length > limit ? rows.slice(0, limit) : rows;
       }),
     );
@@ -1033,9 +1041,9 @@ export class OperationsService {
           f.string('subjectId').eq(subjectId),
           f.string('status').eq('confirmed'),
           f.date('reportDate').notBefore(`${period}-01`),
-          f.date('reportDate').notAfter(
-            `${period}-${String(lastDay).padStart(2, '0')}`,
-          ),
+          f
+            .date('reportDate')
+            .notAfter(`${period}-${String(lastDay).padStart(2, '0')}`),
         ]),
       limit: 50_000,
     });
@@ -1219,7 +1227,10 @@ export class OperationsService {
     if (Number(existing.version) !== input.version)
       throw new OperationsError('OPERATIONS_CONFLICT', 'VERSION_CONFLICT');
     if (existing.status === 'closed')
-      throw new OperationsError('OPERATIONS_CONFLICT', 'ISSUE_CLOSED_IMMUTABLE');
+      throw new OperationsError(
+        'OPERATIONS_CONFLICT',
+        'ISSUE_CLOSED_IMMUTABLE',
+      );
     if (
       input.status &&
       input.status !== existing.status &&

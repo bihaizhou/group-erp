@@ -37,6 +37,11 @@ import {
   hseFileContentGuard,
   hseFileRoutes,
 } from './hse-files.js';
+import {
+  operationsFileApiGuard,
+  operationsFileContentGuard,
+  operationsFileRoutes,
+} from './operations-files.js';
 
 const routes: readonly AppRouteContribution<Application>[] = [
   accountRoutes,
@@ -70,6 +75,9 @@ const routes: readonly AppRouteContribution<Application>[] = [
   hseFileApiGuard,
   hseFileContentGuard,
   ...hseFileRoutes,
+  operationsFileApiGuard,
+  operationsFileContentGuard,
+  ...operationsFileRoutes,
 ];
 
 export default routes;

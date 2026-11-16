@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pencil, Plus } from 'lucide-react';
+import { Paperclip, Pencil, Plus } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { ReadOnlyNotice } from '#components/read-only-notice';
@@ -35,6 +35,7 @@ import type {
   OperationsOptions,
 } from './model.js';
 import { nativeSelectClass } from '#components/native-controls';
+import { OperationsIssueAttachments } from './issue-attachments.js';
 
 const today = () => businessDate();
 const emptyForm = () => ({
@@ -249,42 +250,48 @@ export default function OperationsIssuesPage() {
                   {t(`operations.issueStatus.${issue.status}`)}
                 </TableCell>
                 <TableCell>
-                  {issue.status === 'closed' ? null : (
-                    <div className='flex flex-wrap gap-2'>
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        disabled={update.isPending}
-                        onClick={() => openEdit(issue)}
-                      >
-                        <Pencil className='mr-1 size-3.5' />
-                        {t('operations.issueEdit')}
-                      </Button>
-                      {issue.status === 'open' ? (
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <OperationsIssueAttachments
+                      issueId={issue.id}
+                      canWrite={access.canManage}
+                    />
+                    {issue.status === 'closed' ? null : (
+                      <div className='flex flex-wrap gap-2'>
                         <Button
                           variant='outline'
                           size='sm'
                           disabled={update.isPending}
-                          onClick={() =>
-                            update.mutate({
-                              id: issue.id,
-                              version: issue.version,
-                              status: 'in_progress',
-                            })
-                          }
+                          onClick={() => openEdit(issue)}
                         >
-                          {t('operations.issueStart')}
+                          <Pencil className='mr-1 size-3.5' />
+                          {t('operations.issueEdit')}
                         </Button>
-                      ) : null}
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        onClick={() => setClosing(issue)}
-                      >
-                        {t('operations.issueClose')}
-                      </Button>
-                    </div>
-                  )}
+                        {issue.status === 'open' ? (
+                          <Button
+                            variant='outline'
+                            size='sm'
+                            disabled={update.isPending}
+                            onClick={() =>
+                              update.mutate({
+                                id: issue.id,
+                                version: issue.version,
+                                status: 'in_progress',
+                              })
+                            }
+                          >
+                            {t('operations.issueStart')}
+                          </Button>
+                        ) : null}
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => setClosing(issue)}
+                        >
+                          {t('operations.issueClose')}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -555,8 +562,7 @@ export default function OperationsIssuesPage() {
                   ...(editForm.ownerId
                     ? {
                         ownerId: editForm.ownerId,
-                        ownerName:
-                          editPosition?.name ?? editForm.ownerName,
+                        ownerName: editPosition?.name ?? editForm.ownerName,
                       }
                     : {}),
                 });

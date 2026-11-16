@@ -42,9 +42,14 @@ export const supplierMutation = z.strictObject({
   requestKey: id,
 });
 export const supplierRelationshipUpdate = supplierMutation.extend({ notes });
-export const supplierIdentityUpdate = supplierMutation.extend(
-  supplierIdentityFields,
-);
+export const supplierIdentityUpdate = supplierMutation.extend({
+  code: supplierIdentityFields.code,
+  name: supplierIdentityFields.name,
+  // Omitted registration codes keep their stored value: a rename must not
+  // wipe a column the caller cannot see (the shared service otherwise treats
+  // the schema default as an explicit null).
+  registrationCode: registrationCode.optional(),
+});
 export const supplierPage = z.strictObject({
   q: z.string().trim().max(200).default(''),
   page: z.coerce.number().int().min(1).max(100000).default(1),

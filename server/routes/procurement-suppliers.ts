@@ -89,16 +89,52 @@ export function createPartnerRoutes(
   const db = app.container.resolve(databaseManagerToken);
   const partnerResource =
     role === 'supplier' ? 'procurement.supplier.identity' : null;
+  const partnerResources =
+    role === 'supplier'
+      ? (['procurement.supplier.base', partnerResource!] as const)
+      : ([] as const);
+  const partnerRules = async (c: Context<Env>) =>
+    fieldPoliciesFor(db, { type: 'user', id: actor(c).id });
+  const redactPartnerIdentity = (
+    rules: Awaited<ReturnType<typeof partnerRules>>,
+    identity: Record<string, unknown>,
+  ): Record<string, unknown> =>
+    partnerResources.reduce<Record<string, unknown>>(
+      (row, resource) => redactRecord(row, rules, resource),
+      identity,
+    );
+  /**
+   * Redacts partner payloads: rows nesting the shared identity keep their own
+   * columns and lose only the hidden identity ones; identity rows are redacted
+   * directly.
+   */
   const visibleIdentity = async <T extends Record<string, unknown>>(
     c: Context<Env>,
     rows: readonly T[],
   ): Promise<T[]> => {
-    if (!partnerResource) return [...rows];
-    const rules = await fieldPoliciesFor(db, {
-      type: 'user',
-      id: actor(c).id,
+    if (!partnerResources.length) return [...rows];
+    const rules = await partnerRules(c);
+    return rows.map((row) => {
+      const identity = row.identity;
+      if (identity && typeof identity === 'object' && !Array.isArray(identity))
+        return {
+          ...row,
+          identity: redactPartnerIdentity(
+            rules,
+            identity as Record<string, unknown>,
+          ),
+        };
+      return redactPartnerIdentity(rules, row) as T;
     });
-    return redactRows(rows, rules, partnerResource);
+  };
+  const assertPartnerWritable = async (
+    c: Context<Env>,
+    fields: readonly string[],
+  ) => {
+    if (!partnerResources.length || !fields.length) return;
+    const rules = await partnerRules(c);
+    for (const resource of partnerResources)
+      assertFieldsWritable(rules, resource, fields);
   };
   const policies = (c: Context<Env>) => c.get('supplierPolicies');
   const access = (action: SupplierAction) =>
@@ -233,16 +269,12 @@ export function createPartnerRoutes(
           onlyActive,
         );
         if (!partnerResource) return c.json(page);
-        const rules = await fieldPoliciesFor(db, {
-          type: 'user',
-          id: actor(c).id,
-        });
+        const rules = await partnerRules(c);
         const data = page.data.map((row) => ({
           ...row,
-          identity: redactRecord(
-            row.identity as unknown as Record<string, unknown>,
+          identity: redactPartnerIdentity(
             rules,
-            partnerResource,
+            row.identity as unknown as Record<string, unknown>,
           ),
         }));
         return c.json({ ...page, data });
@@ -552,17 +584,13 @@ export function createPartnerRoutes(
         policies(c),
       );
       if (!partnerResource) return c.json({ data });
-      const rules = await fieldPoliciesFor(db, {
-        type: 'user',
-        id: actor(c).id,
-      });
+      const rules = await partnerRules(c);
       return c.json({
         data: {
           ...data,
-          identity: redactRecord(
-            data.identity as unknown as Record<string, unknown>,
+          identity: redactPartnerIdentity(
             rules,
-            partnerResource,
+            data.identity as unknown as Record<string, unknown>,
           ),
         },
       });
@@ -589,8 +617,13 @@ export function createPartnerRoutes(
       listResponse(supplierIdentityView, supplierMeta),
     ),
     apiValidator('query', supplierPage),
-    async (c) =>
-      c.json(await service.identities(c.req.valid('query'), policies(c))),
+    async (c) => {
+      const page = await service.identities(c.req.valid('query'), policies(c));
+      return c.json({
+        ...page,
+        data: await visibleIdentity(c, page.data as Record<string, unknown>[]),
+      });
+    },
   );
   router.get(
     partnerPath('/supplierIdentities/:id'),
@@ -601,13 +634,16 @@ export function createPartnerRoutes(
       dataResponse(supplierIdentityView),
     ),
     apiValidator('param', supplierParams),
-    async (c) =>
-      c.json({
-        data: await service.identityDetail(
-          c.req.valid('param').id,
-          policies(c),
-        ),
-      }),
+    async (c) => {
+      const data = await service.identityDetail(
+        c.req.valid('param').id,
+        policies(c),
+      );
+      const [visible] = await visibleIdentity(c, [
+        data as unknown as Record<string, unknown>,
+      ]);
+      return c.json({ data: visible });
+    },
   );
   router.get(
     partnerPath('/supplierIdentities/:id/history'),
@@ -640,17 +676,13 @@ export function createPartnerRoutes(
     async (c) => {
       const data = await service.detail(c.req.valid('param').id, policies(c));
       if (!partnerResource) return c.json({ data });
-      const rules = await fieldPoliciesFor(db, {
-        type: 'user',
-        id: actor(c).id,
-      });
+      const rules = await partnerRules(c);
       return c.json({
         data: {
           ...data,
-          identity: redactRecord(
-            data.identity as unknown as Record<string, unknown>,
+          identity: redactPartnerIdentity(
             rules,
-            partnerResource,
+            data.identity as unknown as Record<string, unknown>,
           ),
         },
       });
@@ -687,17 +719,20 @@ export function createPartnerRoutes(
       true,
     ),
     apiValidator('json', supplierCreate),
-    async (c) =>
-      c.json(
-        {
-          data: await service.create(
-            c.req.valid('json'),
-            actor(c),
-            policies(c),
-          ),
-        },
-        201,
-      ),
+    async (c) => {
+      const body = c.req.valid('json');
+      await assertPartnerWritable(
+        c,
+        ['code', 'name', 'registrationCode'].filter(
+          (field) => (body as Record<string, unknown>)[field] != null,
+        ),
+      );
+      const created = await service.create(body, actor(c), policies(c));
+      const [visible] = await visibleIdentity(c, [
+        created as unknown as Record<string, unknown>,
+      ]);
+      return c.json({ data: visible as typeof created }, 201);
+    },
   );
   router.post(
     partnerPath('/supplierRoles'),
@@ -793,15 +828,18 @@ export function createPartnerRoutes(
     ),
     apiValidator('param', supplierParams),
     apiValidator('json', supplierRelationshipUpdate),
-    async (c) =>
-      c.json({
-        data: await service.updateRelationship(
-          c.req.valid('param').id,
-          c.req.valid('json'),
-          actor(c),
-          policies(c),
-        ),
-      }),
+    async (c) => {
+      const updated = await service.updateRelationship(
+        c.req.valid('param').id,
+        c.req.valid('json'),
+        actor(c),
+        policies(c),
+      );
+      const [visible] = await visibleIdentity(c, [
+        updated as unknown as Record<string, unknown>,
+      ]);
+      return c.json({ data: visible as typeof updated });
+    },
   );
   router.patch(
     partnerPath('/supplierIdentities/:id'),
@@ -817,30 +855,28 @@ export function createPartnerRoutes(
     apiValidator('json', supplierIdentityUpdate),
     async (c) => {
       const body = c.req.valid('json');
-      if (partnerResource && 'registrationCode' in body) {
+      if (partnerResources.length) {
         const current = await db
           .repository('businessPartners')
           .findOne({ filter: { id: c.req.valid('param').id } });
-        const before = current
-          ? ((current as unknown as { registrationCode?: string | null })
-              .registrationCode ?? null)
-          : null;
-        if ((body.registrationCode ?? null) !== before) {
-          const rules = await fieldPoliciesFor(db, {
-            type: 'user',
-            id: actor(c).id,
-          });
-          assertFieldsWritable(rules, partnerResource, ['registrationCode']);
-        }
+        const before = (current ?? {}) as Record<string, unknown>;
+        const changed = ['code', 'name', 'registrationCode'].filter((field) => {
+          const provided = (body as Record<string, unknown>)[field];
+          if (provided === undefined) return false;
+          return (provided ?? null) !== (before[field] ?? null);
+        });
+        await assertPartnerWritable(c, changed);
       }
-      return c.json({
-        data: await service.updateIdentity(
-          c.req.valid('param').id,
-          body,
-          actor(c),
-          policies(c),
-        ),
-      });
+      const updated = await service.updateIdentity(
+        c.req.valid('param').id,
+        body,
+        actor(c),
+        policies(c),
+      );
+      const [visible] = await visibleIdentity(c, [
+        updated as unknown as Record<string, unknown>,
+      ]);
+      return c.json({ data: visible as typeof updated });
     },
   );
   for (const [path, table, action, schema] of [

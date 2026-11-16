@@ -18,6 +18,8 @@ import {
   createServiceToken,
 } from '@nocobase/service-provider';
 import { PeopleService } from './people-service.js';
+import { ContractReminders } from './people-contract-reminders.js';
+import { inAppNotificationStoreToken } from '@nocobase/app-plugin-notification-in-app/server';
 import { peopleTables } from './people-model.js';
 import { PEOPLE_CHECKLIST_TABLE } from './people-checklist.js';
 import { recordLifecycleToken } from './record-lifecycle.js';
@@ -31,6 +33,9 @@ import {
 
 export const peopleServiceToken =
   createServiceToken<PeopleService>('group-erp/people');
+export const contractRemindersToken = createServiceToken<ContractReminders>(
+  'group-erp/people-contract-reminders',
+);
 export default class PeopleProvider extends ServiceProvider<Application> {
   public readonly name = 'group-erp/people';
   private jobs: LifecycleJobs | undefined;
@@ -48,6 +53,13 @@ export default class PeopleProvider extends ServiceProvider<Application> {
         sweepEveryMs: 30000,
         onSweep: async () => {
           const service = this.app.container.resolve(peopleServiceToken);
+          const reminders = this.app.container.resolve(contractRemindersToken);
+          const result = await reminders.run();
+          if (result.delivered)
+            logger.info(
+              { delivered: result.delivered },
+              'Delivered labour-contract expiry reminders.',
+            );
           const failures = await service.applyDue();
           for (const failure of failures)
             logger.warn(
@@ -67,6 +79,13 @@ export default class PeopleProvider extends ServiceProvider<Application> {
           error: (message, details) => logger.error({ details }, message),
         },
       });
+    });
+    this.app.container.singleton(contractRemindersToken, () => {
+      return new ContractReminders(
+        this.app.container.resolve(databaseManagerToken),
+        this.app.container.resolve(inAppNotificationStoreToken),
+        this.app.config.get<string>('people.timeZone') ?? 'Asia/Shanghai',
+      );
     });
     this.app.container.singleton(peopleServiceToken, () => {
       return new PeopleService(
