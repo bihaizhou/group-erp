@@ -31,6 +31,7 @@ export function usePageFieldVisibility(pageKey: string): PageFieldVisibility {
   const [state, setState] = useState<PageState>();
 
   useEffect(() => {
+    if (!pageKey) return;
     const controller = new AbortController();
     void api
       .request<{ data: EffectiveVisibility }>({
@@ -59,7 +60,7 @@ export function usePageFieldVisibility(pageKey: string): PageFieldVisibility {
     ]),
   );
   return {
-    loading: !current,
+    loading: pageKey ? !current : false,
     configured,
     visible: (resource, field) =>
       !configured || (visible.get(keyOf(resource, field)) ?? true),

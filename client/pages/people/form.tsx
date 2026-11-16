@@ -63,6 +63,19 @@ import {
   type Value,
 } from './model.js';
 
+const peopleResources: Record<string, string> = {
+  employees: 'employee',
+  employments: 'employment',
+  assignments: 'assignment',
+  changes: 'change',
+  dimensions: 'dimension',
+  models: 'model',
+  profiles: 'profile',
+  evaluations: 'evaluation',
+  developmentPlans: 'developmentPlan',
+  workforcePlans: 'workforcePlan',
+};
+
 export default function PeopleFormPage() {
   const location = useLocation(),
     params = useParams(),
@@ -691,6 +704,8 @@ function RecordForm({
   // regularize and endPartTime run from the person's current records, so they
   // never ask for a target company or position.
   const showField = (key: string) => {
+    if (!pageFields.visible(`people.${peopleResources[kind]}`, key))
+      return false;
     if (kind !== 'changes') return true;
     if (key === 'targetSubjectId' || key === 'targetPositionId')
       return ['entry', 'transfer', 'partTime'].includes(changeType);
@@ -708,7 +723,7 @@ function RecordForm({
     if (key === 'assignmentId') return changeType === 'endPartTime';
     if (key === 'location')
       return ['entry', 'transfer', 'partTime'].includes(changeType);
-    return pageFields.visible('people.change', key);
+    return true;
   };
   const actions = (
     <div className='flex justify-end gap-2'>

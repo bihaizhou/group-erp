@@ -81,6 +81,38 @@ describe('page field visibility registry', () => {
     );
   });
 
+  it('covers every people create page from the shared field model', () => {
+    for (const [kind, resource] of [
+      ['employees', 'employee'],
+      ['employments', 'employment'],
+      ['assignments', 'assignment'],
+      ['changes', 'change'],
+      ['dimensions', 'dimension'],
+      ['models', 'model'],
+      ['profiles', 'profile'],
+      ['evaluations', 'evaluation'],
+      ['developmentPlans', 'developmentPlan'],
+      ['workforcePlans', 'workforcePlan'],
+    ]) {
+      const pageKey = `people-${kind}-new`;
+      expect(pageFieldVisibilityPageKeys.has(pageKey)).toBe(true);
+      expect(pageFieldVisibilityFields[pageKey]?.length ?? 0).toBeGreaterThan(
+        0,
+      );
+      expect(
+        pageFieldVisibilityExtraFields[pageKey]?.every(
+          (field) => field.resource === `people.${resource}`,
+        ),
+      ).toBe(true);
+    }
+    expect(pageFieldVisibilityFields['people-employees-new']).toContain(
+      'people.employee.education',
+    );
+    expect(
+      pageFieldVisibilityRequiredFields['people-evaluations-new'],
+    ).toContain('people.evaluation.period');
+  });
+
   it('covers sales and warehouse document create pages', () => {
     for (const pageKey of [
       'sales-orders-new',

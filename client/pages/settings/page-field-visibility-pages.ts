@@ -7,6 +7,10 @@ import {
   kinds as materialKinds,
   pageId as materialPageId,
 } from '../materials/model.js';
+import {
+  fields as peopleFields,
+  kinds as peopleKinds,
+} from '../people/model.js';
 
 /**
  * Pages whose forms already read the page-level field visibility setting.
@@ -16,7 +20,9 @@ import {
  */
 export const pageFieldVisibilityPageKeys: ReadonlySet<string> = new Set([
   'procurement-requests-new',
-  'people-changes-new',
+  ...peopleKinds
+    .filter((kind) => peopleFields[kind].length > 0)
+    .map((kind) => `people-${kind}-new`),
   ...organizationKinds.map((kind) => `organization-${kind}-new`),
   ...materialKinds
     .filter((kind) => materialFields[kind].length > 0)
@@ -94,20 +100,16 @@ export const pageFieldVisibilityFields: Readonly<
     'purchase.request.period',
     'purchase.request.notes',
   ],
-  'people-changes-new': [
-    'people.change.personId',
-    'people.change.type',
-    'people.change.effectiveDate',
-    'people.change.targetSubjectId',
-    'people.change.targetPositionId',
-    'people.change.changeEmployer',
-    'people.change.assignmentId',
-    'people.change.employmentType',
-    'people.change.probationEnd',
-    'people.change.contractEnd',
-    'people.change.location',
-    'people.change.explanation',
-  ],
+  ...Object.fromEntries(
+    peopleKinds
+      .filter((kind) => peopleFields[kind].length > 0)
+      .map((kind) => [
+        `people-${kind}-new`,
+        peopleFields[kind].map(
+          (field) => `people.${peopleResource(kind)}.${field.key}`,
+        ),
+      ]),
+  ),
   ...Object.fromEntries(
     organizationKinds.map((kind) => [
       `organization-${kind}-new`,
@@ -144,6 +146,21 @@ function organizationResource(
     sectors: 'sector',
     regions: 'region',
     relations: 'relation',
+  }[kind];
+}
+
+function peopleResource(kind: (typeof peopleKinds)[number]): string {
+  return {
+    employees: 'employee',
+    employments: 'employment',
+    assignments: 'assignment',
+    changes: 'change',
+    dimensions: 'dimension',
+    models: 'model',
+    profiles: 'profile',
+    evaluations: 'evaluation',
+    developmentPlans: 'developmentPlan',
+    workforcePlans: 'workforcePlan',
   }[kind];
 }
 
@@ -197,24 +214,18 @@ export const pageFieldVisibilityExtraFields: Readonly<
         })),
     ]),
   ),
-  'people-changes-new': [
-    ['personId', 'people.fields.personId'],
-    ['type', 'people.fields.type'],
-    ['effectiveDate', 'people.fields.effectiveDate'],
-    ['targetSubjectId', 'people.fields.targetSubjectId'],
-    ['targetPositionId', 'people.fields.targetPositionId'],
-    ['changeEmployer', 'people.fields.changeEmployer'],
-    ['assignmentId', 'people.fields.assignmentId'],
-    ['employmentType', 'people.fields.employmentType'],
-    ['probationEnd', 'people.fields.probationEnd'],
-    ['contractEnd', 'people.fields.contractEnd'],
-    ['location', 'people.fields.location'],
-    ['explanation', 'people.fields.explanation'],
-  ].map(([field, titleKey]) => ({
-    resource: 'people.change',
-    field,
-    titleKey,
-  })),
+  ...Object.fromEntries(
+    peopleKinds
+      .filter((kind) => peopleFields[kind].length > 0)
+      .map((kind) => [
+        `people-${kind}-new`,
+        peopleFields[kind].map((field) => ({
+          resource: `people.${peopleResource(kind)}`,
+          field: field.key,
+          titleKey: `people.fields.${field.key}`,
+        })),
+      ]),
+  ),
 };
 
 /** Required form fields stay visible; hiding them would make the page unsendable. */
@@ -227,12 +238,16 @@ export const pageFieldVisibilityRequiredFields: Readonly<
     'purchase.request.usage',
     'purchase.request.neededOn',
   ],
-  'people-changes-new': [
-    'people.change.personId',
-    'people.change.type',
-    'people.change.effectiveDate',
-    'people.change.explanation',
-  ],
+  ...Object.fromEntries(
+    peopleKinds
+      .filter((kind) => peopleFields[kind].length > 0)
+      .map((kind) => [
+        `people-${kind}-new`,
+        peopleFields[kind]
+          .filter((field) => field.required)
+          .map((field) => `people.${peopleResource(kind)}.${field.key}`),
+      ]),
+  ),
   ...Object.fromEntries(
     organizationKinds.map((kind) => [
       `organization-${kind}-new`,
