@@ -1,12 +1,51 @@
 import { describe, expect, it } from 'vitest';
 import {
+  resolveAppClientContributions,
+  type AppClientRegisteredRoute,
+} from '@nocobase/app-client/plugins';
+import applicationRoutes from '../../client/routes.js';
+import {
   pageFieldVisibilityExtraFields,
   pageFieldVisibilityFields,
   pageFieldVisibilityPageKeys,
   pageFieldVisibilityRequiredFields,
+  supportsPageFieldVisibility,
 } from '../../client/pages/settings/page-field-visibility-pages.js';
 
+const flatten = (
+  routes: readonly AppClientRegisteredRoute[],
+): AppClientRegisteredRoute[] =>
+  routes.flatMap((route) => [route, ...flatten(route.children ?? [])]);
+
+const application = resolveAppClientContributions([
+  {
+    packageName: 'page-field-coverage-app',
+    source: 'application',
+    routes: applicationRoutes,
+  },
+]);
+
 describe('page field visibility registry', () => {
+  it('covers every create route in the application', () => {
+    const createRoutes = flatten(application.routes).filter(
+      (route) =>
+        Boolean(route.componentLoader) &&
+        !route.path?.includes(':') &&
+        route.path?.split('/').filter(Boolean).at(-1) === 'new',
+    );
+    expect(createRoutes.length).toBeGreaterThan(0);
+    // Top-level create pages only. Routes such as `inbounds/:id/receipts/new`
+    // are document actions inside a detail page, not menu create forms.
+    // Material templates are a repeatable attribute editor, not a field form;
+    // there is nothing meaningful to hide at the page level.
+    const uncustomizable = new Set(['warehouse-material-templates-new']);
+    const uncovered = createRoutes
+      .filter((route) => !uncustomizable.has(route.name))
+      .filter((route) => !supportsPageFieldVisibility(route.name))
+      .map((route) => `${route.name} (${route.path})`);
+    expect(uncovered).toEqual([]);
+  });
+
   it('gives every supported page a non-empty field list', () => {
     for (const pageKey of pageFieldVisibilityPageKeys) {
       expect(
