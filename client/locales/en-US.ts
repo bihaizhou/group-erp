@@ -55,7 +55,7 @@ const enUS = {
       'Every page is configured through its fields: open a page and tick "Visible" or "Writable" per field; unticked fields stay hidden. Back-office permissions live in the Administration tab. Save once.',
     pages: 'Pages & Fields',
     pageHint:
-      'Tick the box on the left to allow access; click the page name to configure fields: "Writable" implies "Visible", unticking it falls back to "Visible"; unticked means hidden. New, edit and detail pages follow their parent page and cannot be ticked separately. A green dot marks pages with field settings.',
+      'Tick the box to allow access; click the page name to configure fields. "Writable" includes "Visible"; unticking it falls back to "Visible"; no ticks means hidden. A green dot marks pages with field settings.',
     admin: 'Administration',
     adminHint: 'Manage roles, default access, users and account security.',
     saveHint:
@@ -104,6 +104,8 @@ const enUS = {
     saveRoleFirst: 'Save the role first, then configure its page fields.',
     requiredBadge: 'Required',
     requiredField: 'Required on this page; it cannot be hidden.',
+    expandRoutes: 'Show {{count}} more routes',
+    collapseRoutes: 'Show fewer routes',
   },
   fieldCatalog: {
     date: 'Date',

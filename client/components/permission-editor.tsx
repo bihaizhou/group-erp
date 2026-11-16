@@ -6,6 +6,7 @@ import {
   SearchIcon,
   XIcon,
   ShieldCheckIcon,
+  Settings2Icon,
 } from 'lucide-react';
 import {
   useId,
@@ -32,7 +33,6 @@ import {
   SelectValue,
 } from '#components/ui/select';
 import { Checkbox } from '#components/ui/checkbox';
-import { LongTextPreview } from '#components/long-text';
 import {
   Empty,
   EmptyDescription,
@@ -138,6 +138,8 @@ export interface PermissionEditorLabels {
   readonly collapseGroup?: (name: string) => string;
   readonly openPage?: (name: string) => string;
   readonly openPageFields?: (name: string) => string;
+  readonly expandRoutes?: (count: number) => string;
+  readonly collapseRoutes?: string;
   readonly fieldsConfigured?: string;
   readonly accessGranted?: string;
   readonly selectAll?: string;
@@ -200,6 +202,8 @@ const DEFAULT_LABELS: Required<PermissionEditorLabels> = {
   collapseGroup: (name) => `Collapse ${name}`,
   openPage: (name) => `Configure ${name}`,
   openPageFields: (name) => `Configure page fields for ${name}`,
+  expandRoutes: (count) => `Show ${count} more routes`,
+  collapseRoutes: 'Show fewer routes',
   fieldsConfigured: 'Fields configured',
   accessGranted: 'Access granted',
   selectAll: 'All',
@@ -238,18 +242,26 @@ function navigationSearchContext(
 function visibleNavigation(
   nodes: readonly PermissionEditorNavigationNode[],
   rows: ReadonlyMap<string, PermissionEditorRow>,
+  filtering = false,
 ): readonly PermissionEditorNavigationNode[] {
   const used = new Set<string>();
   const visit = (
     items: readonly PermissionEditorNavigationNode[],
   ): PermissionEditorNavigationNode[] =>
-    items.flatMap((node) => {
+    items.flatMap((node): PermissionEditorNavigationNode[] => {
       const rowId =
         node.rowId && rows.has(node.rowId) && !used.has(node.rowId)
           ? node.rowId
           : undefined;
       if (rowId) used.add(rowId);
       const children = visit(node.children ?? []);
+      if (filtering) {
+        if (rowId) {
+          // A matched page keeps its inherited routes as compact chips.
+          return [{ ...node, rowId, children: node.children ?? [] }];
+        }
+        return children.length ? [{ ...node, rowId, children }] : [];
+      }
       // 只读节点（如随上级页面开放的新建/编辑页）没有 rowId，但带说明时仍要显示。
       return rowId || children.length || node.hint
         ? [{ ...node, rowId, children }]
@@ -361,27 +373,122 @@ function PermissionPageRow({
           )}
         />
         <span className='grid min-w-0 flex-1 gap-1'>
-          <span className='flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1'>
-            <span className='text-sm leading-5 font-normal break-words'>
-              {node.label}
-            </span>
-            {node.path && (
-              <code className='text-xs text-muted-foreground [overflow-wrap:anywhere]'>
-                {node.path}
-              </code>
-            )}
+          <span
+            className='text-sm leading-5 font-normal break-words'
+            title={node.path}
+          >
+            {node.label}
           </span>
-          {node.hint && (
-            <span className='text-xs leading-5 text-muted-foreground'>
-              {node.hint}
-            </span>
-          )}
         </span>
       </button>
-      <ChevronRightIcon
-        aria-hidden
-        className='mt-1 size-4 shrink-0 text-muted-foreground'
-      />
+    </div>
+  );
+}
+
+function routeChipLabel(label: string, ancestors: readonly string[]): string {
+  for (const ancestor of [...ancestors].reverse()) {
+    if (label.startsWith(`${ancestor} · `)) {
+      return label.slice(ancestor.length + 3);
+    }
+  }
+  return label;
+}
+
+function collectInheritedRoutes(
+  nodes: readonly PermissionEditorNavigationNode[],
+  ancestors: readonly string[] = [],
+): readonly { node: PermissionEditorNavigationNode; label: string }[] {
+  return nodes.flatMap((node) => {
+    const self = node.hint
+      ? [{ node, label: routeChipLabel(node.label, ancestors) }]
+      : [];
+    const nested = node.children
+      ? collectInheritedRoutes(node.children, ancestors)
+      : [];
+    return [...self, ...nested];
+  });
+}
+
+function PermissionRouteChips({
+  nodes,
+  parentLabel,
+  labels,
+  onPageOpen,
+}: {
+  readonly nodes: readonly PermissionEditorNavigationNode[];
+  readonly parentLabel: string;
+  readonly labels: Required<PermissionEditorLabels>;
+  readonly onPageOpen?: (node: PermissionEditorNavigationNode) => void;
+}): ReactElement | null {
+  const [expanded, setExpanded] = useState(false);
+  const ancestors = [parentLabel];
+  const direct = nodes
+    .filter((node) => node.hint)
+    .map((node) => ({ node, label: routeChipLabel(node.label, ancestors) }));
+  const nested = nodes.flatMap((node) =>
+    node.hint && node.children
+      ? collectInheritedRoutes(node.children, ancestors)
+      : [],
+  );
+  if (direct.length === 0) return null;
+  const visible = expanded ? [...direct, ...nested] : direct;
+  const firstSegment = visible[0].label.split(' · ')[0];
+  const hasSharedPrefix =
+    visible.length > 1 &&
+    firstSegment !== undefined &&
+    visible.every(
+      (route) =>
+        route.label === firstSegment ||
+        route.label.startsWith(`${firstSegment} · `),
+    );
+  return (
+    <div
+      data-slot='permission-route-chips'
+      className='flex min-w-0 flex-wrap items-center gap-1.5 px-2 pb-2 pl-8 text-xs text-muted-foreground'
+    >
+      {visible.map(({ node, label }) => {
+        const visibleLabel =
+          hasSharedPrefix && firstSegment
+            ? label.slice(firstSegment.length + 3)
+            : label;
+        const text = visibleLabel.replaceAll(' · ', ' / ');
+        return node.pageKey && onPageOpen ? (
+          <button
+            key={node.id}
+            type='button'
+            className='inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-xs leading-4 text-foreground transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+            aria-label={labels.openPageFields(node.label)}
+            title={node.path}
+            onClick={() => onPageOpen(node)}
+          >
+            <Settings2Icon aria-hidden className='size-3' />
+            {text}
+          </button>
+        ) : (
+          <span
+            key={node.id}
+            className='inline-flex items-center rounded-full bg-muted/60 px-2 py-0.5 text-xs leading-4'
+            title={node.path}
+          >
+            {text}
+          </span>
+        );
+      })}
+      {nested.length > 0 ? (
+        <button
+          type='button'
+          aria-expanded={expanded}
+          className='inline-flex items-center rounded-full border border-dashed border-border px-2 py-0.5 text-xs leading-4 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+          onClick={() => setExpanded((current) => !current)}
+          title={
+            expanded
+              ? labels.collapseRoutes
+              : labels.expandRoutes(nested.length)
+          }
+        >
+          {expanded ? '−' : `+${nested.length}`}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -426,8 +533,12 @@ function PermissionNavigation({
   return (
     <ul className='grid min-w-0 gap-0.5'>
       {nodes.map((node) => {
+        // Inherited routes are rendered as compact chips by their parent page.
+        if (node.hint) return null;
         const row = node.rowId ? rows.get(node.rowId) : undefined;
         const children = node.children ?? [];
+        const inheritedChildren = children.filter((child) => child.hint);
+        const branchChildren = children.filter((child) => !child.hint);
         const key = `${prefix}-${node.id}`;
         const expanded = filtering || !collapsed.has(key);
         const childrenId = `${prefix}-branch-${encodeURIComponent(node.id)}`;
@@ -484,44 +595,9 @@ function PermissionNavigation({
                     />
                   )}
                 </div>
-              ) : node.pageKey && onPageOpen ? (
-                <button
-                  type='button'
-                  className='grid min-w-0 flex-1 gap-1 rounded-md px-2 py-1.5 text-left text-muted-foreground hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
-                  aria-label={rowProps.labels.openPageFields(node.label)}
-                  onClick={() => onPageOpen(node)}
-                >
-                  <span className='flex min-w-0 items-center gap-2'>
-                    <LongTextPreview
-                      label={node.label}
-                      className='text-xs leading-5 font-normal'
-                    >
-                      {node.label}
-                    </LongTextPreview>
-                    <ChevronRightIcon
-                      aria-hidden
-                      className='size-3.5 shrink-0'
-                    />
-                  </span>
-                  {node.hint && (
-                    <LongTextPreview label={node.label} className='text-xs'>
-                      {node.hint}
-                    </LongTextPreview>
-                  )}
-                </button>
               ) : (
-                <div className='grid min-w-0 flex-1 gap-1 px-2 py-1.5 text-muted-foreground'>
-                  <LongTextPreview
-                    label={node.label}
-                    className='text-xs leading-5 font-normal'
-                  >
-                    {node.label}
-                  </LongTextPreview>
-                  {node.hint && (
-                    <LongTextPreview label={node.label} className='text-xs'>
-                      {node.hint}
-                    </LongTextPreview>
-                  )}
+                <div className='min-w-0 flex-1 px-2 py-1.5 text-xs font-medium text-muted-foreground'>
+                  {node.label}
                 </div>
               )}
               {row && renderNavigationExtra && (
@@ -538,11 +614,19 @@ function PermissionNavigation({
                 </span>
               )}
             </div>
-            {expanded && children.length > 0 && (
+            {expanded && inheritedChildren.length > 0 && (
+              <PermissionRouteChips
+                nodes={inheritedChildren}
+                parentLabel={node.label}
+                labels={rowProps.labels}
+                onPageOpen={onPageOpen}
+              />
+            )}
+            {expanded && branchChildren.length > 0 && (
               <div id={childrenId} className='min-w-0 pl-4 sm:pl-6'>
                 <PermissionNavigation
                   {...rowProps}
-                  nodes={children}
+                  nodes={branchChildren}
                   rows={rows}
                   prefix={prefix}
                   collapsed={collapsed}
@@ -595,7 +679,11 @@ function PermissionNavigationSection({
       <PermissionNavigation
         {...props}
         rows={rows}
-        nodes={visibleNavigation(section.navigation ?? [], rows)}
+        nodes={visibleNavigation(
+          section.navigation ?? [],
+          rows,
+          props.filtering,
+        )}
       />
     </div>
   );

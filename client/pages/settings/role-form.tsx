@@ -45,7 +45,11 @@ import { PageHeader } from '#components/page-header';
 import { PermissionEditor } from '#components/permission-editor';
 import { PageFieldPermissionEditor } from '#components/field-permission-editor';
 import { PageFieldVisibilityEditor } from './page-field-visibility-editor.js';
-import { pageFieldVisibilityFields } from './page-field-visibility-pages.js';
+import {
+  pageFieldVisibilityExtraFields,
+  pageFieldVisibilityFields,
+  pageFieldVisibilityRequiredFields as PAGE_REQUIRED_FIELDS,
+} from './page-field-visibility-pages.js';
 import {
   buildFieldPolicies,
   fieldPolicyKey,
@@ -84,20 +88,6 @@ interface FieldPermissionPageTarget {
   readonly path?: string | undefined;
   readonly resources: readonly string[];
 }
-
-/**
- * Required fields are part of the form contract, not a presentation option.
- * Keep the list beside the page key until the catalogue itself carries
- * requiredness (list pages have none; create forms do).
- */
-const PAGE_REQUIRED_FIELDS: Readonly<Record<string, readonly string[]>> = {
-  'procurement-requests-new': [
-    'purchase.request.requesterEmployeeId',
-    'purchase.request.requestingUnitId',
-    'purchase.request.usage',
-    'purchase.request.neededOn',
-  ],
-};
 
 interface PageFieldTarget {
   readonly pageKey: string;
@@ -211,6 +201,40 @@ function RoleEditor(): ReactElement {
   const allowedPageFields = new Set(
     pageField ? (pageFieldVisibilityFields[pageField.pageKey] ?? []) : [],
   );
+  const pageFieldResources = (() => {
+    if (!pageField) return [];
+    const catalog = fieldCatalog.data?.data.resources ?? [];
+    const extras = pageFieldVisibilityExtraFields[pageField.pageKey] ?? [];
+    return pageField.resources.flatMap((resourceId) => {
+      const base = catalog.find((item) => item.resource === resourceId);
+      const fields = [
+        ...(base?.fields ?? []).filter((field) =>
+          allowedPageFields.has(fieldPolicyKey(resourceId, field.field)),
+        ),
+        ...extras
+          .filter((extra) => extra.resource === resourceId)
+          .map((extra) => ({
+            field: extra.field,
+            titleKey: extra.titleKey,
+            label: extra.titleKey,
+          })),
+      ].filter(
+        (field, index, all) =>
+          all.findIndex((candidate) => candidate.field === field.field) ===
+          index,
+      );
+      return fields.length === 0
+        ? []
+        : [
+            {
+              resource: resourceId,
+              titleKey: base?.titleKey ?? resourceId,
+              descriptionKey: base?.descriptionKey ?? '',
+              fields,
+            },
+          ];
+    });
+  })();
   const { session } = useAuthentication();
   const submission = useSubmission({
     scope: `${session?.user.id}:settings:role:${key}`,
@@ -540,19 +564,16 @@ function RoleEditor(): ReactElement {
     setPageFieldBusy(true);
     setPageFieldError(undefined);
     try {
-      const catalog = fieldCatalog.data?.data.resources ?? [];
-      const fields = pageField.resources.flatMap((resourceId) => {
-        const resource = catalog.find((item) => item.resource === resourceId);
-        return (resource?.fields ?? []).map((field) => ({
-          resource: resourceId,
+      const required = new Set(PAGE_REQUIRED_FIELDS[pageField.pageKey] ?? []);
+      const fields = pageFieldResources.flatMap((resource) =>
+        resource.fields.map((field) => ({
+          resource: resource.resource,
           field: field.field,
-          visible: new Set(PAGE_REQUIRED_FIELDS[pageField.pageKey] ?? []).has(
-            fieldPolicyKey(resourceId, field.field),
-          )
+          visible: required.has(fieldPolicyKey(resource.resource, field.field))
             ? true
-            : pageFieldVisible(resourceId, field.field),
-        }));
-      });
+            : pageFieldVisible(resource.resource, field.field),
+        })),
+      );
       await api.request({
         path: 'page-field-visibility',
         method: 'PUT',
@@ -735,6 +756,9 @@ function RoleEditor(): ReactElement {
                       t('fieldPermission.openFor', { page: name }),
                     openPageFields: (name) =>
                       t('pageFieldVisibility.open', { page: name }),
+                    expandRoutes: (count) =>
+                      t('pageFieldVisibility.expandRoutes', { count }),
+                    collapseRoutes: t('pageFieldVisibility.collapseRoutes'),
                     fieldsConfigured: t('fieldPermission.configured'),
                     accessGranted: t('fieldPermission.accessible'),
                   }}
@@ -800,19 +824,7 @@ function RoleEditor(): ReactElement {
                     </SheetHeader>
                     <div className='min-h-0 flex-1 overflow-y-auto p-4'>
                       <PageFieldVisibilityEditor
-                        resources={(fieldCatalog.data?.data.resources ?? [])
-                          .filter((resource) =>
-                            pageField.resources.includes(resource.resource),
-                          )
-                          .map((resource) => ({
-                            ...resource,
-                            fields: resource.fields.filter((field) =>
-                              allowedPageFields.has(
-                                fieldPolicyKey(resource.resource, field.field),
-                              ),
-                            ),
-                          }))
-                          .filter((resource) => resource.fields.length > 0)}
+                        resources={pageFieldResources}
                         visibleOf={pageFieldVisible}
                         lockedFields={
                           new Set(PAGE_REQUIRED_FIELDS[pageField.pageKey] ?? [])

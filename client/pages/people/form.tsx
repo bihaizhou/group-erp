@@ -8,6 +8,7 @@ import { PhotoField } from './photo-field.js';
 import { ApprovalPreview } from './approval-preview.js';
 import { useState, useRef, type FormEvent } from 'react';
 import { useFieldAccess } from '../../hooks/use-field-access.js';
+import { usePageFieldVisibility } from '../../components/page-field-visibility.js';
 import { useTranslation } from '@nocobase/i18n/client';
 import {
   ApiClientError,
@@ -75,6 +76,9 @@ export default function PeopleFormPage() {
   const [pending, setPending] = useState(false),
     [dirty, setDirty] = useState(false),
     [footerTarget, setFooterTarget] = useState<HTMLDivElement | null>(null);
+  const pageKey = location.pathname.endsWith('/new')
+    ? `people-${kind}-new`
+    : undefined;
   const discard = useDiscardConfirm();
   const title = t(id ? 'people.editRecord' : 'people.newRecord', {
     kind: t(`people.${kind}`),
@@ -114,6 +118,7 @@ export default function PeopleFormPage() {
       small={smallForms.includes(kind)}
       footerTarget={footerTarget}
       businessDate={options.data.meta?.businessDate ?? ''}
+      pageKey={pageKey}
     />
   );
   if (smallForms.includes(kind))
@@ -172,6 +177,7 @@ function RecordForm({
   small,
   footerTarget,
   businessDate,
+  pageKey,
 }: {
   kind: ReturnType<typeof kindFromPath>;
   record?: Row;
@@ -182,7 +188,9 @@ function RecordForm({
   small: boolean;
   footerTarget: HTMLElement | null;
   businessDate: string;
+  pageKey?: string | undefined;
 }) {
+  const pageFields = usePageFieldVisibility(pageKey ?? '');
   const fieldAccess = useFieldAccess(),
     gradeWritable =
       fieldAccess.access('people.employee.grade', 'grade') === 'write',
@@ -700,7 +708,7 @@ function RecordForm({
     if (key === 'assignmentId') return changeType === 'endPartTime';
     if (key === 'location')
       return ['entry', 'transfer', 'partTime'].includes(changeType);
-    return true;
+    return pageFields.visible('people.change', key);
   };
   const actions = (
     <div className='flex justify-end gap-2'>

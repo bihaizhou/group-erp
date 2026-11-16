@@ -591,6 +591,79 @@ describe('application-owned page navigation', () => {
     expect(change).not.toHaveBeenCalled();
   });
 
+  it('shows inherited routes as compact chips without hints, paths or extra grants', async () => {
+    const user = userEvent.setup();
+    const openPage = vi.fn();
+    const section: PermissionEditorSection = {
+      id: 'pages',
+      title: 'Pages',
+      groups: [
+        {
+          id: 'pages',
+          rows: [{ id: 'books', label: 'Books', enabled: true }],
+        },
+      ],
+      navigation: [
+        {
+          id: 'books-node',
+          label: 'Books',
+          rowId: 'books',
+          path: '/books',
+          children: [
+            {
+              id: 'new',
+              label: 'Books · New',
+              hint: 'Follows Books',
+              pageKey: 'books-new',
+              path: '/books/new',
+            },
+            {
+              id: 'edit',
+              label: 'Books · Edit',
+              hint: 'Follows Books',
+              path: '/books/:id/edit',
+              children: [
+                {
+                  id: 'edit-permissions',
+                  label: 'Books · Edit · Permissions',
+                  hint: 'Follows Books',
+                  path: '/books/:id/edit/permissions',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    render(
+      <PermissionEditor
+        sections={[section]}
+        onEnabledChange={vi.fn()}
+        onLevelChange={vi.fn()}
+        onNavigationOpen={vi.fn()}
+        onPageOpen={openPage}
+      />,
+    );
+    expect(screen.queryByText('Follows Books')).not.toBeInTheDocument();
+    expect(screen.queryByText('/books/new')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('checkbox', { name: 'Books · New' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('New')).toBeVisible();
+    expect(screen.getByText('Edit')).toBeVisible();
+    expect(screen.queryByText('Edit / Permissions')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '+1' }));
+    expect(screen.getByText('Edit / Permissions')).toBeVisible();
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Configure page fields for Books · New',
+      }),
+    );
+    expect(openPage).toHaveBeenCalledWith(
+      expect.objectContaining({ pageKey: 'books-new' }),
+    );
+  });
+
   it('separates keyboard disclosure, individual grants and the host form submit', async () => {
     const user = userEvent.setup();
     const change = vi.fn();

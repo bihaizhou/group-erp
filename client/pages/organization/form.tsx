@@ -3,6 +3,7 @@ import { useOptions, useRecord, useOrgError } from './hooks.js';
 import { ApiClientError, useApiClient, useToaster } from '@nocobase/app-client';
 import { useCan } from '@nocobase/app-plugin-authorization/client';
 import { useTranslation } from '@nocobase/i18n/client';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, useRef, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
@@ -55,6 +56,9 @@ export default function OrganizationFormPage() {
   const title = t(recordId ? 'org.editTitle' : 'org.new', {
     kind: t(`org.${kind}`),
   });
+  const pageKey = location.pathname.endsWith('/new')
+    ? `organization-${kind}-new`
+    : undefined;
   const content = !canWrite.can ? (
     canWrite.isPending ? (
       <Loading />
@@ -81,6 +85,7 @@ export default function OrganizationFormPage() {
       }}
       small={isSmall(kind)}
       footerTarget={footerTarget}
+      pageKey={pageKey}
     />
   );
   if (isSmall(kind))
@@ -118,6 +123,7 @@ function FormContent(props: {
   onBusy: (value: boolean) => void;
   small: boolean;
   footerTarget: HTMLDivElement | null;
+  pageKey?: string | undefined;
 }) {
   return props.small ? <DialogForm {...props} /> : <RecordForm {...props} />;
 }
@@ -132,6 +138,7 @@ function RecordForm({
   onBusy,
   close,
   footerTarget,
+  pageKey,
 }: {
   kind: OrgKind;
   record?: OrgRecord;
@@ -140,8 +147,13 @@ function RecordForm({
   small: boolean;
   footerTarget: HTMLDivElement | null;
   close?: () => void;
+  pageKey?: string | undefined;
 }) {
   const { t } = useTranslation();
+  const pageFields = usePageFieldVisibility(pageKey ?? '');
+  const visibleFields = fields[kind].filter((field) =>
+    pageFields.visible(`organization.${kind.slice(0, -1)}`, field.key),
+  );
   const api = useApiClient();
   const cache = useQueryClient();
   const toaster = useToaster();
@@ -286,7 +298,7 @@ function RecordForm({
     event.preventDefault();
     if (busyRef.current) return;
     const invalid: Record<string, string> = {};
-    for (const field of fields[kind]) {
+    for (const field of visibleFields) {
       if (required(field) && !values[field.key]?.trim())
         invalid[field.key] = t('org.required');
       if (
@@ -312,7 +324,7 @@ function RecordForm({
       return;
     }
     const json = Object.fromEntries(
-      fields[kind].map((field) => [
+      visibleFields.map((field) => [
         field.key,
         field.type === 'number'
           ? Number(values[field.key])
@@ -322,8 +334,13 @@ function RecordForm({
       ]),
     );
     const scheduling = Boolean(record && effectiveFrom);
-    const normalized = (value: unknown) =>
-      value === null || value === undefined ? '' : String(value);
+    const normalized = (value: unknown): string => {
+      if (value === null || value === undefined) return '';
+      if (typeof value === 'string') return value;
+      if (typeof value === 'number' || typeof value === 'boolean')
+        return String(value);
+      return JSON.stringify(value) ?? '';
+    };
     const changes = record
       ? Object.fromEntries(
           Object.entries(json).filter(
@@ -441,14 +458,14 @@ function RecordForm({
           isSmall(kind) ? 'flex flex-col gap-4' : 'grid gap-4 sm:grid-cols-2'
         }
       >
-        {fields[kind].map((field, index) => {
+        {visibleFields.map((field, index) => {
           const choices = items(field);
           const fieldId = `org-${field.key}`;
           const section = sectionForField(field);
           const heading =
             !isSmall(kind) &&
             (index === 0 ||
-              section !== sectionForField(fields[kind][index - 1]));
+              section !== sectionForField(visibleFields[index - 1]));
           return (
             <div key={field.key} className='contents'>
               {heading ? (
