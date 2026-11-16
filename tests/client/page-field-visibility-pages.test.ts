@@ -49,6 +49,38 @@ describe('page field visibility registry', () => {
     );
   });
 
+  it('covers material create pages and registers their fields', () => {
+    for (const pageKey of [
+      'warehouse-materials-new',
+      'warehouse-material-names-new',
+      'warehouse-materials-new',
+      'warehouse-material-units-new',
+      'warehouse-material-unitRules-new',
+      'warehouse-material-references-new',
+      'warehouse-material-tags-new',
+      'warehouse-material-tagLinks-new',
+      'warehouse-material-requests-new',
+      'warehouse-material-warehouses-new',
+    ]) {
+      expect(pageFieldVisibilityPageKeys.has(pageKey)).toBe(true);
+      expect(pageFieldVisibilityFields[pageKey]?.length ?? 0).toBeGreaterThan(
+        0,
+      );
+    }
+    expect(pageFieldVisibilityFields['warehouse-materials-new']).toContain(
+      'materials.sku.materialNameId',
+    );
+    expect(pageFieldVisibilityExtraFields['warehouse-materials-new']).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          resource: 'materials.sku',
+          field: 'materialNameId',
+          titleKey: 'materials.fields.materialNameId',
+        }),
+      ]),
+    );
+  });
+
   it('covers all six organization create pages with required identity fields', () => {
     for (const kind of [
       'subjects',

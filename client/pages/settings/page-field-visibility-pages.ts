@@ -2,6 +2,11 @@ import {
   fields as organizationFields,
   kinds as organizationKinds,
 } from '../organization/model.js';
+import {
+  fields as materialFields,
+  kinds as materialKinds,
+  pageId as materialPageId,
+} from '../materials/model.js';
 
 /**
  * Pages whose forms already read the page-level field visibility setting.
@@ -13,6 +18,9 @@ export const pageFieldVisibilityPageKeys: ReadonlySet<string> = new Set([
   'procurement-requests-new',
   'people-changes-new',
   ...organizationKinds.map((kind) => `organization-${kind}-new`),
+  ...materialKinds
+    .filter((kind) => materialFields[kind].length > 0)
+    .map((kind) => `${materialPageId(kind)}-new`),
 ]);
 
 /**
@@ -55,6 +63,16 @@ export const pageFieldVisibilityFields: Readonly<
       ),
     ]),
   ),
+  ...Object.fromEntries(
+    materialKinds
+      .filter((kind) => materialFields[kind].length > 0)
+      .map((kind) => [
+        `${materialPageId(kind)}-new`,
+        materialFields[kind].map(
+          (field) => `materials.${materialResource(kind)}.${field.key}`,
+        ),
+      ]),
+  ),
 };
 
 function organizationResource(
@@ -70,6 +88,21 @@ function organizationResource(
   }[kind];
 }
 
+function materialResource(kind: (typeof materialKinds)[number]): string {
+  return {
+    names: 'name',
+    skus: 'sku',
+    templates: 'template',
+    units: 'unit',
+    unitRules: 'unitRule',
+    references: 'reference',
+    tags: 'tag',
+    tagLinks: 'tagLink',
+    requests: 'request',
+    warehouses: 'warehouse',
+  }[kind];
+}
+
 /** Fields rendered by a form but not present as columns in the catalog. */
 export const pageFieldVisibilityExtraFields: Readonly<
   Record<
@@ -81,6 +114,18 @@ export const pageFieldVisibilityExtraFields: Readonly<
     }[]
   >
 > = {
+  ...Object.fromEntries(
+    materialKinds
+      .filter((kind) => materialFields[kind].length > 0)
+      .map((kind) => [
+        `${materialPageId(kind)}-new`,
+        materialFields[kind].map((field) => ({
+          resource: `materials.${materialResource(kind)}`,
+          field: field.key,
+          titleKey: `materials.fields.${field.key}`,
+        })),
+      ]),
+  ),
   'people-changes-new': [
     ['personId', 'people.fields.personId'],
     ['type', 'people.fields.type'],

@@ -34,9 +34,11 @@ import {
 } from '#components/ui/field';
 import { Alert, AlertDescription } from '#components/ui/alert';
 import { useDiscardConfirm } from '../people/use-discard-confirm.js';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import {
   kindFromPath,
   fields,
+  pageId,
   large,
   governed,
   referenceIds,
@@ -56,6 +58,19 @@ import {
 import { Loading, ErrorNotice, MaterialSelect } from './controls.js';
 import { SimilarNameNotice } from './similar-name-notice.js';
 
+const materialResources: Record<Kind, string> = {
+  names: 'name',
+  skus: 'sku',
+  templates: 'template',
+  units: 'unit',
+  unitRules: 'unitRule',
+  references: 'reference',
+  tags: 'tag',
+  tagLinks: 'tagLink',
+  requests: 'request',
+  warehouses: 'warehouse',
+};
+
 export default function MaterialFormPage({
   kind: fixedKind,
 }: { kind?: Kind } = {}) {
@@ -72,6 +87,9 @@ export default function MaterialFormPage({
     id = fromRequest
       ? undefined
       : (params.linkedSkuId ?? params.recordId ?? params.sourceRequestId);
+  const pageKey = location.pathname.endsWith('/new')
+    ? `${pageId(kind)}-new`
+    : undefined;
   const record = useMaterialRecord(kind, id),
     canWrite = useMaterialCan(kind),
     discard = useDiscardConfirm();
@@ -121,6 +139,7 @@ export default function MaterialFormPage({
       kind={kind}
       record={record.data?.data}
       sourceRequestId={fromRequest ? params.sourceRequestId : undefined}
+      pageKey={pageKey}
       onBusy={setBusy}
       onDirty={setDirty}
       exit={exit}
@@ -167,6 +186,7 @@ function RecordForm({
   kind,
   record,
   sourceRequestId,
+  pageKey,
   onBusy,
   onDirty,
   exit,
@@ -176,12 +196,17 @@ function RecordForm({
   kind: Kind;
   record?: Row;
   sourceRequestId?: string;
+  pageKey?: string;
   onBusy: (v: boolean) => void;
   onDirty: (v: boolean) => void;
   exit: (saved?: boolean) => Promise<void>;
   footer: HTMLDivElement | null;
   reload: () => void;
 }) {
+  const pageFields = usePageFieldVisibility(pageKey ?? '');
+  const visibleFields = fields[kind].filter((spec) =>
+    pageFields.visible(`materials.${materialResources[kind]}`, spec.key),
+  );
   const { t } = useTranslation(),
     api = useApiClient(),
     toaster = useToaster(),
@@ -236,7 +261,7 @@ function RecordForm({
           issue('code', t('materials.codeFormat'));
         if (record && !text(values.reason).trim())
           issue('reason', t('materials.required'));
-        for (const spec of fields[kind]) {
+        for (const spec of visibleFields) {
           if (
             spec.required &&
             !text(values[spec.key]).trim() &&
@@ -273,7 +298,7 @@ function RecordForm({
             issue('fields', t('materials.duplicateAttribute'));
         }
       }),
-    [kind, record, t],
+    [kind, record, t, visibleFields],
   );
   const form = useForm({
     resolver: zodResolver(schema),
@@ -336,7 +361,7 @@ function RecordForm({
           'name',
           'code',
           'notes',
-          ...fields[kind].map((v) => v.key),
+          ...visibleFields.map((v) => v.key),
           ...(kind === 'templates'
             ? ['fields']
             : kind === 'skus'
@@ -594,7 +619,7 @@ function RecordForm({
                 {t('materials.optionCap', { limit: 100 })}
               </p>
             ) : null}
-            {fields[kind].map((spec) =>
+            {visibleFields.map((spec) =>
               spec.type === 'select' || spec.type === 'ref' ? (
                 <Controller
                   key={spec.key}
