@@ -21,6 +21,7 @@ import { RouteChildPage } from '#components/route-child-page';
 import { DatePicker } from '#components/date-picker';
 import { Button } from '#components/ui/button';
 import { Textarea } from '#components/ui/textarea';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import {
   Field,
   FieldLabel,
@@ -124,7 +125,11 @@ export default function RequestFormPage() {
       <PageContainer>
         {mode === 'new' ? (
           newOpened ? (
-            <FormBody mode={mode} path={path} />
+            <FormBody
+              mode={mode}
+              path={path}
+              pageKey={mode === 'new' ? 'requisitions-requests-new' : undefined}
+            />
           ) : create.isPending ? (
             <Loading kind='form' />
           ) : !allowed ? (
@@ -133,10 +138,16 @@ export default function RequestFormPage() {
               <AccessDenied title={t(ui('forbidden'))} />
             </>
           ) : (
-            <FormBody mode={mode} path={path} />
+            <FormBody mode={mode} path={path} pageKey={undefined} />
           )
         ) : ready ? (
-          <FormBody key={identity} mode={mode} path={path} initial={ready} />
+          <FormBody
+            key={identity}
+            mode={mode}
+            path={path}
+            initial={ready}
+            pageKey={undefined}
+          />
         ) : record.error || cap.error ? (
           <>
             <BackButton />
@@ -162,11 +173,14 @@ function FormBody({
   mode,
   path,
   initial,
+  pageKey,
 }: {
   mode: Mode;
   path: string;
   initial?: IssueRequest;
+  pageKey?: string;
 }) {
+  const pageFields = usePageFieldVisibility(pageKey ?? '');
   const { t } = useTranslation(),
     api = useApiClient(),
     toaster = useToaster(),
@@ -770,16 +784,20 @@ function FormBody({
                   setRefs((old) => ({ ...old, purpose: item }));
                 }}
               />
-              <Field data-invalid={!!errors.notes} className='md:col-span-2'>
-                <FieldLabel htmlFor='issue-notes'>{t(ui('notes'))}</FieldLabel>
-                <Textarea
-                  id='issue-notes'
-                  value={draft.notes}
-                  onChange={(e) => update('notes', e.target.value)}
-                  aria-invalid={!!errors.notes}
-                />
-                {fieldError('notes')}
-              </Field>
+              {pageFields.visible('issue.request', 'notes') && (
+                <Field data-invalid={!!errors.notes} className='md:col-span-2'>
+                  <FieldLabel htmlFor='issue-notes'>
+                    {t(ui('notes'))}
+                  </FieldLabel>
+                  <Textarea
+                    id='issue-notes'
+                    value={draft.notes}
+                    onChange={(e) => update('notes', e.target.value)}
+                    aria-invalid={!!errors.notes}
+                  />
+                  {fieldError('notes')}
+                </Field>
+              )}
             </CardContent>
           </Card>
           <Card>

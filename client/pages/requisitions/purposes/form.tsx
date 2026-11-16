@@ -5,6 +5,7 @@ import { useTranslation } from '@nocobase/i18n/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouteOverlay } from '#components/use-route-overlay';
 import { RouteDialog } from '#components/route-dialog';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { Textarea } from '#components/ui/textarea';
@@ -65,6 +66,7 @@ export default function PurposeForm() {
       action={action}
       allowed={permission.can && !permission.isPending}
       fetchError={data.error}
+      pageKey={purposeId ? undefined : 'requisitions-purposes-new'}
     />
   );
 }
@@ -80,12 +82,15 @@ function PurposeFormBody({
   action,
   allowed,
   fetchError,
+  pageKey,
 }: {
   initial?: Purpose;
   action?: 'activate' | 'deactivate';
   allowed: boolean;
   fetchError?: unknown;
+  pageKey?: string;
 }) {
+  const pageFields = usePageFieldVisibility(pageKey ?? '');
   const { t } = useTranslation(),
     [params] = useSearchParams(),
     api = useApiClient(),
@@ -386,39 +391,41 @@ function PurposeFormBody({
                     }
                   />
                 </div>
-                {(['code', 'name', 'description'] as const).map((key) => (
-                  <Field
-                    key={key}
-                    className={key === 'description' ? 'sm:col-span-2' : ''}
-                  >
-                    <FieldLabel htmlFor={`purpose-${key}`}>
-                      {t(pui(labels[key]))}
-                      {key !== 'description' ? ' *' : ''}
-                    </FieldLabel>
-                    {key === 'description' ? (
-                      <Textarea
-                        id={`purpose-${key}`}
-                        value={values[key]}
-                        aria-invalid={!!invalid[key] || !!serverErrors[key]}
-                        onChange={(e) => change(key, e.target.value)}
-                        maxLength={6000}
-                      />
-                    ) : (
-                      <Input
-                        id={`purpose-${key}`}
-                        value={values[key]}
-                        aria-invalid={!!invalid[key] || !!serverErrors[key]}
-                        onChange={(e) => change(key, e.target.value)}
-                        maxLength={key === 'code' ? 64 : 200}
-                      />
-                    )}
-                    {(invalid[key] || serverErrors[key]) && (
-                      <FieldError>
-                        {serverErrors[key] || t(pui('required'))}
-                      </FieldError>
-                    )}
-                  </Field>
-                ))}
+                {(['code', 'name', 'description'] as const)
+                  .filter((key) => pageFields.visible('issue.purpose', key))
+                  .map((key) => (
+                    <Field
+                      key={key}
+                      className={key === 'description' ? 'sm:col-span-2' : ''}
+                    >
+                      <FieldLabel htmlFor={`purpose-${key}`}>
+                        {t(pui(labels[key]))}
+                        {key !== 'description' ? ' *' : ''}
+                      </FieldLabel>
+                      {key === 'description' ? (
+                        <Textarea
+                          id={`purpose-${key}`}
+                          value={values[key]}
+                          aria-invalid={!!invalid[key] || !!serverErrors[key]}
+                          onChange={(e) => change(key, e.target.value)}
+                          maxLength={6000}
+                        />
+                      ) : (
+                        <Input
+                          id={`purpose-${key}`}
+                          value={values[key]}
+                          aria-invalid={!!invalid[key] || !!serverErrors[key]}
+                          onChange={(e) => change(key, e.target.value)}
+                          maxLength={key === 'code' ? 64 : 200}
+                        />
+                      )}
+                      {(invalid[key] || serverErrors[key]) && (
+                        <FieldError>
+                          {serverErrors[key] || t(pui('required'))}
+                        </FieldError>
+                      )}
+                    </Field>
+                  ))}
               </div>
             )}
             {!!initial && (

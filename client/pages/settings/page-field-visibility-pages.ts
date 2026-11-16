@@ -31,6 +31,8 @@ export const pageFieldVisibilityPageKeys: ReadonlySet<string> = new Set([
   'procurement-orders-new',
   'procurement-suppliers-new',
   'sales-customers-new',
+  'requisitions-requests-new',
+  'requisitions-purposes-new',
   'warehouse-inbounds-new',
   'warehouse-outbounds-new',
   'warehouse-transfers-new',
@@ -102,6 +104,12 @@ export const pageFieldVisibilityFields: Readonly<
     'sales.customer.name',
     'sales.customer.registrationCode',
     'sales.customer.notes',
+  ],
+  'requisitions-requests-new': ['issue.request.notes'],
+  'requisitions-purposes-new': [
+    'issue.purpose.code',
+    'issue.purpose.name',
+    'issue.purpose.description',
   ],
   'procurement-requests-new': [
     'purchase.request.requesterEmployeeId',
@@ -265,6 +273,7 @@ export const pageFieldVisibilityRequiredFields: Readonly<
     'procurement.supplier.base.name',
   ],
   'sales-customers-new': ['sales.customer.code', 'sales.customer.name'],
+  'requisitions-purposes-new': ['issue.purpose.code', 'issue.purpose.name'],
   'procurement-requests-new': [
     'purchase.request.requesterEmployeeId',
     'purchase.request.requestingUnitId',

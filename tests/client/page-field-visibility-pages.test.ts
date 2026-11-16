@@ -129,6 +129,29 @@ describe('page field visibility registry', () => {
     ]);
   });
 
+  it('covers the requisition create page', () => {
+    expect(pageFieldVisibilityPageKeys.has('requisitions-requests-new')).toBe(
+      true,
+    );
+    expect(pageFieldVisibilityFields['requisitions-requests-new']).toEqual([
+      'issue.request.notes',
+    ]);
+  });
+
+  it('covers the requisition purpose create page', () => {
+    expect(pageFieldVisibilityPageKeys.has('requisitions-purposes-new')).toBe(
+      true,
+    );
+    expect(pageFieldVisibilityFields['requisitions-purposes-new']).toEqual([
+      'issue.purpose.code',
+      'issue.purpose.name',
+      'issue.purpose.description',
+    ]);
+    expect(
+      pageFieldVisibilityRequiredFields['requisitions-purposes-new'],
+    ).toEqual(['issue.purpose.code', 'issue.purpose.name']);
+  });
+
   it('covers every people create page from the shared field model', () => {
     for (const [kind, resource] of [
       ['employees', 'employee'],
