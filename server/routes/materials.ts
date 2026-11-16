@@ -7,6 +7,7 @@ import {
   type AuthorizationEnv,
 } from '@nocobase/app-plugin-authorization/server';
 import type { Application } from '@nocobase/app-server/application';
+import { databaseManagerToken } from '@nocobase/db';
 import {
   ApiError,
   apiErrorHandler,
@@ -32,8 +33,17 @@ import {
   materialWorkflowKinds,
   MaterialError,
   type MaterialActor,
+  type MaterialKind,
 } from '../providers/material-model.js';
 import type { MaterialPolicies } from '../providers/material-service.js';
+import {
+  assertFieldsWritable,
+  fieldPoliciesFor,
+  redactRecord,
+  redactRows,
+  type FieldPolicyView,
+} from '../providers/field-access.js';
+import { resourceFieldNames } from '../providers/field-catalog.js';
 import { materialApiError } from './material-error.js';
 
 type MaterialEnv = AuthEnv &
@@ -55,11 +65,26 @@ const transitionInput = z.strictObject({
   resolvedUnitRuleId: z.string().uuid().optional(),
   addAlias: z.boolean().optional(),
 });
+/** Catalog resource that owns each material kind's field policies. */
+const MATERIAL_FIELD_RESOURCE: Record<MaterialKind, string> = {
+  names: 'materials.name',
+  templates: 'materials.template',
+  skus: 'materials.sku',
+  units: 'materials.unit',
+  unitRules: 'materials.unitRule',
+  references: 'materials.reference',
+  tags: 'materials.tag',
+  tagLinks: 'materials.tagLink',
+  requests: 'materials.request',
+  warehouses: 'materials.warehouse',
+};
+const HISTORY_RESOURCE = 'materials.history';
 export const materialRoutes: AppApiRouteContribution<Application> =
   defineApiRoutes((app) => {
     const service = app.container.resolve(materialServiceToken);
     const authentication = app.container.resolve(authenticationToken);
     const authz = app.container.resolve(authorizationToken);
+    const db = app.container.resolve(databaseManagerToken);
     const router = new Hono<MaterialEnv>();
     router.use(
       '/materials/*',
@@ -107,6 +132,39 @@ export const materialRoutes: AppApiRouteContribution<Application> =
         );
         await next();
       });
+    /**
+     * `actor()` above intentionally carries only the identity the material
+     * service needs. Field policies are resolved from the signed-in account,
+     * so the principal must say that it is a user.
+     */
+    const principal = (c: Context<MaterialEnv>) => ({
+      type: 'user' as const,
+      id: c.get('auth')!.user.id,
+    });
+    const isProvided = (value: unknown): boolean =>
+      value !== undefined && value !== null && value !== '';
+    const asComparable = (value: unknown): string | null =>
+      isProvided(value) ? String(value) : null;
+    const assertMaterialFields = async (
+      policies: FieldPolicyView[],
+      kind: MaterialKind,
+      input: Record<string, unknown>,
+      previous?: Record<string, unknown>,
+    ) => {
+      const resource = MATERIAL_FIELD_RESOURCE[kind];
+      const fields = await resourceFieldNames(db, resource);
+      assertFieldsWritable(
+        policies,
+        resource,
+        fields.filter((field) => {
+          if (!(field in input) || !isProvided(input[field])) return false;
+          return (
+            !previous ||
+            asComparable(input[field]) !== asComparable(previous[field])
+          );
+        }),
+      );
+    };
     router.onError((error, c) => {
       if (error instanceof MaterialError)
         return apiErrorHandler(materialApiError(error), c);
@@ -277,13 +335,21 @@ export const materialRoutes: AppApiRouteContribution<Application> =
           page: z.coerce.number().int().min(1).default(1),
         }),
       ),
-      async (c) =>
-        c.json(
-          await service.history(
-            c.req.valid('query'),
-            c.get('materialPolicies'),
+      async (c) => {
+        const policies = await fieldPoliciesFor(db, principal(c));
+        const result = await service.history(
+          c.req.valid('query'),
+          c.get('materialPolicies'),
+        );
+        return c.json({
+          ...result,
+          data: redactRows(
+            result.data as Record<string, unknown>[],
+            policies,
+            HISTORY_RESOURCE,
           ),
-        ),
+        });
+      },
     );
     for (const kind of materialKinds) {
       const path = `/materials/${kind}`;
@@ -297,14 +363,22 @@ export const materialRoutes: AppApiRouteContribution<Application> =
           responses: { '200': listResponse(output), ...responses },
         }),
         apiValidator('query', materialQuery),
-        async (c) =>
-          c.json(
-            await service.list(
-              kind,
-              c.req.valid('query'),
-              c.get('materialPolicies'),
+        async (c) => {
+          const policies = await fieldPoliciesFor(db, principal(c));
+          const result = await service.list(
+            kind,
+            c.req.valid('query'),
+            c.get('materialPolicies'),
+          );
+          return c.json({
+            ...result,
+            data: redactRows(
+              result.data as Record<string, unknown>[],
+              policies,
+              MATERIAL_FIELD_RESOURCE[kind],
             ),
-          ),
+          });
+        },
       );
       router.get(
         `${path}/:id`,
@@ -316,15 +390,22 @@ export const materialRoutes: AppApiRouteContribution<Application> =
           responses: { '200': dataResponse(output), ...responses },
         }),
         apiValidator('param', param),
-        async (c) =>
-          c.json({
-            data: await service.get(
-              kind,
-              c.req.valid('param').id,
-              c.get('materialPolicies'),
-              actor(c),
+        async (c) => {
+          const policies = await fieldPoliciesFor(db, principal(c));
+          const data = await service.get(
+            kind,
+            c.req.valid('param').id,
+            c.get('materialPolicies'),
+            actor(c),
+          );
+          return c.json({
+            data: redactRecord(
+              data as unknown as Record<string, unknown>,
+              policies,
+              MATERIAL_FIELD_RESOURCE[kind],
             ),
-          }),
+          });
+        },
       );
       router.post(
         path,
@@ -336,18 +417,28 @@ export const materialRoutes: AppApiRouteContribution<Application> =
           responses: { '201': dataResponse(output), ...responses },
         }),
         apiValidator('json', materialSchemas[kind]),
-        async (c) =>
-          c.json(
+        async (c) => {
+          const policies = await fieldPoliciesFor(db, principal(c));
+          const input = c.req.valid('json') as Record<string, unknown>;
+          if (policies.length)
+            await assertMaterialFields(policies, kind, input);
+          const data = await service.save(
+            kind,
+            c.req.valid('json'),
+            actor(c),
+            c.get('materialPolicies'),
+          );
+          return c.json(
             {
-              data: await service.save(
-                kind,
-                c.req.valid('json'),
-                actor(c),
-                c.get('materialPolicies'),
+              data: redactRecord(
+                data as unknown as Record<string, unknown>,
+                policies,
+                MATERIAL_FIELD_RESOURCE[kind],
               ),
             },
             201,
-          ),
+          );
+        },
       );
       router.patch(
         `${path}/:id`,
@@ -366,16 +457,38 @@ export const materialRoutes: AppApiRouteContribution<Application> =
             reason: z.string().trim().min(1).max(1000),
           }),
         ),
-        async (c) =>
-          c.json({
-            data: await service.save(
+        async (c) => {
+          const policies = await fieldPoliciesFor(db, principal(c));
+          const input = c.req.valid('json') as Record<string, unknown>;
+          if (policies.length) {
+            const previous = await service.get(
               kind,
-              c.req.valid('json'),
-              actor(c),
-              c.get('materialPolicies'),
               c.req.valid('param').id,
+              c.get('materialPolicies'),
+              actor(c),
+            );
+            await assertMaterialFields(
+              policies,
+              kind,
+              input,
+              previous as unknown as Record<string, unknown>,
+            );
+          }
+          const data = await service.save(
+            kind,
+            c.req.valid('json'),
+            actor(c),
+            c.get('materialPolicies'),
+            c.req.valid('param').id,
+          );
+          return c.json({
+            data: redactRecord(
+              data as unknown as Record<string, unknown>,
+              policies,
+              MATERIAL_FIELD_RESOURCE[kind],
             ),
-          }),
+          });
+        },
       );
       const transitions =
         kind === 'requests'
@@ -403,6 +516,7 @@ export const materialRoutes: AppApiRouteContribution<Application> =
           apiValidator('param', param),
           apiValidator('json', transitionInput),
           async (c) => {
+            const policies = await fieldPoliciesFor(db, principal(c));
             const data = await service.fire(
               kind,
               c.req.valid('param').id,
@@ -420,7 +534,13 @@ export const materialRoutes: AppApiRouteContribution<Application> =
                 c.req.valid('param').id,
                 actor(c),
               );
-            return c.json({ data });
+            return c.json({
+              data: redactRecord(
+                data as unknown as Record<string, unknown>,
+                policies,
+                MATERIAL_FIELD_RESOURCE[kind],
+              ),
+            });
           },
         );
       }

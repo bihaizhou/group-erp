@@ -50,12 +50,4 @@ export function ensureDomGlobals(): void {
   }
 }
 
-const RUNTIME_CONFIG_ELEMENT_ID = 'nocobase-runtime-config';
-
-/**
- * The application server renders the client configuration into every page, and the client reads its mount path and
- * API URL from nowhere else. A test page has no server in front of it, so this puts the same block in place, mounted
- * at `/main`. A test that needs other values removes it and renders its own.
- */
-
 ensureDomGlobals();

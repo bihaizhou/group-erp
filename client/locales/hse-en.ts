@@ -6,6 +6,7 @@ export const hse = {
   incidents: 'Incidents',
   incidentsDescription:
     'Record, investigate and close safety and environmental incidents.',
+  export: 'Export',
   hazards: 'Hazards',
   hazardsDescription:
     'Record hazards, assign an owner and deadline, then verify closure.',

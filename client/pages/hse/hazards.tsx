@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, ShieldAlert } from 'lucide-react';
+import { Download, Plus, ShieldAlert } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { ReadOnlyNotice } from '#components/read-only-notice';
@@ -11,6 +11,7 @@ import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { nativeSelectClass } from '#components/native-controls';
 import { HseAttachments } from './attachments.js';
+import { buildCsv, downloadCsv } from './export.js';
 import { businessDate } from '#lib/business-date';
 import { Textarea } from '#components/ui/textarea';
 import {
@@ -81,6 +82,46 @@ export default function HseHazardsPage() {
   const [dueAt, setDueAt] = useState('');
   const [params] = useSearchParams(),
     subjectId = params.get('subjectId') ?? '';
+  const [exporting, setExporting] = useState(false);
+  const exportRows = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const response = await api.request<{ data: HseHazard[] }>({
+        path: 'hse/hazards/export',
+        query: {
+          ...(subjectId ? { subjectId } : {}),
+          ...(statusFilter ? { status: statusFilter } : {}),
+          ...(levelFilter ? { level: levelFilter } : {}),
+        },
+      });
+      downloadCsv(
+        `hse-hazards-${businessDate()}.csv`,
+        buildCsv(response.data ?? [], [
+          { key: 'source', label: t('hse.fields.source') },
+          {
+            key: 'level',
+            label: t('hse.fields.level'),
+            value: (row) => t(`hse.hazardLevel.${row.level}`),
+          },
+          {
+            key: 'status',
+            label: t('hse.fields.status'),
+            value: (row) => t(`hse.status.${row.status}`),
+          },
+          { key: 'discoveredAt', label: t('hse.fields.discoveredAt') },
+          { key: 'sourceRef', label: t('hse.fields.sourceRef') },
+          { key: 'location', label: t('hse.fields.location') },
+          { key: 'ownerName', label: t('hse.fields.ownerName') },
+          { key: 'dueAt', label: t('hse.fields.dueAt') },
+          { key: 'description', label: t('hse.fields.description') },
+          { key: 'rectification', label: t('hse.fields.rectification') },
+        ]),
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
   const options = useQuery({
     retry: false,
     queryKey: ['hse-options'],
@@ -245,6 +286,14 @@ export default function HseHazardsPage() {
               busy={list.isFetching}
               onClick={() => void list.refetch()}
             />
+            <Button
+              variant='outline'
+              disabled={exporting}
+              onClick={() => void exportRows()}
+            >
+              <Download />
+              {t('hse.export')}
+            </Button>
             {canManage || canReport ? (
               <Button
                 onClick={() => {

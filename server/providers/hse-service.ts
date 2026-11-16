@@ -178,6 +178,25 @@ export class HseService {
       throw new HseError('HSE_INVALID', 'UNIT_NOT_IN_COMPANY');
   }
 
+  private async employeeNames(
+    subjectId: string | null,
+    ids: readonly string[],
+  ) {
+    const names = new Map<string, string>();
+    if (!ids.length || !subjectId) return names;
+    const rows = await this.database
+      .repository('personnelEmployees')
+      .findMany({
+        filter: (f) => f.string('subjectId').eq(subjectId),
+        limit: 5001,
+      });
+    for (const row of rows) {
+      const id = text(row.id);
+      if (ids.includes(id)) names.set(id, text(row.name));
+    }
+    return names;
+  }
+
   private async assertOwner(
     subjectId: string,
     ownerId: string | null | undefined,
@@ -335,9 +354,9 @@ export class HseService {
     };
   }
 
-  async listIncidents(
+  private async incidentRows(
     principal: HsePrincipal,
-    query: HseIncidentQuery,
+    query: { subjectId?: string; status?: string; type?: string },
     scope: HseScope,
   ) {
     const company = await this.resolveSubject(
@@ -349,16 +368,48 @@ export class HseService {
     let rows = await this.scopedRows('hseIncidents', company, 'occurredAt');
     if (query.status) rows = rows.filter((row) => row.status === query.status);
     if (query.type) rows = rows.filter((row) => row.type === query.type);
-    const total = rows.length;
-    const page = query.page;
-    const start = (page - 1) * query.pageSize;
+    const ownerIds = [
+      ...new Set(
+        rows
+          .map((row) => text(row.ownerId))
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const ownerNames = await this.employeeNames(company, ownerIds);
     return {
-      data: rows.slice(start, start + query.pageSize).map((row) => ({
+      rows: rows.map((row) => ({
         ...row,
         environmentalRelease: bool(row.environmentalRelease),
         subjectName: names.get(text(row.subjectId)) ?? '',
+        ownerName: ownerNames.get(text(row.ownerId)) ?? '',
       })),
-      meta: { page, pageSize: query.pageSize, total },
+    };
+  }
+
+  async listIncidents(
+    principal: HsePrincipal,
+    query: HseIncidentQuery,
+    scope: HseScope,
+  ) {
+    const { rows } = await this.incidentRows(principal, query, scope);
+    const total = rows.length;
+    const start = (query.page - 1) * query.pageSize;
+    return {
+      data: rows.slice(start, start + query.pageSize),
+      meta: { page: query.page, pageSize: query.pageSize, total },
+    };
+  }
+
+  async exportIncidents(
+    principal: HsePrincipal,
+    query: { subjectId?: string; status?: string; type?: string },
+    scope: HseScope,
+  ) {
+    const { rows } = await this.incidentRows(principal, query, scope);
+    const limit = 5000;
+    return {
+      data: rows.slice(0, limit),
+      meta: { total: rows.length, truncated: rows.length > limit },
     };
   }
 
@@ -600,9 +651,9 @@ export class HseService {
     };
   }
 
-  async listHazards(
+  private async hazardRows(
     principal: HsePrincipal,
-    query: HseHazardQuery,
+    query: { subjectId?: string; status?: string; level?: string },
     scope: HseScope,
   ) {
     const company = await this.resolveSubject(
@@ -614,14 +665,38 @@ export class HseService {
     let rows = await this.scopedRows('hseHazards', company, 'discoveredAt');
     if (query.status) rows = rows.filter((row) => row.status === query.status);
     if (query.level) rows = rows.filter((row) => row.level === query.level);
-    const total = rows.length;
-    const start = (query.page - 1) * query.pageSize;
     return {
-      data: rows.slice(start, start + query.pageSize).map((row) => ({
+      rows: rows.map((row) => ({
         ...row,
         subjectName: names.get(text(row.subjectId)) ?? '',
       })),
+    };
+  }
+
+  async listHazards(
+    principal: HsePrincipal,
+    query: HseHazardQuery,
+    scope: HseScope,
+  ) {
+    const { rows } = await this.hazardRows(principal, query, scope);
+    const total = rows.length;
+    const start = (query.page - 1) * query.pageSize;
+    return {
+      data: rows.slice(start, start + query.pageSize),
       meta: { page: query.page, pageSize: query.pageSize, total },
+    };
+  }
+
+  async exportHazards(
+    principal: HsePrincipal,
+    query: { subjectId?: string; status?: string; level?: string },
+    scope: HseScope,
+  ) {
+    const { rows } = await this.hazardRows(principal, query, scope);
+    const limit = 5000;
+    return {
+      data: rows.slice(0, limit),
+      meta: { total: rows.length, truncated: rows.length > limit },
     };
   }
 

@@ -162,6 +162,7 @@ function RecordForm({
       : { ...initial, code: initialCode(kind, initial, options) };
   });
   const [reason, setReason] = useState('');
+  const [effectiveFrom, setEffectiveFrom] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<unknown>();
   const [pending, setPending] = useState(false);
@@ -320,6 +321,21 @@ function RecordForm({
             : values[field.key]?.trim() || null,
       ]),
     );
+    const scheduling = Boolean(record && effectiveFrom);
+    const normalized = (value: unknown) =>
+      value === null || value === undefined ? '' : String(value);
+    const changes = record
+      ? Object.fromEntries(
+          Object.entries(json).filter(
+            ([key, value]) => normalized(record[key]) !== normalized(value),
+          ),
+        )
+      : {};
+    if (scheduling && !Object.keys(changes).length) {
+      setErrors({ effectiveFrom: t('org.noScheduledChanges') });
+      document.getElementById('org-effectiveFrom')?.focus();
+      return;
+    }
     if (record)
       Object.assign(json, { version: record.version, reason: reason.trim() });
     busyRef.current = true;
@@ -327,6 +343,32 @@ function RecordForm({
     onBusy(true);
     setError(undefined);
     try {
+      if (scheduling) {
+        await api.request({
+          path: `organization/${kind}/${record!.id}/schedule`,
+          method: 'POST',
+          json: {
+            version: record!.version,
+            reason: reason.trim(),
+            effectiveFrom,
+            changes,
+          },
+        });
+        await cache.invalidateQueries({
+          queryKey: ['org-pending', kind, record!.id],
+        });
+        toaster.show({
+          type: 'success',
+          title: t('org.scheduled', {
+            name: record!.name,
+            date: effectiveFrom,
+          }),
+        });
+        busyRef.current = false;
+        onBusy(false);
+        exit();
+        return;
+      }
       const result = await api.request<{ data: OrgRecord }>({
         path: `organization/${kind}${record ? `/${record.id}` : ''}`,
         method: record ? 'PATCH' : 'POST',
@@ -512,6 +554,33 @@ function RecordForm({
           {errors.reason ? <FieldError>{errors.reason}</FieldError> : null}
         </Field>
       ) : null}
+      {record ? (
+        <Field
+          data-invalid={Boolean(errors.effectiveFrom)}
+          className={isSmall(kind) ? undefined : 'sm:col-span-2'}
+        >
+          <FieldLabel htmlFor='org-effectiveFrom'>
+            {t('org.fields.effectiveFrom')}
+          </FieldLabel>
+          <DateField
+            id='org-effectiveFrom'
+            value={effectiveFrom}
+            label={t('org.fields.effectiveFrom')}
+            disabled={pending}
+            emptyLabel={t('org.immediate')}
+            onChange={(value) => {
+              setEffectiveFrom(value);
+              setErrors((v) => ({ ...v, effectiveFrom: '' }));
+            }}
+          />
+          <p className='text-xs text-muted-foreground'>
+            {t('org.effectiveFromHint')}
+          </p>
+          {errors.effectiveFrom ? (
+            <FieldError>{errors.effectiveFrom}</FieldError>
+          ) : null}
+        </Field>
+      ) : null}
       {isSmall(kind) ? (
         footerTarget ? (
           createPortal(actions, footerTarget)
@@ -529,12 +598,14 @@ function DateField({
   value,
   label,
   disabled,
+  emptyLabel,
   onChange,
 }: {
   id: string;
   value: string;
   label: string;
   disabled: boolean;
+  emptyLabel?: string;
   onChange: (value: string) => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -555,7 +626,9 @@ function DateField({
         }
       >
         <CalendarIcon />
-        {date ? date.toLocaleDateString(i18n.language) : t('org.none')}
+        {date
+          ? date.toLocaleDateString(i18n.language)
+          : (emptyLabel ?? t('org.none'))}
       </PopoverTrigger>
       <PopoverContent className='w-auto p-0'>
         <Calendar

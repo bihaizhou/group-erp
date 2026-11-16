@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
@@ -113,6 +113,14 @@ export default function AssetsPage() {
   const [employeeId, setEmployeeId] = useState('');
   const [note, setNote] = useState('');
   const [location, setLocation] = useState('');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [bulk, setBulk] = useState<'assign' | 'return' | null>(null);
+  const [bulkEmployeeId, setBulkEmployeeId] = useState('');
+  const [bulkLocation, setBulkLocation] = useState('');
+  const [bulkNote, setBulkNote] = useState('');
+  const [bulkMessage, setBulkMessage] = useState('');
+  const [employeeQuery, setEmployeeQuery] = useState('');
+  const [bulkEmployeeQuery, setBulkEmployeeQuery] = useState('');
   const options = useQuery({
     retry: false,
     queryKey: ['asset-options'],
@@ -261,16 +269,58 @@ export default function AssetsPage() {
       await refresh();
     },
   });
+  const bulkAct = useMutation({
+    retry: false,
+    mutationFn: () => {
+      if (!bulk || !selected.length) throw new Error('ASSET_SELECTION_EMPTY');
+      const json =
+        bulk === 'assign'
+          ? {
+              ids: selected,
+              employeeId: bulkEmployeeId,
+              location: bulkLocation.trim() || null,
+              note: bulkNote.trim() || null,
+            }
+          : {
+              ids: selected,
+              location: bulkLocation.trim() || null,
+              note: bulkNote.trim() || null,
+            };
+      return api.request<{ data: { updated: string[]; failed: unknown[] } }>({
+        path: bulk === 'assign' ? 'assets/batch-assign' : 'assets/batch-return',
+        method: 'POST',
+        json,
+      });
+    },
+    onSuccess: async (result) => {
+      const updated = result.data?.updated?.length ?? 0;
+      const failed = result.data?.failed?.length ?? 0;
+      setSelected([]);
+      setBulk(null);
+      setBulkEmployeeId('');
+      setBulkLocation('');
+      setBulkNote('');
+      setBulkMessage(
+        t('assets.bulkResult', { updated: String(updated), failed: String(failed) }),
+      );
+      await refresh();
+    },
+  });
   const openAction = (
     row: Asset,
     kind: 'assign' | 'return' | 'scrap' | 'approve' | 'reject',
   ) => {
     setAction({ row, kind });
+    setEmployeeQuery('');
     setEmployeeId(row.custodianEmployeeId ?? '');
     setLocation(row.location ?? '');
     setNote('');
   };
-  const error = list.error ?? options.error ?? save.error ?? act.error;
+  useEffect(() => {
+    setSelected([]);
+    setBulkMessage('');
+  }, [subjectId, page, status, custodian, q]);
+  const error = list.error ?? options.error ?? save.error ?? act.error ?? bulkAct.error;
   return (
     <PageContainer>
       <PageHeader
@@ -353,6 +403,45 @@ export default function AssetsPage() {
           </select>
         </label>
       </div>
+      {selected.length ? (
+        <div className='mb-3 flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2'>
+          <span className='text-sm text-muted-foreground'>
+            {t('assets.selectedCount', { count: String(selected.length) })}
+          </span>
+          <Button
+            size='sm'
+            variant='outline'
+            onClick={() => {
+              setBulk('assign');
+              setBulkLocation('');
+              setBulkNote('');
+            }}
+          >
+            {t('assets.bulkAssign')}
+          </Button>
+          <Button
+            size='sm'
+            variant='outline'
+            onClick={() => {
+              setBulk('return');
+              setBulkLocation('');
+              setBulkNote('');
+            }}
+          >
+            {t('assets.bulkReturn')}
+          </Button>
+          <Button
+            size='sm'
+            variant='ghost'
+            onClick={() => setSelected([])}
+          >
+            {t('assets.clearSelection')}
+          </Button>
+        </div>
+      ) : null}
+      {bulkMessage ? (
+        <p className='mb-4 text-sm text-muted-foreground'>{bulkMessage}</p>
+      ) : null}
       {error ? (
         <p className='mb-4 text-sm text-destructive'>{String(error)}</p>
       ) : null}
@@ -363,6 +452,20 @@ export default function AssetsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                {canManage ? (
+                  <TableHead className='w-10'>
+                    <input
+                      type='checkbox'
+                      aria-label={t('assets.selectAll')}
+                      checked={rows.length > 0 && selected.length === rows.length}
+                      onChange={(event) =>
+                        setSelected(
+                          event.target.checked ? rows.map((row) => row.id) : [],
+                        )
+                      }
+                    />
+                  </TableHead>
+                ) : null}
                 <TableHead>{t('assets.fields.code')}</TableHead>
                 <TableHead>{t('assets.fields.name')}</TableHead>
                 <TableHead>{t('assets.fields.category')}</TableHead>
@@ -378,6 +481,22 @@ export default function AssetsPage() {
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.id}>
+                  {canManage ? (
+                    <TableCell>
+                      <input
+                        type='checkbox'
+                        aria-label={row.code}
+                        checked={selected.includes(row.id)}
+                        onChange={(event) =>
+                          setSelected((current) =>
+                            event.target.checked
+                              ? [...current, row.id]
+                              : current.filter((id) => id !== row.id),
+                          )
+                        }
+                      />
+                    </TableCell>
+                  ) : null}
                   <TableCell className='font-mono text-xs'>
                     {row.code}
                   </TableCell>
@@ -641,23 +760,37 @@ export default function AssetsPage() {
           </DialogHeader>
           <div className='grid gap-3'>
             {action?.kind === 'assign' ? (
-              <select
-                className={nativeSelectClass}
-                value={employeeId}
-                onChange={(event) => setEmployeeId(event.target.value)}
-              >
-                <option value=''>{t('assets.chooseEmployee')}</option>
-                {employees
-                  .filter(
-                    (employee) =>
-                      employee.subjectId === action.row.subjectId,
-                  )
-                  .map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.name}
-                    </option>
-                  ))}
-              </select>
+              <>
+                <Input
+                  placeholder={t('assets.employeeSearch')}
+                  value={employeeQuery}
+                  onChange={(event) => setEmployeeQuery(event.target.value)}
+                />
+                <select
+                  className={nativeSelectClass}
+                  value={employeeId}
+                  onChange={(event) => setEmployeeId(event.target.value)}
+                >
+                  <option value=''>{t('assets.chooseEmployee')}</option>
+                  {employees
+                    .filter(
+                      (employee) =>
+                        employee.subjectId === action.row.subjectId &&
+                        (!employeeQuery.trim() ||
+                          employee.name
+                            .toLowerCase()
+                            .includes(employeeQuery.trim().toLowerCase()) ||
+                          employee.code
+                            .toLowerCase()
+                            .includes(employeeQuery.trim().toLowerCase())),
+                    )
+                    .map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.name} · {employee.code}
+                      </option>
+                    ))}
+                </select>
+              </>
             ) : null}
             {action?.kind === 'return' ? (
               <Input
@@ -689,6 +822,89 @@ export default function AssetsPage() {
                 (action?.kind === 'scrap' && !note.trim())
               }
               onClick={() => act.mutate()}
+            >
+              {t('assets.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!bulk}
+        onOpenChange={(value) => {
+          if (!value) {
+            setBulk(null);
+            setBulkEmployeeQuery('');
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {bulk === 'assign'
+                ? t('assets.bulkAssign')
+                : t('assets.bulkReturn')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('assets.bulkHint', { count: String(selected.length) })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className='grid gap-3'>
+            {bulk === 'assign' ? (
+              <>
+                <Input
+                  placeholder={t('assets.employeeSearch')}
+                  value={bulkEmployeeQuery}
+                  onChange={(event) =>
+                    setBulkEmployeeQuery(event.target.value)
+                  }
+                />
+                <select
+                  className={nativeSelectClass}
+                  value={bulkEmployeeId}
+                  onChange={(event) => setBulkEmployeeId(event.target.value)}
+                >
+                  <option value=''>{t('assets.chooseEmployee')}</option>
+                  {employees
+                    .filter(
+                      (employee) =>
+                        !bulkEmployeeQuery.trim() ||
+                        employee.name
+                          .toLowerCase()
+                          .includes(bulkEmployeeQuery.trim().toLowerCase()) ||
+                        employee.code
+                          .toLowerCase()
+                          .includes(bulkEmployeeQuery.trim().toLowerCase()),
+                    )
+                    .map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.name} · {employee.code}
+                      </option>
+                    ))}
+                </select>
+              </>
+            ) : (
+              <Input
+                placeholder={t('assets.fields.location')}
+                value={bulkLocation}
+                onChange={(event) => setBulkLocation(event.target.value)}
+              />
+            )}
+            <Textarea
+              placeholder={t('assets.fields.notes')}
+              value={bulkNote}
+              onChange={(event) => setBulkNote(event.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setBulk(null)}>
+              {t('assets.cancel')}
+            </Button>
+            <Button
+              disabled={
+                bulkAct.isPending ||
+                (bulk === 'assign' && !bulkEmployeeId)
+              }
+              onClick={() => bulkAct.mutate()}
             >
               {t('assets.save')}
             </Button>

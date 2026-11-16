@@ -62,6 +62,22 @@ export const org = {
   saved: '已保存“{{name}}”',
   created: '已创建“{{name}}”',
   statusSaved: '已更新“{{name}}”',
+  scheduled: '已安排“{{name}}”于 {{date}} 生效。',
+  effectiveFromHint:
+    '留空立即生效；选择未来日期后，本次修改会进入计划变更队列。',
+  immediate: '立即生效',
+  noScheduledChanges: '没有需要安排的字段变更。',
+  pending: {
+    title: '计划变更',
+    description: '未来日期的调整先进入队列，到期后自动应用；可在此取消。',
+    empty: '暂无待生效的计划变更。',
+    effectiveFrom: '生效日期',
+    actor: '发起人',
+    cancel: '取消计划',
+    cancelReason: '填写取消原因',
+    cancelConfirm: '确认取消',
+    cancelled: '已取消计划变更。',
+  },
   statusTitle: '{{action}}“{{name}}”？',
   disableConsequence:
     '停用后不能用于新业务，历史资料保留。请先处理启用中的下级和引用关系。',
@@ -122,6 +138,7 @@ export const org = {
     targetId: '目标组织',
     startDate: '开始日期',
     endDate: '结束日期',
+    effectiveFrom: '生效日期',
     status: '状态',
     updatedAt: '更新时间',
     createdAt: '创建时间',
@@ -151,6 +168,9 @@ export const org = {
     update: '编辑',
     enable: '启用',
     disable: '停用',
+    schedule: '安排变更',
+    cancelSchedule: '取消计划',
+    applySchedule: '应用计划',
   },
   errors: {
     ORG_ISSUE_DEPENDENTS:
@@ -184,6 +204,10 @@ export const org = {
       '该岗位或所属单元下的岗位仍有权限映射，请先在岗位权限中清空映射后再停用。',
     ORG_ASSET_DEPENDENTS: '该主体仍有资产登记引用，请先处理相关资产后再停用。',
     ORG_POSITION_NOT_ACTIVE: '该岗位已停用，无法保存权限映射。',
+    ORG_INVALID_EFFECTIVE_DATE:
+      '生效日期必须晚于今天；如需立即生效，请清空生效日期后直接保存。',
+    ORG_PENDING_NOT_FOUND: '该计划变更不存在，请刷新后重试。',
+    ORG_PENDING_STATE: '该计划变更已被应用或取消，不能再次操作。',
     INVALID_INPUT: '请检查标记的字段。',
     INVALID_ORIGIN: '访问地址配置不正确，请联系管理员。',
     INVALID_CSRF_ORIGIN: '访问地址配置不正确，请联系管理员。',
@@ -205,7 +229,8 @@ export const erp = {
     '人事事务办理，以及运营、采购、安环、财务、设备技术等职能。',
   developmentDescription: '项目拓展、投资决策、建设、验收与运营移交。',
   open: '进入组织架构',
-  boundary: '组织变更保存后立即生效，请谨慎核对。',
+  boundary:
+    '组织变更默认立即生效；填写未来生效日期后会进入计划变更队列，到期自动应用。',
   organizationBoundary:
     '维护组织主体、单元、岗位与板块；组织变动会同步到人员任职与数据权限。',
   hrBoundary: '集团层面的规划与评价入口；各公司的人事事务在职能平台办理。',

@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, ShieldAlert } from 'lucide-react';
+import { Download, Plus, ShieldAlert } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { ReadOnlyNotice } from '#components/read-only-notice';
@@ -45,6 +45,7 @@ import {
   type HsePage,
 } from './model.js';
 import { HseDetailDialog } from './detail-dialog.js';
+import { buildCsv, downloadCsv } from './export.js';
 
 const emptyForm = () => ({
   subjectId: '',
@@ -80,6 +81,57 @@ export default function HseIncidentsPage() {
   const [dueAt, setDueAt] = useState('');
   const [params] = useSearchParams(),
     subjectId = params.get('subjectId') ?? '';
+  const [exporting, setExporting] = useState(false);
+  const exportRows = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const response = await api.request<{ data: HseIncident[] }>({
+        path: 'hse/incidents/export',
+        query: {
+          ...(subjectId ? { subjectId } : {}),
+          ...(statusFilter ? { status: statusFilter } : {}),
+          ...(typeFilter ? { type: typeFilter } : {}),
+        },
+      });
+      downloadCsv(
+        `hse-incidents-${businessDate()}.csv`,
+        buildCsv(response.data ?? [], [
+          { key: 'incidentNo', label: t('hse.fields.incidentNo') },
+          {
+            key: 'type',
+            label: t('hse.fields.type'),
+            value: (row) => t(`hse.incidentType.${row.type}`),
+          },
+          {
+            key: 'severity',
+            label: t('hse.fields.severity'),
+            value: (row) => t(`hse.severity.${row.severity}`),
+          },
+          {
+            key: 'status',
+            label: t('hse.fields.status'),
+            value: (row) => t(`hse.status.${row.status}`),
+          },
+          { key: 'occurredAt', label: t('hse.fields.occurredAt') },
+          { key: 'location', label: t('hse.fields.location') },
+          { key: 'injuryCount', label: t('hse.fields.injuryCount') },
+          { key: 'lostDays', label: t('hse.fields.lostDays') },
+          {
+            key: 'environmentalRelease',
+            label: t('hse.fields.environmentalRelease'),
+            value: (row) =>
+              row.environmentalRelease ? t('hse.yes') : t('hse.no'),
+          },
+          { key: 'ownerName', label: t('hse.fields.ownerName') },
+          { key: 'dueAt', label: t('hse.fields.dueAt') },
+          { key: 'description', label: t('hse.fields.description') },
+        ]),
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
   const options = useQuery({
     retry: false,
     queryKey: ['hse-options'],
@@ -230,6 +282,14 @@ export default function HseIncidentsPage() {
               busy={list.isFetching}
               onClick={() => void list.refetch()}
             />
+            <Button
+              variant='outline'
+              disabled={exporting}
+              onClick={() => void exportRows()}
+            >
+              <Download />
+              {t('hse.export')}
+            </Button>
             {canManage || canReport ? (
               <Button
                 onClick={() => {

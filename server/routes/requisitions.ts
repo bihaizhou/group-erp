@@ -7,6 +7,7 @@ import {
   type AuthorizationEnv,
 } from '@nocobase/app-plugin-authorization/server';
 import type { Application } from '@nocobase/app-server/application';
+import { databaseManagerToken } from '@nocobase/db';
 import {
   ApiError,
   apiErrorHandler,
@@ -73,6 +74,14 @@ import {
   issueCapabilityView,
   issueCompanyMeta,
 } from '../providers/issue-request-model.js';
+import {
+  assertFieldsWritable,
+  fieldPoliciesFor,
+  redactRecord,
+  redactRows,
+  type FieldPolicyView,
+} from '../providers/field-access.js';
+import { resourceFieldNames } from '../providers/field-catalog.js';
 
 type Env = AuthEnv &
   AuthorizationEnv & { Variables: { issueAccess: IssueAccess } };
@@ -83,11 +92,16 @@ const errors = {
   '409': apiErrorResponse(409),
   '413': apiErrorResponse(413),
 };
+/** Catalog resources that own the issue request fields. */
+const HEAD_RESOURCE = 'issue.request';
+const LINE_RESOURCE = 'issue.request.line';
+const PURPOSE_RESOURCE = 'issue.purpose';
 export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
   defineApiRoutes((app) => {
     const service = app.container.resolve(issueRequestServiceToken),
       auth = app.container.resolve(authenticationToken),
-      authz = app.container.resolve(authorizationToken);
+      authz = app.container.resolve(authorizationToken),
+      db = app.container.resolve(databaseManagerToken);
     const router = new Hono<Env>();
     for (const path of [
       '/requests',
@@ -108,6 +122,100 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
       router.use(path, auth.required(), authz.middleware());
     const actor = (c: Context<Env>) => ({ id: c.get('auth')!.user.id });
     const access = (c: Context<Env>) => c.get('issueAccess');
+    /**
+     * The issue service only needs the account id; field policies are keyed by
+     * the signed-in user, so the policy principal must carry `type: 'user'`.
+     */
+    const principal = (c: Context<Env>) => ({
+      type: 'user' as const,
+      id: c.get('auth')!.user.id,
+    });
+    const isProvided = (value: unknown): boolean =>
+      value !== undefined && value !== null && value !== '';
+    const asComparable = (field: string, value: unknown): string | null => {
+      if (!isProvided(value)) return null;
+      if (field === 'requestedQuantity' || field === 'baseQuantity') {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? String(numeric) : String(value);
+      }
+      if (field === 'neededOn') return String(value).slice(0, 10);
+      return String(value);
+    };
+    /** View field names that a line selection writes onto the stored line. */
+    const lineFieldValues = (line: Record<string, unknown>) => {
+      const selection = (line.selection ?? {}) as Record<string, unknown>;
+      return {
+        originalName: line.originalName,
+        originalSpecification: line.originalSpecification,
+        requestedQuantity: selection.quantity,
+        requestedUnitText: selection.requestedUnitText,
+        baseQuantity: selection.baseQuantity,
+        usage: line.usage,
+        notes: line.notes,
+      } as Record<string, unknown>;
+    };
+    const assertContentWritable = async (
+      policies: FieldPolicyView[],
+      content: Record<string, unknown>,
+      previousLines?: readonly Record<string, unknown>[],
+    ) => {
+      const headFields = await resourceFieldNames(db, HEAD_RESOURCE);
+      assertFieldsWritable(
+        policies,
+        HEAD_RESOURCE,
+        headFields.filter(
+          (field) => field in content && isProvided(content[field]),
+        ),
+      );
+      const lineFields = await resourceFieldNames(db, LINE_RESOURCE);
+      const previous = new Map(
+        (previousLines ?? []).map((line) => [line.id, line]),
+      );
+      for (const line of Array.isArray(content.lines)
+        ? (content.lines as Record<string, unknown>[])
+        : []) {
+        const values = lineFieldValues(line);
+        const before = previous.get(line.id);
+        assertFieldsWritable(
+          policies,
+          LINE_RESOURCE,
+          lineFields.filter((field) => {
+            if (!(field in values) || !isProvided(values[field])) return false;
+            return (
+              !before ||
+              asComparable(field, values[field]) !==
+                asComparable(field, before[field])
+            );
+          }),
+        );
+      }
+    };
+    const redactIssueView = (
+      view: Record<string, unknown>,
+      policies: FieldPolicyView[],
+    ) => {
+      const head = redactRecord({ ...view }, policies, HEAD_RESOURCE);
+      if (Array.isArray(head.lines))
+        head.lines = redactRows(
+          head.lines as Record<string, unknown>[],
+          policies,
+          LINE_RESOURCE,
+        );
+      return head;
+    };
+    const assertPurposeFields = async (
+      policies: FieldPolicyView[],
+      content: Record<string, unknown>,
+    ) => {
+      const fields = await resourceFieldNames(db, PURPOSE_RESOURCE);
+      assertFieldsWritable(
+        policies,
+        PURPOSE_RESOURCE,
+        fields.filter(
+          (field) => field in content && isProvided(content[field]),
+        ),
+      );
+    };
     const allowed = (
       action: IssuePermissionAction | 'update',
       settings = false,
@@ -391,14 +499,22 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
         listResponse(issueListView, issueMeta),
       ),
       apiValidator('query', issueQuery),
-      async (c) =>
-        c.json(
-          await service.list(
-            c.req.valid('query'),
-            actor(c),
-            access(c).policies,
+      async (c) => {
+        const policies = await fieldPoliciesFor(db, principal(c));
+        const result = await service.list(
+          c.req.valid('query'),
+          actor(c),
+          access(c).policies,
+        );
+        return c.json({
+          ...result,
+          data: redactRows(
+            result.data as Record<string, unknown>[],
+            policies,
+            HEAD_RESOURCE,
           ),
-        ),
+        });
+      },
     );
     router.post(
       '/requests',
@@ -411,17 +527,25 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
         true,
       ),
       apiValidator('json', issueCreate),
-      async (c) =>
-        c.json(
+      async (c) => {
+        const policies = await fieldPoliciesFor(db, principal(c));
+        const input = c.req.valid('json');
+        if (policies.length)
+          await assertContentWritable(
+            policies,
+            input.content as unknown as Record<string, unknown>,
+          );
+        const data = await service.create(input, actor(c), access(c));
+        return c.json(
           {
-            data: await service.create(
-              c.req.valid('json'),
-              actor(c),
-              access(c),
+            data: redactIssueView(
+              data as unknown as Record<string, unknown>,
+              policies,
             ),
           },
           201,
-        ),
+        );
+      },
     );
     router.get(
       '/requests/:id',
@@ -432,13 +556,19 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
         dataResponse(issueView),
       ),
       apiValidator('param', issueParams),
-      async (c) =>
-        c.json({
-          data: await service.detail(
-            c.req.valid('param').id,
-            access(c).policies,
+      async (c) => {
+        const policies = await fieldPoliciesFor(db, principal(c));
+        const data = await service.detail(
+          c.req.valid('param').id,
+          access(c).policies,
+        );
+        return c.json({
+          data: redactIssueView(
+            data as unknown as Record<string, unknown>,
+            policies,
           ),
-        }),
+        });
+      },
     );
     router.get(
       '/requests/:id/history',
@@ -470,15 +600,33 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
       ),
       apiValidator('param', issueParams),
       apiValidator('json', issueUpdate),
-      async (c) =>
-        c.json({
-          data: await service.update(
+      async (c) => {
+        const policies = await fieldPoliciesFor(db, principal(c));
+        const input = c.req.valid('json');
+        if (policies.length) {
+          const current = await service.detail(
             c.req.valid('param').id,
-            c.req.valid('json'),
-            actor(c),
-            access(c),
+            access(c).policies,
+          );
+          await assertContentWritable(
+            policies,
+            input.content as unknown as Record<string, unknown>,
+            (current as unknown as { lines?: Record<string, unknown>[] }).lines,
+          );
+        }
+        const data = await service.update(
+          c.req.valid('param').id,
+          input,
+          actor(c),
+          access(c),
+        );
+        return c.json({
+          data: redactIssueView(
+            data as unknown as Record<string, unknown>,
+            policies,
           ),
-        }),
+        });
+      },
     );
     router.post(
       '/requests/:id/copy',
@@ -492,18 +640,30 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
       ),
       apiValidator('param', issueParams),
       apiValidator('json', issueUpdate),
-      async (c) =>
-        c.json(
+      async (c) => {
+        const policies = await fieldPoliciesFor(db, principal(c));
+        const input = c.req.valid('json');
+        if (policies.length)
+          await assertContentWritable(
+            policies,
+            input.content as unknown as Record<string, unknown>,
+          );
+        const data = await service.copy(
+          c.req.valid('param').id,
+          input,
+          actor(c),
+          access(c),
+        );
+        return c.json(
           {
-            data: await service.copy(
-              c.req.valid('param').id,
-              c.req.valid('json'),
-              actor(c),
-              access(c),
+            data: redactIssueView(
+              data as unknown as Record<string, unknown>,
+              policies,
             ),
           },
           201,
-        ),
+        );
+      },
     );
     router.post(
       '/requests/:id/receive',
@@ -516,15 +676,21 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
       ),
       apiValidator('param', issueParams),
       apiValidator('json', issueReceive),
-      async (c) =>
-        c.json({
-          data: await service.receive(
-            c.req.valid('param').id,
-            c.req.valid('json'),
-            actor(c),
-            access(c).policies,
+      async (c) => {
+        const policies = await fieldPoliciesFor(db, principal(c));
+        const data = await service.receive(
+          c.req.valid('param').id,
+          c.req.valid('json'),
+          actor(c),
+          access(c).policies,
+        );
+        return c.json({
+          data: redactIssueView(
+            data as unknown as Record<string, unknown>,
+            policies,
           ),
-        }),
+        });
+      },
     );
     // The action name comes from a code-owned path. Permission checks precede body validation.
     for (const transition of [
@@ -551,15 +717,21 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
         ),
         apiValidator('param', issueParams),
         apiValidator('json', issueAction.omit({ transition: true })),
-        async (c) =>
-          c.json({
-            data: await service.fire(
-              c.req.valid('param').id,
-              { ...c.req.valid('json'), transition },
-              actor(c),
-              access(c),
+        async (c) => {
+          const policies = await fieldPoliciesFor(db, principal(c));
+          const data = await service.fire(
+            c.req.valid('param').id,
+            { ...c.req.valid('json'), transition },
+            actor(c),
+            access(c),
+          );
+          return c.json({
+            data: redactIssueView(
+              data as unknown as Record<string, unknown>,
+              policies,
             ),
-          }),
+          });
+        },
       );
     for (const [path, settings] of [
       ['/requestCompanies', false],
@@ -688,10 +860,21 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
         listResponse(issuePurposeView, issueMeta),
       ),
       apiValidator('query', issuePurposeQuery),
-      async (c) =>
-        c.json(
-          await purposeService.list(c.req.valid('query'), access(c).policies),
-        ),
+      async (c) => {
+        const policies = await fieldPoliciesFor(db, principal(c));
+        const result = await purposeService.list(
+          c.req.valid('query'),
+          access(c).policies,
+        );
+        return c.json({
+          ...result,
+          data: redactRows(
+            result.data as Record<string, unknown>[],
+            policies,
+            PURPOSE_RESOURCE,
+          ),
+        });
+      },
     );
     router.post(
       '/purposes',
@@ -704,18 +887,31 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
         true,
       ),
       apiValidator('json', issuePurposeCreate),
-      async (c) =>
-        c.json(
+      async (c) => {
+        const policies = await fieldPoliciesFor(db, principal(c));
+        const input = c.req.valid('json');
+        if (policies.length)
+          await assertPurposeFields(
+            policies,
+            input.content as unknown as Record<string, unknown>,
+          );
+        const data = await purposeService.save(
+          undefined,
+          input,
+          actor(c),
+          access(c).policies,
+        );
+        return c.json(
           {
-            data: await purposeService.save(
-              undefined,
-              c.req.valid('json'),
-              actor(c),
-              access(c).policies,
+            data: redactRecord(
+              data as unknown as Record<string, unknown>,
+              policies,
+              PURPOSE_RESOURCE,
             ),
           },
           201,
-        ),
+        );
+      },
     );
     router.get(
       '/purposes/:id',
@@ -726,13 +922,20 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
         dataResponse(issuePurposeView),
       ),
       apiValidator('param', issueParams),
-      async (c) =>
-        c.json({
-          data: await purposeService.detail(
-            c.req.valid('param').id,
-            access(c).policies,
+      async (c) => {
+        const policies = await fieldPoliciesFor(db, principal(c));
+        const data = await purposeService.detail(
+          c.req.valid('param').id,
+          access(c).policies,
+        );
+        return c.json({
+          data: redactRecord(
+            data as unknown as Record<string, unknown>,
+            policies,
+            PURPOSE_RESOURCE,
           ),
-        }),
+        });
+      },
     );
     router.patch(
       '/purposes/:id',
@@ -745,15 +948,28 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
       ),
       apiValidator('param', issueParams),
       apiValidator('json', issuePurposeUpdate),
-      async (c) =>
-        c.json({
-          data: await purposeService.save(
-            c.req.valid('param').id,
-            c.req.valid('json'),
-            actor(c),
-            access(c).policies,
+      async (c) => {
+        const policies = await fieldPoliciesFor(db, principal(c));
+        const input = c.req.valid('json');
+        if (policies.length)
+          await assertPurposeFields(
+            policies,
+            input.content as unknown as Record<string, unknown>,
+          );
+        const data = await purposeService.save(
+          c.req.valid('param').id,
+          input,
+          actor(c),
+          access(c).policies,
+        );
+        return c.json({
+          data: redactRecord(
+            data as unknown as Record<string, unknown>,
+            policies,
+            PURPOSE_RESOURCE,
           ),
-        }),
+        });
+      },
     );
     for (const transition of ['activate', 'deactivate'] as const)
       router.post(
@@ -767,15 +983,22 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
         ),
         apiValidator('param', issueParams),
         apiValidator('json', issuePurposeMutation),
-        async (c) =>
-          c.json({
-            data: await purposeService.save(
-              c.req.valid('param').id,
-              { ...c.req.valid('json'), transition },
-              actor(c),
-              access(c).policies,
+        async (c) => {
+          const policies = await fieldPoliciesFor(db, principal(c));
+          const data = await purposeService.save(
+            c.req.valid('param').id,
+            { ...c.req.valid('json'), transition },
+            actor(c),
+            access(c).policies,
+          );
+          return c.json({
+            data: redactRecord(
+              data as unknown as Record<string, unknown>,
+              policies,
+              PURPOSE_RESOURCE,
             ),
-          }),
+          });
+        },
       );
     const root = new Hono();
     root.route('/requisitions', router);

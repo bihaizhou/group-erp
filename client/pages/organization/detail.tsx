@@ -14,6 +14,7 @@ import { fields, isSmall, sectionForField } from './model.js';
 import { useOrgKind } from './context.js';
 import { ErrorNotice, Loading, OrgStatus } from './shared.js';
 import { OrganizationRecordHistory } from './record-history.js';
+import { OrganizationPendingChanges } from './pending-changes.js';
 
 export default function OrganizationDetailPage() {
   const { t, i18n } = useTranslation();
@@ -88,6 +89,12 @@ export default function OrganizationDetailPage() {
         {t('org.fields.updatedAt')} ·{' '}
         {new Date(data.updatedAt).toLocaleString(i18n.language)}
       </p>
+      <OrganizationPendingChanges
+        kind={kind}
+        recordId={data.id}
+        options={options.data?.data}
+        canWrite={canWrite}
+      />
       <OrganizationRecordHistory
         recordId={data.id}
         options={options.data?.data}

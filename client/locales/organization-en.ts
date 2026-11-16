@@ -64,6 +64,23 @@ export const org = {
   saved: 'Saved "{{name}}"',
   created: 'Created "{{name}}"',
   statusSaved: 'Updated "{{name}}"',
+  scheduled: 'Scheduled "{{name}}" to take effect on {{date}}.',
+  effectiveFromHint:
+    'Leave empty to apply immediately; a future date queues this change as a scheduled change.',
+  immediate: 'Apply immediately',
+  noScheduledChanges: 'No field changes to schedule.',
+  pending: {
+    title: 'Scheduled changes',
+    description:
+      'Future-dated changes queue here, apply automatically on their effective date, and can be cancelled.',
+    empty: 'No scheduled changes yet.',
+    effectiveFrom: 'Effective date',
+    actor: 'Scheduled by',
+    cancel: 'Cancel schedule',
+    cancelReason: 'Reason for cancelling',
+    cancelConfirm: 'Confirm cancellation',
+    cancelled: 'Scheduled change cancelled.',
+  },
   statusTitle: '{{action}} "{{name}}"?',
   disableConsequence:
     'This record will be unavailable for new business. History is retained. Resolve active references first.',
@@ -128,6 +145,7 @@ export const org = {
     targetId: 'Target',
     startDate: 'Effective from',
     endDate: 'Effective until',
+    effectiveFrom: 'Effective date',
     status: 'Status',
     updatedAt: 'Updated',
     createdAt: 'Created',
@@ -157,6 +175,9 @@ export const org = {
     update: 'Edit',
     enable: 'Enable',
     disable: 'Disable',
+    schedule: 'Schedule change',
+    cancelSchedule: 'Cancel schedule',
+    applySchedule: 'Apply schedule',
   },
   errors: {
     ORG_ISSUE_DEPENDENTS:
@@ -200,6 +221,12 @@ export const org = {
       'Registered assets still reference this entity. Handle the assets before deactivating it.',
     ORG_POSITION_NOT_ACTIVE:
       'This position is inactive, so its permission mappings cannot be saved.',
+    ORG_INVALID_EFFECTIVE_DATE:
+      'The effective date must be later than today. To apply immediately, clear the effective date and save directly.',
+    ORG_PENDING_NOT_FOUND:
+      'This scheduled change does not exist. Refresh and try again.',
+    ORG_PENDING_STATE:
+      'This scheduled change was already applied or cancelled and cannot be changed again.',
     INVALID_INPUT: 'Check the highlighted fields.',
     INVALID_ORIGIN:
       'The access address is not configured correctly. Contact an administrator.',
@@ -225,7 +252,8 @@ export const erp = {
   developmentDescription:
     'Project development, investment decisions, construction and handover.',
   open: 'Open organization',
-  boundary: 'Organization changes take effect immediately once saved. Please verify carefully.',
+  boundary:
+    'Organization changes apply immediately by default; a future effective date queues them as scheduled changes that apply automatically on that date.',
   organizationBoundary:
     'Maintains subjects, units, positions and segments; changes flow into assignments and data scope.',
   hrBoundary:

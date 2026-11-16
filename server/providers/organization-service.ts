@@ -9,6 +9,7 @@ import type {
 import {
   tables,
   kinds,
+  inputSchemas,
   OrganizationError,
   type OrgKind,
   type OrgRecord,
@@ -53,6 +54,76 @@ function view(row: Row): OrgRecord {
 }
 const fail = (reason: string, field?: string): never => {
   throw new OrganizationError(reason, field);
+};
+
+export type PendingChange = {
+  id: string;
+  kind: OrgKind;
+  recordId: string;
+  operation: string;
+  payload: Record<string, unknown>;
+  effectiveFrom: string;
+  status: string;
+  reason: string;
+  actorId: string;
+  actorName: string;
+  errorReason: string | null;
+  appliedAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ScheduleChangeInput = {
+  version: number;
+  reason: string;
+  effectiveFrom: string;
+  changes: Record<string, unknown>;
+};
+
+const payloadOf = (value: unknown): Record<string, unknown> => {
+  const parsed =
+    typeof value === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(value) as unknown;
+          } catch {
+            return null;
+          }
+        })()
+      : value;
+  return parsed && typeof parsed === 'object'
+    ? (parsed as Record<string, unknown>)
+    : {};
+};
+
+const pendingView = (row: Row): PendingChange => ({
+  id: scalar(row.id),
+  kind: scalar(row.kind) as OrgKind,
+  recordId: scalar(row.recordId),
+  operation: scalar(row.operation),
+  payload: payloadOf(row.payload),
+  effectiveFrom: scalar(row.effectiveFrom),
+  status: scalar(row.status),
+  reason: scalar(row.reason),
+  actorId: scalar(row.actorId),
+  actorName: scalar(row.actorName),
+  errorReason: row.errorReason ? scalar(row.errorReason) : null,
+  appliedAt: row.appliedAt
+    ? new Date(scalar(row.appliedAt)).toISOString()
+    : null,
+  version: Number(row.version),
+  createdAt: new Date(scalar(row.createdAt)).toISOString(),
+  updatedAt: new Date(scalar(row.updatedAt)).toISOString(),
+});
+
+/** A calendar date in YYYY-MM-DD form that names a real day. */
+const isCalendarDate = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const time = Date.parse(`${value}T00:00:00.000Z`);
+  return (
+    !Number.isNaN(time) && new Date(time).toISOString().slice(0, 10) === value
+  );
 };
 
 /**
@@ -206,67 +277,329 @@ export class OrganizationService {
       // Acquire the shared database row lock BEFORE any reads. This serializes topology checks across
       // all application processes, including concurrent moves in different branches and enable/disable.
       await lockOrgMutation(connection);
-      const repo = connection.repository(tables[kind]);
-      const before = id
-        ? ((await repo.findOne({ filter: { id } })) ?? null)
-        : null;
-      if (id && !before) return fail('ORG_NOT_FOUND');
-      if (before && Number(before.revision) !== input.version)
-        return fail('ORG_VERSION_CONFLICT');
-      const { version: _version, reason: _reason, ...changes } = input;
-      const next: Row = {
-        ...before,
-        ...changes,
-        id: id ?? randomUUID(),
-        status: changes.status ?? before?.status ?? 'active',
-        revision: Number(before?.revision ?? 0) + 1,
-        createdAt: before?.createdAt ?? new Date(),
-        updatedAt: new Date(),
-      };
-      if (
-        await repo.exists({
-          filter: (f) =>
-            f.and([
-              f.string('code').eq(scalar(next.code)),
-              f.string('id').ne(scalar(next.id)),
-            ]),
+      return this.saveWithinLock(connection, kind, input, actor, id);
+    });
+  }
+
+  /**
+   * Apply one organization mutation on an already-locked connection. The caller
+   * owns the transaction and must have taken `orgMutationLock` first. `save` and
+   * the scheduled-change sweep share this body so the lock is taken exactly once.
+   */
+  private async saveWithinLock(
+    connection: DatabaseConnection,
+    kind: OrgKind,
+    input: OrgInput,
+    actor: Actor,
+    id?: string,
+  ): Promise<OrgRecord> {
+    const repo = connection.repository(tables[kind]);
+    const before = id
+      ? ((await repo.findOne({ filter: { id } })) ?? null)
+      : null;
+    if (id && !before) return fail('ORG_NOT_FOUND');
+    if (before && Number(before.revision) !== input.version)
+      return fail('ORG_VERSION_CONFLICT');
+    const { version: _version, reason: _reason, ...changes } = input;
+    const next: Row = {
+      ...before,
+      ...changes,
+      id: id ?? randomUUID(),
+      status: changes.status ?? before?.status ?? 'active',
+      revision: Number(before?.revision ?? 0) + 1,
+      createdAt: before?.createdAt ?? new Date(),
+      updatedAt: new Date(),
+    };
+    if (
+      await repo.exists({
+        filter: (f) =>
+          f.and([
+            f.string('code').eq(scalar(next.code)),
+            f.string('id').ne(scalar(next.id)),
+          ]),
+      })
+    ) {
+      return fail('ORG_CODE_EXISTS', 'code');
+    }
+    await this.validate(connection, kind, next, before);
+    const result = before
+      ? await repo.updateOne({
+          filter: { id },
+          values: Object.fromEntries(
+            Object.entries(next).filter(
+              ([key]) => key !== 'id' && key !== 'createdAt',
+            ),
+          ) as RepositoryRecord,
         })
-      ) {
-        return fail('ORG_CODE_EXISTS', 'code');
-      }
-      await this.validate(connection, kind, next, before);
-      const result = before
-        ? await repo.updateOne({
-            filter: { id },
-            values: Object.fromEntries(
-              Object.entries(next).filter(
-                ([key]) => key !== 'id' && key !== 'createdAt',
-              ),
-            ) as RepositoryRecord,
-          })
-        : await repo.createOne({ values: next as RepositoryRecord });
-      const record = view(result.record);
+      : await repo.createOne({ values: next as RepositoryRecord });
+    const record = view(result.record);
+    await connection.repository('orgAudit').createOne({
+      values: {
+        id: randomUUID(),
+        kind,
+        recordId: record.id,
+        recordName: record.name,
+        operation: !before
+          ? 'create'
+          : before.status !== record.status
+            ? scalar(record.status === 'active' ? 'enable' : 'disable')
+            : 'update',
+        actorId: actor.id,
+        actorName: actor.name,
+        reason: scalar(input.reason ?? 'Initial creation'),
+        beforeValue: before ? view(before) : null,
+        afterValue: record,
+        createdAt: new Date(),
+      },
+    });
+    return record;
+  }
+
+  /**
+   * Queue a mutation for a future business date. Nothing on the organization
+   * record changes until the sweep reaches `effectiveFrom`; until then the
+   * pending row can be cancelled. Version checks and reference validation still
+   * happen when the change is applied, because the organization may move before
+   * then.
+   */
+  async scheduleChange(
+    kind: OrgKind,
+    recordId: string,
+    input: ScheduleChangeInput,
+    actor: Actor,
+  ): Promise<PendingChange> {
+    if (!isCalendarDate(input.effectiveFrom))
+      return fail('ORG_INVALID_EFFECTIVE_DATE', 'effectiveFrom');
+    if (input.effectiveFrom <= businessDate(this.timeZone))
+      return fail('ORG_INVALID_EFFECTIVE_DATE', 'effectiveFrom');
+    const entries = Object.entries(input.changes ?? {});
+    if (!entries.length) return fail('INVALID_INPUT', 'changes');
+    // `status` is not part of the create/update schemas but scheduling an
+    // enable/disable is a first-class operation.
+    const allowed = new Set<string>([
+      ...Object.keys(inputSchemas[kind].shape),
+      'status',
+    ]);
+    for (const [field] of entries)
+      if (!allowed.has(field)) return fail('INVALID_INPUT', field);
+    return this.db.transaction(async (connection) => {
+      await lockOrgMutation(connection);
+      const record = await connection.repository(tables[kind]).findOne({
+        filter: { id: recordId },
+      });
+      if (!record) return fail('ORG_NOT_FOUND');
+      if (Number(record.revision) !== input.version)
+        return fail('ORG_VERSION_CONFLICT');
+      const requestedStatus = input.changes.status;
+      const operation =
+        typeof requestedStatus === 'string' && requestedStatus !== record.status
+          ? requestedStatus === 'active'
+            ? 'enable'
+            : 'disable'
+          : 'update';
+      const created = await connection
+        .repository('orgPendingChanges')
+        .createOne({
+          values: {
+            id: randomUUID(),
+            kind,
+            recordId,
+            operation,
+            payload: input.changes as RepositoryRecord,
+            effectiveFrom: input.effectiveFrom,
+            status: 'pending',
+            reason: input.reason,
+            actorId: actor.id,
+            actorName: actor.name,
+            errorReason: null,
+            appliedAt: null,
+            version: input.version,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          } as RepositoryRecord,
+        });
       await connection.repository('orgAudit').createOne({
         values: {
           id: randomUUID(),
           kind,
-          recordId: record.id,
-          recordName: record.name,
-          operation: !before
-            ? 'create'
-            : before.status !== record.status
-              ? scalar(record.status === 'active' ? 'enable' : 'disable')
-              : 'update',
+          recordId,
+          recordName: scalar(record.name),
+          operation: 'schedule',
           actorId: actor.id,
           actorName: actor.name,
-          reason: scalar(input.reason ?? 'Initial creation'),
-          beforeValue: before ? view(before) : null,
-          afterValue: record,
+          reason: `${input.reason} (effective ${input.effectiveFrom})`,
+          beforeValue: null,
+          afterValue: view(record),
           createdAt: new Date(),
         },
       });
-      return record;
+      return pendingView(created.record);
     });
+  }
+
+  async listPending(kind?: string, recordId?: string) {
+    const repo = this.db.repository('orgPendingChanges');
+    const filter = (f: FilterBuilder) =>
+      f.and([
+        ...(kind ? [f.string('kind').eq(kind)] : []),
+        ...(recordId ? [f.string('recordId').eq(recordId)] : []),
+      ]);
+    const [rows, total] = await Promise.all([
+      repo.findMany({
+        filter,
+        limit: 1000,
+        sort: (s) => [
+          s.field('effectiveFrom').asc(),
+          s.field('createdAt').asc(),
+        ],
+      }),
+      repo.count({ filter }),
+    ]);
+    return { rows: rows.map(pendingView), total };
+  }
+
+  async cancelPending(
+    id: string,
+    actor: Actor,
+    input: { reason: string; version?: number },
+  ): Promise<PendingChange> {
+    return this.db.transaction(async (connection) => {
+      // The sweep takes the same lock before reading a pending row, so cancel
+      // and apply cannot interleave on one change.
+      await lockOrgMutation(connection);
+      const pending = await connection
+        .repository('orgPendingChanges')
+        .findOne({ filter: { id } });
+      if (!pending) return fail('ORG_PENDING_NOT_FOUND');
+      if (pending.status !== 'pending') return fail('ORG_PENDING_STATE');
+      if (
+        input.version !== undefined &&
+        Number(pending.version) !== input.version
+      )
+        return fail('ORG_VERSION_CONFLICT');
+      const updated = await connection
+        .repository('orgPendingChanges')
+        .updateOne({
+          filter: { id },
+          values: { status: 'cancelled', updatedAt: new Date() },
+        });
+      const kind = scalar(pending.kind) as OrgKind;
+      const record = await connection
+        .repository(tables[kind])
+        .findOne({ filter: { id: scalar(pending.recordId) } });
+      await connection.repository('orgAudit').createOne({
+        values: {
+          id: randomUUID(),
+          kind,
+          recordId: scalar(pending.recordId),
+          recordName: record ? scalar(record.name) : '',
+          operation: 'cancelSchedule',
+          actorId: actor.id,
+          actorName: actor.name,
+          reason: input.reason,
+          beforeValue: null,
+          afterValue: pendingView(updated.record),
+          createdAt: new Date(),
+        },
+      });
+      return pendingView(updated.record);
+    });
+  }
+
+  /**
+   * Apply every pending change whose effective date has arrived. Each row gets
+   * its own transaction: the sweep takes the mutation lock once, reads the
+   * record at its current revision, then reuses `saveWithinLock` (never
+   * `save`, which would open a nested transaction and re-take the lock).
+   * A row that cannot be applied is marked `failed` with the reason and does
+   * not stop the remaining rows.
+   */
+  async applyDue(now?: string): Promise<Array<{ id: string; reason: string }>> {
+    const due = now ?? businessDate(this.timeZone);
+    const rows = (
+      await this.db.repository('orgPendingChanges').findMany({
+        filter: (f) => f.string('status').eq('pending'),
+        sort: (s) => [
+          s.field('effectiveFrom').asc(),
+          s.field('createdAt').asc(),
+        ],
+        limit: 1000,
+      })
+    ).filter((row) => scalar(row.effectiveFrom) <= due);
+    const failures: Array<{ id: string; reason: string }> = [];
+    for (const row of rows) {
+      const rowId = scalar(row.id);
+      try {
+        await this.db.transaction(async (connection) => {
+          await lockOrgMutation(connection);
+          const pending = await connection
+            .repository('orgPendingChanges')
+            .findOne({ filter: { id: rowId } });
+          // Another process may have applied or cancelled it while we queued.
+          if (!pending || pending.status !== 'pending') return;
+          const kind = scalar(pending.kind) as OrgKind;
+          if (!(kinds as readonly string[]).includes(kind))
+            return fail('ORG_INVALID_REFERENCE');
+          const record = await connection
+            .repository(tables[kind])
+            .findOne({ filter: { id: scalar(pending.recordId) } });
+          if (!record) return fail('ORG_NOT_FOUND');
+          const actor = {
+            id: scalar(pending.actorId),
+            name: scalar(pending.actorName),
+          };
+          const saved = await this.saveWithinLock(
+            connection,
+            kind,
+            {
+              ...payloadOf(pending.payload),
+              version: Number(record.revision),
+              reason: scalar(pending.reason),
+            } as OrgInput,
+            actor,
+            scalar(pending.recordId),
+          );
+          await connection.repository('orgPendingChanges').updateOne({
+            filter: { id: scalar(pending.id), status: 'pending' },
+            values: {
+              status: 'applied',
+              appliedAt: new Date(),
+              errorReason: null,
+              updatedAt: new Date(),
+            },
+          });
+          await connection.repository('orgAudit').createOne({
+            values: {
+              id: randomUUID(),
+              kind,
+              recordId: saved.id,
+              recordName: saved.name,
+              operation: 'applySchedule',
+              actorId: actor.id,
+              actorName: actor.name,
+              reason: `Applied scheduled change effective ${scalar(pending.effectiveFrom)}: ${scalar(pending.reason)}`,
+              beforeValue: view(record),
+              afterValue: saved,
+              createdAt: new Date(),
+            },
+          });
+        });
+      } catch (error) {
+        const reason =
+          error instanceof OrganizationError
+            ? error.reason
+            : error instanceof Error
+              ? error.message
+              : 'Unknown error';
+        const errorReason = reason.slice(0, 500);
+        failures.push({ id: scalar(row.id), reason: errorReason });
+        await this.db.repository('orgPendingChanges').updateOne({
+          filter: { id: scalar(row.id), status: 'pending' },
+          values: { status: 'failed', errorReason, updatedAt: new Date() },
+        });
+      }
+    }
+    return failures;
   }
 
   private async validate(

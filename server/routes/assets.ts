@@ -25,6 +25,8 @@ import { createMiddleware } from 'hono/factory';
 import { z } from 'zod';
 import {
   assetAssign,
+  assetBatchAssign,
+  assetBatchReturn,
   assetCreate,
   assetCompanyQuery,
   assetIdParams,
@@ -298,6 +300,44 @@ export const assetRoutes: AppApiRouteContribution<Application> =
           data: await service.update(principal, id, input, scope),
         });
       },
+    );
+
+    router.post(
+      '/batch-assign',
+      allowed('manage'),
+      describe(
+        'assetBatchAssign',
+        'Assign several fixed assets to one custodian',
+        dataResponse(object),
+      ),
+      apiValidator('json', assetBatchAssign),
+      async (c) =>
+        c.json({
+          data: await service.batchAssign(
+            actor(c),
+            c.req.valid('json'),
+            await scoped(c),
+          ),
+        }),
+    );
+
+    router.post(
+      '/batch-return',
+      allowed('manage'),
+      describe(
+        'assetBatchReturn',
+        'Return several fixed assets to stock',
+        dataResponse(object),
+      ),
+      apiValidator('json', assetBatchReturn),
+      async (c) =>
+        c.json({
+          data: await service.batchReturn(
+            actor(c),
+            c.req.valid('json'),
+            await scoped(c),
+          ),
+        }),
     );
 
     for (const [action, schema] of [

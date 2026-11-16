@@ -515,6 +515,98 @@ export class AssetService {
     return this.detail(principal, id, scope);
   }
 
+  async batchAssign(
+    principal: AssetPrincipal,
+    input: {
+      ids: string[];
+      employeeId: string;
+      location?: string | null;
+      note?: string | null;
+    },
+    scope: AssetScope,
+  ) {
+    if (!scope.manage) throw new AssetError('ASSET_FORBIDDEN');
+    const updated: string[] = [];
+    const failed: { id: string; reason: string }[] = [];
+    for (const id of [...new Set(input.ids)]) {
+      const row = await this.database
+        .repository('assets')
+        .findOne({ filter: { id } });
+      if (!row) {
+        failed.push({ id, reason: 'ASSET_NOT_FOUND' });
+        continue;
+      }
+      try {
+        await this.assign(
+          principal,
+          id,
+          {
+            version: Number(row.version ?? 0),
+            employeeId: input.employeeId,
+            location: input.location ?? null,
+            note: input.note ?? null,
+          },
+          scope,
+        );
+        updated.push(id);
+      } catch (error) {
+        failed.push({
+          id,
+          reason:
+            error instanceof AssetError
+              ? error.message || 'ASSET_INVALID'
+              : 'ASSET_INVALID',
+        });
+      }
+    }
+    return { updated, failed };
+  }
+
+  async batchReturn(
+    principal: AssetPrincipal,
+    input: {
+      ids: string[];
+      location?: string | null;
+      note?: string | null;
+    },
+    scope: AssetScope,
+  ) {
+    if (!scope.manage) throw new AssetError('ASSET_FORBIDDEN');
+    const updated: string[] = [];
+    const failed: { id: string; reason: string }[] = [];
+    for (const id of [...new Set(input.ids)]) {
+      const row = await this.database
+        .repository('assets')
+        .findOne({ filter: { id } });
+      if (!row) {
+        failed.push({ id, reason: 'ASSET_NOT_FOUND' });
+        continue;
+      }
+      try {
+        await this.returnAsset(
+          principal,
+          id,
+          {
+            version: Number(row.version ?? 0),
+            location: input.location ?? null,
+            note: input.note ?? null,
+          },
+          scope,
+        );
+        updated.push(id);
+      } catch (error) {
+        failed.push({
+          id,
+          reason:
+            error instanceof AssetError
+              ? error.message || 'ASSET_INVALID'
+              : 'ASSET_INVALID',
+        });
+      }
+    }
+    return { updated, failed };
+  }
+
   async requestScrap(
     principal: AssetPrincipal,
     id: string,

@@ -28,11 +28,13 @@ import {
   hseCertificateTransition,
   hseCertificateUpdate,
   hseHazardCreate,
+  hseHazardExportQuery,
   hseHazardQuery,
   hseHazardTransition,
   hseHazardUpdate,
   hseIdParams,
   hseIncidentCreate,
+  hseIncidentExportQuery,
   hseIncidentQuery,
   hseIncidentTransition,
   hseIncidentUpdate,
@@ -58,6 +60,7 @@ const pageMeta = z.object({
   pageSize: z.number(),
   total: z.number(),
 });
+const exportMeta = z.object({ total: z.number(), truncated: z.boolean() });
 
 function toApiError(error: HseError) {
   const status =
@@ -231,6 +234,25 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
         ),
     );
 
+    router.get(
+      '/incidents/export',
+      allowed('read'),
+      describe(
+        'hseIncidentExport',
+        'Export every HSE incident in scope for spreadsheets',
+        listResponse(object, exportMeta, 'Success.'),
+      ),
+      apiValidator('query', hseIncidentExportQuery),
+      async (c) =>
+        c.json(
+          await service.exportIncidents(
+            actor(c),
+            c.req.valid('query'),
+            await scoped(c),
+          ),
+        ),
+    );
+
     router.post(
       '/incidents',
       allowedAny(['manage', 'report']),
@@ -308,6 +330,25 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       async (c) =>
         c.json(
           await service.listHazards(
+            actor(c),
+            c.req.valid('query'),
+            await scoped(c),
+          ),
+        ),
+    );
+
+    router.get(
+      '/hazards/export',
+      allowed('read'),
+      describe(
+        'hseHazardExport',
+        'Export every HSE hazard in scope for spreadsheets',
+        listResponse(object, exportMeta, 'Success.'),
+      ),
+      apiValidator('query', hseHazardExportQuery),
+      async (c) =>
+        c.json(
+          await service.exportHazards(
             actor(c),
             c.req.valid('query'),
             await scoped(c),

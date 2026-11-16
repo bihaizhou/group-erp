@@ -104,6 +104,25 @@ export const assetReturn = z
   .strict();
 export type AssetReturn = z.infer<typeof assetReturn>;
 
+export const assetBatchAssign = z
+  .object({
+    ids: z.array(id).min(1).max(200),
+    employeeId: id,
+    location: optionalText(200),
+    note: optionalText(1000),
+  })
+  .strict();
+export type AssetBatchAssign = z.infer<typeof assetBatchAssign>;
+
+export const assetBatchReturn = z
+  .object({
+    ids: z.array(id).min(1).max(200),
+    location: optionalText(200),
+    note: optionalText(1000),
+  })
+  .strict();
+export type AssetBatchReturn = z.infer<typeof assetBatchReturn>;
+
 export const assetScrapRequest = z
   .object({
     version,

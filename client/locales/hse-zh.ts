@@ -5,6 +5,7 @@ export const hse = {
   incidents: '事件事故',
   incidentsDescription:
     '登记、调查和闭环安全环保事件；未闭环事件会进入运营总览。',
+  export: '导出',
   hazards: '隐患排查',
   hazardsDescription: '登记隐患、指定责任人和期限，整改完成后验收关闭。',
   certificates: '证照台账',

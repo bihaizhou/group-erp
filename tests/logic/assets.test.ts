@@ -190,6 +190,49 @@ test('registers fixed assets and tracks custodian assignment, return and disposa
     toStatus: 'in_stock',
   });
 
+  // 批量分配/归还：成功与失败逐条返回
+  const second = await create('/assets', {
+    code: `AST-2-${randomUUID().slice(0, 6)}`,
+    name: 'Second laptop',
+    subjectId: subject.id,
+    category: 'electronics',
+    acquiredOn: '2026-01-01',
+  });
+  const missingId = randomUUID();
+  const batchAssigned = (
+    await (
+      await send('/assets/batch-assign', {
+        ids: [second.id, missingId],
+        employeeId,
+        location: 'Desk 9',
+      })
+    ).json()
+  ).data as { updated: string[]; failed: { id: string; reason: string }[] };
+  expect(batchAssigned.updated).toEqual([second.id]);
+  expect(batchAssigned.failed).toHaveLength(1);
+  expect(batchAssigned.failed[0]).toMatchObject({
+    id: missingId,
+    reason: 'ASSET_NOT_FOUND',
+  });
+  const secondDetail = (
+    await (await send(`/assets/${second.id}`, undefined, 'GET')).json()
+  ).data;
+  expect(secondDetail).toMatchObject({
+    status: 'assigned',
+    custodianEmployeeId: employeeId,
+    location: 'Desk 9',
+  });
+  const batchReturned = (
+    await (
+      await send('/assets/batch-return', {
+        ids: [second.id],
+        location: 'IT store',
+      })
+    ).json()
+  ).data as { updated: string[]; failed: unknown[] };
+  expect(batchReturned.updated).toEqual([second.id]);
+  expect(batchReturned.failed).toHaveLength(0);
+
   // P1：PATCH 编辑留痕，事件携带 fromStatus/toStatus
   const edited = (
     await (

@@ -75,7 +75,8 @@ export function OrganizationRecordHistory({
               const changes = entry.beforeValue
                 ? changedFields(entry.beforeValue, entry.afterValue)
                 : [];
-              const created = !entry.beforeValue;
+              const created =
+                entry.operation === 'create' && !entry.beforeValue;
               const reason = reasonLabel(entry.reason);
               return (
                 <li

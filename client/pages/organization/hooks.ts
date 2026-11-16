@@ -87,3 +87,38 @@ export function useRecordHistory(recordId: string | undefined) {
       }),
   });
 }
+
+export type OrgPendingChange = {
+  id: string;
+  kind: string;
+  recordId: string;
+  operation: string;
+  payload: Record<string, unknown>;
+  effectiveFrom: string;
+  status: 'pending' | 'applied' | 'cancelled' | 'failed';
+  reason: string;
+  actorId: string;
+  actorName: string;
+  errorReason: string | null;
+  appliedAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function usePendingChanges(kind: string, recordId: string | undefined) {
+  const api = useApiClient();
+  return useQuery({
+    queryKey: ['org-pending', kind, recordId],
+    enabled: Boolean(recordId),
+    retry: false,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    queryFn: ({ signal }) =>
+      api.request<{ rows: OrgPendingChange[]; total: number }>({
+        path: 'organization/pending',
+        query: { kind, recordId },
+        signal,
+      }),
+  });
+}

@@ -17,6 +17,7 @@ import {
   listResponse,
   defineApiRoutes,
   describeRoute,
+  resolver,
   type AppApiRouteContribution,
 } from '@nocobase/app-server/router';
 import { Hono, type MiddlewareHandler } from 'hono';
@@ -28,6 +29,7 @@ import {
   inputSchemas,
   orgResource,
   OrganizationError,
+  type OrgKind,
 } from '../providers/organization-model.js';
 
 const params = z.object({ id: z.string().uuid() });
@@ -60,6 +62,38 @@ const record = z
   .catchall(z.json());
 const reason = z.string().trim().min(1).max(1000);
 const version = z.number().int().positive();
+const pendingRecord = z.object({
+  id: z.string(),
+  kind: z.enum(kinds),
+  recordId: z.string(),
+  operation: z.string(),
+  payload: z.record(z.string(), z.json()),
+  effectiveFrom: z.string(),
+  status: z.enum(['pending', 'applied', 'cancelled', 'failed']),
+  reason: z.string(),
+  actorId: z.string(),
+  actorName: z.string(),
+  errorReason: z.string().nullable(),
+  appliedAt: z.string().nullable(),
+  version: z.number(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+const pendingQuery = z.strictObject({
+  kind: z.enum(kinds).optional(),
+  recordId: z.string().uuid().optional(),
+});
+const scheduleInput = (kind: OrgKind) =>
+  z.strictObject({
+    version,
+    reason,
+    effectiveFrom: z.iso.date(),
+    // `status` lives on setStatus rather than the create/update schema, but a
+    // scheduled enable/disable is a normal pending change.
+    changes: inputSchemas[kind]
+      .partial()
+      .extend({ status: z.enum(['active', 'inactive']).optional() }),
+  });
 const errors = {
   ...apiErrorResponses,
   '400': apiErrorResponse(400),
@@ -102,13 +136,18 @@ export const organizationRoutes: AppApiRouteContribution<Application> =
         const status =
           error.reason === 'ORG_NOT_FOUND'
             ? 'NOT_FOUND'
-            : error.reason === 'ORG_CODE_EXISTS'
-              ? 'ALREADY_EXISTS'
-              : error.reason === 'ORG_VERSION_CONFLICT'
-                ? 'ABORTED'
-                : error.field
-                  ? 'INVALID_ARGUMENT'
-                  : 'FAILED_PRECONDITION';
+            : error.reason === 'ORG_PENDING_NOT_FOUND'
+              ? 'NOT_FOUND'
+              : error.reason === 'ORG_CODE_EXISTS'
+                ? 'ALREADY_EXISTS'
+                : error.reason === 'ORG_VERSION_CONFLICT' ||
+                    error.reason === 'ORG_PENDING_STATE'
+                  ? 'ABORTED'
+                  : error.reason === 'ORG_INVALID_EFFECTIVE_DATE'
+                    ? 'INVALID_ARGUMENT'
+                    : error.field
+                      ? 'INVALID_ARGUMENT'
+                      : 'FAILED_PRECONDITION';
         return apiErrorHandler(
           new ApiError({
             status,
@@ -158,6 +197,58 @@ export const organizationRoutes: AppApiRouteContribution<Application> =
       }),
       apiValidator('query', query),
       async (c) => c.json(await service.history(c.req.valid('query'))),
+    );
+    router.get(
+      '/pending',
+      access('read'),
+      describeRoute({
+        tags: ['Organization'],
+        summary: 'List scheduled organization changes',
+        operationId: 'listOrganizationPendingChanges',
+        responses: {
+          '200': {
+            description: 'Scheduled and historical organization changes',
+            content: {
+              'application/json': {
+                schema: resolver(
+                  z.object({
+                    rows: z.array(pendingRecord),
+                    total: z.number(),
+                  }),
+                ),
+              },
+            },
+          },
+          ...apiErrorResponses,
+        },
+      }),
+      apiValidator('query', pendingQuery),
+      async (c) => {
+        const input = c.req.valid('query');
+        return c.json(await service.listPending(input.kind, input.recordId));
+      },
+    );
+    router.post(
+      '/pending/:id/cancel',
+      access('update'),
+      describeRoute({
+        tags: ['Organization'],
+        summary: 'Cancel a scheduled organization change',
+        operationId: 'cancelOrganizationPendingChange',
+        responses: { '200': dataResponse(pendingRecord), ...errors },
+      }),
+      apiValidator('param', params),
+      apiValidator('json', z.strictObject({ reason })),
+      async (c) => {
+        const { user } = c.get('auth')!;
+        return c.json({
+          data: await service.cancelPending(
+            c.req.valid('param').id,
+            { id: user.id, name: user.name || user.email },
+            c.req.valid('json'),
+          ),
+        });
+      },
     );
     for (const kind of kinds) {
       router.get(
@@ -236,6 +327,32 @@ export const organizationRoutes: AppApiRouteContribution<Application> =
               c.req.valid('param').id,
             ),
           });
+        },
+      );
+      router.post(
+        `/${kind}/:id/schedule`,
+        access('update'),
+        describeRoute({
+          tags: ['Organization'],
+          summary: `Schedule a future change to organization ${kind}`,
+          operationId: `scheduleOrganization${kind}Change`,
+          responses: { '201': dataResponse(pendingRecord), ...errors },
+        }),
+        apiValidator('param', params),
+        apiValidator('json', scheduleInput(kind)),
+        async (c) => {
+          const { user } = c.get('auth')!;
+          return c.json(
+            {
+              data: await service.scheduleChange(
+                kind,
+                c.req.valid('param').id,
+                c.req.valid('json'),
+                { id: user.id, name: user.name || user.email },
+              ),
+            },
+            201,
+          );
         },
       );
       router.post(

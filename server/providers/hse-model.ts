@@ -165,6 +165,17 @@ export const hseHazardQuery = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+export const hseIncidentExportQuery = hseIncidentQuery.omit({
+  page: true,
+  pageSize: true,
+});
+
+export const hseHazardExportQuery = hseHazardQuery.omit({
+  page: true,
+  pageSize: true,
+});
+
+
 export const hseCertificateCreate = z.object({
   subjectId,
   holderType: z.enum(['company', 'person']).default('company'),
@@ -175,7 +186,7 @@ export const hseCertificateCreate = z.object({
   issuedAt: z.string().min(10).max(10).nullable().optional(),
   expiresAt: z.string().min(10).max(10),
   authority: z.string().max(200).default(''),
-  fileId: z.string().max(36).nullable().optional(),
+  fileId: z.string().max(64).nullable().optional(),
 });
 
 export const hseCertificateUpdate = z.object({
@@ -185,7 +196,7 @@ export const hseCertificateUpdate = z.object({
   issuedAt: z.string().min(10).max(10).nullable().optional(),
   expiresAt: z.string().min(10).max(10).optional(),
   authority: z.string().max(200).optional(),
-  fileId: z.string().max(36).nullable().optional(),
+  fileId: z.string().max(64).nullable().optional(),
 });
 
 export const hseCertificateTransition = z.object({
