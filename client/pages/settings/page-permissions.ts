@@ -1,6 +1,7 @@
 import type { AppClientRegisteredRoute } from '@nocobase/app-client/plugins';
 import type { LocalizedText } from '@nocobase/app-plugin-authorization/client';
 import { permissionRowId, type CatalogResource } from './permissions-model.js';
+import { supportsPageFieldVisibility } from './page-field-visibility-pages.js';
 import type {
   PermissionEditorNavigationNode,
   PermissionEditorSection,
@@ -118,7 +119,8 @@ export function pagePermissionNavigation(
     const segments = route.path.split('/').filter(Boolean);
     if (segments.includes('new')) return 'newPage';
     if (segments.includes('edit')) return 'editPage';
-    if (segments.some((segment) => segment.startsWith(':'))) return 'detailPage';
+    if (segments.some((segment) => segment.startsWith(':')))
+      return 'detailPage';
     return undefined;
   };
   const visit = (
@@ -170,6 +172,10 @@ export function pagePermissionNavigation(
           id: `menu:${route.packageName}:${route.id}:${route.path}`,
           label,
           rowId,
+          pageKey: supportsPageFieldVisibility(route.name)
+            ? route.name
+            : undefined,
+          resourceId: resource?.id,
           ...(inherited
             ? {
                 hint: text({

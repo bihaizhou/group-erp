@@ -44,6 +44,8 @@ import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { PermissionEditor } from '#components/permission-editor';
 import { PageFieldPermissionEditor } from '#components/field-permission-editor';
+import { PageFieldVisibilityEditor } from './page-field-visibility-editor.js';
+import { pageFieldVisibilityFields } from './page-field-visibility-pages.js';
 import {
   buildFieldPolicies,
   fieldPolicyKey,
@@ -78,6 +80,28 @@ import {
 
 interface FieldPermissionPageTarget {
   readonly id: string;
+  readonly label: string;
+  readonly path?: string | undefined;
+  readonly resources: readonly string[];
+}
+
+/**
+ * Required fields are part of the form contract, not a presentation option.
+ * Keep the list beside the page key until the catalogue itself carries
+ * requiredness (list pages have none; create forms do).
+ */
+const PAGE_REQUIRED_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  'procurement-requests-new': [
+    'purchase.request.requesterEmployeeId',
+    'purchase.request.requestingUnitId',
+    'purchase.request.usage',
+    'purchase.request.neededOn',
+  ],
+};
+
+interface PageFieldTarget {
+  readonly pageKey: string;
+  readonly resourceId: string;
   readonly label: string;
   readonly path?: string | undefined;
   readonly resources: readonly string[];
@@ -145,6 +169,48 @@ function RoleEditor(): ReactElement {
   const [fieldDraft, setFieldDraft] = useState<Record<string, FieldAccess>>({});
   const [editingScope, setEditingScope] = useState<string>();
   const [fieldPage, setFieldPage] = useState<FieldPermissionPageTarget>();
+  const [pageField, setPageField] = useState<PageFieldTarget>();
+  const [pageFieldDraft, setPageFieldDraft] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [pageFieldBusy, setPageFieldBusy] = useState(false);
+  const [pageFieldError, setPageFieldError] = useState<unknown>();
+  const pageFieldVisibility = useQuery({
+    retry: false,
+    queryKey: ['page-field-visibility', key, pageField?.pageKey],
+    enabled: Boolean(key && pageField),
+    queryFn: ({ signal }) =>
+      api.request<{
+        data: {
+          configured: boolean;
+          fields: { resource: string; field: string; visible: boolean }[];
+        };
+      }>({
+        path: 'page-field-visibility',
+        query: {
+          permissionSetKey: key ?? '',
+          pageKey: pageField?.pageKey ?? '',
+        },
+        signal,
+      }),
+  });
+  const savedPageFieldVisibility = useMemo(
+    () =>
+      Object.fromEntries(
+        (pageFieldVisibility.data?.data.fields ?? []).map((row) => [
+          fieldPolicyKey(row.resource, row.field),
+          row.visible,
+        ]),
+      ),
+    [pageFieldVisibility.data],
+  );
+  const pageFieldVisible = (resource: string, field: string): boolean =>
+    pageFieldDraft[fieldPolicyKey(resource, field)] ??
+    savedPageFieldVisibility[fieldPolicyKey(resource, field)] ??
+    true;
+  const allowedPageFields = new Set(
+    pageField ? (pageFieldVisibilityFields[pageField.pageKey] ?? []) : [],
+  );
   const { session } = useAuthentication();
   const submission = useSubmission({
     scope: `${session?.user.id}:settings:role:${key}`,
@@ -451,6 +517,63 @@ function RoleEditor(): ReactElement {
     setFieldLevel(resource, field, access);
   };
 
+  const openPageField = (node: {
+    pageKey?: string | undefined;
+    resourceId?: string | undefined;
+    label: string;
+    path?: string | undefined;
+  }) => {
+    if (!node.pageKey || !node.resourceId) return;
+    setPageField({
+      pageKey: node.pageKey,
+      resourceId: node.resourceId,
+      label: node.label,
+      path: node.path,
+      resources: fieldResourcesForPage(node.resourceId),
+    });
+    setPageFieldDraft({});
+    setPageFieldError(undefined);
+  };
+
+  const savePageFields = async () => {
+    if (!pageField || !key) return;
+    setPageFieldBusy(true);
+    setPageFieldError(undefined);
+    try {
+      const catalog = fieldCatalog.data?.data.resources ?? [];
+      const fields = pageField.resources.flatMap((resourceId) => {
+        const resource = catalog.find((item) => item.resource === resourceId);
+        return (resource?.fields ?? []).map((field) => ({
+          resource: resourceId,
+          field: field.field,
+          visible: new Set(PAGE_REQUIRED_FIELDS[pageField.pageKey] ?? []).has(
+            fieldPolicyKey(resourceId, field.field),
+          )
+            ? true
+            : pageFieldVisible(resourceId, field.field),
+        }));
+      });
+      await api.request({
+        path: 'page-field-visibility',
+        method: 'PUT',
+        json: {
+          permissionSetKey: key,
+          pageKey: pageField.pageKey,
+          fields,
+        },
+      });
+      toaster.show({
+        type: 'success',
+        title: t('pageFieldVisibility.saved'),
+      });
+      setPageField(undefined);
+    } catch (next) {
+      setPageFieldError(next);
+    } finally {
+      setPageFieldBusy(false);
+    }
+  };
+
   return (
     <RouteChildPage>
       <PageContainer>
@@ -565,6 +688,7 @@ function RoleEditor(): ReactElement {
                 <PermissionEditor
                   sections={sections}
                   readOnly={!allowed || busy}
+                  onPageOpen={openPageField}
                   onNavigationOpen={(node) => {
                     const pageId = pageIdFromPermissionRow(node.rowId);
                     if (!pageId) return;
@@ -609,6 +733,8 @@ function RoleEditor(): ReactElement {
                       t('settings.collapsePermissionGroup', { name }),
                     openPage: (name) =>
                       t('fieldPermission.openFor', { page: name }),
+                    openPageFields: (name) =>
+                      t('pageFieldVisibility.open', { page: name }),
                     fieldsConfigured: t('fieldPermission.configured'),
                     accessGranted: t('fieldPermission.accessible'),
                   }}
@@ -647,6 +773,104 @@ function RoleEditor(): ReactElement {
                   )}
                 </div>
               </FeedbackForm>
+              {pageField && (
+                <Sheet
+                  open
+                  onOpenChange={(open) => {
+                    if (!open) setPageField(undefined);
+                  }}
+                >
+                  <SheetContent className='data-[side=right]:sm:max-w-4xl gap-0 flex flex-col'>
+                    <SheetHeader className='border-b pr-12'>
+                      <SheetTitle>
+                        {t('pageFieldVisibility.title', {
+                          page: pageField.label,
+                        })}
+                      </SheetTitle>
+                      <SheetDescription className='space-y-1'>
+                        {pageField.path && (
+                          <code className='block text-xs [overflow-wrap:anywhere]'>
+                            {pageField.path}
+                          </code>
+                        )}
+                        <span className='block'>
+                          {t('pageFieldVisibility.description')}
+                        </span>
+                      </SheetDescription>
+                    </SheetHeader>
+                    <div className='min-h-0 flex-1 overflow-y-auto p-4'>
+                      <PageFieldVisibilityEditor
+                        resources={(fieldCatalog.data?.data.resources ?? [])
+                          .filter((resource) =>
+                            pageField.resources.includes(resource.resource),
+                          )
+                          .map((resource) => ({
+                            ...resource,
+                            fields: resource.fields.filter((field) =>
+                              allowedPageFields.has(
+                                fieldPolicyKey(resource.resource, field.field),
+                              ),
+                            ),
+                          }))
+                          .filter((resource) => resource.fields.length > 0)}
+                        visibleOf={pageFieldVisible}
+                        lockedFields={
+                          new Set(PAGE_REQUIRED_FIELDS[pageField.pageKey] ?? [])
+                        }
+                        onChange={(resource, field, visible) =>
+                          setPageFieldDraft((current) => ({
+                            ...current,
+                            [fieldPolicyKey(resource, field)]: visible,
+                          }))
+                        }
+                        readOnly={!allowed || creating}
+                        loading={
+                          fieldCatalog.isPending ||
+                          (Boolean(key) && pageFieldVisibility.isPending)
+                        }
+                        failed={
+                          fieldCatalog.isError || pageFieldVisibility.isError
+                        }
+                      />
+                      {creating && (
+                        <p className='mt-4 text-xs text-muted-foreground'>
+                          {t('pageFieldVisibility.saveRoleFirst')}
+                        </p>
+                      )}
+                      {Boolean(pageFieldError) && (
+                        <div className='mt-4'>
+                          <SettingsError error={pageFieldError} />
+                        </div>
+                      )}
+                    </div>
+                    <div className='flex flex-wrap items-center justify-between gap-3 border-t p-4'>
+                      <span className='text-xs text-muted-foreground'>
+                        {t('pageFieldVisibility.stagedHint')}
+                      </span>
+                      <div className='flex gap-2'>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          onClick={() => setPageField(undefined)}
+                        >
+                          {t('settings.cancel')}
+                        </Button>
+                        <Button
+                          type='button'
+                          disabled={creating || pageFieldBusy || !allowed}
+                          onClick={() => void savePageFields()}
+                        >
+                          {t(
+                            pageFieldBusy
+                              ? 'settings.saving'
+                              : 'pageFieldVisibility.save',
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              )}
               {fieldPage && (
                 <Sheet
                   open

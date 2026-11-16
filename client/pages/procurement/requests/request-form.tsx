@@ -17,6 +17,7 @@ import { BackButton } from '#components/back-button';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { RouteChildPage } from '#components/route-child-page';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { DatePicker } from '#components/date-picker';
 import { Button } from '#components/ui/button';
 import { Textarea } from '#components/ui/textarea';
@@ -81,6 +82,15 @@ export default function RequestFormPage() {
     : path.endsWith('/copy')
       ? 'copy'
       : 'edit';
+  const pageKey =
+    mode === 'new'
+      ? 'procurement-requests-new'
+      : path.endsWith('/edit')
+        ? 'procurement-requests-edit'
+        : 'procurement-requests-list-edit';
+  const pageFields = usePageFieldVisibility(pageKey);
+  const showPageField = (field: string) =>
+    pageFields.visible('purchase.request', field);
   const record = useRequest(mode === 'new' ? undefined : requestId),
     cap = useCapabilities(mode === 'new' ? undefined : requestId),
     create = usePurchaseCan('create'),
@@ -162,10 +172,17 @@ export default function RequestFormPage() {
               mode={mode}
               path={path}
               identity={purchaseIdentity.data.data}
+              showPageField={showPageField}
             />
           )
         ) : ready ? (
-          <FormBody key={identity} mode={mode} path={path} initial={ready} />
+          <FormBody
+            key={identity}
+            mode={mode}
+            path={path}
+            initial={ready}
+            showPageField={showPageField}
+          />
         ) : record.error || cap.error ? (
           <>
             <BackButton />
@@ -192,11 +209,13 @@ function FormBody({
   path,
   initial,
   identity,
+  showPageField,
 }: {
   mode: Mode;
   path: string;
   initial?: PurchaseRequest;
   identity?: PurchaseIdentity;
+  showPageField: (field: string) => boolean;
 }) {
   const { t } = useTranslation(),
     api = useApiClient(),
@@ -785,54 +804,62 @@ function FormBody({
                 />
                 {fieldError('usage')}
               </Field>
-              <Field>
-                <FieldLabel htmlFor='purchase-businessDate'>
-                  {t(ui('businessDate'))}
-                </FieldLabel>
-                <DatePicker
-                  id='purchase-businessDate'
-                  value={draft.businessDate ?? ''}
-                  onChange={(v) => update('businessDate', v || null)}
-                  label={t(ui('businessDate'))}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor='purchase-sourceRef'>
-                  {t(ui('sourceRef'))}
-                </FieldLabel>
-                <Input
-                  id='purchase-sourceRef'
-                  value={draft.sourceRef ?? ''}
-                  onChange={(e) =>
-                    update('sourceRef', e.target.value || null)
-                  }
-                  placeholder={t(ui('sourceRef'))}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor='purchase-sourceDoc'>
-                  {t(ui('sourceDoc'))}
-                </FieldLabel>
-                <Input
-                  id='purchase-sourceDoc'
-                  value={draft.sourceDoc ?? ''}
-                  onChange={(e) =>
-                    update('sourceDoc', e.target.value || null)
-                  }
-                  placeholder={t(ui('sourceDoc'))}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor='purchase-period'>
-                  {t(ui('period'))}
-                </FieldLabel>
-                <Input
-                  id='purchase-period'
-                  value={draft.period ?? ''}
-                  onChange={(e) => update('period', e.target.value || null)}
-                  placeholder={t(ui('periodHint'))}
-                />
-              </Field>
+              {showPageField('businessDate') && (
+                <Field>
+                  <FieldLabel htmlFor='purchase-businessDate'>
+                    {t(ui('businessDate'))}
+                  </FieldLabel>
+                  <DatePicker
+                    id='purchase-businessDate'
+                    value={draft.businessDate ?? ''}
+                    onChange={(v) => update('businessDate', v || null)}
+                    label={t(ui('businessDate'))}
+                  />
+                </Field>
+              )}
+              {showPageField('sourceRef') && (
+                <Field>
+                  <FieldLabel htmlFor='purchase-sourceRef'>
+                    {t(ui('sourceRef'))}
+                  </FieldLabel>
+                  <Input
+                    id='purchase-sourceRef'
+                    value={draft.sourceRef ?? ''}
+                    onChange={(e) =>
+                      update('sourceRef', e.target.value || null)
+                    }
+                    placeholder={t(ui('sourceRef'))}
+                  />
+                </Field>
+              )}
+              {showPageField('sourceDoc') && (
+                <Field>
+                  <FieldLabel htmlFor='purchase-sourceDoc'>
+                    {t(ui('sourceDoc'))}
+                  </FieldLabel>
+                  <Input
+                    id='purchase-sourceDoc'
+                    value={draft.sourceDoc ?? ''}
+                    onChange={(e) =>
+                      update('sourceDoc', e.target.value || null)
+                    }
+                    placeholder={t(ui('sourceDoc'))}
+                  />
+                </Field>
+              )}
+              {showPageField('period') && (
+                <Field>
+                  <FieldLabel htmlFor='purchase-period'>
+                    {t(ui('period'))}
+                  </FieldLabel>
+                  <Input
+                    id='purchase-period'
+                    value={draft.period ?? ''}
+                    onChange={(e) => update('period', e.target.value || null)}
+                    placeholder={t(ui('periodHint'))}
+                  />
+                </Field>
+              )}
               <Field>
                 <FieldLabel htmlFor='purchase-neededOn'>
                   {t(ui('neededOn'))} ({t(ui('requiredToSubmit'))})
@@ -844,18 +871,20 @@ function FormBody({
                   label={t(ui('neededOn'))}
                 />
               </Field>
-              <Field data-invalid={!!errors.notes} className='md:col-span-2'>
-                <FieldLabel htmlFor='purchase-notes'>
-                  {t(ui('notes'))}
-                </FieldLabel>
-                <Textarea
-                  id='purchase-notes'
-                  value={draft.notes}
-                  onChange={(e) => update('notes', e.target.value)}
-                  aria-invalid={!!errors.notes}
-                />
-                {fieldError('notes')}
-              </Field>
+              {showPageField('notes') && (
+                <Field data-invalid={!!errors.notes} className='md:col-span-2'>
+                  <FieldLabel htmlFor='purchase-notes'>
+                    {t(ui('notes'))}
+                  </FieldLabel>
+                  <Textarea
+                    id='purchase-notes'
+                    value={draft.notes}
+                    onChange={(e) => update('notes', e.target.value)}
+                    aria-invalid={!!errors.notes}
+                  />
+                  {fieldError('notes')}
+                </Field>
+              )}
             </CardContent>
           </Card>
           <Card>

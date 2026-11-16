@@ -86,6 +86,25 @@ const enUS = {
     levelVisible: 'Visible',
     levelWrite: 'Writable',
   },
+  pageFieldVisibility: {
+    open: 'Configure fields for {{page}}',
+    title: '{{page}} · page fields',
+    description:
+      'Choose which fields this page renders. This only changes the form layout for this page; it does not grant or revoke data access. Fields not listed here use the resource-level field permission.',
+    show: 'Show',
+    showField: 'Show {{field}} on this page',
+    saved: 'Page fields saved',
+    loading: 'Loading page fields…',
+    loadFailed: 'Could not load page fields.',
+    readOnly: 'Read-only: you can view but not change page fields.',
+    empty: 'This page has no configurable fields.',
+    stagedHint:
+      'Only this page is affected; other pages using the same data keep their own layout.',
+    save: 'Save page fields',
+    saveRoleFirst: 'Save the role first, then configure its page fields.',
+    requiredBadge: 'Required',
+    requiredField: 'Required on this page; it cannot be hidden.',
+  },
   fieldCatalog: {
     date: 'Date',
     status: 'Status',

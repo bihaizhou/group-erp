@@ -108,6 +108,10 @@ export interface PermissionEditorNavigationNode {
   readonly label: string;
   readonly path?: string | undefined;
   readonly hint?: string | undefined;
+  /** Route name for page-level field visibility (children share the parent's grant). */
+  readonly pageKey?: string | undefined;
+  /** Page resource whose field catalogue feeds the page-level editor. */
+  readonly resourceId?: string | undefined;
   readonly rowId?: string | undefined;
   readonly children?: readonly PermissionEditorNavigationNode[];
 }
@@ -133,6 +137,7 @@ export interface PermissionEditorLabels {
   readonly expandGroup?: (name: string) => string;
   readonly collapseGroup?: (name: string) => string;
   readonly openPage?: (name: string) => string;
+  readonly openPageFields?: (name: string) => string;
   readonly fieldsConfigured?: string;
   readonly accessGranted?: string;
   readonly selectAll?: string;
@@ -165,6 +170,8 @@ export interface PermissionEditorProps {
    * editor instead of rendering the page-access checkbox.
    */
   readonly onNavigationOpen?: (node: PermissionEditorNavigationNode) => void;
+  /** Open the page-scoped field editor for an inherited child page. */
+  readonly onPageOpen?: (node: PermissionEditorNavigationNode) => void;
   /** Marks a page whose field permissions differ from the automatic default. */
   readonly navigationConfigured?: (
     node: PermissionEditorNavigationNode,
@@ -192,6 +199,7 @@ const DEFAULT_LABELS: Required<PermissionEditorLabels> = {
   expandGroup: (name) => `Expand ${name}`,
   collapseGroup: (name) => `Collapse ${name}`,
   openPage: (name) => `Configure ${name}`,
+  openPageFields: (name) => `Configure page fields for ${name}`,
   fieldsConfigured: 'Fields configured',
   accessGranted: 'Access granted',
   selectAll: 'All',
@@ -389,6 +397,7 @@ function PermissionNavigation({
   counts,
   renderNavigationExtra,
   onNavigationOpen,
+  onPageOpen,
   navigationConfigured,
   ...rowProps
 }: {
@@ -405,6 +414,7 @@ function PermissionNavigation({
     node: PermissionEditorNavigationNode,
   ) => ReactNode;
   readonly onNavigationOpen?: (node: PermissionEditorNavigationNode) => void;
+  readonly onPageOpen?: (node: PermissionEditorNavigationNode) => void;
   readonly navigationConfigured?: (
     node: PermissionEditorNavigationNode,
   ) => boolean;
@@ -474,6 +484,31 @@ function PermissionNavigation({
                     />
                   )}
                 </div>
+              ) : node.pageKey && onPageOpen ? (
+                <button
+                  type='button'
+                  className='grid min-w-0 flex-1 gap-1 rounded-md px-2 py-1.5 text-left text-muted-foreground hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+                  aria-label={rowProps.labels.openPageFields(node.label)}
+                  onClick={() => onPageOpen(node)}
+                >
+                  <span className='flex min-w-0 items-center gap-2'>
+                    <LongTextPreview
+                      label={node.label}
+                      className='text-xs leading-5 font-normal'
+                    >
+                      {node.label}
+                    </LongTextPreview>
+                    <ChevronRightIcon
+                      aria-hidden
+                      className='size-3.5 shrink-0'
+                    />
+                  </span>
+                  {node.hint && (
+                    <LongTextPreview label={node.label} className='text-xs'>
+                      {node.hint}
+                    </LongTextPreview>
+                  )}
+                </button>
               ) : (
                 <div className='grid min-w-0 flex-1 gap-1 px-2 py-1.5 text-muted-foreground'>
                   <LongTextPreview
@@ -517,6 +552,7 @@ function PermissionNavigation({
                   counts={counts}
                   renderNavigationExtra={renderNavigationExtra}
                   onNavigationOpen={onNavigationOpen}
+                  onPageOpen={onPageOpen}
                   navigationConfigured={navigationConfigured}
                 />
               </div>
@@ -813,6 +849,7 @@ export function PermissionEditor({
   labels,
   renderNavigationExtra,
   onNavigationOpen,
+  onPageOpen,
   navigationConfigured,
 }: PermissionEditorProps): ReactElement {
   const words = { ...DEFAULT_LABELS, ...labels };
@@ -1064,6 +1101,7 @@ export function PermissionEditor({
                       {...rowProps}
                       renderNavigationExtra={renderNavigationExtra}
                       onNavigationOpen={onNavigationOpen}
+                      onPageOpen={onPageOpen}
                       navigationConfigured={navigationConfigured}
                       section={section}
                       prefix={`${id}-${section.id}`}
