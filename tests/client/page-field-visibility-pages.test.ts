@@ -41,6 +41,21 @@ describe('page field visibility registry', () => {
     expect(uncovered).toEqual([]);
   });
 
+  it('supports the request list and detail pages', () => {
+    for (const pageKey of [
+      'procurement-requests',
+      'procurement-requests-detail',
+    ]) {
+      expect(supportsPageFieldVisibility(pageKey)).toBe(true);
+      expect(pageFieldVisibilityFields[pageKey]?.length ?? 0).toBeGreaterThan(
+        0,
+      );
+    }
+    expect(pageFieldVisibilityRequiredFields['procurement-requests']).toContain(
+      'purchase.request.code',
+    );
+  });
+
   it('lets edit pages follow the create page field list', () => {
     for (const pageKey of [
       'procurement-requests-edit',

@@ -345,6 +345,7 @@ function PermissionPageRow({
   readOnly,
   onAccessChange,
   onOpen,
+  onPageOpen,
 }: {
   readonly node: PermissionEditorNavigationNode;
   readonly row: PermissionEditorRow;
@@ -353,6 +354,7 @@ function PermissionPageRow({
   readonly readOnly: boolean;
   readonly onAccessChange: (id: string, enabled: boolean) => void;
   readonly onOpen: (node: PermissionEditorNavigationNode) => void;
+  readonly onPageOpen?: (node: PermissionEditorNavigationNode) => void;
 }): ReactElement {
   const state = [
     row.enabled ? labels.accessGranted : undefined,
@@ -399,6 +401,17 @@ function PermissionPageRow({
           </span>
         </span>
       </button>
+      {node.pageKey && onPageOpen && (
+        <button
+          type='button'
+          aria-label={labels.openPageFields(node.label)}
+          title={labels.openPageFields(node.label)}
+          onClick={() => onPageOpen(node)}
+          className='mt-0.5 grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+        >
+          <Settings2Icon className='size-4' />
+        </button>
+      )}
     </div>
   );
 }
@@ -602,6 +615,7 @@ function PermissionNavigation({
                       readOnly={rowProps.readOnly}
                       onAccessChange={rowProps.onEnabledChange}
                       onOpen={onNavigationOpen}
+                      onPageOpen={onPageOpen}
                     />
                   ) : (
                     <PermissionRow

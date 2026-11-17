@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageContainer } from '#components/page-container';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { PageHeader } from '#components/page-header';
 import { Tabs, TabsList, TabsTrigger } from '#components/ui/tabs';
 import { ReadOnlyNotice } from '#components/read-only-notice';
@@ -78,6 +79,7 @@ export default function RequestsPage() {
     create = usePurchaseCan('create'),
     edit = usePurchaseCan('update'),
     identity = usePurchaseIdentity(),
+    pageFields = usePageFieldVisibility('procurement-requests'),
     unrestricted = useCan('unrestricted'),
     currentCompany = useCurrentCompany(),
     api = useApiClient(),
@@ -282,7 +284,7 @@ export default function RequestsPage() {
         ) : null}
       </Button>
     );
-    return [
+    const listColumns: ColumnDef<PurchaseRequest>[] = [
       {
         id: 'code',
         header: t(ui('code')),
@@ -388,6 +390,12 @@ export default function RequestsPage() {
         ),
       },
     ];
+    return listColumns.filter(
+      (column) =>
+        column.id === 'code' ||
+        column.id === 'actions' ||
+        pageFields.visible('purchase.request', column.id ?? ''),
+    );
   })();
   return (
     <>

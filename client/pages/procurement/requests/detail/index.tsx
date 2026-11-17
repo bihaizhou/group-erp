@@ -14,6 +14,7 @@ import {
 } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import { PageContainer } from '#components/page-container';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { PageHeader } from '#components/page-header';
 import { BackButton } from '#components/back-button';
 import { RouteChildPage } from '#components/route-child-page';
@@ -73,7 +74,8 @@ export default function RequestDetail() {
     related = ownPath.includes('/related/'),
     location = useLocation(),
     message = usePurchaseError(),
-    refresh = usePurchaseRefresh();
+    refresh = usePurchaseRefresh(),
+    pageFields = usePageFieldVisibility('procurement-requests-detail');
   const source = useRequest(requestId),
     linked =
       !related ||
@@ -258,7 +260,12 @@ export default function RequestDetail() {
             )}
             <section className='flex flex-col gap-4'>
               <h2 className='text-base font-medium'>{t(ui('detail'))}</h2>
-              <RequestInformation row={row} />
+              <RequestInformation
+                row={row}
+                visible={(field) =>
+                  pageFields.visible('purchase.request', field)
+                }
+              />
             </section>
             <section className='flex flex-col gap-4'>
               <h2 className='text-base font-medium'>{t(ui('lines'))}</h2>
@@ -338,9 +345,11 @@ export default function RequestDetail() {
 export function RequestInformation({
   row,
   snapshot,
+  visible,
 }: {
   row: PurchaseRequest;
   snapshot?: Submission;
+  visible?: (field: string) => boolean;
 }) {
   const { t, i18n } = useTranslation(),
     head = snapshot?.payload.head ?? row,
@@ -382,23 +391,26 @@ export function RequestInformation({
         ],
         ['usage', head.usage],
         ['notes', head.notes],
-      ].map(([key, value]) => (
-        <div
-          key={key}
-          className='grid min-w-0 gap-2 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-4'
-        >
-          <dt className='text-sm text-muted-foreground'>{t(ui(key!))}</dt>
-          <dd className='text-sm break-words'>
-            {value ? (
-              <LongText>{String(value)}</LongText>
-            ) : snapshot && ['company', 'requester', 'unit'].includes(key!) ? (
-              t(ui('nameNotRecorded'))
-            ) : (
-              '—'
-            )}
-          </dd>
-        </div>
-      ))}
+      ]
+        .filter(([key]) => !key || !visible || visible(key))
+        .map(([key, value]) => (
+          <div
+            key={key}
+            className='grid min-w-0 gap-2 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-4'
+          >
+            <dt className='text-sm text-muted-foreground'>{t(ui(key!))}</dt>
+            <dd className='text-sm break-words'>
+              {value ? (
+                <LongText>{String(value)}</LongText>
+              ) : snapshot &&
+                ['company', 'requester', 'unit'].includes(key!) ? (
+                t(ui('nameNotRecorded'))
+              ) : (
+                '—'
+              )}
+            </dd>
+          </div>
+        ))}
     </dl>
   );
 }

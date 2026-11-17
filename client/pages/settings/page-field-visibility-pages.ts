@@ -32,6 +32,8 @@ const executionDocumentKinds = ['reversal', 'returns'] as const;
  * administrator save a configuration that has no visible effect.
  */
 export const pageFieldVisibilityPageKeys: ReadonlySet<string> = new Set([
+  'procurement-requests',
+  'procurement-requests-detail',
   'procurement-requests-new',
   ...peopleKinds
     .filter((kind) => peopleFields[kind].length > 0)
@@ -116,6 +118,30 @@ const executionDocumentFields: Record<string, readonly string[]> = {
 export const pageFieldVisibilityFields: Readonly<
   Record<string, readonly string[]>
 > = {
+  'procurement-requests': [
+    'purchase.request.code',
+    'purchase.request.company',
+    'purchase.request.requester',
+    'purchase.request.unit',
+    'purchase.request.usage',
+    'purchase.request.neededOn',
+    'purchase.request.status',
+    'purchase.request.identification',
+    'purchase.request.updatedAt',
+  ],
+  'procurement-requests-detail': [
+    'purchase.request.company',
+    'purchase.request.requester',
+    'purchase.request.unit',
+    'purchase.request.businessDate',
+    'purchase.request.sourceChannel',
+    'purchase.request.sourceRef',
+    'purchase.request.sourceDoc',
+    'purchase.request.period',
+    'purchase.request.neededOn',
+    'purchase.request.usage',
+    'purchase.request.notes',
+  ],
   'procurement-suppliers-new': [
     'procurement.supplier.base.code',
     'procurement.supplier.base.name',
@@ -307,6 +333,38 @@ export const pageFieldVisibilityExtraFields: Readonly<
         })),
     ]),
   ),
+  'procurement-requests': [
+    ['code', 'code'],
+    ['company', 'company'],
+    ['requester', 'requester'],
+    ['unit', 'unit'],
+    ['usage', 'usage'],
+    ['neededOn', 'neededOn'],
+    ['status', 'reviewState'],
+    ['identification', 'identificationState'],
+    ['updatedAt', 'updatedAt'],
+  ].map(([field, key]) => ({
+    resource: 'purchase.request',
+    field,
+    titleKey: `procurement.requestUi.${key}`,
+  })),
+  'procurement-requests-detail': [
+    ['company', 'company'],
+    ['requester', 'requester'],
+    ['unit', 'unit'],
+    ['businessDate', 'businessDate'],
+    ['sourceChannel', 'sourceChannel'],
+    ['sourceRef', 'sourceRef'],
+    ['sourceDoc', 'sourceDoc'],
+    ['period', 'period'],
+    ['neededOn', 'neededOn'],
+    ['usage', 'usage'],
+    ['notes', 'notes'],
+  ].map(([field, key]) => ({
+    resource: 'purchase.request',
+    field,
+    titleKey: `procurement.requestUi.${key}`,
+  })),
   'procurement-suppliers-new': [
     {
       resource: 'procurement.supplier.base',
@@ -340,6 +398,7 @@ export const pageFieldVisibilityExtraFields: Readonly<
 export const pageFieldVisibilityRequiredFields: Readonly<
   Record<string, readonly string[]>
 > = {
+  'procurement-requests': ['purchase.request.code'],
   'procurement-suppliers-new': [
     'procurement.supplier.base.code',
     'procurement.supplier.base.name',

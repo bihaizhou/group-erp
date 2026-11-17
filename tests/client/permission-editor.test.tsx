@@ -608,6 +608,7 @@ describe('application-owned page navigation', () => {
           id: 'books-node',
           label: 'Books',
           rowId: 'books',
+          pageKey: 'books',
           path: '/books',
           children: [
             {
@@ -654,6 +655,14 @@ describe('application-owned page navigation', () => {
     expect(screen.queryByText('Edit / Permissions')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '+1' }));
     expect(screen.getByText('Edit / Permissions')).toBeVisible();
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Configure page fields for Books',
+      }),
+    );
+    expect(openPage).toHaveBeenCalledWith(
+      expect.objectContaining({ pageKey: 'books' }),
+    );
     await user.click(
       screen.getByRole('button', {
         name: 'Configure page fields for Books · New',
