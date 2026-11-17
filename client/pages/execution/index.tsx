@@ -6,6 +6,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { MoreHorizontal, Plus } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
@@ -50,7 +51,9 @@ export default function ExecutionList() {
     config = pageFor(useResolvedPath('.').pathname),
     read = useExecutionCan(config.resource, 'read'),
     create = useExecutionCan(config.resource, 'create'),
-    edit = useExecutionCan(config.resource, 'update');
+    edit = useExecutionCan(config.resource, 'update'),
+    pageFields = usePageFieldVisibility(config.page),
+    showColumn = (field: string) => pageFields.visible(config.resource, field);
   const {
     searchParams: params,
     search,
@@ -165,7 +168,7 @@ export default function ExecutionList() {
         {t(ui(`create.${config.kind}`))}
       </Button>
     );
-  const columns: ColumnDef<ExecutionRecord>[] = [
+  const allColumns: ColumnDef<ExecutionRecord>[] = [
     {
       accessorKey: 'code',
       header: t(ui('code')),
@@ -342,6 +345,14 @@ export default function ExecutionList() {
       ),
     },
   ];
+  const columns = allColumns.filter((column) => {
+    const id =
+      column.id ??
+      ('accessorKey' in column && typeof column.accessorKey === 'string'
+        ? column.accessorKey
+        : '');
+    return id === 'code' || id === 'actions' || !id || showColumn(id);
+  });
   return (
     <>
       <PageContainer>

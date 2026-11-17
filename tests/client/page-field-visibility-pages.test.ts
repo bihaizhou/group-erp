@@ -79,6 +79,29 @@ describe('page field visibility registry', () => {
     ]);
   });
 
+  it('supports warehouse and sales list and detail pages', () => {
+    for (const pageKey of [
+      'warehouse-inbounds',
+      'warehouse-inbounds-detail',
+      'warehouse-transfers',
+      'warehouse-counts',
+      'sales-orders',
+      'sales-orders-detail',
+      'procurement-orders',
+    ]) {
+      expect(supportsPageFieldVisibility(pageKey)).toBe(true);
+      expect(pageFieldVisibilityFields[pageKey]?.length ?? 0).toBeGreaterThan(
+        0,
+      );
+    }
+    expect(pageFieldVisibilityFields['sales-orders']).toContain(
+      'sales.orders.partner',
+    );
+    expect(pageFieldVisibilityFields['warehouse-transfers-detail']).toContain(
+      'warehouse.transfers.destinationWarehouse',
+    );
+  });
+
   it('lets edit pages follow the create page field list', () => {
     for (const pageKey of [
       'procurement-requests-edit',

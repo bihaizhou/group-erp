@@ -57,6 +57,7 @@ export const pageFieldVisibilityPageKeys: ReadonlySet<string> = new Set([
   'warehouse-outbounds-new',
   'warehouse-transfers-new',
   'warehouse-counts-new',
+  ...executionPages.flatMap(({ page }) => [page, `${page}-detail`]),
   ...executionPages.flatMap(({ page }) => [
     ...executionNestedKinds.map((kind) => `${page}-${kind}-new`),
     ...executionDocumentKinds.map(
@@ -202,6 +203,15 @@ export const pageFieldVisibilityFields: Readonly<
       ]),
   ),
   ...Object.fromEntries(
+    executionPages.flatMap(({ page, kind, resource }) => [
+      [page, executionListFields(kind).map((field) => `${resource}.${field}`)],
+      [
+        `${page}-detail`,
+        executionDetailFields(kind).map((field) => `${resource}.${field}`),
+      ],
+    ]),
+  ),
+  ...Object.fromEntries(
     organizationKinds.map((kind) => [
       `organization-${kind}-new`,
       organizationFields[kind].map(
@@ -264,6 +274,56 @@ function organizationResource(
     regions: 'region',
     relations: 'relation',
   }[kind];
+}
+
+function executionListFields(kind: string): string[] {
+  return [
+    'code',
+    ...(kind === 'purchaseOrders' || kind === 'salesOrders' ? ['partner'] : []),
+    ...(kind === 'inbounds' || kind === 'outbounds' ? ['kind'] : []),
+    'warehouse',
+    ...(kind === 'stockTransfers' ? ['destinationWarehouse'] : []),
+    'status',
+    'progress',
+    ...(kind === 'purchaseOrders' || kind === 'salesOrders'
+      ? ['deliveryOn']
+      : kind === 'stockCounts'
+        ? ['baselineAt']
+        : ['occurredOn']),
+    'updatedAt',
+  ];
+}
+
+function executionDetailFields(kind: string): string[] {
+  return [
+    'company',
+    'warehouse',
+    ...(kind === 'stockTransfers' ? ['destinationWarehouse'] : []),
+    ...(kind === 'purchaseOrders'
+      ? ['supplier']
+      : kind === 'salesOrders'
+        ? ['customer']
+        : []),
+    ...(kind === 'purchaseOrders' || kind === 'salesOrders'
+      ? ['currency', 'deliveryOn', 'deliveryTerms', 'sourceChannel']
+      : []),
+    'occurredOn',
+    ...(kind === 'stockCounts' ? ['baselineAt'] : []),
+    'issueRequest',
+    'recipient',
+    'reason',
+    'notes',
+  ];
+}
+
+function executionFieldTitle(field: string, kind: string): string {
+  if (field === 'partner')
+    return kind === 'purchaseOrders'
+      ? 'execution.supplier'
+      : 'execution.customer';
+  if (field === 'progress') return 'execution.lineProgress';
+  if (field === 'kind') return 'execution.sourceType';
+  return `execution.${field}`;
 }
 
 function peopleListFields(kind: (typeof peopleKinds)[number]): string[] {
@@ -448,6 +508,29 @@ export const pageFieldVisibilityExtraFields: Readonly<
               ],
             ]),
       ];
+    }),
+  ),
+  ...Object.fromEntries(
+    executionPages.flatMap(({ page, kind, resource }) => {
+      const entries = [
+        [
+          page,
+          executionListFields(kind).map((field) => ({
+            resource,
+            field,
+            titleKey: executionFieldTitle(field, kind),
+          })),
+        ],
+        [
+          `${page}-detail`,
+          executionDetailFields(kind).map((field) => ({
+            resource,
+            field,
+            titleKey: executionFieldTitle(field, kind),
+          })),
+        ],
+      ];
+      return entries;
     }),
   ),
 };

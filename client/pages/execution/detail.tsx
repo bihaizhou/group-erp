@@ -94,6 +94,7 @@ interface Version {
   createdAt: string;
 }
 import { useFieldAccess } from '../../hooks/use-field-access.js';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 
 export default function ExecutionDetail() {
   const { id: routeId, documentId } = useParams(),
@@ -121,6 +122,7 @@ export default function ExecutionDetail() {
     [versionPage, setVersionPage] = useState(1),
     createDocument = useExecutionCan('warehouse.documents', 'create'),
     fieldAccess = useFieldAccess(),
+    pageFields = usePageFieldVisibility(`${config.page}-detail`),
     priceVisible =
       fieldAccess.access('execution.document.line', 'unitPrice') !== 'hidden' &&
       fieldAccess.access('execution.document.line', 'amount') !== 'hidden',
@@ -396,19 +398,24 @@ export default function ExecutionDetail() {
                             ],
                           ]
                         : []),
-                    ].map(([label, value]) => (
-                      <div
-                        key={label}
-                        className='grid min-w-0 grid-cols-[5.5rem_minmax(0,1fr)] items-baseline gap-2'
-                      >
-                        <dt className='text-sm text-muted-foreground'>
-                          {t(ui(label!))}
-                        </dt>
-                        <dd className='whitespace-pre-wrap break-words text-sm'>
-                          {value || '—'}
-                        </dd>
-                      </div>
-                    ))}
+                    ]
+                      .filter(
+                        ([label]) =>
+                          !label || pageFields.visible(config.resource, label),
+                      )
+                      .map(([label, value]) => (
+                        <div
+                          key={label}
+                          className='grid min-w-0 grid-cols-[5.5rem_minmax(0,1fr)] items-baseline gap-2'
+                        >
+                          <dt className='text-sm text-muted-foreground'>
+                            {t(ui(label!))}
+                          </dt>
+                          <dd className='whitespace-pre-wrap break-words text-sm'>
+                            {value || '—'}
+                          </dd>
+                        </div>
+                      ))}
                   </dl>
                 </CardContent>
               </Card>
