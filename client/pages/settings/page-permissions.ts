@@ -8,6 +8,7 @@ import type {
 } from '#components/permission-editor';
 import type { RouteNavigationItem } from '../../routing/route-navigation.js';
 import { pageDataResourcesFor } from '../../routing/page-data-resources.js';
+import { fieldResourcesForPage } from './field-permission-pages.js';
 
 /** Application route names are stable within their owner; labels never change stored grants. */
 export type PagePermissionTitles = Readonly<Record<string, string>>;
@@ -88,6 +89,15 @@ export function configurationResources(
 }
 
 /** The business page tree excludes system settings, whose original grants are configured in their own category. */
+function pageKeyFor(
+  routeName: string,
+  resourceId: string | undefined,
+): string | undefined {
+  const declared = pageDataResourcesFor(routeName);
+  const resources = declared ?? fieldResourcesForPage(resourceId);
+  return resources.length > 0 ? routeName : undefined;
+}
+
 export function pagePermissionNavigation(
   routes: readonly AppClientRegisteredRoute[],
   titles: PagePermissionTitles,
@@ -172,15 +182,9 @@ export function pagePermissionNavigation(
           id: `menu:${route.packageName}:${route.id}:${route.path}`,
           label,
           rowId,
-          pageKey:
-            resource &&
-            (pageDataResourcesFor(route.name) ?? route.dataResources)
-              ?.length !== 0
-              ? route.name
-              : undefined,
+          pageKey: pageKeyFor(route.name, resource?.id),
           resourceId: resource?.id,
-          dataResources:
-            pageDataResourcesFor(route.name) ?? route.dataResources,
+          dataResources: pageDataResourcesFor(route.name),
           ...(inherited
             ? {
                 hint: text({

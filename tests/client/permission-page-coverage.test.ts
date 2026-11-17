@@ -94,6 +94,31 @@ describe('permission editor covers every page', () => {
     ).toEqual([]);
   });
 
+  it('only opens the field editor when the page owns field resources', () => {
+    const navigation = pagePermissionNavigation(
+      application.routes,
+      pagePermissionTitles,
+      (path) => path,
+      (value) => (typeof value === 'string' ? value : value.key),
+    );
+    const find = (
+      nodes: readonly {
+        path?: string;
+        pageKey?: string;
+        children?: readonly unknown[];
+      }[],
+    ): { path?: string; pageKey?: string } | undefined => {
+      for (const node of nodes) {
+        if (node.path === '/functions/finance') return node;
+        const child = find((node.children ?? []) as Parameters<typeof find>[0]);
+        if (child) return child;
+      }
+      return undefined;
+    };
+    expect(find(navigation)?.pageKey).toBeUndefined();
+    expect(find(navigation)?.path).toBe('/functions/finance');
+  });
+
   it('gives every business page a row in the navigation tree', () => {
     const titles = pagePermissionTitles;
     const unnamed = (path: string) => path;

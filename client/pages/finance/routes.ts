@@ -2,6 +2,8 @@ import { Landmark } from 'lucide-react';
 import type { AppClientRouteDefinition } from '@nocobase/app-client/plugins';
 import { declarePageDataResources } from '../../routing/page-data-resources.js';
 
+// Preview page: it owns no business collection yet, so an empty declaration
+// keeps the field editor closed until finance data resources are added.
 declarePageDataResources('finance-overview', []);
 
 export const financeRoutes: AppClientRouteDefinition[] = [
@@ -18,9 +20,6 @@ export const financeRoutes: AppClientRouteDefinition[] = [
           action: 'access',
         },
         navigation: { title: 'finance.overview', icon: Landmark },
-        // A preview page owns no business collection yet, so it declares no
-        // page-level field resources and stays out of the field drawer.
-        dataResources: [],
         componentLoader: () => import('./index.js'),
       },
     ],
