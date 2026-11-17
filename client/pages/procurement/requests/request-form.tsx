@@ -83,7 +83,7 @@ export default function RequestFormPage() {
       ? 'copy'
       : 'edit';
   const pageKey =
-    mode === 'new'
+    mode === 'new' || mode === 'copy'
       ? 'procurement-requests-new'
       : path.endsWith('/edit')
         ? 'procurement-requests-edit'

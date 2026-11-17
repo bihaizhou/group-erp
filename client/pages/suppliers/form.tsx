@@ -183,7 +183,11 @@ export default function SupplierForm() {
           ? location.pathname.includes('/sales/customers')
             ? 'sales-customers-new'
             : 'procurement-suppliers-new'
-          : undefined
+          : mode === 'edit'
+            ? location.pathname.includes('/sales/customers')
+              ? 'sales-customers-edit'
+              : 'procurement-suppliers-edit'
+            : undefined
       }
       row={mode === 'new' ? undefined : row}
       subjectId={subjectId}

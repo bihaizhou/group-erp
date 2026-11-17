@@ -46,10 +46,12 @@ import { PermissionEditor } from '#components/permission-editor';
 import { PageFieldPermissionEditor } from '#components/field-permission-editor';
 import { PageFieldVisibilityEditor } from './page-field-visibility-editor.js';
 import {
+  pageFieldVisibilityBaseKey,
   pageFieldVisibilityExtraFields,
   pageFieldVisibilityFields,
   pageFieldVisibilityRequiredFields as PAGE_REQUIRED_FIELDS,
 } from './page-field-visibility-pages.js';
+import { pageFieldVisibilityInheritedFrom } from './page-field-visibility-fallback.js';
 import {
   buildFieldPolicies,
   fieldPolicyKey,
@@ -91,6 +93,7 @@ interface FieldPermissionPageTarget {
 
 interface PageFieldTarget {
   readonly pageKey: string;
+  readonly fallbackPageKey?: string | undefined;
   readonly resourceId: string;
   readonly label: string;
   readonly path?: string | undefined;
@@ -165,14 +168,24 @@ function RoleEditor(): ReactElement {
   );
   const [pageFieldBusy, setPageFieldBusy] = useState(false);
   const [pageFieldError, setPageFieldError] = useState<unknown>();
+  const [pageFieldModeDraft, setPageFieldModeDraft] = useState<
+    'inherit' | 'override'
+  >();
   const pageFieldVisibility = useQuery({
     retry: false,
-    queryKey: ['page-field-visibility', key, pageField?.pageKey],
+    queryKey: [
+      'page-field-visibility',
+      key,
+      pageField?.pageKey,
+      pageField?.fallbackPageKey,
+    ],
     enabled: Boolean(key && pageField),
     queryFn: ({ signal }) =>
       api.request<{
         data: {
+          mode: 'independent' | 'inherit' | 'override';
           configured: boolean;
+          inheritedFrom?: string;
           fields: { resource: string; field: string; visible: boolean }[];
         };
       }>({
@@ -180,10 +193,18 @@ function RoleEditor(): ReactElement {
         query: {
           permissionSetKey: key ?? '',
           pageKey: pageField?.pageKey ?? '',
+          ...(pageField?.fallbackPageKey
+            ? { fallbackPageKey: pageField.fallbackPageKey }
+            : {}),
         },
         signal,
       }),
   });
+  const pageFieldMode: 'inherit' | 'override' =
+    pageFieldModeDraft ??
+    (pageFieldVisibility.data?.data.mode === 'inherit'
+      ? 'inherit'
+      : 'override');
   const savedPageFieldVisibility = useMemo(
     () =>
       Object.fromEntries(
@@ -198,13 +219,16 @@ function RoleEditor(): ReactElement {
     pageFieldDraft[fieldPolicyKey(resource, field)] ??
     savedPageFieldVisibility[fieldPolicyKey(resource, field)] ??
     true;
+  const pageFieldBaseKey = pageFieldVisibilityBaseKey(pageField?.pageKey);
   const allowedPageFields = new Set(
-    pageField ? (pageFieldVisibilityFields[pageField.pageKey] ?? []) : [],
+    pageFieldBaseKey ? (pageFieldVisibilityFields[pageFieldBaseKey] ?? []) : [],
   );
   const pageFieldResources = (() => {
     if (!pageField) return [];
     const catalog = fieldCatalog.data?.data.resources ?? [];
-    const extras = pageFieldVisibilityExtraFields[pageField.pageKey] ?? [];
+    const extras = pageFieldBaseKey
+      ? (pageFieldVisibilityExtraFields[pageFieldBaseKey] ?? [])
+      : [];
     return pageField.resources.flatMap((resourceId) => {
       const base = catalog.find((item) => item.resource === resourceId);
       const fields = [
@@ -550,12 +574,14 @@ function RoleEditor(): ReactElement {
     if (!node.pageKey || !node.resourceId) return;
     setPageField({
       pageKey: node.pageKey,
+      fallbackPageKey: pageFieldVisibilityInheritedFrom(node.pageKey),
       resourceId: node.resourceId,
       label: node.label,
       path: node.path,
       resources: fieldResourcesForPage(node.resourceId),
     });
     setPageFieldDraft({});
+    setPageFieldModeDraft(undefined);
     setPageFieldError(undefined);
   };
 
@@ -564,7 +590,8 @@ function RoleEditor(): ReactElement {
     setPageFieldBusy(true);
     setPageFieldError(undefined);
     try {
-      const required = new Set(PAGE_REQUIRED_FIELDS[pageField.pageKey] ?? []);
+      const baseKey = pageFieldBaseKey ?? pageField.pageKey;
+      const required = new Set(PAGE_REQUIRED_FIELDS[baseKey] ?? []);
       const fields = pageFieldResources.flatMap((resource) =>
         resource.fields.map((field) => ({
           resource: resource.resource,
@@ -580,7 +607,11 @@ function RoleEditor(): ReactElement {
         json: {
           permissionSetKey: key,
           pageKey: pageField.pageKey,
-          fields,
+          ...(pageField.fallbackPageKey
+            ? { fallbackPageKey: pageField.fallbackPageKey }
+            : {}),
+          mode: pageFieldMode,
+          fields: pageFieldMode === 'inherit' ? [] : fields,
         },
       });
       toaster.show({
@@ -823,11 +854,55 @@ function RoleEditor(): ReactElement {
                       </SheetDescription>
                     </SheetHeader>
                     <div className='min-h-0 flex-1 overflow-y-auto p-4'>
+                      {pageField.fallbackPageKey && (
+                        <div className='mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/30 p-3'>
+                          <div className='space-y-1'>
+                            <p className='text-sm font-medium'>
+                              {t(
+                                pageFieldMode === 'inherit'
+                                  ? 'pageFieldVisibility.inheritTitle'
+                                  : 'pageFieldVisibility.overrideTitle',
+                              )}
+                            </p>
+                            <p className='text-xs text-muted-foreground'>
+                              {t(
+                                pageFieldMode === 'inherit'
+                                  ? 'pageFieldVisibility.inheritHint'
+                                  : 'pageFieldVisibility.overrideHint',
+                              )}
+                            </p>
+                          </div>
+                          {allowed && !creating && (
+                            <Button
+                              type='button'
+                              variant='outline'
+                              onClick={() => {
+                                setPageFieldModeDraft(
+                                  pageFieldMode === 'inherit'
+                                    ? 'override'
+                                    : 'inherit',
+                                );
+                                setPageFieldDraft({});
+                              }}
+                            >
+                              {t(
+                                pageFieldMode === 'inherit'
+                                  ? 'pageFieldVisibility.overrideAction'
+                                  : 'pageFieldVisibility.restoreAction',
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      )}
                       <PageFieldVisibilityEditor
                         resources={pageFieldResources}
                         visibleOf={pageFieldVisible}
                         lockedFields={
-                          new Set(PAGE_REQUIRED_FIELDS[pageField.pageKey] ?? [])
+                          new Set(
+                            PAGE_REQUIRED_FIELDS[
+                              pageFieldBaseKey ?? pageField.pageKey
+                            ] ?? [],
+                          )
                         }
                         onChange={(resource, field, visible) =>
                           setPageFieldDraft((current) => ({
@@ -835,7 +910,9 @@ function RoleEditor(): ReactElement {
                             [fieldPolicyKey(resource, field)]: visible,
                           }))
                         }
-                        readOnly={!allowed || creating}
+                        readOnly={
+                          !allowed || creating || pageFieldMode === 'inherit'
+                        }
                         loading={
                           fieldCatalog.isPending ||
                           (Boolean(key) && pageFieldVisibility.isPending)

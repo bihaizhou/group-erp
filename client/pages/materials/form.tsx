@@ -93,7 +93,9 @@ export default function MaterialFormPage({
       ? 'warehouse-materials-request-material'
       : location.pathname.endsWith('/new')
         ? `${pageId(kind)}-new`
-        : undefined;
+        : id
+          ? `${pageId(kind)}-edit`
+          : undefined;
   const record = useMaterialRecord(kind, id),
     canWrite = useMaterialCan(kind),
     discard = useDiscardConfirm();

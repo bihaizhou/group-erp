@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useApiClient } from '@nocobase/app-client';
+import { pageFieldVisibilityInheritedFrom } from '../pages/settings/page-field-visibility-fallback.js';
 
 interface EffectiveVisibility {
   configured: boolean;
@@ -26,7 +27,10 @@ export interface PageFieldVisibility {
 const keyOf = (resource: string, field: string): string =>
   `${resource}.${field}`;
 
-export function usePageFieldVisibility(pageKey: string): PageFieldVisibility {
+export function usePageFieldVisibility(
+  pageKey: string,
+  fallbackPageKey = pageFieldVisibilityInheritedFrom(pageKey),
+): PageFieldVisibility {
   const api = useApiClient();
   const [state, setState] = useState<PageState>();
 
@@ -36,7 +40,10 @@ export function usePageFieldVisibility(pageKey: string): PageFieldVisibility {
     void api
       .request<{ data: EffectiveVisibility }>({
         path: 'page-field-visibility/effective',
-        query: { pageKey },
+        query: {
+          pageKey,
+          ...(fallbackPageKey ? { fallbackPageKey } : {}),
+        },
         signal: controller.signal,
       })
       .then((response) => {
@@ -49,7 +56,7 @@ export function usePageFieldVisibility(pageKey: string): PageFieldVisibility {
         setState({ pageKey, failed: true });
       });
     return () => controller.abort();
-  }, [api, pageKey]);
+  }, [api, pageKey, fallbackPageKey]);
 
   const current = state?.pageKey === pageKey ? state : undefined;
   const configured = current?.visibility?.configured === true;

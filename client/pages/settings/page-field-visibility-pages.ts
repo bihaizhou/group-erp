@@ -12,6 +12,7 @@ import {
   kinds as peopleKinds,
 } from '../people/model.js';
 import { executionPages } from '../execution/model.js';
+import { pageFieldVisibilityInheritedFrom } from './page-field-visibility-fallback.js';
 
 const executionNestedKinds = [
   'receipts',
@@ -111,6 +112,7 @@ const executionDocumentFields: Record<string, readonly string[]> = {
  * Fields the page's form actually consults. Keeping this list beside the page
  * key stops the editor from offering a checkbox that would have no effect.
  */
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 export const pageFieldVisibilityFields: Readonly<
   Record<string, readonly string[]>
 > = {
@@ -334,6 +336,7 @@ export const pageFieldVisibilityExtraFields: Readonly<
 };
 
 /** Required form fields stay visible; hiding them would make the page unsendable. */
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 export const pageFieldVisibilityRequiredFields: Readonly<
   Record<string, readonly string[]>
 > = {
@@ -409,8 +412,16 @@ export const pageFieldVisibilityRequiredFields: Readonly<
   ),
 };
 
+export function pageFieldVisibilityBaseKey(
+  pageKey: string | undefined,
+): string | undefined {
+  if (!pageKey) return undefined;
+  return pageFieldVisibilityInheritedFrom(pageKey) ?? pageKey;
+}
+
 export function supportsPageFieldVisibility(
   pageKey: string | undefined,
 ): boolean {
-  return pageKey !== undefined && pageFieldVisibilityPageKeys.has(pageKey);
+  const base = pageFieldVisibilityBaseKey(pageKey);
+  return base !== undefined && pageFieldVisibilityPageKeys.has(base);
 }

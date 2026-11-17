@@ -21,7 +21,7 @@ import {
 import { Hono, type Context } from 'hono';
 import {
   effectivePageFieldVisibility,
-  pageFieldVisibilitiesFor,
+  pageFieldVisibilityConfig,
 } from '../providers/page-field-visibility.js';
 
 type Env = AuthEnv & AuthorizationEnv;
@@ -35,18 +35,26 @@ const field = z.object({
 const query = z.object({
   permissionSetKey: z.string().min(1).max(120),
   pageKey: z.string().min(1).max(200),
+  fallbackPageKey: z.string().min(1).max(200).optional(),
 });
 
-const effectiveQuery = z.object({ pageKey: z.string().min(1).max(200) });
+const effectiveQuery = z.object({
+  pageKey: z.string().min(1).max(200),
+  fallbackPageKey: z.string().min(1).max(200).optional(),
+});
 
 const saveBody = z.object({
   permissionSetKey: z.string().min(1).max(120),
   pageKey: z.string().min(1).max(200),
+  fallbackPageKey: z.string().min(1).max(200).optional(),
+  mode: z.enum(['inherit', 'override']).optional(),
   fields: z.array(field).max(500),
 });
 
 const response = z.object({
+  mode: z.enum(['independent', 'inherit', 'override']),
   configured: z.boolean(),
+  inheritedFrom: z.string().optional(),
   fields: z.array(field),
 });
 
@@ -91,12 +99,13 @@ export const pageFieldVisibilityRoutes: AppApiRouteContribution<Application> =
       apiValidator('query', effectiveQuery),
       async (c) => {
         const user = c.get('auth')!.user;
-        const { pageKey } = c.req.valid('query');
+        const { pageKey, fallbackPageKey } = c.req.valid('query');
         return c.json({
           data: await effectivePageFieldVisibility(
             db,
             { type: 'user', id: user.id },
             pageKey,
+            fallbackPageKey,
           ),
         });
       },
@@ -113,9 +122,15 @@ export const pageFieldVisibilityRoutes: AppApiRouteContribution<Application> =
       apiValidator('query', query),
       async (c) => {
         await check(c, 'read');
-        const { permissionSetKey, pageKey } = c.req.valid('query');
+        const { permissionSetKey, pageKey, fallbackPageKey } =
+          c.req.valid('query');
         return c.json({
-          data: await pageFieldVisibilitiesFor(db, permissionSetKey, pageKey),
+          data: await pageFieldVisibilityConfig(
+            db,
+            permissionSetKey,
+            pageKey,
+            fallbackPageKey,
+          ),
         });
       },
     );
@@ -131,7 +146,8 @@ export const pageFieldVisibilityRoutes: AppApiRouteContribution<Application> =
       apiValidator('json', saveBody),
       async (c) => {
         await check(c, 'update');
-        const { permissionSetKey, pageKey, fields } = c.req.valid('json');
+        const { permissionSetKey, pageKey, fallbackPageKey, mode, fields } =
+          c.req.valid('json');
         const set = await db
           .repository('authorizationPermissionSets')
           .findOne({ filter: { key: permissionSetKey } });
@@ -140,28 +156,32 @@ export const pageFieldVisibilityRoutes: AppApiRouteContribution<Application> =
         await db.repository('appPageFieldVisibilities').deleteMany({
           filter: { permissionSetKey, pageKey },
         });
-        for (const item of fields) {
-          await db.repository('appPageFieldVisibilities').createOne({
-            values: {
-              id: randomUUID(),
-              permissionSetKey,
-              pageKey,
-              resource: item.resource,
-              field: item.field,
-              visible: item.visible,
-              version: 1,
-              createdBy: userId,
-              updatedBy: userId,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            },
-          });
+        if (mode !== 'inherit') {
+          for (const item of fields) {
+            await db.repository('appPageFieldVisibilities').createOne({
+              values: {
+                id: randomUUID(),
+                permissionSetKey,
+                pageKey,
+                resource: item.resource,
+                field: item.field,
+                visible: item.visible,
+                version: 1,
+                createdBy: userId,
+                updatedBy: userId,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            });
+          }
         }
         return c.json({
-          data: {
-            configured: fields.length > 0,
-            fields,
-          },
+          data: await pageFieldVisibilityConfig(
+            db,
+            permissionSetKey,
+            pageKey,
+            fallbackPageKey,
+          ),
         });
       },
     );

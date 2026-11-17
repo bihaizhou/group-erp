@@ -91,7 +91,9 @@ export default function PeopleFormPage() {
     [footerTarget, setFooterTarget] = useState<HTMLDivElement | null>(null);
   const pageKey = location.pathname.endsWith('/new')
     ? `people-${kind}-new`
-    : undefined;
+    : id
+      ? `people-${kind}-edit`
+      : undefined;
   const discard = useDiscardConfirm();
   const title = t(id ? 'people.editRecord' : 'people.newRecord', {
     kind: t(`people.${kind}`),

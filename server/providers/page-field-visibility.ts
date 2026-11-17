@@ -11,14 +11,40 @@ export interface PageFieldVisibility {
   visible: boolean;
 }
 
+export interface PageFieldVisibilityRow {
+  resource: string;
+  field: string;
+  visible: boolean;
+}
+
+export type PageFieldVisibilityMode = 'independent' | 'inherit' | 'override';
+
+export interface PageFieldVisibilityConfig {
+  mode: PageFieldVisibilityMode;
+  configured: boolean;
+  inheritedFrom?: string;
+  fields: PageFieldVisibilityRow[];
+}
+
 const asText = (value: unknown): string =>
   typeof value === 'string' ? value : '';
 
-export async function pageFieldVisibilitiesFor(
+const toRows = (
+  rows: readonly Record<string, unknown>[],
+): PageFieldVisibilityRow[] =>
+  rows
+    .map((row) => ({
+      resource: asText(row.resource),
+      field: asText(row.field),
+      visible: row.visible !== false,
+    }))
+    .filter((row) => row.resource && row.field);
+
+async function rowsFor(
   database: DatabaseManager,
   permissionSetKey: string,
   pageKey: string,
-): Promise<{ configured: boolean; fields: PageFieldVisibility[] }> {
+): Promise<PageFieldVisibilityRow[]> {
   const rows = await database.repository('appPageFieldVisibilities').findMany({
     filter: (filter) =>
       filter.and([
@@ -28,27 +54,62 @@ export async function pageFieldVisibilitiesFor(
     limit: 500,
     sort: (sort) => [sort.field('resource').asc(), sort.field('field').asc()],
   });
+  return toRows(rows);
+}
+
+export async function pageFieldVisibilitiesFor(
+  database: DatabaseManager,
+  permissionSetKey: string,
+  pageKey: string,
+): Promise<{ configured: boolean; fields: PageFieldVisibility[] }> {
+  const fields = await rowsFor(database, permissionSetKey, pageKey);
+  return { configured: fields.length > 0, fields };
+}
+
+export function resolvePageFieldVisibility(
+  own: readonly PageFieldVisibilityRow[],
+  inherited: readonly PageFieldVisibilityRow[],
+  fallbackPageKey?: string,
+): PageFieldVisibilityConfig {
+  if (!fallbackPageKey) {
+    return {
+      mode: 'independent',
+      configured: own.length > 0,
+      fields: [...own],
+    };
+  }
+  if (own.length > 0) {
+    return { mode: 'override', configured: true, fields: [...own] };
+  }
   return {
-    configured: rows.length > 0,
-    fields: rows
-      .map((row) => ({
-        resource: asText(row.resource),
-        field: asText(row.field),
-        visible: row.visible !== false,
-      }))
-      .filter((row) => row.resource && row.field),
+    mode: 'inherit',
+    configured: inherited.length > 0,
+    inheritedFrom: fallbackPageKey,
+    fields: [...inherited],
   };
 }
 
-export interface PageFieldVisibilityRow {
-  resource: string;
-  field: string;
-  visible: boolean;
+/**
+ * The effective configuration for one role. An edit page with no rows of its
+ * own follows its create page; once it has rows it is an explicit override.
+ */
+export async function pageFieldVisibilityConfig(
+  database: DatabaseManager,
+  permissionSetKey: string,
+  pageKey: string,
+  fallbackPageKey?: string,
+): Promise<PageFieldVisibilityConfig> {
+  const own = await rowsFor(database, permissionSetKey, pageKey);
+  const inherited = fallbackPageKey
+    ? await rowsFor(database, permissionSetKey, fallbackPageKey)
+    : [];
+  return resolvePageFieldVisibility(own, inherited, fallbackPageKey);
 }
 
 /**
  * Merge the rows of every set the account holds. A field stays visible when
  * any set shows it; visibility is a presentation union, not an intersection.
+ * Each set resolves its own inherit/override chain before the union.
  */
 export function mergePageFieldVisibility(
   rows: readonly PageFieldVisibilityRow[],
@@ -88,6 +149,7 @@ export async function effectivePageFieldVisibility(
   database: DatabaseManager,
   principal: { type?: string; id?: string },
   pageKey: string,
+  fallbackPageKey?: string,
 ): Promise<{
   configured: boolean;
   visible: string[];
@@ -113,23 +175,19 @@ export async function effectivePageFieldVisibility(
   sets.delete('');
   if (!sets.size || sets.has('root'))
     return { configured: false, visible: [], fields: [] };
-  const rows = await database.repository('appPageFieldVisibilities').findMany({
-    filter: (filter) =>
-      filter.and([
-        filter.string('pageKey').eq(pageKey),
-        filter.or(
-          [...sets].map((key) => filter.string('permissionSetKey').eq(key)),
-        ),
-      ]),
-    limit: 2000,
-  });
-  return mergePageFieldVisibility(
-    rows
-      .map((row) => ({
-        resource: asText(row.resource),
-        field: asText(row.field),
-        visible: row.visible !== false,
-      }))
-      .filter((row) => row.resource && row.field),
-  );
+
+  const rows: PageFieldVisibilityRow[] = [];
+  for (const permissionSetKey of sets) {
+    const own = await rowsFor(database, permissionSetKey, pageKey);
+    if (own.length > 0) {
+      rows.push(...own);
+      continue;
+    }
+    if (fallbackPageKey) {
+      rows.push(
+        ...(await rowsFor(database, permissionSetKey, fallbackPageKey)),
+      );
+    }
+  }
+  return mergePageFieldVisibility(rows);
 }

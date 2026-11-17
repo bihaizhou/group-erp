@@ -58,7 +58,9 @@ export default function OrganizationFormPage() {
   });
   const pageKey = location.pathname.endsWith('/new')
     ? `organization-${kind}-new`
-    : undefined;
+    : recordId
+      ? `organization-${kind}-edit`
+      : undefined;
   const content = !canWrite.can ? (
     canWrite.isPending ? (
       <Loading />

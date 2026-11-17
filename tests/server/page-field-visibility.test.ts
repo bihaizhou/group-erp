@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { mergePageFieldVisibility } from '../../server/providers/page-field-visibility.js';
+import {
+  mergePageFieldVisibility,
+  resolvePageFieldVisibility,
+} from '../../server/providers/page-field-visibility.js';
 
 const row = (field: string, visible: boolean) => ({
   resource: 'purchase.request',
@@ -61,6 +64,43 @@ describe('page field visibility', () => {
           visible: true,
         },
       ],
+    });
+  });
+
+  it('keeps a page without a fallback independent even when it has rows', () => {
+    expect(
+      resolvePageFieldVisibility([row('notes', false)], [], undefined),
+    ).toEqual({
+      mode: 'independent',
+      configured: true,
+      fields: [row('notes', false)],
+    });
+  });
+
+  it('makes an edit page inherit its create page until it has its own rows', () => {
+    expect(
+      resolvePageFieldVisibility([], [row('notes', false)], 'orders-new'),
+    ).toEqual({
+      mode: 'inherit',
+      configured: true,
+      inheritedFrom: 'orders-new',
+      fields: [row('notes', false)],
+    });
+    expect(
+      resolvePageFieldVisibility([row('period', true)], [], 'orders-new'),
+    ).toEqual({
+      mode: 'override',
+      configured: true,
+      fields: [row('period', true)],
+    });
+  });
+
+  it('keeps an edit page unconfigured when neither page has rows', () => {
+    expect(resolvePageFieldVisibility([], [], 'orders-new')).toEqual({
+      mode: 'inherit',
+      configured: false,
+      inheritedFrom: 'orders-new',
+      fields: [],
     });
   });
 

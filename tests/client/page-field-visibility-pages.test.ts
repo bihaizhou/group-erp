@@ -4,7 +4,9 @@ import {
   type AppClientRegisteredRoute,
 } from '@nocobase/app-client/plugins';
 import applicationRoutes from '../../client/routes.js';
+import { pageFieldVisibilityInheritedFrom } from '../../client/pages/settings/page-field-visibility-fallback.js';
 import {
+  pageFieldVisibilityBaseKey,
   pageFieldVisibilityExtraFields,
   pageFieldVisibilityFields,
   pageFieldVisibilityPageKeys,
@@ -37,6 +39,24 @@ describe('page field visibility registry', () => {
       .filter((route) => !supportsPageFieldVisibility(route.name))
       .map((route) => `${route.name} (${route.path})`);
     expect(uncovered).toEqual([]);
+  });
+
+  it('lets edit pages follow the create page field list', () => {
+    for (const pageKey of [
+      'procurement-requests-edit',
+      'procurement-requests-list-edit',
+      'people-employees-edit',
+      'organization-subjects-edit',
+      'warehouse-materials-edit',
+      'sales-orders-edit',
+    ]) {
+      expect(supportsPageFieldVisibility(pageKey)).toBe(true);
+      const base = pageFieldVisibilityBaseKey(pageKey);
+      expect(base).toBe(pageFieldVisibilityInheritedFrom(pageKey) ?? pageKey);
+      expect(
+        pageFieldVisibilityFields[base ?? '']?.length ?? 0,
+      ).toBeGreaterThan(0);
+    }
   });
 
   it('gives every supported page a non-empty field list', () => {
