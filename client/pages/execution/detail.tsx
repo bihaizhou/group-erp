@@ -123,6 +123,8 @@ export default function ExecutionDetail() {
     createDocument = useExecutionCan('warehouse.documents', 'create'),
     fieldAccess = useFieldAccess(),
     pageFields = usePageFieldVisibility(`${config.page}-detail`),
+    showLine = (field: string) =>
+      pageFields.visible('execution.document.line', field),
     priceVisible =
       fieldAccess.access('execution.document.line', 'unitPrice') !== 'hidden' &&
       fieldAccess.access('execution.document.line', 'amount') !== 'hidden',
@@ -166,6 +168,32 @@ export default function ExecutionDetail() {
         {t(ui(`actions.${action}`))}
       </Button>
     );
+  const detailLineFields = [
+    'material',
+    ...(config.kind === 'stockCounts'
+      ? ['baselineQuantity', 'countedQuantity', 'reason']
+      : ['quantity', 'baseQuantity']),
+    ...(isOrder(config)
+      ? [
+          ...(priceVisible ? ['unitPrice', 'amount'] : []),
+          'fulfilledQuantity',
+          'returnedQuantity',
+          'netExecuted',
+          'remainingQuantity',
+          'closedQuantity',
+        ]
+      : []),
+    ...(config.kind === 'stockTransfers'
+      ? [
+          'dispatchedQuantity',
+          'receivedQuantity',
+          'discrepancyQuantity',
+          'transit',
+          'remainingQuantity',
+        ]
+      : []),
+    ...(row?.kind ? ['quality'] : []),
+  ].filter((field) => field === 'material' || showLine(field));
   return (
     <>
       <RouteChildPage>
@@ -444,38 +472,7 @@ export default function ExecutionDetail() {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            {[
-                              'material',
-                              ...(config.kind === 'stockCounts'
-                                ? [
-                                    'baselineQuantity',
-                                    'countedQuantity',
-                                    'reason',
-                                  ]
-                                : ['quantity', 'baseQuantity']),
-                              ...(isOrder(config)
-                                ? [
-                                    ...(priceVisible
-                                      ? ['unitPrice', 'amount']
-                                      : []),
-                                    'fulfilledQuantity',
-                                    'returnedQuantity',
-                                    'netExecuted',
-                                    'remainingQuantity',
-                                    'closedQuantity',
-                                  ]
-                                : []),
-                              ...(config.kind === 'stockTransfers'
-                                ? [
-                                    'dispatchedQuantity',
-                                    'receivedQuantity',
-                                    'discrepancyQuantity',
-                                    'transit',
-                                    'remainingQuantity',
-                                  ]
-                                : []),
-                              ...(row.kind ? ['quality'] : []),
-                            ].map((field) => (
+                            {detailLineFields.map((field) => (
                               <TableHead key={field}>{t(ui(field))}</TableHead>
                             ))}
                           </TableRow>
@@ -509,77 +506,93 @@ export default function ExecutionDetail() {
                                 </TableCell>
                                 {config.kind === 'stockCounts' ? (
                                   <>
-                                    <TableCell className='tabular-nums'>
-                                      {formatStockQuantity(
-                                        line.baselineQuantity ?? '0',
-                                        i18n.language,
-                                      )}{' '}
-                                      {line.materialSnapshot.baseUnitName}
-                                    </TableCell>
-                                    <TableCell className='tabular-nums'>
-                                      {line.actualQuantity === null ||
-                                      line.actualQuantity === undefined
-                                        ? '—'
-                                        : formatStockQuantity(
-                                            line.actualQuantity,
-                                            i18n.language,
-                                          )}{' '}
-                                      {line.materialSnapshot.baseUnitName}
-                                    </TableCell>
-                                    <TableCell>
-                                      <OverflowText
-                                        text={line.reason ?? '—'}
-                                        className='block max-w-xs truncate'
-                                      />
-                                    </TableCell>
+                                    {showLine('baselineQuantity') && (
+                                      <TableCell className='tabular-nums'>
+                                        {formatStockQuantity(
+                                          line.baselineQuantity ?? '0',
+                                          i18n.language,
+                                        )}{' '}
+                                        {line.materialSnapshot.baseUnitName}
+                                      </TableCell>
+                                    )}
+                                    {showLine('countedQuantity') && (
+                                      <TableCell className='tabular-nums'>
+                                        {line.actualQuantity === null ||
+                                        line.actualQuantity === undefined
+                                          ? '—'
+                                          : formatStockQuantity(
+                                              line.actualQuantity,
+                                              i18n.language,
+                                            )}{' '}
+                                        {line.materialSnapshot.baseUnitName}
+                                      </TableCell>
+                                    )}
+                                    {showLine('reason') && (
+                                      <TableCell>
+                                        <OverflowText
+                                          text={line.reason ?? '—'}
+                                          className='block max-w-xs truncate'
+                                        />
+                                      </TableCell>
+                                    )}
                                   </>
                                 ) : (
                                   <>
-                                    <TableCell className='whitespace-nowrap tabular-nums'>
-                                      {formatStockQuantity(
-                                        line.quantity,
-                                        i18n.language,
-                                      )}{' '}
-                                      {line.materialSnapshot.unitName}
-                                    </TableCell>
-                                    <TableCell className='whitespace-nowrap tabular-nums'>
-                                      {formatStockQuantity(
-                                        line.baseQuantity,
-                                        i18n.language,
-                                      )}{' '}
-                                      {line.materialSnapshot.baseUnitName}
-                                    </TableCell>
+                                    {showLine('quantity') && (
+                                      <TableCell className='whitespace-nowrap tabular-nums'>
+                                        {formatStockQuantity(
+                                          line.quantity,
+                                          i18n.language,
+                                        )}{' '}
+                                        {line.materialSnapshot.unitName}
+                                      </TableCell>
+                                    )}
+                                    {showLine('baseQuantity') && (
+                                      <TableCell className='whitespace-nowrap tabular-nums'>
+                                        {formatStockQuantity(
+                                          line.baseQuantity,
+                                          i18n.language,
+                                        )}{' '}
+                                        {line.materialSnapshot.baseUnitName}
+                                      </TableCell>
+                                    )}
                                   </>
                                 )}
-                                {isOrder(config) && priceVisible && (
-                                  <TableCell className='tabular-nums'>
-                                    {line.unitPrice ?? '—'} {row.currency}
-                                  </TableCell>
-                                )}
-                                {isOrder(config) && priceVisible && (
-                                  <TableCell className='tabular-nums'>
-                                    {line.amount ?? '—'} {row.currency}
-                                  </TableCell>
-                                )}
+                                {isOrder(config) &&
+                                  priceVisible &&
+                                  showLine('unitPrice') && (
+                                    <TableCell className='tabular-nums'>
+                                      {line.unitPrice ?? '—'} {row.currency}
+                                    </TableCell>
+                                  )}
+                                {isOrder(config) &&
+                                  priceVisible &&
+                                  showLine('amount') && (
+                                    <TableCell className='tabular-nums'>
+                                      {line.amount ?? '—'} {row.currency}
+                                    </TableCell>
+                                  )}
                                 {quantityCells(
                                   line,
                                   isOrder(config),
                                   config.kind === 'stockTransfers',
-                                ).map(([field, value]) => (
-                                  <TableCell
-                                    key={field}
-                                    className='whitespace-nowrap tabular-nums'
-                                  >
-                                    {value === undefined
-                                      ? '—'
-                                      : formatStockQuantity(
-                                          value,
-                                          i18n.language,
-                                        )}{' '}
-                                    {line.materialSnapshot.baseUnitName}
-                                  </TableCell>
-                                ))}
-                                {row.kind && (
+                                )
+                                  .filter(([field]) => showLine(field))
+                                  .map(([field, value]) => (
+                                    <TableCell
+                                      key={field}
+                                      className='whitespace-nowrap tabular-nums'
+                                    >
+                                      {value === undefined
+                                        ? '—'
+                                        : formatStockQuantity(
+                                            value,
+                                            i18n.language,
+                                          )}{' '}
+                                      {line.materialSnapshot.baseUnitName}
+                                    </TableCell>
+                                  ))}
+                                {row.kind && showLine('quality') && (
                                   <TableCell>
                                     {t(
                                       ui(

@@ -100,6 +100,21 @@ describe('page field visibility registry', () => {
     expect(pageFieldVisibilityFields['warehouse-transfers-detail']).toContain(
       'warehouse.transfers.destinationWarehouse',
     );
+    expect(pageFieldVisibilityFields['sales-orders-detail']).toContain(
+      'execution.document.line.unitPrice',
+    );
+    expect(pageFieldVisibilityFields['warehouse-inbounds-detail']).toContain(
+      'execution.document.line.quality',
+    );
+    expect(pageFieldVisibilityExtraFields['warehouse-inbounds-detail']).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          resource: 'execution.document.line',
+          field: 'quantity',
+          titleKey: 'execution.quantity',
+        }),
+      ]),
+    );
   });
 
   it('lets edit pages follow the create page field list', () => {

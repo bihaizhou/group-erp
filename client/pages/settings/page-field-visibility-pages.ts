@@ -207,7 +207,12 @@ export const pageFieldVisibilityFields: Readonly<
       [page, executionListFields(kind).map((field) => `${resource}.${field}`)],
       [
         `${page}-detail`,
-        executionDetailFields(kind).map((field) => `${resource}.${field}`),
+        [
+          ...executionDetailFields(kind).map((field) => `${resource}.${field}`),
+          ...executionLineFields(kind).map(
+            (field) => `execution.document.line.${field}`,
+          ),
+        ],
       ],
     ]),
   ),
@@ -313,6 +318,35 @@ function executionDetailFields(kind: string): string[] {
     'recipient',
     'reason',
     'notes',
+  ];
+}
+
+function executionLineFields(kind: string): string[] {
+  return [
+    ...(kind === 'stockCounts'
+      ? ['baselineQuantity', 'countedQuantity', 'reason']
+      : ['quantity', 'baseQuantity']),
+    ...(kind === 'purchaseOrders' || kind === 'salesOrders'
+      ? [
+          'unitPrice',
+          'amount',
+          'fulfilledQuantity',
+          'returnedQuantity',
+          'netExecuted',
+          'remainingQuantity',
+          'closedQuantity',
+        ]
+      : []),
+    ...(kind === 'stockTransfers'
+      ? [
+          'dispatchedQuantity',
+          'receivedQuantity',
+          'discrepancyQuantity',
+          'transit',
+          'remainingQuantity',
+        ]
+      : []),
+    'quality',
   ];
 }
 
@@ -523,11 +557,18 @@ export const pageFieldVisibilityExtraFields: Readonly<
         ],
         [
           `${page}-detail`,
-          executionDetailFields(kind).map((field) => ({
-            resource,
-            field,
-            titleKey: executionFieldTitle(field, kind),
-          })),
+          [
+            ...executionDetailFields(kind).map((field) => ({
+              resource,
+              field,
+              titleKey: executionFieldTitle(field, kind),
+            })),
+            ...executionLineFields(kind).map((field) => ({
+              resource: 'execution.document.line',
+              field,
+              titleKey: `execution.${field}`,
+            })),
+          ],
         ],
       ];
       return entries;
