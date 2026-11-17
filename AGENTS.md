@@ -126,17 +126,18 @@ Standard Repository writes require an operation key through the registered submi
 
 ## Index
 
-| Read                                                                       | When                                                                                                          |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| [.agents/rules/workspace.md](.agents/rules/workspace.md)                   | Adding internal packages or changing workspace development and validation                                     |
-| [.agents/rules/components.md](.agents/rules/components.md)                 | Adding or changing a component, a shadcn primitive, a UI Library item, or the visual design                   |
-| [.agents/rules/shell.md](.agents/rules/shell.md)                           | Changing layouts, the header, sidebar, breadcrumbs, the account menu or loading indicators                    |
-| [.agents/rules/build-and-deploy.md](.agents/rules/build-and-deploy.md)     | Changing the build, packing a deployment, the Docker image, `CDN_BASE_URL`, or building for another platform  |
-| [.agents/rules/engineering-memory.md](.agents/rules/engineering-memory.md) | Read before new features, troubleshooting and deployment; update after reusable improvements or real failures |
-| [.agents/rules/architecture.md](.agents/rules/architecture.md)             | Company scope, review parameters, page states and the guard test; read before adding a page or module         |
-| [.agents/rules/organization.md](.agents/rules/organization.md)             | ERP domain boundaries, organizational invariants, permissions and deployment isolation                        |
-| [.agents/rules/people.md](.agents/rules/people.md)                         | Talent cards, personnel transactions, lifecycle, company scopes and regression rules                          |
-| [.agents/rules/supply-chain.md](.agents/rules/supply-chain.md)             | Materials, procurement, sales, requisitions and warehouse ownership, stock movements and staged plans         |
+| Read                                                                       | When                                                                                                           |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [.agents/rules/workspace.md](.agents/rules/workspace.md)                   | Adding internal packages or changing workspace development and validation                                      |
+| [.agents/rules/components.md](.agents/rules/components.md)                 | Adding or changing a component, a shadcn primitive, a UI Library item, or the visual design                    |
+| [.agents/rules/shell.md](.agents/rules/shell.md)                           | Changing layouts, the header, sidebar, breadcrumbs, the account menu or loading indicators                     |
+| [.agents/rules/build-and-deploy.md](.agents/rules/build-and-deploy.md)     | Changing the build, packing a deployment, the Docker image, `CDN_BASE_URL`, or building for another platform   |
+| [.agents/rules/engineering-memory.md](.agents/rules/engineering-memory.md) | Read before new features, troubleshooting and deployment; update after reusable improvements or real failures  |
+| [.agents/rules/architecture.md](.agents/rules/architecture.md)             | Company scope, review parameters, page states and the guard test; read before adding a page or module          |
+| [.agents/rules/organization.md](.agents/rules/organization.md)             | ERP domain boundaries, organizational invariants, permissions and deployment isolation                         |
+| [.agents/rules/permissions.md](.agents/rules/permissions.md)               | Page/field permission coverage: authz auto-appears, fields derive from metadata, no hand-maintained allowlists |
+| [.agents/rules/people.md](.agents/rules/people.md)                         | Talent cards, personnel transactions, lifecycle, company scopes and regression rules                           |
+| [.agents/rules/supply-chain.md](.agents/rules/supply-chain.md)             | Materials, procurement, sales, requisitions and warehouse ownership, stock movements and staged plans          |
 
 ## Visible and manageable role assignments
 
