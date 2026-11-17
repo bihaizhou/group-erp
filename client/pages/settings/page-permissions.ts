@@ -1,7 +1,6 @@
 import type { AppClientRegisteredRoute } from '@nocobase/app-client/plugins';
 import type { LocalizedText } from '@nocobase/app-plugin-authorization/client';
 import { permissionRowId, type CatalogResource } from './permissions-model.js';
-import { supportsPageFieldVisibility } from './page-field-visibility-pages.js';
 import type {
   PermissionEditorNavigationNode,
   PermissionEditorSection,
@@ -172,9 +171,7 @@ export function pagePermissionNavigation(
           id: `menu:${route.packageName}:${route.id}:${route.path}`,
           label,
           rowId,
-          pageKey: supportsPageFieldVisibility(route.name)
-            ? route.name
-            : undefined,
+          pageKey: resource ? route.name : undefined,
           resourceId: resource?.id,
           ...(inherited
             ? {

@@ -1916,22 +1916,15 @@ const collectionFields = async (
     'belongsToMany',
   ]);
   // Business fields configured in the collection UI carry a title; append any
-  // such field that is not listed yet, so new content fields show up in the
-  // permission editor without a code change. For collections generated from
-  // the database (`complete`), even untitled columns are business fields:
-  // appending them is what keeps a newly added migration column visible.
-  const extras = resource.only
-    ? available.filter((field) => {
-        if (pickedNames.has(String(field.name))) return false;
-        const type = (field as { type?: unknown }).type;
-        if (typeof type === 'string' && relationTypes.has(type)) {
-          return false;
-        }
-        if (resource.complete) return true;
-        const title = (field as { title?: unknown }).title;
-        return typeof title === 'string' && title.trim().length > 0;
-      })
-    : [];
+  // field that is not listed yet, so new content fields show up in the
+  // permission editor without a code change. Every untitled column is included
+  // too: a newly added migration column must never silently disappear from
+  // permission management. Structural columns belong in `exclude`.
+  const extras = available.filter((field) => {
+    if (pickedNames.has(String(field.name))) return false;
+    const type = (field as { type?: unknown }).type;
+    return !(typeof type === 'string' && relationTypes.has(type));
+  });
   return [...picked, ...extras].map((field) => {
     const title = (field as { title?: unknown }).title;
     return {

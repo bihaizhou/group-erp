@@ -220,20 +220,25 @@ function RoleEditor(): ReactElement {
     savedPageFieldVisibility[fieldPolicyKey(resource, field)] ??
     true;
   const pageFieldBaseKey = pageFieldVisibilityBaseKey(pageField?.pageKey);
-  const allowedPageFields = new Set(
-    pageFieldBaseKey ? (pageFieldVisibilityFields[pageFieldBaseKey] ?? []) : [],
-  );
+  const pageFieldConfigKey = pageFieldBaseKey ?? pageField?.pageKey;
+  const declaredPageFields = pageFieldConfigKey
+    ? pageFieldVisibilityFields[pageFieldConfigKey]
+    : undefined;
+  const autoPageFields = !declaredPageFields?.length;
+  const allowedPageFields = new Set(declaredPageFields ?? []);
   const pageFieldResources = (() => {
     if (!pageField) return [];
     const catalog = fieldCatalog.data?.data.resources ?? [];
-    const extras = pageFieldBaseKey
-      ? (pageFieldVisibilityExtraFields[pageFieldBaseKey] ?? [])
+    const extras = pageFieldConfigKey
+      ? (pageFieldVisibilityExtraFields[pageFieldConfigKey] ?? [])
       : [];
     return pageField.resources.flatMap((resourceId) => {
       const base = catalog.find((item) => item.resource === resourceId);
       const fields = [
-        ...(base?.fields ?? []).filter((field) =>
-          allowedPageFields.has(fieldPolicyKey(resourceId, field.field)),
+        ...(base?.fields ?? []).filter(
+          (field) =>
+            autoPageFields ||
+            allowedPageFields.has(fieldPolicyKey(resourceId, field.field)),
         ),
         ...extras
           .filter((extra) => extra.resource === resourceId)
@@ -590,7 +595,7 @@ function RoleEditor(): ReactElement {
     setPageFieldBusy(true);
     setPageFieldError(undefined);
     try {
-      const baseKey = pageFieldBaseKey ?? pageField.pageKey;
+      const baseKey = pageFieldConfigKey ?? pageField.pageKey;
       const required = new Set(PAGE_REQUIRED_FIELDS[baseKey] ?? []);
       const fields = pageFieldResources.flatMap((resource) =>
         resource.fields.map((field) => ({

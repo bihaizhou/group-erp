@@ -104,7 +104,7 @@ describe('every page and every field is reachable from permission management', (
       for (const field of resource.only ?? []) {
         if (!names.has(field)) missing.push(`${resource.resource}.${field}`);
       }
-      if (resource.complete && resource.collection) {
+      if (resource.collection) {
         const excluded = new Set(resource.exclude ?? []);
         for (const field of collection(resource.collection)) {
           if (
@@ -121,8 +121,19 @@ describe('every page and every field is reachable from permission management', (
     }
     expect(
       missing,
-      '字段目录必须覆盖集合里的每一个内容字段；新增列若不属于业务字段，请加入 exclude。',
+      '字段目录必须自动覆盖集合里的每一个内容字段；仅结构/内部字段可加入 exclude。',
     ).toEqual([]);
+  });
+
+  it('adds a newly migrated untitled column without editing the catalogue', async () => {
+    const catalog = await fieldCatalog(database);
+    const supplier = catalog.find(
+      (entry) => entry.resource === 'procurement.supplier.identity',
+    );
+    expect(
+      supplier?.fields.some(({ field }) => field === 'registrationCode'),
+      '未登记的新列也必须自动出现在字段目录里。',
+    ).toBe(true);
   });
 
   it('keeps every curated field pointing at a real collection column', () => {
