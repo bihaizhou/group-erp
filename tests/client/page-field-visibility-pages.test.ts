@@ -168,6 +168,30 @@ describe('page field visibility registry', () => {
     }
   });
 
+  it('copies create-page settings for detail and material-line pages', () => {
+    expect(
+      pageFieldVisibilityInheritedFrom('procurement-requests-detail'),
+    ).toBe('procurement-requests-new');
+    expect(
+      pageFieldVisibilityInheritedFrom('procurement-requests-detail-edit'),
+    ).toBe('procurement-requests-new');
+    expect(
+      pageFieldVisibilityInheritedFrom('procurement-requests-new-materials'),
+    ).toBe('procurement-requests-new');
+    expect(
+      pageFieldVisibilityInheritedFrom('procurement-requests-list-edit-materials'),
+    ).toBe('procurement-requests-new');
+    expect(
+      pageFieldVisibilityInheritedFrom('procurement-requests-new-action'),
+    ).toBe('procurement-requests-new');
+    expect(
+      pageFieldVisibilityInheritedFrom('procurement-requests'),
+    ).toBeUndefined();
+    expect(
+      pageFieldVisibilityInheritedFrom('procurement-requests-new'),
+    ).toBeUndefined();
+  });
+
   it('gives every supported page a non-empty field list', () => {
     for (const pageKey of pageFieldVisibilityPageKeys) {
       expect(

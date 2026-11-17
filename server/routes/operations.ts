@@ -39,12 +39,12 @@ import {
 } from '../providers/operations-service.js';
 import {
   assertFieldsWritable,
-  fieldPoliciesFor,
   redactRecord,
   redactRows,
   type FieldPolicyView,
 } from '../providers/field-access.js';
 import { resourceFieldNames } from '../providers/field-catalog.js';
+import { pageFieldPoliciesFor } from '../providers/page-field-visibility.js';
 
 type Env = AuthEnv & AuthorizationEnv;
 /** Field-policy resources covering the operations catalog fields. */
@@ -340,7 +340,7 @@ export const operationsRoutes: AppApiRouteContribution<Application> =
       apiValidator('query', operationsIssueQuery),
       async (c) => {
         const principal = actor(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'operations-issues');
         const result = await service.listIssues(
           principal,
           c.req.valid('query'),
@@ -362,7 +362,7 @@ export const operationsRoutes: AppApiRouteContribution<Application> =
       apiValidator('query', operationsTargetQuery),
       async (c) => {
         const principal = actor(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'operations-targets');
         const result = await service.listTargets(
           principal,
           c.req.valid('query'),
@@ -385,7 +385,7 @@ export const operationsRoutes: AppApiRouteContribution<Application> =
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'operations-targets');
         if (policies.length) {
           // Targets are an upsert: diff an existing row so an unchanged
           // read-only value can still be resubmitted, but treat a new row as
@@ -418,7 +418,7 @@ export const operationsRoutes: AppApiRouteContribution<Application> =
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'operations-issues');
         await rejectHiddenWrites(policies, ISSUE_RESOURCE, input);
         const created = await service.createIssue(
           principal,
@@ -442,7 +442,7 @@ export const operationsRoutes: AppApiRouteContribution<Application> =
         const principal = actor(c);
         const id = c.req.valid('param').id;
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'operations-issues');
         if (policies.length) {
           const raw = await requestBody(c);
           const previous = (await db

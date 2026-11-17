@@ -29,9 +29,12 @@ import type { MaterialPolicies } from '../providers/material-service.js';
 import type { SupplierService } from '../providers/supplier-service.js';
 import {
   assertFieldsWritable,
-  fieldPoliciesFor,
   redactRecord,
 } from '../providers/field-access.js';
+import {
+  pageFieldPoliciesFor,
+  pageKeyForRequest,
+} from '../providers/page-field-visibility.js';
 import {
   supplierQuery,
   supplierPage,
@@ -93,7 +96,20 @@ export function createPartnerRoutes(
       ? (['procurement.supplier.base', partnerResource!] as const)
       : ([] as const);
   const partnerRules = async (c: Context<Env>) =>
-    fieldPoliciesFor(db, { type: 'user', id: actor(c).id });
+    pageFieldPoliciesFor(
+      db,
+      { type: 'user', id: actor(c).id },
+      pageKeyForRequest(
+        c,
+        'procurement-suppliers',
+        'procurement-suppliers-new',
+        'procurement-suppliers-edit',
+        'procurement-suppliers-detail',
+        'procurement-suppliers-action',
+        'procurement-suppliers-identity',
+        'procurement-suppliers-scope',
+      ),
+    );
   const redactPartnerIdentity = (
     rules: Awaited<ReturnType<typeof partnerRules>>,
     identity: Record<string, unknown>,

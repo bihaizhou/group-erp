@@ -1033,6 +1033,7 @@ function FormBody({
             <LineEditor
               config={config}
               apiPath={config.api}
+              pageKey={pageKey}
               draft={draft}
               onChange={update}
               initial={mode === 'new' ? undefined : initial}

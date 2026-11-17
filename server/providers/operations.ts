@@ -6,6 +6,7 @@ import {
   OperationsService,
   operationsServiceToken,
 } from './operations-service.js';
+import { settingsActions } from './settings-actions.js';
 
 export default class OperationsProvider extends ServiceProvider<Application> {
   public readonly name = 'group-erp/operations';
@@ -29,7 +30,7 @@ export default class OperationsProvider extends ServiceProvider<Application> {
     authz.settings.add({
       id: 'operations',
       title: { key: 'operations.settings', ns: 'group-erp' },
-      actions: [{ name: 'read' }, { name: 'manage' }, { name: 'readAll' }],
+      actions: settingsActions(['read', 'manage', 'readAll']),
     });
     authz.ui.place(
       { type: 'settings', id: 'operations' },

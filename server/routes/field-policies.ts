@@ -199,8 +199,12 @@ export const fieldPolicyRoutes: AppApiRouteContribution<Application> =
             access: row.access as 'hidden' | 'visible' | 'write',
           }))
           .filter((row) => row.resource && row.field);
-        const legacyDefault = policies.some(
-          (row) => row.resource === '$default' && row.field === 'legacy',
+        // A set is on the ladder model exactly when it carries the
+        // `$default.model` marker; every other set (including a brand-new one
+        // with no rows at all) keeps the legacy default where an absent policy
+        // means the field stays available.
+        const legacyDefault = !policies.some(
+          (row) => row.resource === '$default' && row.field === 'model',
         );
         return c.json({
           data: {

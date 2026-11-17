@@ -11,7 +11,7 @@ import { Field, FieldLabel, FieldError } from '#components/ui/field';
 import { formatStockQuantity } from '#lib/stock-quantity';
 import { randomUuid } from '#lib/random-id';
 import { useDiscard, useExecutionQuery, ui } from './hooks.js';
-import { useFieldAccess } from '../../hooks/use-field-access.js';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import {
   ReferencePicker,
   StaticSelect,
@@ -134,6 +134,7 @@ export function LineEditor({
   errors,
   busy,
   orderId,
+  pageKey,
 }: {
   config: ExecutionPage;
   apiPath: string;
@@ -144,11 +145,14 @@ export function LineEditor({
   errors: Record<string, string>;
   busy: boolean;
   orderId?: string;
+  pageKey?: string;
 }) {
   const { t, i18n } = useTranslation(),
-    fieldAccess = useFieldAccess(),
-    unitPriceWritable =
-      fieldAccess.access('execution.document.line', 'unitPrice') === 'write',
+    pageFields = usePageFieldVisibility(pageKey ?? `${config.page}-edit`),
+    unitPriceWritable = pageFields.writable(
+      'execution.document.line',
+      'unitPrice',
+    ),
     discard = useDiscard(),
     [page, setPage] = useState(1),
     count = config.kind === 'stockCounts',

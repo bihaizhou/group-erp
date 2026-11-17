@@ -56,7 +56,7 @@ describe('standard role table', () => {
         'table',
       ),
     ).toBeVisible();
-    expect(screen.getAllByRole('columnheader')).toHaveLength(3);
+    expect(screen.getAllByRole('columnheader')).toHaveLength(4);
     expect(screen.getAllByRole('row')).toHaveLength(3);
     expect(
       screen.queryByRole('heading', { name: 'Member' }),

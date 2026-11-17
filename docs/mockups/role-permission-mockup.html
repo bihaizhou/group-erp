@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>权限管理 · 逐页字段权限 · 方案A原型</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        app: '#f4f5f7', side: '#1c1d22', sidehover: '#2a2b31',
+        line: '#e4e6ea', muted2: '#697077', subtle: '#9aa0a9',
+        primary: '#7c3aed', primaryh: '#6d28d9', primarysoft: '#f3effe',
+        green: '#16a34a', amber: '#d97706',
+      },
+      boxShadow: {
+        card: '0 1px 2px rgba(16,24,40,.04)',
+        pop: '0 12px 28px -6px rgba(16,24,40,.18), 0 4px 10px -4px rgba(16,24,40,.08)',
+      },
+    },
+  },
+};
+</script>
+<style>
+  html, body { background: #f4f5f7; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; -webkit-font-smoothing: antialiased; }
+  .scene { display: none; }
+  .scene.active { display: block; }
+  .seg { display: inline-flex; background: #f1f2f4; border-radius: 8px; padding: 2px; gap: 2px; }
+  .seg button { border: 0; background: transparent; font-size: 12px; color: #565b63; padding: 3px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+  .seg button.on { background: #fff; color: #1d2127; box-shadow: 0 1px 2px rgba(16,24,40,.12); font-weight: 600; }
+  .seg button.off { color: #b6bbc2; cursor: not-allowed; }
+  .dot { width: 6px; height: 6px; border-radius: 9999px; display: inline-block; }
+  .tree-node { position: relative; }
+  .perm-grid { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 1100px) {
+    .perm-grid { grid-template-columns: 220px minmax(0, 1fr); }
+    .copy-pop { right: 0 !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ SCENE 1: 编辑页选中 + 更多分组展开 (1440) ============ -->
+<div class="scene active" id="s1">
+  <div class="flex h-screen">
+    <!-- 左侧主导航 -->
+    <aside class="w-[216px] shrink-0 bg-side text-[#c8cad0] flex flex-col" style="font-size:13px">
+      <div class="h-14 flex items-center gap-2.5 px-4 border-b border-white/5">
+        <div class="w-7 h-7 rounded-md bg-primary flex items-center justify-center text-white font-bold" style="font-size:14px">E</div>
+        <span class="text-white font-semibold" style="font-size:14px">集团 ERP</span>
+      </div>
+      <nav class="flex-1 px-2 py-3 space-y-0.5">
+        <div class="px-3 py-1.5 rounded-md">◧ 工作台</div>
+        <div class="px-3 py-1.5 rounded-md">◧ 采购申请</div>
+        <div class="px-3 py-1.5 rounded-md">◧ 物料</div>
+        <div class="px-3 py-1.5 rounded-md">◧ 供应商</div>
+        <div class="px-3 py-1.5 rounded-md">◧ 财务预览</div>
+        <div class="mt-2 px-3 py-1.5 rounded-md bg-white/10 text-white">⚙ 设置</div>
+      </nav>
+      <div class="h-14 flex items-center gap-2.5 px-4 border-t border-white/5">
+        <div class="w-7 h-7 rounded-full bg-[#4b5263] flex items-center justify-center text-white text-xs">管</div>
+        <div class="leading-tight"><div class="text-white" style="font-size:12px">管理员</div><div style="font-size:11px" class="text-[#9aa0a9]">nocobase</div></div>
+      </div>
+    </aside>
+
+    <!-- 主区 -->
+    <div class="flex-1 min-w-0 flex flex-col">
+      <div class="h-14 bg-white border-b border-line flex items-center gap-3 px-6">
+        <span class="text-muted2" style="font-size:13px">设置</span><span class="text-subtle">/</span>
+        <span class="text-muted2" style="font-size:13px">权限管理</span><span class="text-subtle">/</span>
+        <span class="text-muted2" style="font-size:13px">角色</span><span class="text-subtle">/</span>
+        <span style="font-size:13px" class="font-medium text-[#1d2127]">编辑角色</span>
+      </div>
+
+      <div class="flex-1 min-h-0 overflow-auto px-6 py-5">
+        <div class="max-w-[1200px] mx-auto">
+          <div class="flex items-end justify-between mb-4">
+            <div>
+              <div class="text-lg font-semibold text-[#1d2127]">编辑角色 · 本公司采购申请人</div>
+              <div class="text-muted2" style="font-size:12px">按页面配置字段权限；修改暂存，点“保存”后对该角色生效。</div>
+            </div>
+            <span class="text-xs text-muted2">最后保存：今天 15:32</span>
+          </div>
+
+          <!-- tabs -->
+          <div class="flex gap-6 border-b border-line mb-5" style="font-size:13px">
+            <div class="pb-2 -mb-px border-b-2 border-primary text-primary font-semibold">页面与字段</div>
+            <div class="pb-2 text-muted2">后台管理</div>
+          </div>
+
+          <div class="perm-grid">
+            <!-- 页面树 -->
+            <div class="bg-white border border-line rounded-lg shadow-card">
+              <div class="p-3 border-b border-line">
+                <div class="flex items-center gap-2 bg-[#f4f5f7] border border-line rounded-md px-2.5 py-1.5">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9aa0a9" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+                  <span class="text-muted2" style="font-size:12px">搜索页面或字段</span>
+                </div>
+              </div>
+              <div class="p-2" style="font-size:13px">
+                <!-- 采购申请 -->
+                <div class="tree-node flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">
+                  <span class="w-4 h-4 rounded-[4px] border border-primary bg-primary flex items-center justify-center text-white">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="m5 12 5 5L20 7"/></svg>
+                  </span>
+                  <span class="font-medium text-[#1d2127]">采购申请</span>
+                  <span class="dot bg-green ml-auto"></span>
+                </div>
+                <div class="ml-3 pl-3 border-l border-line">
+                  <div class="flex items-center gap-2 px-2 py-1.5 text-[#1d2127]">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#697077" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+                    <span class="font-medium">申请</span>
+                  </div>
+                  <div class="ml-2.5 pl-3 border-l border-line">
+                    <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-[#3f454d] hover:bg-[#f6f7f9]">列表 <span class="dot bg-green ml-auto"></span></div>
+                    <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-[#3f454d] hover:bg-[#f6f7f9]">新建 <span class="dot bg-green ml-auto"></span></div>
+                    <div class="flex items-center gap-2 px-2 py-1.5 rounded-md bg-primarysoft text-primary font-semibold">编辑
+                      <svg class="ml-auto" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+                    </div>
+                    <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-[#3f454d] hover:bg-[#f6f7f9]">详情</div>
+                  </div>
+                </div>
+                <div class="ml-3 pl-3 border-l border-line">
+                  <div class="flex items-center gap-2 px-2 py-1.5 text-[#3f454d]">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#697077" stroke-width="2.5"><path d="m9 6 6 6-6 6"/></svg>
+                    <span class="text-muted2">更多（6）</span>
+                  </div>
+                  <div class="ml-2.5 pl-3 border-l border-line text-muted2">
+                    <div class="px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">物料行 · 新建</div>
+                    <div class="px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">物料行 · 编辑</div>
+                    <div class="px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">操作</div>
+                    <div class="px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">版本</div>
+                    <div class="px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">复制</div>
+                    <div class="px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">关联记录</div>
+                  </div>
+                </div>
+                <!-- 物料 -->
+                <div class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">
+                  <span class="w-4 h-4 rounded-[4px] border border-primary bg-primary flex items-center justify-center text-white">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="m5 12 5 5L20 7"/></svg>
+                  </span>
+                  <span class="font-medium text-[#1d2127]">物料</span>
+                </div>
+                <div class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">
+                  <span class="w-4 h-4 rounded-[4px] border border-[#c8ccd2]"></span>
+                  <span class="text-[#3f454d]">供应商</span>
+                </div>
+                <div class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">
+                  <span class="w-4 h-4 rounded-[4px] border border-[#c8ccd2]"></span>
+                  <span class="text-[#3f454d]">财务预览</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 字段面板 -->
+            <div class="bg-white border border-line rounded-lg shadow-card">
+              <div class="px-5 py-4 border-b border-line">
+                <div class="flex items-center gap-2">
+                  <span class="font-semibold text-[#1d2127]" style="font-size:15px">采购申请 · 申请 · 编辑</span>
+                  <span class="text-subtle" style="font-size:12px">/functions/procurement/requests/edit/:requestId</span>
+                </div>
+                <div class="text-muted2 mt-1" style="font-size:12px">每个页面独立一份字段权限：可编辑 / 只读 / 不显示。必填字段不能设为“不显示”。</div>
+              </div>
+              <div class="divide-y divide-line">
+                <div class="flex items-center gap-4 px-5 py-3 bg-[#fafbfc]" style="font-size:12px">
+                  <span class="w-28 text-muted2">字段</span><span class="flex-1 text-muted2">权限</span>
+                </div>
+                <div class="flex items-center gap-4 px-5 py-3 hover:bg-[#fafbfc]">
+                  <span class="w-28 text-[#1d2127]" style="font-size:13px">申请人</span>
+                  <span class="flex-1 flex items-center gap-3">
+                    <span class="seg"><button class="on"><span class="dot" style="background:#16a34a"></span>可编辑</button><button><span class="dot" style="background:#d97706"></span>只读</button><button class="off"><span class="dot" style="background:#b6bbc2"></span>不显示</button></span>
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded bg-[#f1f2f4] text-muted2 text-xs">必填</span>
+                </div>
+                <div class="flex items-center gap-4 px-5 py-3 hover:bg-[#fafbfc]">
+                  <span class="w-28 text-[#1d2127]" style="font-size:13px">申请部门</span>
+                  <span class="flex-1 flex items-center gap-3">
+                    <span class="seg"><button class="on"><span class="dot" style="background:#16a34a"></span>可编辑</button><button><span class="dot" style="background:#d97706"></span>只读</button><button class="off"><span class="dot" style="background:#b6bbc2"></span>不显示</button></span>
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded bg-[#f1f2f4] text-muted2 text-xs">必填</span>
+                </div>
+                <div class="flex items-center gap-4 px-5 py-3 hover:bg-[#fafbfc]">
+                  <span class="w-28 text-[#1d2127]" style="font-size:13px">用途</span>
+                  <span class="flex-1 flex items-center gap-3">
+                    <span class="seg"><button class="on"><span class="dot" style="background:#16a34a"></span>可编辑</button><button><span class="dot" style="background:#d97706"></span>只读</button><button class="off"><span class="dot" style="background:#b6bbc2"></span>不显示</button></span>
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded bg-[#f1f2f4] text-muted2 text-xs">必填</span>
+                </div>
+                <div class="flex items-center gap-4 px-5 py-3 hover:bg-[#fafbfc]">
+                  <span class="w-28 text-[#1d2127]" style="font-size:13px">需求日期</span>
+                  <span class="flex-1 flex items-center gap-3">
+                    <span class="seg"><button class="on"><span class="dot" style="background:#16a34a"></span>可编辑</button><button><span class="dot" style="background:#d97706"></span>只读</button><button class="off"><span class="dot" style="background:#b6bbc2"></span>不显示</button></span>
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded bg-[#f1f2f4] text-muted2 text-xs">必填</span>
+                </div>
+                <div class="flex items-center gap-4 px-5 py-3 bg-primarysoft/60">
+                  <span class="w-28 text-[#1d2127]" style="font-size:13px">金额</span>
+                  <span class="flex-1 flex items-center gap-3">
+                    <span class="seg"><button><span class="dot" style="background:#16a34a"></span>可编辑</button><button class="on"><span class="dot" style="background:#d97706"></span>只读</button><button><span class="dot" style="background:#b6bbc2"></span>不显示</button></span>
+                  </span>
+                  <span class="text-muted2" style="font-size:11px">修改于刚才</span>
+                </div>
+                <div class="flex items-center gap-4 px-5 py-3 bg-primarysoft/60">
+                  <span class="w-28 text-[#1d2127]" style="font-size:13px">成本中心</span>
+                  <span class="flex-1 flex items-center gap-3">
+                    <span class="seg"><button><span class="dot" style="background:#16a34a"></span>可编辑</button><button><span class="dot" style="background:#d97706"></span>只读</button><button class="on"><span class="dot" style="background:#b6bbc2"></span>不显示</button></span>
+                  </span>
+                  <span class="text-muted2" style="font-size:11px">修改于刚才</span>
+                </div>
+                <div class="flex items-center gap-4 px-5 py-3 hover:bg-[#fafbfc]">
+                  <span class="w-28 text-[#1d2127]" style="font-size:13px">备注</span>
+                  <span class="flex-1 flex items-center gap-3">
+                    <span class="seg"><button class="on"><span class="dot" style="background:#16a34a"></span>可编辑</button><button><span class="dot" style="background:#d97706"></span>只读</button><button><span class="dot" style="background:#b6bbc2"></span>不显示</button></span>
+                  </span>
+                </div>
+              </div>
+              <div class="px-5 py-3 border-t border-line text-muted2" style="font-size:12px">只影响此页面；使用同一份数据的其他页面保持各自的设置。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部保存栏 -->
+      <div class="h-16 bg-white border-t border-line flex items-center px-6">
+        <div class="max-w-[1200px] mx-auto w-full flex items-center justify-between">
+          <div class="flex items-center gap-2 text-muted2" style="font-size:13px">
+            <span class="dot" style="background:#7c3aed"></span> 2 处字段修改已暂存，点“保存”后对该角色生效
+          </div>
+          <div class="flex items-center gap-3">
+            <button class="px-4 py-1.5 rounded-md border border-line text-[#3f454d] text-sm hover:bg-[#f6f7f9]">放弃</button>
+            <button class="px-5 py-1.5 rounded-md bg-primary hover:bg-primaryh text-white text-sm font-medium shadow-sm">保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SCENE 2: 新建页选中 + 复制菜单 + 未保存圆点 (1440) ============ -->
+<div class="scene" id="s2">
+  <div class="flex h-screen">
+    <aside class="w-[216px] shrink-0 bg-side text-[#c8cad0] flex flex-col" style="font-size:13px">
+      <div class="h-14 flex items-center gap-2.5 px-4 border-b border-white/5">
+        <div class="w-7 h-7 rounded-md bg-primary flex items-center justify-center text-white font-bold" style="font-size:14px">E</div>
+        <span class="text-white font-semibold" style="font-size:14px">集团 ERP</span>
+      </div>
+      <nav class="flex-1 px-2 py-3 space-y-0.5">
+        <div class="px-3 py-1.5 rounded-md">◧ 工作台</div>
+        <div class="px-3 py-1.5 rounded-md">◧ 采购申请</div>
+        <div class="px-3 py-1.5 rounded-md">◧ 物料</div>
+        <div class="px-3 py-1.5 rounded-md">◧ 供应商</div>
+        <div class="px-3 py-1.5 rounded-md">◧ 财务预览</div>
+        <div class="mt-2 px-3 py-1.5 rounded-md bg-white/10 text-white">⚙ 设置</div>
+      </nav>
+      <div class="h-14 flex items-center gap-2.5 px-4 border-t border-white/5">
+        <div class="w-7 h-7 rounded-full bg-[#4b5263] flex items-center justify-center text-white text-xs">管</div>
+        <div class="leading-tight"><div class="text-white" style="font-size:12px">管理员</div><div style="font-size:11px" class="text-[#9aa0a9]">nocobase</div></div>
+      </div>
+    </aside>
+
+    <div class="flex-1 min-w-0 flex flex-col">
+      <div class="h-14 bg-white border-b border-line flex items-center gap-3 px-6">
+        <span class="text-muted2" style="font-size:13px">设置</span><span class="text-subtle">/</span>
+        <span class="text-muted2" style="font-size:13px">权限管理</span><span class="text-subtle">/</span>
+        <span class="text-muted2" style="font-size:13px">角色</span><span class="text-subtle">/</span>
+        <span style="font-size:13px" class="font-medium text-[#1d2127]">编辑角色</span>
+      </div>
+
+      <div class="flex-1 min-h-0 overflow-auto px-6 py-5">
+        <div class="max-w-[1200px] mx-auto">
+          <div class="flex items-end justify-between mb-4">
+            <div>
+              <div class="text-lg font-semibold text-[#1d2127]">编辑角色 · 本公司采购申请人</div>
+              <div class="text-muted2" style="font-size:12px">按页面配置字段权限；修改暂存，点“保存”后对该角色生效。</div>
+            </div>
+            <span class="text-xs text-muted2">最后保存：今天 15:32</span>
+          </div>
+          <div class="flex gap-6 border-b border-line mb-5" style="font-size:13px">
+            <div class="pb-2 -mb-px border-b-2 border-primary text-primary font-semibold">页面与字段</div>
+            <div class="pb-2 text-muted2">后台管理</div>
+          </div>
+
+          <div class="perm-grid">
+            <div class="bg-white border border-line rounded-lg shadow-card">
+              <div class="p-3 border-b border-line">
+                <div class="flex items-center gap-2 bg-[#f4f5f7] border border-line rounded-md px-2.5 py-1.5">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9aa0a9" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+                  <span class="text-muted2" style="font-size:12px">搜索页面或字段</span>
+                </div>
+              </div>
+              <div class="p-2" style="font-size:13px">
+                <div class="tree-node flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">
+                  <span class="w-4 h-4 rounded-[4px] border border-primary bg-primary flex items-center justify-center text-white">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="m5 12 5 5L20 7"/></svg>
+                  </span>
+                  <span class="font-medium text-[#1d2127]">采购申请</span>
+                  <span class="dot bg-green ml-auto"></span>
+                </div>
+                <div class="ml-3 pl-3 border-l border-line">
+                  <div class="flex items-center gap-2 px-2 py-1.5 text-[#1d2127]">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#697077" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+                    <span class="font-medium">申请</span>
+                  </div>
+                  <div class="ml-2.5 pl-3 border-l border-line">
+                    <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-[#3f454d] hover:bg-[#f6f7f9]">列表</div>
+                    <div class="flex items-center gap-2 px-2 py-1.5 rounded-md bg-primarysoft text-primary font-semibold">新建
+                      <svg class="ml-auto" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+                    </div>
+                    <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-[#3f454d] hover:bg-[#f6f7f9]">编辑 <span class="dot ml-auto" style="background:#7c3aed"></span></div>
+                    <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-[#3f454d] hover:bg-[#f6f7f9]">详情 <span class="dot ml-auto" style="background:#7c3aed"></span></div>
+                  </div>
+                </div>
+                <div class="ml-3 pl-3 border-l border-line">
+                  <div class="flex items-center gap-2 px-2 py-1.5 text-[#3f454d]">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#697077" stroke-width="2.5"><path d="m9 6 6 6-6 6"/></svg>
+                    <span class="text-muted2">更多（6）</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">
+                  <span class="w-4 h-4 rounded-[4px] border border-primary bg-primary flex items-center justify-center text-white">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="m5 12 5 5L20 7"/></svg>
+                  </span>
+                  <span class="font-medium text-[#1d2127]">物料</span>
+                </div>
+                <div class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">
+                  <span class="w-4 h-4 rounded-[4px] border border-[#c8ccd2]"></span>
+                  <span class="text-[#3f454d]">供应商</span>
+                </div>
+                <div class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">
+                  <span class="w-4 h-4 rounded-[4px] border border-[#c8ccd2]"></span>
+                  <span class="text-[#3f454d]">财务预览</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="relative bg-white border border-line rounded-lg shadow-card">
+              <div class="px-5 py-4 border-b border-line flex items-start justify-between gap-4">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="font-semibold text-[#1d2127]" style="font-size:15px">采购申请 · 申请 · 新建</span>
+                    <span class="text-subtle" style="font-size:12px">/functions/procurement/requests/new</span>
+                  </div>
+                  <div class="text-muted2 mt-1" style="font-size:12px">每个页面独立一份字段权限：可编辑 / 只读 / 不显示。必填字段不能设为“不显示”。</div>
+                </div>
+                <button class="shrink-0 px-3 py-1.5 rounded-md border border-line text-[#3f454d] text-xs hover:bg-[#f6f7f9]">复制到其他页面…</button>
+              </div>
+
+              <!-- 复制弹层 -->
+              <div class="copy-pop absolute right-5 top-[72px] w-64 bg-white border border-line rounded-lg shadow-pop z-10">
+                <div class="px-4 py-3 border-b border-line font-semibold text-[#1d2127]" style="font-size:13px">将本页设置复制到</div>
+                <div class="p-2" style="font-size:13px">
+                  <label class="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">
+                    <span class="w-4 h-4 rounded-[4px] border border-primary bg-primary flex items-center justify-center text-white"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="m5 12 5 5L20 7"/></svg></span>
+                    <span class="text-[#1d2127]">编辑</span>
+                  </label>
+                  <label class="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">
+                    <span class="w-4 h-4 rounded-[4px] border border-primary bg-primary flex items-center justify-center text-white"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="m5 12 5 5L20 7"/></svg></span>
+                    <span class="text-[#1d2127]">详情</span>
+                  </label>
+                  <label class="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">
+                    <span class="w-4 h-4 rounded-[4px] border border-[#c8ccd2]"></span>
+                    <span class="text-[#3f454d]">物料行 · 新建</span>
+                  </label>
+                  <label class="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-[#f6f7f9]">
+                    <span class="w-4 h-4 rounded-[4px] border border-[#c8ccd2]"></span>
+                    <span class="text-[#3f454d]">物料行 · 编辑</span>
+                  </label>
+                </div>
+                <div class="px-3 py-2.5 border-t border-line flex justify-end gap-2">
+                  <button class="px-3 py-1 rounded-md text-[#3f454d] text-xs hover:bg-[#f6f7f9]">取消</button>
+                  <button class="px-3 py-1 rounded-md bg-primary text-white text-xs">复制</button>
+                </div>
+              </div>
+
+              <div class="divide-y divide-line">
+                <div class="flex items-center gap-4 px-5 py-3 bg-[#fafbfc]" style="font-size:12px">
+                  <span class="w-28 text-muted2">字段</span><span class="flex-1 text-muted2">权限</span>
+                </div>
+                <div class="flex items-center gap-4 px-5 py-3 hover:bg-[#fafbfc]">
+                  <span class="w-28 text-[#1d2127]" style="font-size:13px">申请人</span>
+                  <span class="flex-1 flex items-center gap-3">
+                    <span class="seg"><button class="on"><span class="dot" style="background:#16a34a"></span>可编辑</button><button><span class="dot" style="background:#d97706"></span>只读</button><button class="off"><span class="dot" style="background:#b6bbc2"></span>不显示</button></span>
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded bg-[#f1f2f4] text-muted2 text-xs">必填</span>
+                </div>
+                <div class="flex items-center gap-4 px-5 py-3 hover:bg-[#fafbfc]">
+                  <span class="w-28 text-[#1d2127]" style="font-size:13px">申请部门</span>
+                  <span class="flex-1 flex items-center gap-3">
+                    <span class="seg"><button class="on"><span class="dot" style="background:#16a34a"></span>可编辑</button><button><span class="dot" style="background:#d97706"></span>只读</button><button class="off"><span class="dot" style="background:#b6bbc2"></span>不显示</button></span>
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded bg-[#f1f2f4] text-muted2 text-xs">必填</span>
+                </div>
+                <div class="flex items-center gap-4 px-5 py-3 hover:bg-[#fafbfc]">
+                  <span class="w-28 text-[#1d2127]" style="font-size:13px">用途</span>
+                  <span class="flex-1 flex items-center gap-3">
+                    <span class="seg"><button class="on"><span class="dot" style="background:#16a34a"></span>可编辑</button><button><span class="dot" style="background:#d97706"></span>只读</button><button class="off"><span class="dot" style="background:#b6bbc2"></span>不显示</button></span>
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded bg-[#f1f2f4] text-muted2 text-xs">必填</span>
+                </div>
+                <div class="flex items-center gap-4 px-5 py-3 hover:bg-[#fafbfc]">
+                  <span class="w-28 text-[#1d2127]" style="font-size:13px">需求日期</span>
+                  <span class="flex-1 flex items-center gap-3">
+                    <span class="seg"><button class="on"><span class="dot" style="background:#16a34a"></span>可编辑</button><button><span class="dot" style="background:#d97706"></span>只读</button><button class="off"><span class="dot" style="background:#b6bbc2"></span>不显示</button></span>
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded bg-[#f1f2f4] text-muted2 text-xs">必填</span>
+                </div>
+                <div class="flex items-center gap-4 px-5 py-3 hover:bg-[#fafbfc]">
+                  <span class="w-28 text-[#1d2127]" style="font-size:13px">金额</span>
+                  <span class="flex-1 flex items-center gap-3">
+                    <span class="seg"><button class="on"><span class="dot" style="background:#16a34a"></span>可编辑</button><button><span class="dot" style="background:#d97706"></span>只读</button><button><span class="dot" style="background:#b6bbc2"></span>不显示</button></span>
+                  </span>
+                </div>
+                <div class="flex items-center gap-4 px-5 py-3 hover:bg-[#fafbfc]">
+                  <span class="w-28 text-[#1d2127]" style="font-size:13px">备注</span>
+                  <span class="flex-1 flex items-center gap-3">
+                    <span class="seg"><button class="on"><span class="dot" style="background:#16a34a"></span>可编辑</button><button><span class="dot" style="background:#d97706"></span>只读</button><button><span class="dot" style="background:#b6bbc2"></span>不显示</button></span>
+                  </span>
+                </div>
+              </div>
+              <div class="px-5 py-3 border-t border-line text-muted2" style="font-size:12px">只影响此页面；使用同一份数据的其他页面保持各自的设置。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="h-16 bg-white border-t border-line flex items-center px-6">
+        <div class="max-w-[1200px] mx-auto w-full flex items-center justify-between">
+          <div class="flex items-center gap-2 text-muted2" style="font-size:13px">
+            <span class="dot" style="background:#7c3aed"></span> 3 个页面有修改，点“保存”后对该角色生效
+          </div>
+          <div class="flex items-center gap-3">
+            <button class="px-4 py-1.5 rounded-md border border-line text-[#3f454d] text-sm hover:bg-[#f6f7f9]">放弃</button>
+            <button class="px-5 py-1.5 rounded-md bg-primary hover:bg-primaryh text-white text-sm font-medium shadow-sm">保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const scene = new URLSearchParams(location.search).get('scene') || '1';
+  document.querySelectorAll('.scene').forEach((el) => el.classList.remove('active'));
+  const el = document.getElementById('s' + scene) || document.getElementById('s1');
+  el.classList.add('active');
+</script>
+</body>
+</html>

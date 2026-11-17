@@ -202,7 +202,7 @@ export const peopleAuditResource = defineCompositeResource(
   'people.history',
   (r) =>
     r.title({ key: 'people.history', ns: 'group-erp' }).action('read', (a) =>
-      a.grant(
+      a.title({ key: 'people.historyRead', ns: 'group-erp' }).grant(
         'history',
         defineDatabasePermission((p) =>
           p

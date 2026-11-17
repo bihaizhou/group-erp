@@ -30,6 +30,7 @@ export const people = {
   evaluations: '人才评价',
   developmentPlans: '发展计划',
   workforcePlans: '集团人力规划',
+  historyRead: '查看变更记录',
   history: '人事与人才变更记录',
   historyEmpty: '尚无变更记录',
   historyEmptyDescription: '人员或人才资料发生变更后，将在这里记录操作与原因。',

@@ -5,7 +5,13 @@ import { pageFieldVisibilityInheritedFrom } from '../pages/settings/page-field-v
 interface EffectiveVisibility {
   configured: boolean;
   visible: string[];
-  fields?: { resource: string; field: string; visible: boolean }[];
+  writable: string[];
+  fields?: {
+    resource: string;
+    field: string;
+    visible: boolean;
+    writable: boolean;
+  }[];
 }
 
 interface PageState {
@@ -15,13 +21,15 @@ interface PageState {
 }
 
 /**
- * Page-level field visibility is display-only. It answers "does this page
- * render the field?" and must not be used to decide whether data is readable.
+ * Per-page field permissions. `visible` answers "does this page render the
+ * field?" and `writable` answers "may the user change it on this page?".
+ * Both are enforced server-side; the hook only mirrors the policy in the UI.
  */
 export interface PageFieldVisibility {
   readonly loading: boolean;
   readonly configured: boolean;
   readonly visible: (resource: string, field: string) => boolean;
+  readonly writable: (resource: string, field: string) => boolean;
 }
 
 const keyOf = (resource: string, field: string): string =>
@@ -52,7 +60,7 @@ export function usePageFieldVisibility(
       })
       .catch(() => {
         if (controller.signal.aborted) return;
-        // A failed presentation lookup must not blank out a working form.
+        // A failed lookup must not blank out a working form.
         setState({ pageKey, failed: true });
       });
     return () => controller.abort();
@@ -60,16 +68,18 @@ export function usePageFieldVisibility(
 
   const current = state?.pageKey === pageKey ? state : undefined;
   const configured = current?.visibility?.configured === true;
-  const visible = new Map(
+  const rows = new Map(
     (current?.visibility?.fields ?? []).map((row) => [
       keyOf(row.resource, row.field),
-      row.visible,
+      row,
     ]),
   );
   return {
     loading: pageKey ? !current : false,
     configured,
     visible: (resource, field) =>
-      !configured || (visible.get(keyOf(resource, field)) ?? true),
+      !configured || (rows.get(keyOf(resource, field))?.visible ?? true),
+    writable: (resource, field) =>
+      !configured || (rows.get(keyOf(resource, field))?.writable ?? true),
   };
 }

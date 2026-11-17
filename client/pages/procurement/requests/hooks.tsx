@@ -40,6 +40,7 @@ export function usePurchaseQuery<T>(
   query: Record<string, string | number> = {},
   enabled = true,
   previous = false,
+  headers?: Record<string, string>,
 ) {
   const api = useApiClient();
   return useQuery({
@@ -49,7 +50,7 @@ export function usePurchaseQuery<T>(
     refetchOnWindowFocus: false,
     refetchOnMount: 'always',
     queryFn: ({ signal }) =>
-      api.request<T>({ path: `procurement/${path}`, query, signal }),
+      api.request<T>({ path: `procurement/${path}`, query, signal, headers }),
     placeholderData: previous
       ? (old, previousQuery) => {
           const prior = previousQuery?.queryKey[2] as
@@ -59,8 +60,14 @@ export function usePurchaseQuery<T>(
       : undefined,
   });
 }
-export const useRequest = (id?: string) =>
-  usePurchaseQuery<{ data: PurchaseRequest }>(`requests/${id}`, {}, !!id);
+export const useRequest = (id?: string, pageKey?: string) =>
+  usePurchaseQuery<{ data: PurchaseRequest }>(
+    `requests/${id}`,
+    {},
+    !!id,
+    false,
+    pageKey ? { 'x-page-key': pageKey } : undefined,
+  );
 export const useProgress = (id?: string) =>
   usePurchaseQuery<{ data: PurchaseProgress }>(
     `requests/${id}/progress`,

@@ -22,6 +22,7 @@ import { Hono, type Context } from 'hono';
 import {
   effectivePageFieldVisibility,
   pageFieldVisibilityConfig,
+  rebuildFieldPoliciesFromPages,
 } from '../providers/page-field-visibility.js';
 
 type Env = AuthEnv & AuthorizationEnv;
@@ -30,6 +31,7 @@ const field = z.object({
   resource: z.string().min(1).max(160),
   field: z.string().min(1).max(160),
   visible: z.boolean(),
+  writable: z.boolean().optional(),
 });
 
 const query = z.object({
@@ -41,6 +43,16 @@ const query = z.object({
 const effectiveQuery = z.object({
   pageKey: z.string().min(1).max(200),
   fallbackPageKey: z.string().min(1).max(200).optional(),
+});
+
+const pagesQuery = z.object({
+  permissionSetKey: z.string().min(1).max(120),
+});
+
+const pagesResponse = z.object({
+  pages: z.array(
+    z.object({ pageKey: z.string().min(1).max(200), configured: z.boolean() }),
+  ),
 });
 
 const saveBody = z.object({
@@ -55,13 +67,14 @@ const response = z.object({
   mode: z.enum(['independent', 'inherit', 'override']),
   configured: z.boolean(),
   inheritedFrom: z.string().optional(),
-  fields: z.array(field),
+  fields: z.array(field.extend({ writable: z.boolean() })),
 });
 
 const effectiveResponse = z.object({
   configured: z.boolean(),
   visible: z.array(z.string()),
-  fields: z.array(field),
+  writable: z.array(z.string()),
+  fields: z.array(field.extend({ writable: z.boolean() })),
 });
 
 const denied = () =>
@@ -107,6 +120,32 @@ export const pageFieldVisibilityRoutes: AppApiRouteContribution<Application> =
             pageKey,
             fallbackPageKey,
           ),
+        });
+      },
+    );
+
+    router.get(
+      '/pages',
+      describeRoute({
+        tags: ['Authorization'],
+        summary: 'List which pages of one permission set have field settings',
+        operationId: 'listPageFieldVisibilityPages',
+        responses: { '200': dataResponse(pagesResponse) },
+      }),
+      apiValidator('query', pagesQuery),
+      async (c) => {
+        await check(c, 'read');
+        const { permissionSetKey } = c.req.valid('query');
+        const rows = await db.repository('appPageFieldVisibilities').findMany({
+          filter: (filter) => filter.string('permissionSetKey').eq(permissionSetKey),
+          limit: 5000,
+        });
+        return c.json({
+          data: {
+            pages: [
+              ...new Set(rows.map((row) => row.pageKey as string)),
+            ].map((pageKey) => ({ pageKey, configured: true })),
+          },
         });
       },
     );
@@ -166,6 +205,7 @@ export const pageFieldVisibilityRoutes: AppApiRouteContribution<Application> =
                 resource: item.resource,
                 field: item.field,
                 visible: item.visible,
+                writable: item.writable ?? item.visible,
                 version: 1,
                 createdBy: userId,
                 updatedBy: userId,
@@ -175,6 +215,11 @@ export const pageFieldVisibilityRoutes: AppApiRouteContribution<Application> =
             });
           }
         }
+        // Keep the resource-level field policies coherent with the merged
+        // per-page model: they become the union of the set's page rows, so
+        // legacy consumers (field-policies/effective, old clients) keep
+        // working while per-page rows drive the page-aware enforcement.
+        await rebuildFieldPoliciesFromPages(db, permissionSetKey, userId);
         return c.json({
           data: await pageFieldVisibilityConfig(
             db,

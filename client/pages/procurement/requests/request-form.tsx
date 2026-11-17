@@ -91,7 +91,7 @@ export default function RequestFormPage() {
   const pageFields = usePageFieldVisibility(pageKey);
   const showPageField = (field: string) =>
     pageFields.visible('purchase.request', field);
-  const record = useRequest(mode === 'new' ? undefined : requestId),
+  const record = useRequest(mode === 'new' ? undefined : requestId, pageKey),
     cap = useCapabilities(mode === 'new' ? undefined : requestId),
     create = usePurchaseCan('create'),
     purchaseIdentity = usePurchaseIdentity(mode === 'new');
@@ -224,6 +224,12 @@ function FormBody({
     location = useLocation(),
     scope = useCurrentCompany(),
     refresh = usePurchaseRefresh();
+  const pageKey =
+    mode === 'new' || mode === 'copy'
+      ? 'procurement-requests-new'
+      : path.endsWith('/edit')
+        ? 'procurement-requests-edit'
+        : 'procurement-requests-list-edit';
   const initialContent = () => {
     // The company was chosen before this page opened. Once here it is fixed:
     // the form never reads or writes another company from the URL.
@@ -399,6 +405,7 @@ function FormBody({
               : `procurement/requests/${row!.id}`,
         method: mode === 'edit' ? 'PATCH' : 'POST',
         json: { ...body, requestKey: key.for(body) },
+        headers: { 'x-page-key': pageKey },
       });
       guard.complete();
       void refresh(result.data, mode === 'new' || mode === 'copy');
@@ -481,6 +488,7 @@ function FormBody({
     try {
       const response = await api.request<{ data: PurchaseRequest }>({
         path: `procurement/requests/${row.id}`,
+        headers: { 'x-page-key': pageKey },
       });
       setLatest(response.data);
       setChoices({});

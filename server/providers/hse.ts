@@ -3,6 +3,7 @@ import { authorizationToken } from '@nocobase/app-plugin-authorization/server';
 import { databaseManagerToken } from '@nocobase/db';
 import { ServiceProvider } from '@nocobase/service-provider';
 import { HseService, hseServiceToken } from './hse-service.js';
+import { settingsActions } from './settings-actions.js';
 
 const hseTables = [
   'hseIncidents',
@@ -41,13 +42,13 @@ export default class HseProvider extends ServiceProvider<Application> {
     authz.settings.add({
       id: 'hse',
       title: { key: 'hse.settings', ns: 'group-erp' },
-      actions: [
-        { name: 'read' },
-        { name: 'manage' },
-        { name: 'approve' },
-        { name: 'readAll' },
-        { name: 'report' },
-      ],
+      actions: settingsActions([
+        'read',
+        'manage',
+        'approve',
+        'readAll',
+        'report',
+      ]),
     });
     authz.ui.place(
       { type: 'settings', id: 'hse' },

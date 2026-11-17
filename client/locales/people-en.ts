@@ -30,6 +30,7 @@ export const people = {
   evaluations: 'Talent evaluations',
   developmentPlans: 'Development plans',
   workforcePlans: 'Group workforce planning',
+  historyRead: 'Read change history',
   history: 'Personnel and talent history',
   historyEmpty: 'No changes yet',
   historyEmptyDescription:

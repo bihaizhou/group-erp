@@ -23,7 +23,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { Hono, type Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { z } from 'zod';
-import { accessFor, fieldPoliciesFor } from '../providers/field-access.js';
+import { accessFor } from '../providers/field-access.js';
+import { pageFieldPoliciesFor } from '../providers/page-field-visibility.js';
 import { resourceFieldNames } from '../providers/field-catalog.js';
 import { warehouseCreate } from '../providers/execution-model.js';
 import { warehouseServiceToken } from '../providers/execution.js';
@@ -247,10 +248,10 @@ export const productionRoutes: AppApiRouteContribution<Application> =
           c.req.valid('query'),
           await scoped(c),
         );
-        const policies = await fieldPoliciesFor(database, {
+        const policies = await pageFieldPoliciesFor(database, {
           type: 'user',
           id: c.get('auth')!.user.id,
-        });
+        }, 'production-report');
         const hiddenFields = new Set(
           (await resourceFieldNames(database, materialResource)).filter(
             (field) =>
@@ -279,10 +280,10 @@ export const productionRoutes: AppApiRouteContribution<Application> =
       apiValidator('json', productionReportSave),
       async (c) => {
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(database, {
+        const policies = await pageFieldPoliciesFor(database, {
           type: 'user',
           id: c.get('auth')!.user.id,
-        });
+        }, 'production-report');
         const quantityWritable =
           accessFor(policies, materialResource, 'quantity') === 'write';
         const stockWritable =

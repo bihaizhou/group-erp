@@ -1,7 +1,7 @@
 import { textValue } from './model.js';
 import { useState } from 'react';
 import { useTranslation } from '@nocobase/i18n/client';
-import { useFieldAccess } from '../../hooks/use-field-access.js';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { useApiClient } from '@nocobase/app-client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router';
@@ -55,8 +55,14 @@ type Talent = {
   developmentPlans: Related;
   options: Options;
 };
-export function TalentCard({ profile }: { profile: Row }) {
-  const fieldAccess = useFieldAccess();
+export function TalentCard({
+  profile,
+  pageKey,
+}: {
+  profile: Row;
+  pageKey?: string;
+}) {
+  const pageFields = usePageFieldVisibility(pageKey ?? '');
   const { t, i18n } = useTranslation(),
     api = useApiClient(),
     location = useLocation(),
@@ -135,7 +141,7 @@ export function TalentCard({ profile }: { profile: Row }) {
     ['subjectId', name('orgSubjects', talent.person.subjectId)],
     ['unit', name('orgUnits', unitId)],
     ['positionId', name('orgPositions', primary?.positionId)],
-    ...(fieldAccess.access('people.employee.grade', 'grade') === 'hidden'
+    ...(!pageFields.visible('people.employee.grade', 'grade')
       ? []
       : ([
           'grade',

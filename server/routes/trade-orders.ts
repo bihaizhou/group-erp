@@ -66,12 +66,15 @@ import type { TradeKind } from '../providers/trade-order-service.js';
 import {
   accessFor,
   assertFieldsWritable,
-  fieldPoliciesFor,
   redactRecord,
   redactRows,
   type FieldPolicyView,
 } from '../providers/field-access.js';
 import { resourceFieldNames } from '../providers/field-catalog.js';
+import {
+  pageFieldPoliciesFor,
+  pageKeyForRequest,
+} from '../providers/page-field-visibility.js';
 
 type Env = AuthEnv &
   AuthorizationEnv & {
@@ -149,7 +152,22 @@ export const tradeOrderRoutes: AppApiRouteContribution<Application> =
     const fieldRules = async (c: Context<Env>): Promise<FieldPolicyView[]> => {
       const cached = c.get('fieldRules');
       if (cached) return cached;
-      const rules = await fieldPoliciesFor(db, principal(c));
+      const pageKey = c.req.path.startsWith('/sales/orders')
+        ? pageKeyForRequest(
+            c,
+            'sales-orders',
+            'sales-orders-new',
+            'sales-orders-edit',
+            'sales-orders-detail',
+          )
+        : pageKeyForRequest(
+            c,
+            'procurement-orders',
+            'procurement-orders-new',
+            'procurement-orders-edit',
+            'procurement-orders-detail',
+          );
+      const rules = await pageFieldPoliciesFor(db, principal(c), pageKey);
       c.set('fieldRules', rules);
       return rules;
     };

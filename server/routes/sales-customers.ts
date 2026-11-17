@@ -12,11 +12,14 @@ import { Hono, type Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import {
   assertFieldsWritable,
-  fieldPoliciesFor,
   redactRecord,
   type FieldPolicyView,
 } from '../providers/field-access.js';
 import { resourceFieldNames } from '../providers/field-catalog.js';
+import {
+  pageFieldPoliciesFor,
+  pageKeyForRequest,
+} from '../providers/page-field-visibility.js';
 import { createPartnerRoutes } from './procurement-suppliers.js';
 import { customerServiceToken } from '../providers/execution.js';
 
@@ -65,7 +68,7 @@ export const salesCustomerRoutes: AppApiRouteContribution<Application> =
     const fieldRules = async (c: Context<Env>) => {
       const cached = c.get('customerFieldRules');
       if (cached) return cached;
-      const rules = await fieldPoliciesFor(db, principal(c));
+      const rules = await pageFieldPoliciesFor(db, principal(c), pageKeyForRequest(c, 'sales-customers', 'sales-customers-new', 'sales-customers-edit', 'sales-customers-detail', 'sales-customers-action'));
       c.set('customerFieldRules', rules);
       return rules;
     };

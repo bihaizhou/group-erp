@@ -3,6 +3,7 @@ import { authorizationToken } from '@nocobase/app-plugin-authorization/server';
 import { databaseManagerToken } from '@nocobase/db';
 import { ServiceProvider } from '@nocobase/service-provider';
 import { AssetService, assetServiceToken } from './asset-service.js';
+import { settingsActions } from './settings-actions.js';
 
 export default class AssetsProvider extends ServiceProvider<Application> {
   public readonly name = 'group-erp/assets';
@@ -31,12 +32,7 @@ export default class AssetsProvider extends ServiceProvider<Application> {
     authz.settings.add({
       id: 'assets',
       title: { key: 'assets.settings', ns: 'group-erp' },
-      actions: [
-        { name: 'read' },
-        { name: 'manage' },
-        { name: 'readAll' },
-        { name: 'approve' },
-      ],
+      actions: settingsActions(['read', 'manage', 'readAll', 'approve']),
     });
     authz.ui.place(
       { type: 'settings', id: 'assets' },

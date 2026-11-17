@@ -103,6 +103,7 @@ export const execution = {
     cancelled: 'Closed',
   },
   company: 'Company',
+  sales: 'Sales',
   warehouse: 'Warehouse',
   destinationWarehouse: 'Destination warehouse',
   supplier: 'Supplier',

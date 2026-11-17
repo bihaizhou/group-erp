@@ -7,7 +7,6 @@ import { createPortal } from 'react-dom';
 import { PhotoField } from './photo-field.js';
 import { ApprovalPreview } from './approval-preview.js';
 import { useState, useRef, type FormEvent } from 'react';
-import { useFieldAccess } from '../../hooks/use-field-access.js';
 import { usePageFieldVisibility } from '../../components/page-field-visibility.js';
 import { useTranslation } from '@nocobase/i18n/client';
 import {
@@ -206,9 +205,7 @@ function RecordForm({
   pageKey?: string | undefined;
 }) {
   const pageFields = usePageFieldVisibility(pageKey ?? '');
-  const fieldAccess = useFieldAccess(),
-    gradeWritable =
-      fieldAccess.access('people.employee.grade', 'grade') === 'write',
+  const gradeWritable = pageFields.writable('people.employee.grade', 'grade'),
     { t } = useTranslation(),
     api = useApiClient(),
     toaster = useToaster(),

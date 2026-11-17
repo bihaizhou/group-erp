@@ -1,4 +1,7 @@
+import { useApiClient } from '@nocobase/app-client';
+import { useQueryClient } from '@tanstack/react-query';
 import { useListLocation } from '#hooks/use-list-location';
+import { prefetchAuthorizationOptions } from './authorization-options.js';
 import { useSettingsData, useRolePermission } from './hooks.js';
 import { useTranslation } from '@nocobase/i18n/client';
 import type {
@@ -6,7 +9,7 @@ import type {
   LocalizedText,
 } from '@nocobase/app-plugin-authorization/client';
 import { resolveListState } from '@nocobase/app-client';
-import { type ReactElement } from 'react';
+import { type ReactElement, useEffect } from 'react';
 import { Link, Outlet, useLocation } from 'react-router';
 import { PlusIcon } from 'lucide-react';
 import { PermissionManagementPage } from './permission-management-page.js';
@@ -20,6 +23,13 @@ import { ListFeedback, ListFeedbackActions } from '#components/list-feedback';
 export default function RolesPage(): ReactElement {
   const { t, i18n } = useTranslation();
   const { params, setParams, active } = useListLocation();
+  const api = useApiClient();
+  const queryClient = useQueryClient();
+  // The catalogue is large and slow to build; warm it while the list is open so
+  // opening or creating a role does not wait for it again.
+  useEffect(() => {
+    prefetchAuthorizationOptions(queryClient, api);
+  }, [api, queryClient]);
   const location = useLocation();
   const search = params.get('q') ?? '';
   const request = useSettingsData<{ data: readonly PermissionSet[] }>(

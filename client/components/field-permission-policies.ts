@@ -22,7 +22,7 @@ export type FieldAccess = 'hidden' | 'visible' | 'write';
 export interface FieldPolicy {
   resource: string;
   field: string;
-  access: Exclude<FieldAccess, 'hidden'>;
+  access: FieldAccess;
 }
 
 export const fieldPolicyKey = (resource: string, field: string) =>

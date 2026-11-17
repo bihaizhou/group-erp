@@ -1,4 +1,5 @@
 export const assets = {
+  settings: '资产设置',
   title: '固定资产',
   description: '登记资产、保管人和位置，跟踪领用、调拨、归还与报废。',
   create: '新建资产',

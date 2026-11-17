@@ -93,7 +93,6 @@ interface Version {
   contentVersion: number;
   createdAt: string;
 }
-import { useFieldAccess } from '../../hooks/use-field-access.js';
 import { usePageFieldVisibility } from '#components/page-field-visibility';
 
 export default function ExecutionDetail() {
@@ -121,13 +120,12 @@ export default function ExecutionDetail() {
     [historyPage, setHistoryPage] = useState(1),
     [versionPage, setVersionPage] = useState(1),
     createDocument = useExecutionCan('warehouse.documents', 'create'),
-    fieldAccess = useFieldAccess(),
     pageFields = usePageFieldVisibility(`${config.page}-detail`),
     showLine = (field: string) =>
       pageFields.visible('execution.document.line', field),
     priceVisible =
-      fieldAccess.access('execution.document.line', 'unitPrice') !== 'hidden' &&
-      fieldAccess.access('execution.document.line', 'amount') !== 'hidden',
+      pageFields.visible('execution.document.line', 'unitPrice') &&
+      pageFields.visible('execution.document.line', 'amount'),
     history = useExecutionQuery<Page<Audit>>(
       `${config.api}/${id}/history`,
       { page: historyPage, pageSize: 20 },

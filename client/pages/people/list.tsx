@@ -13,7 +13,6 @@ import {
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { ReadOnlyNotice } from '#components/read-only-notice';
-import { useFieldAccess } from '../../hooks/use-field-access.js';
 import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { StatusBadge } from '#components/status-badge';
 import { Button } from '#components/ui/button';
@@ -65,13 +64,12 @@ const peopleResources: Record<string, string> = {
 };
 
 export default function PeopleList({ kind }: { kind: Kind }) {
-  const fieldAccess = useFieldAccess(),
-    pageFields = usePageFieldVisibility(`people-${kind}`),
+  const pageFields = usePageFieldVisibility(`people-${kind}`),
     resource = `people.${peopleResources[kind]}`,
     showColumn = (field: string) => pageFields.visible(resource, field);
   const gradeVisible =
     showColumn('grade') &&
-    fieldAccess.access('people.employee.grade', 'grade') !== 'hidden';
+    pageFields.visible('people.employee.grade', 'grade');
   const { t, i18n } = useTranslation(),
     api = useApiClient(),
     location = useLocation();

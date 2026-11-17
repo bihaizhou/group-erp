@@ -20,6 +20,8 @@ import { dashboard } from './dashboard-en.js';
 import fileUi from '../extensions/nocobase-file-component-ui/locales/en-US.js';
 import agentChat from '../extensions/nocobase-agent-chat/locales/en-US.js';
 import { pageTitles } from './page-titles-en.js';
+import { supplyChain } from './supply-chain-en.js';
+import { fieldLabel } from './field-labels-en.js';
 import type { LocaleResource } from '@nocobase/i18n';
 
 import systemEnUS from './system/en-US.js';
@@ -39,6 +41,19 @@ const enUS = {
       'Read-only: confirming, approving and publishing are reserved for managers.',
   },
   actions: { ...systemEnUS.actions, signInAgain: 'Sign in again' },
+  settings: {
+    ...systemEnUS.settings,
+    permissionSearch: 'Search pages or fields',
+    discard: 'Discard',
+  },
+  permissionActions: {
+    read: 'View',
+    manage: 'Manage',
+    approve: 'Approve',
+    readAll: 'View all',
+    report: 'Reports',
+    update: 'Maintain',
+  },
   settingsHub: {
     title: 'Settings',
     description: 'Manage accounts, roles and default record scopes.',
@@ -46,17 +61,20 @@ const enUS = {
     users: 'Users',
     usersHint: 'Browse, create and deactivate accounts, reset passwords.',
     roles: 'Roles and permissions',
-    rolesHint: 'Grant field visibility and write access per page.',
+    rolesHint: 'Make fields editable, read-only or hidden on each page.',
     defaultAccess: 'Default access',
     defaultAccessHint:
       'Supplement which records existing operation grants can reach.',
   },
   permissionGuide: {
     rolesDescription:
-      'Every page is configured through its fields: open a page and tick "Visible" or "Writable" per field; unticked fields stay hidden. Back-office permissions live in the Administration tab. Save once.',
+      'Tick a page box to allow access to that page and its sub-pages. Click a page or sub-page name to set each field as Editable, Read-only or Hidden on the right. Back-office permissions live in the Administration tab. Save once.',
     pages: 'Pages & Fields',
     pageHint:
-      'Tick the box to allow access; click the page name to configure fields. "Writable" includes "Visible"; unticking it falls back to "Visible"; no ticks means hidden. A green dot marks pages with field settings.',
+      'Tick the box to allow access, including the new/edit/detail pages below it; click a page or sub-page name to set its field permissions on the right. A green dot marks pages with saved field settings, a purple dot unsaved changes.',
+    configure: 'Configure',
+    morePages: 'More pages ({{count}})',
+    listPage: 'List',
     admin: 'Administration',
     adminHint: 'Manage roles, default access, users and account security.',
     saveHint:
@@ -73,6 +91,7 @@ const enUS = {
   fieldPermission: {
     openFor: 'Configure {{page}}',
     title: '{{page}} · Fields',
+    pageTab: 'Field access',
     description:
       'Tick "Visible" for a field to appear (view only); ticking "Writable" also ticks Visible. Nothing ticked means the field stays hidden. A greyed-out "Writable" means the field can never be edited. Close when done; changes are saved with the role.',
     accessible: 'Access granted',
@@ -87,32 +106,49 @@ const enUS = {
     levelVisible: 'Visible',
     levelWrite: 'Writable',
   },
+  pageFieldPermission: {
+    description:
+      'Each page keeps its own field permissions: Editable / Read-only / Hidden. Required fields cannot be hidden.',
+    selectPageHint: 'Pick a page or sub-page on the left to set its fields.',
+    empty: 'This page has no configurable fields.',
+    field: 'Field',
+    permission: 'Permission',
+    required: 'Required',
+    editable: 'Editable',
+    readonly: 'Read-only',
+    hidden: 'Hidden',
+    modifiedRecently: 'Modified just now',
+    footnote:
+      'Only this page is affected; other pages using the same data keep their own settings.',
+    copyToPages: 'Copy to other pages',
+    copyHint:
+      'Copy this page’s field settings to the selected pages, replacing their existing settings.',
+    copyConfirm: 'Copy',
+    copied: 'Field settings copied to {{count}} pages.',
+  },
   pageFieldVisibility: {
-    open: 'Configure fields for {{page}}',
-    title: '{{page}} · page fields',
+    pageTab: 'Page display',
     description:
       'Choose which fields this page renders. This only changes the form layout for this page; it does not grant or revoke data access. Fields not listed here use the resource-level field permission.',
     show: 'Show',
     showField: 'Show {{field}} on this page',
-    saved: 'Page fields saved',
     loading: 'Loading page fields…',
     loadFailed: 'Could not load page fields.',
     readOnly: 'Read-only: you can view but not change page fields.',
     empty: 'This page has no configurable fields.',
     stagedHint:
       'Only this page is affected; other pages using the same data keep their own layout.',
-    save: 'Save page fields',
-    saveRoleFirst: 'Save the role first, then configure its page fields.',
     requiredBadge: 'Required',
     requiredField: 'Required on this page; it cannot be hidden.',
     inheritTitle: 'Follow the create page',
-    inheritHint: 'This page uses the create page field visibility by default.',
+    inheritHint:
+      'This page uses the create page field display; changing any field makes it independent.',
     overrideTitle: 'Customize this page',
     overrideHint: 'This page no longer follows the create page.',
-    overrideAction: 'Customize',
     restoreAction: 'Follow the create page',
-    expandRoutes: 'Show {{count}} more routes',
-    collapseRoutes: 'Show fewer routes',
+    pageUnsaved: 'Unsaved field changes',
+    unsavedHint:
+      '{{count}} field changes are staged; they apply to this role when you save.',
   },
   fieldCatalog: {
     date: 'Date',
@@ -172,6 +208,8 @@ const enUS = {
   org,
   erp,
   pageTitles,
+  fieldLabel,
+  supplyChain,
   // The application's copy goes here, one group per feature. A shared group such as `navigation` is extended by
   // spreading the system one first, `navigation: { ...systemEnUS.navigation, orders: 'Orders' }`, since a group
   // written here replaces the system group of the same name rather than merging with it.

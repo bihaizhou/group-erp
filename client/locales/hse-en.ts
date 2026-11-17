@@ -1,4 +1,5 @@
 export const hse = {
+  settings: 'HSE settings',
   title: 'HSE',
   overview: 'HSE overview',
   overviewDescription:

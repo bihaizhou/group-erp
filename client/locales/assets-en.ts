@@ -1,4 +1,5 @@
 export const assets = {
+  settings: 'Asset settings',
   title: 'Fixed assets',
   description:
     'Register assets, custodians and locations; track assignment, transfer, return and disposal.',

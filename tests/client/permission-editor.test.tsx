@@ -591,9 +591,7 @@ describe('application-owned page navigation', () => {
     expect(change).not.toHaveBeenCalled();
   });
 
-  it('shows inherited routes as compact chips without hints, paths or extra grants', async () => {
-    const user = userEvent.setup();
-    const openPage = vi.fn();
+  it('renders plain page rows and keeps inherited routes out of the tree', async () => {
     const section: PermissionEditorSection = {
       id: 'pages',
       title: 'Pages',
@@ -641,40 +639,121 @@ describe('application-owned page navigation', () => {
         sections={[section]}
         onEnabledChange={vi.fn()}
         onLevelChange={vi.fn()}
-        onNavigationOpen={vi.fn()}
-        onPageOpen={openPage}
       />,
     );
     expect(screen.queryByText('Follows Books')).not.toBeInTheDocument();
     expect(screen.queryByText('/books/new')).not.toBeInTheDocument();
+    expect(screen.queryByText('Books · New')).not.toBeInTheDocument();
     expect(
       screen.queryByRole('checkbox', { name: 'Books · New' }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText('New')).toBeVisible();
-    expect(screen.getByText('Edit')).toBeVisible();
-    expect(screen.queryByText('Edit / Permissions')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '+1' }));
-    expect(screen.getByText('Edit / Permissions')).toBeVisible();
-    await user.click(
+    expect(
+      screen.queryByRole('button', { name: '+1' }),
+    ).not.toBeInTheDocument();
+    // Without onPageSelect the row is a plain checkbox row, not a button.
+    expect(
+      screen.queryByRole('button', { name: /Configure Books/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Books' })).toBeChecked();
+  });
+
+  it('renders sub-page leaves with a panel and folds advanced pages', async () => {
+    const user = userEvent.setup();
+    const select = vi.fn();
+    const section: PermissionEditorSection = {
+      id: 'pages',
+      title: 'Pages',
+      groups: [
+        {
+          id: 'pages',
+          rows: [{ id: 'books', label: 'Books', enabled: true }],
+        },
+      ],
+      navigation: [
+        {
+          id: 'books-node',
+          label: 'Books',
+          rowId: 'books',
+          pageKey: 'books',
+          path: '/books',
+          children: [
+            {
+              id: 'new',
+              label: 'Books · New',
+              hint: 'Follows Books',
+              pageKey: 'books-new',
+              path: '/books/new',
+            },
+            {
+              id: 'detail',
+              label: 'Books · Detail',
+              hint: 'Follows Books',
+              pageKey: 'books-detail',
+              path: '/books/:id',
+            },
+            {
+              id: 'materials',
+              label: 'Books · New · Materials',
+              hint: 'Follows Books',
+              pageKey: 'books-new-materials',
+              path: '/books/new/materials',
+            },
+          ],
+        },
+      ],
+    };
+    render(
+      <PermissionEditor
+        sections={[section]}
+        onEnabledChange={vi.fn()}
+        onLevelChange={vi.fn()}
+        onPageSelect={select}
+        selectedPageKey={'books-new'}
+        pageDirtyKeys={new Set(['books-detail'])}
+        pageConfiguredKeys={new Set(['books-new'])}
+        advancedPageKeys={new Set(['books-new-materials'])}
+        pageLabel={(node) => node.label.replace('Books · ', '').replace(' · ', ' / ')}
+        pagePanel={<div>Panel content</div>}
+      />,
+    );
+    // The page row doubles as the 列表 leaf, with the short label.
+    const listLeaf = screen.getByRole('button', { name: 'Configure Books' });
+    expect(listLeaf).toHaveTextContent('List');
+    const newLeaf = screen.getByRole('button', {
+      name: 'Configure Books · New, Fields configured',
+    });
+    expect(newLeaf).toHaveAttribute('aria-current', 'page');
+    expect(newLeaf).toHaveTextContent('New');
+    expect(screen.getByText('Panel content')).toBeInTheDocument();
+    expect(
       screen.getByRole('button', {
-        name: 'Configure page fields for Books',
+        name: 'Configure Books · Detail, Unsaved changes',
       }),
+    ).toHaveTextContent('Detail');
+    await user.click(listLeaf);
+    expect(select).toHaveBeenLastCalledWith(
+      expect.objectContaining({ label: 'Books', pageKey: 'books' }),
     );
-    expect(openPage).toHaveBeenCalledWith(
-      expect.objectContaining({ pageKey: 'books' }),
+    // Advanced leaves live in a collapsible More group.
+    await user.click(
+      screen.getByRole('button', { name: 'Collapse More pages (1)' }),
+    );
+    expect(screen.queryByText('New / Materials')).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'Expand More pages (1)' }),
     );
     await user.click(
-      screen.getByRole('button', {
-        name: 'Configure page fields for Books · New',
-      }),
+      screen.getByRole('button', { name: 'Configure Books · New · Materials' }),
     );
-    expect(openPage).toHaveBeenCalledWith(
-      expect.objectContaining({ pageKey: 'books-new' }),
+    expect(select).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        label: 'Books · New · Materials',
+        pageKey: 'books-new-materials',
+      }),
     );
   });
 
-  it('separates keyboard disclosure, individual grants and the host form submit', async () => {
-    const user = userEvent.setup();
+  it('separates keyboard disclosure, individual grants and the host form submit', async () => {    const user = userEvent.setup();
     const change = vi.fn();
     const submit = vi.fn((event: React.FormEvent) => event.preventDefault());
     render(
@@ -1019,47 +1098,36 @@ describe('compact permission controls', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('opens every page row, including pages without configurable fields', async () => {
-    const user = userEvent.setup();
-    const open = vi.fn();
+  it('renders every page as a checkbox row, including pages without configurable fields', async () => {
     render(
       <PermissionEditor
         sections={[treeSection]}
         onEnabledChange={vi.fn()}
         onLevelChange={vi.fn()}
-        onNavigationOpen={open}
         navigationConfigured={(node) => node.label === 'Books'}
       />,
     );
     expect(screen.queryAllByRole('switch')).toHaveLength(0);
+    expect(screen.getByRole('checkbox', { name: 'Catalog' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Review loans' })).toBeVisible();
+    // Rows are plain checkbox rows; the field panel is opened by the host.
     expect(
-      screen.getByRole('button', { name: /Configure Catalog/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /Configure Review loans/ }),
-    ).toBeInTheDocument();
-    await user.click(
-      screen.getByRole('button', { name: /Configure Review loans/ }),
-    );
-    expect(open).toHaveBeenCalledWith(
-      expect.objectContaining({ label: 'Review loans', rowId: 'review' }),
-    );
+      screen.queryByRole('button', { name: /Configure/ }),
+    ).not.toBeInTheDocument();
   });
 
-  it('keeps the page access checkbox next to the field editor and marks configured fields', async () => {
+  it('keeps the page access checkbox next to the row label and marks configured fields', async () => {
     const user = userEvent.setup();
-    const open = vi.fn();
     const change = vi.fn();
     render(
       <PermissionEditor
         sections={[treeSection]}
         onEnabledChange={change}
         onLevelChange={vi.fn()}
-        onNavigationOpen={open}
         navigationConfigured={(node) => node.label === 'Books'}
       />,
     );
-    // 页面访问仍然靠复选框授予；行内按钮只负责字段配置，两者不能互相取代。
+    // 页面访问仍然靠复选框授予；行本身不再内嵌字段配置按钮。
     expect(screen.getByRole('checkbox', { name: 'Catalog' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Books' })).toBeChecked();
     expect(
@@ -1067,17 +1135,12 @@ describe('compact permission controls', () => {
     ).not.toBeChecked();
     await user.click(screen.getByRole('checkbox', { name: 'Books' }));
     expect(change).toHaveBeenCalledExactlyOnceWith('books', false);
-    await user.click(screen.getByRole('button', { name: /Configure Books/ }));
-    expect(open).toHaveBeenCalledWith(
-      expect.objectContaining({ label: 'Books', rowId: 'books' }),
-    );
     expect(
-      screen.getByRole('button', {
-        name: /Configure Books, Access granted, Fields configured/,
-      }),
-    ).toBeInTheDocument();
+      screen.queryByRole('button', { name: /Configure Books/ }),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getAllByRole('button', { name: /Access granted/ }),
-    ).toHaveLength(2);
+      document.querySelector('[title="Fields configured"]'),
+    ).not.toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Catalog' })).toBeVisible();
   });
 });

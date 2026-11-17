@@ -72,12 +72,15 @@ import {
 } from '../providers/purchase-request-model.js';
 import {
   assertFieldsWritable,
-  fieldPoliciesFor,
   redactRecord,
   redactRows,
   type FieldPolicyView,
 } from '../providers/field-access.js';
 import { resourceFieldNames } from '../providers/field-catalog.js';
+import {
+  pageFieldPoliciesFor,
+  pageKeyForRequest,
+} from '../providers/page-field-visibility.js';
 
 type Env = AuthEnv &
   AuthorizationEnv & { Variables: { purchaseAccess: PurchaseAccess } };
@@ -469,7 +472,7 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
           actor(c),
           access(c).policies,
         );
-        const policies = await fieldPoliciesFor(db, principal(c));
+        const policies = await pageFieldPoliciesFor(db, principal(c), 'procurement-requests');
         return c.json({
           ...result,
           data: redactRows(result.data, policies, HEAD_RESOURCE),
@@ -523,7 +526,7 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
       apiValidator('json', purchaseCreate),
       async (c) => {
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal(c));
+        const policies = await pageFieldPoliciesFor(db, principal(c), 'procurement-requests-new');
         await assertContentWritable(
           policies,
           input.content as unknown as Record<string, unknown>,
@@ -546,7 +549,7 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
       ),
       apiValidator('param', purchaseParams),
       async (c) => {
-        const policies = await fieldPoliciesFor(db, principal(c));
+        const policies = await pageFieldPoliciesFor(db, principal(c), pageKeyForRequest(c, 'procurement-requests-detail', 'procurement-requests-list-edit', 'procurement-requests-edit'));
         const data = await service.detail(
           c.req.valid('param').id,
           access(c).policies,
@@ -610,7 +613,7 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
       apiValidator('json', purchaseUpdate),
       async (c) => {
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal(c));
+        const policies = await pageFieldPoliciesFor(db, principal(c), pageKeyForRequest(c, 'procurement-requests-list-edit', 'procurement-requests-edit'));
         const current = await service.detail(
           c.req.valid('param').id,
           access(c).policies,
@@ -649,7 +652,7 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
       apiValidator('json', purchaseUpdate),
       async (c) => {
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal(c));
+        const policies = await pageFieldPoliciesFor(db, principal(c), 'procurement-requests-new');
         await assertContentWritable(
           policies,
           input.content as unknown as Record<string, unknown>,

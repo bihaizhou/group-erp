@@ -64,12 +64,14 @@ import {
 import {
   accessFor,
   assertFieldsWritable,
-  fieldPoliciesFor,
   redactRecord,
   redactRows,
   type FieldPolicyView,
 } from '../providers/field-access.js';
 import { resourceFieldNames } from '../providers/field-catalog.js';
+import {
+  pageFieldPoliciesFor,
+} from '../providers/page-field-visibility.js';
 
 type Env = AuthEnv & AuthorizationEnv;
 /** Field-policy resources covering the HSE catalog fields. */
@@ -353,7 +355,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       apiValidator('query', hseIncidentQuery),
       async (c) => {
         const principal = actor(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-incidents');
         const result = await service.listIncidents(
           principal,
           c.req.valid('query'),
@@ -377,7 +379,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       apiValidator('query', hseIncidentExportQuery),
       async (c) => {
         const principal = actor(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-incidents');
         const result = await service.exportIncidents(
           principal,
           c.req.valid('query'),
@@ -403,7 +405,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-incidents');
         await rejectHiddenWrites(policies, INCIDENT_RESOURCE, input);
         const created = await service.createIncident(
           principal,
@@ -429,7 +431,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       apiValidator('json', hseIncidentTransition),
       async (c) => {
         const principal = actor(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-incidents');
         const input = c.req.valid('json');
         // Some actions write catalog fields; enforce hidden-field write
         // policies before the transition runs.
@@ -460,7 +462,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
         const principal = actor(c);
         const id = c.req.valid('param').id;
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-incidents');
         if (policies.length) {
           // The update schema has no location/description fields, so diff the
           // raw body: a submitted hidden field must be rejected even though
@@ -502,7 +504,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       apiValidator('query', hseHazardQuery),
       async (c) => {
         const principal = actor(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-hazards');
         const result = await service.listHazards(
           principal,
           c.req.valid('query'),
@@ -526,7 +528,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       apiValidator('query', hseHazardExportQuery),
       async (c) => {
         const principal = actor(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-hazards');
         const result = await service.exportHazards(
           principal,
           c.req.valid('query'),
@@ -552,7 +554,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-hazards');
         await rejectHiddenWrites(policies, HAZARD_RESOURCE, input);
         const created = await service.createHazard(
           principal,
@@ -578,7 +580,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       apiValidator('json', hseHazardTransition),
       async (c) => {
         const principal = actor(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-hazards');
         const input = c.req.valid('json');
         // Some actions write catalog fields; enforce hidden-field write
         // policies before the transition runs.
@@ -605,7 +607,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
         const principal = actor(c);
         const id = c.req.valid('param').id;
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-hazards');
         if (policies.length) {
           // hseHazardUpdate has no location field; diff the raw body so a
           // submitted hidden field is rejected instead of silently stripped.
@@ -640,7 +642,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       apiValidator('query', hseCertificateQuery),
       async (c) => {
         const principal = actor(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-certificates');
         const result = await service.listCertificates(
           principal,
           c.req.valid('query'),
@@ -666,7 +668,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-certificates');
         await rejectHiddenWrites(policies, CERTIFICATE_RESOURCE, input);
         const created = await service.createCertificate(
           principal,
@@ -692,7 +694,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       apiValidator('json', hseCertificateTransition),
       async (c) => {
         const principal = actor(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-certificates');
         const input = c.req.valid('json');
         // Some actions write catalog fields; enforce hidden-field write
         // policies before the transition runs.
@@ -723,7 +725,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
         const principal = actor(c);
         const id = c.req.valid('param').id;
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-certificates');
         if (policies.length) {
           const raw = await requestBody(c);
           const previous = (await db
@@ -762,7 +764,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       apiValidator('query', hseInspectionQuery),
       async (c) => {
         const principal = actor(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-inspections');
         const result = await service.listInspections(
           principal,
           c.req.valid('query'),
@@ -788,7 +790,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-inspections');
         await rejectHiddenWrites(policies, INSPECTION_RESOURCE, input);
         const created = await service.createInspection(
           principal,
@@ -815,7 +817,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-inspections');
         await rejectHiddenWrites(policies, INSPECTION_RESOURCE, input);
         const record = await service.transitionInspection(
           principal,
@@ -842,7 +844,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-inspections');
         const previous = policies.length
           ? ((await db
               .repository('hseInspections')
@@ -875,7 +877,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       apiValidator('query', hseWorkPermitQuery),
       async (c) => {
         const principal = actor(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-work-permits');
         const result = await service.listWorkPermits(
           principal,
           c.req.valid('query'),
@@ -901,7 +903,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-work-permits');
         await rejectHiddenWrites(policies, WORK_PERMIT_RESOURCE, input);
         const created = await service.createWorkPermit(
           principal,
@@ -928,7 +930,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-work-permits');
         await rejectHiddenWrites(policies, WORK_PERMIT_RESOURCE, input);
         const record = await service.transitionWorkPermit(
           principal,
@@ -955,7 +957,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-work-permits');
         const previous = policies.length
           ? ((await db
               .repository('hseWorkPermits')
@@ -988,7 +990,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       apiValidator('query', hseTrainingRecordQuery),
       async (c) => {
         const principal = actor(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-training-records');
         const result = await service.listTrainingRecords(
           principal,
           c.req.valid('query'),
@@ -1014,7 +1016,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-training-records');
         await rejectHiddenWrites(policies, TRAINING_RESOURCE, input);
         const created = await service.createTrainingRecord(
           principal,
@@ -1041,7 +1043,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-training-records');
         const previous = policies.length
           ? ((await db
               .repository('hseTrainingRecords')
@@ -1074,7 +1076,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       apiValidator('query', hseActionQuery),
       async (c) => {
         const principal = actor(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-actions');
         const result = await service.listActions(
           principal,
           c.req.valid('query'),
@@ -1100,7 +1102,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-actions');
         await rejectHiddenWrites(policies, ACTION_RESOURCE, input);
         const created = await service.createAction(
           principal,
@@ -1127,7 +1129,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-actions');
         await rejectHiddenWrites(policies, ACTION_RESOURCE, input);
         const record = await service.transitionAction(
           principal,
@@ -1154,7 +1156,7 @@ export const hseRoutes: AppApiRouteContribution<Application> = defineApiRoutes(
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'hse-actions');
         const previous = policies.length
           ? ((await db
               .repository('hseActions')

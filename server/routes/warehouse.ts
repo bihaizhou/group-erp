@@ -25,7 +25,11 @@ import {
   type AppApiRouteContribution,
 } from '@nocobase/app-server/router';
 import { executionApiError } from './execution-error.js';
-import { fieldPoliciesFor, redactRows } from '../providers/field-access.js';
+import { redactRows } from '../providers/field-access.js';
+import {
+  pageFieldPoliciesFor,
+  pageKeyForRequest,
+} from '../providers/page-field-visibility.js';
 import type { MaterialPolicies } from '../providers/material-service.js';
 import type { ExecutionKind } from '../providers/execution-workflow.js';
 import {
@@ -194,6 +198,35 @@ export const warehouseRoutes: AppApiRouteContribution<Application> =
         copyFrom,
       );
     };
+/** Client page keys that hit one warehouse endpoint; mirrors execution/model.ts. */
+const warehousePageKeys = (
+  kind: 'stockDocuments' | 'stockTransfers' | 'stockCounts',
+): readonly [string, ...string[]] =>
+  kind === 'stockDocuments'
+    ? [
+        'warehouse-inbounds',
+        'warehouse-outbounds',
+        'warehouse-inbounds-detail',
+        'warehouse-outbounds-detail',
+        'warehouse-inbounds-new',
+        'warehouse-outbounds-new',
+        'warehouse-inbounds-edit',
+        'warehouse-outbounds-edit',
+      ]
+    : kind === 'stockTransfers'
+      ? [
+          'warehouse-transfers',
+          'warehouse-transfers-detail',
+          'warehouse-transfers-new',
+          'warehouse-transfers-edit',
+        ]
+      : [
+          'warehouse-counts',
+          'warehouse-counts-detail',
+          'warehouse-counts-new',
+          'warehouse-counts-edit',
+        ];
+
     for (const [kind, base, createSchema, updateSchema, actions] of [
       [
         'stockDocuments',
@@ -581,10 +614,14 @@ export const warehouseRoutes: AppApiRouteContribution<Application> =
             c.req.valid('param').id,
             p(c),
           );
-          const policies = await fieldPoliciesFor(records.db, {
-            type: 'user',
-            id: actor(c).id,
-          });
+          const policies = await pageFieldPoliciesFor(
+            records.db,
+            {
+              type: 'user',
+              id: actor(c).id,
+            },
+            pageKeyForRequest(c, ...warehousePageKeys(kind)),
+          );
           return c.json({
             data: {
               ...data,

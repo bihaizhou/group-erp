@@ -13,6 +13,7 @@ import {
   createLifecycleJobs,
   type LifecycleJobs,
 } from '@nocobase/lifecycle/jobs';
+import { settingsActions } from './settings-actions.js';
 import {
   ServiceProvider,
   createServiceToken,
@@ -140,7 +141,7 @@ export default class PeopleProvider extends ServiceProvider<Application> {
     authz.settings.add({
       id: 'personnel.accountBinding',
       title: { key: 'people.accountBinding', ns: 'group-erp' },
-      actions: [{ name: 'read' }, { name: 'update' }],
+      actions: settingsActions(['read', 'update']),
     });
     authz.ui.place(
       { type: 'settings', id: 'personnel.accountBinding' },
@@ -149,7 +150,7 @@ export default class PeopleProvider extends ServiceProvider<Application> {
     authz.settings.add({
       id: 'personnel.sensitive',
       title: { key: 'people.sensitive', ns: 'group-erp' },
-      actions: [{ name: 'read' }, { name: 'update' }],
+      actions: settingsActions(['read', 'update']),
     });
     authz.ui.place(
       { type: 'settings', id: 'personnel.sensitive' },

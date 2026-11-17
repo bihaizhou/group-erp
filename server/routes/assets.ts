@@ -44,11 +44,11 @@ import {
 } from '../providers/asset-service.js';
 import {
   assertFieldsWritable,
-  fieldPoliciesFor,
   redactRecord,
   redactRows,
 } from '../providers/field-access.js';
 import { resourceFieldNames } from '../providers/field-catalog.js';
+import { pageFieldPoliciesFor } from '../providers/page-field-visibility.js';
 
 type Env = AuthEnv & AuthorizationEnv;
 /** Field-policy resource covering the fixed-asset catalog fields. */
@@ -190,7 +190,7 @@ export const assetRoutes: AppApiRouteContribution<Application> =
       apiValidator('query', assetQuery),
       async (c) => {
         const principal = actor(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'assets-list');
         const result = await service.list(
           principal,
           c.req.valid('query'),
@@ -218,7 +218,7 @@ export const assetRoutes: AppApiRouteContribution<Application> =
       apiValidator('param', assetIdParams),
       async (c) => {
         const principal = actor(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'assets-list');
         return c.json({
           data: redactRecord(
             await service.detail(
@@ -246,7 +246,7 @@ export const assetRoutes: AppApiRouteContribution<Application> =
       async (c) => {
         const principal = actor(c);
         const input = c.req.valid('json');
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'assets-list');
         const catalogFields = await resourceFieldNames(db, ASSET_RESOURCE);
         assertFieldsWritable(
           policies,
@@ -279,7 +279,7 @@ export const assetRoutes: AppApiRouteContribution<Application> =
         const id = c.req.valid('param').id;
         const input = c.req.valid('json');
         const scope = await scoped(c);
-        const policies = await fieldPoliciesFor(db, principal);
+        const policies = await pageFieldPoliciesFor(db, principal, 'assets-list');
         // Reject a patch that would change a field this account may not
         // write, following the people contacts pattern: compare the patch
         // against the current record so unchanged read-only fields still save.

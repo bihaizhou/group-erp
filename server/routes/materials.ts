@@ -38,12 +38,12 @@ import {
 import type { MaterialPolicies } from '../providers/material-service.js';
 import {
   assertFieldsWritable,
-  fieldPoliciesFor,
   redactRecord,
   redactRows,
   type FieldPolicyView,
 } from '../providers/field-access.js';
 import { resourceFieldNames } from '../providers/field-catalog.js';
+import { pageFieldPoliciesFor } from '../providers/page-field-visibility.js';
 import { materialApiError } from './material-error.js';
 
 type MaterialEnv = AuthEnv &
@@ -66,6 +66,10 @@ const transitionInput = z.strictObject({
   addAlias: z.boolean().optional(),
 });
 /** Catalog resource that owns each material kind's field policies. */
+/** Client page keys per material kind; mirrors client/pages/materials/model.ts pageId. */
+const materialPageKey = (kind: (typeof materialKinds)[number]) =>
+  kind === 'skus' ? 'warehouse-materials' : `warehouse-material-${kind}`;
+
 const MATERIAL_FIELD_RESOURCE: Record<MaterialKind, string> = {
   names: 'materials.name',
   templates: 'materials.template',
@@ -336,7 +340,7 @@ export const materialRoutes: AppApiRouteContribution<Application> =
         }),
       ),
       async (c) => {
-        const policies = await fieldPoliciesFor(db, principal(c));
+        const policies = await pageFieldPoliciesFor(db, principal(c), 'warehouse-material-history');
         const result = await service.history(
           c.req.valid('query'),
           c.get('materialPolicies'),
@@ -364,7 +368,7 @@ export const materialRoutes: AppApiRouteContribution<Application> =
         }),
         apiValidator('query', materialQuery),
         async (c) => {
-          const policies = await fieldPoliciesFor(db, principal(c));
+          const policies = await pageFieldPoliciesFor(db, principal(c), materialPageKey(kind));
           const result = await service.list(
             kind,
             c.req.valid('query'),
@@ -391,7 +395,7 @@ export const materialRoutes: AppApiRouteContribution<Application> =
         }),
         apiValidator('param', param),
         async (c) => {
-          const policies = await fieldPoliciesFor(db, principal(c));
+          const policies = await pageFieldPoliciesFor(db, principal(c), `${materialPageKey(kind)}-edit`);
           const data = await service.get(
             kind,
             c.req.valid('param').id,
@@ -418,7 +422,7 @@ export const materialRoutes: AppApiRouteContribution<Application> =
         }),
         apiValidator('json', materialSchemas[kind]),
         async (c) => {
-          const policies = await fieldPoliciesFor(db, principal(c));
+          const policies = await pageFieldPoliciesFor(db, principal(c), `${materialPageKey(kind)}-new`);
           const input = c.req.valid('json') as Record<string, unknown>;
           if (policies.length)
             await assertMaterialFields(policies, kind, input);
@@ -458,7 +462,7 @@ export const materialRoutes: AppApiRouteContribution<Application> =
           }),
         ),
         async (c) => {
-          const policies = await fieldPoliciesFor(db, principal(c));
+          const policies = await pageFieldPoliciesFor(db, principal(c), `${materialPageKey(kind)}-edit`);
           const input = c.req.valid('json') as Record<string, unknown>;
           if (policies.length) {
             const previous = await service.get(
@@ -516,7 +520,7 @@ export const materialRoutes: AppApiRouteContribution<Application> =
           apiValidator('param', param),
           apiValidator('json', transitionInput),
           async (c) => {
-            const policies = await fieldPoliciesFor(db, principal(c));
+            const policies = await pageFieldPoliciesFor(db, principal(c), `${materialPageKey(kind)}-edit`);
             const data = await service.fire(
               kind,
               c.req.valid('param').id,

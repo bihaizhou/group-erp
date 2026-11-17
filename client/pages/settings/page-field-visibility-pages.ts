@@ -221,17 +221,23 @@ export const pageFieldVisibilityFields: Readonly<
       .filter((kind) => peopleFields[kind].length > 0)
       .map((kind) => [
         `people-${kind}-new`,
-        peopleFields[kind].map(
-          (field) => `people.${peopleResource(kind)}.${field.key}`,
-        ),
+        [
+          ...peopleFields[kind].map(
+            (field) => `people.${peopleResource(kind)}.${field.key}`,
+          ),
+          ...peoplePolicyFields(kind),
+        ],
       ]),
   ),
   ...Object.fromEntries(
     peopleKinds.map((kind) => [
       `people-${kind}`,
-      peopleListFields(kind).map(
-        (field) => `people.${peopleResource(kind)}.${field}`,
-      ),
+      [
+        ...peopleListFields(kind).map(
+          (field) => `people.${peopleResource(kind)}.${field}`,
+        ),
+        ...peoplePolicyFields(kind),
+      ],
     ]),
   ),
   ...Object.fromEntries(
@@ -239,9 +245,12 @@ export const pageFieldVisibilityFields: Readonly<
       .filter((kind) => kind !== 'profiles')
       .map((kind) => [
         `people-${kind}-detail`,
-        peopleFields[kind].map(
-          (field) => `people.${peopleResource(kind)}.${field.key}`,
-        ),
+        [
+          ...peopleFields[kind].map(
+            (field) => `people.${peopleResource(kind)}.${field.key}`,
+          ),
+          ...peoplePolicyFields(kind),
+        ],
       ]),
   ),
   ...Object.fromEntries(
@@ -628,6 +637,23 @@ function peopleListFields(kind: (typeof peopleKinds)[number]): string[] {
     'status',
     'updatedAt',
   ];
+}
+
+/**
+ * Policy resources (private contact data + grading) that the people pages
+ * enforce at runtime but that live outside the page's own data resource.
+ * They are appended to the declared field lists so the editor panel mirrors
+ * what the server actually enforces (e.g. legacy roles with phone/grade
+ * hidden by resource-level field policies).
+ */
+function peoplePolicyFields(kind: (typeof peopleKinds)[number]): string[] {
+  return kind === 'employees' || kind === 'profiles'
+    ? [
+        'people.employee.contact.phone',
+        'people.employee.contact.email',
+        'people.employee.grade.grade',
+      ]
+    : [];
 }
 
 function peopleResource(kind: (typeof peopleKinds)[number]): string {

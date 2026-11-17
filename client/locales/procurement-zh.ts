@@ -1,6 +1,16 @@
 import { requestUi } from './purchase-request-zh.js';
 export const procurement = {
   requestUi,
+  actions: {
+    read: '查看',
+    create: '新建',
+    update: '维护',
+    updateRelationship: '维护关联',
+    updateIdentity: '维护身份',
+    linkIdentity: '关联身份',
+    configureApplicability: '配置适用范围',
+    addRole: '添加角色',
+  },
   purchase: {
     requestGovernance: '提报物料治理',
     confirmMaterial: '确认治理物料',
@@ -21,6 +31,7 @@ export const procurement = {
     readAll: '查看全部公司采购申请',
     merge: '查看集团采购合并清单',
     reassign: '采购审核交接',
+    delegate: '委派',
     ownRequests: '本人采购申请',
     ownCompany: '本公司',
     selectedCompanies: '指定公司',

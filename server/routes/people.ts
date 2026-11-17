@@ -33,10 +33,13 @@ import { peopleServiceToken } from '../providers/people.js';
 import { databaseManagerToken } from '@nocobase/db';
 import {
   assertFieldsWritable,
-  fieldPoliciesFor,
   redactRecord,
   redactRows,
 } from '../providers/field-access.js';
+import {
+  pageFieldPoliciesFor,
+  pageKeyForRequest,
+} from '../providers/page-field-visibility.js';
 import {
   peopleKinds,
   peopleTables,
@@ -278,10 +281,10 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
         // The talent aggregation mixes several kinds, so redact the rows the
         // same way the employees/profiles list and get routes do: profile
         // rows appear both under `profiles` and inside `options.profiles`.
-        const fields = await fieldPoliciesFor(database, {
+        const fields = await pageFieldPoliciesFor(database, {
           type: 'user',
           id: who.id,
-        });
+        }, pageKeyForRequest(c, 'people-employees-detail', 'people-profiles-detail'));
         const aggregated = result as unknown as {
           person: Record<string, unknown>;
           profiles: { rows: Record<string, unknown>[] };
@@ -519,10 +522,10 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
           );
           if (kind !== 'employees' && kind !== 'profiles')
             return c.json(result);
-          const policies = await fieldPoliciesFor(database, {
+          const policies = await pageFieldPoliciesFor(database, {
             type: 'user',
             id: actor(c).id,
-          });
+          }, `people-${kind}`);
           return c.json({
             ...result,
             data: redactRows(
@@ -563,10 +566,10 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
           );
           if (kind !== 'employees' && kind !== 'profiles')
             return c.json({ data });
-          const policies = await fieldPoliciesFor(database, {
+          const policies = await pageFieldPoliciesFor(database, {
             type: 'user',
             id: actor(c).id,
-          });
+          }, `people-${kind}-detail`);
           return c.json({
             data: redactRecord(
               data as Record<string, unknown>,
@@ -795,10 +798,10 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
           c.req.valid('param').id,
           c.get('peoplePolicies'),
         );
-        const policies = await fieldPoliciesFor(database, {
+        const policies = await pageFieldPoliciesFor(database, {
           type: 'user',
           id: actor(c).id,
-        });
+        }, 'people-employees-detail');
         return c.json({
           data: redactRecord(
             data as Record<string, unknown>,
@@ -838,10 +841,10 @@ export const peopleRoutes: AppApiRouteContribution<Application> =
       async (c) => {
         const id = c.req.valid('param').id,
           input = c.req.valid('json'),
-          policies = await fieldPoliciesFor(database, {
+          policies = await pageFieldPoliciesFor(database, {
             type: 'user',
             id: actor(c).id,
-          }),
+          }, 'people-employees-detail'),
           previous = (await service.contacts(id, c.get('peoplePolicies'))) as {
             phone?: string;
             email?: string;

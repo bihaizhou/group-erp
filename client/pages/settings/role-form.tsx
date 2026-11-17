@@ -7,16 +7,16 @@ import {
   useSubmission,
   useToaster,
 } from '@nocobase/app-client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   useSettingsLeave,
   useSettingsData,
   useRolePermission,
 } from './hooks.js';
+import { useAuthorizationOptions } from './authorization-options.js';
 import { useTranslation } from '@nocobase/i18n/client';
 import {
   useAuthorizationClient,
-  type AuthorizationOptionsResponse,
   type LocalizedText,
   type PermissionGrant,
   type PermissionSet,
@@ -30,7 +30,13 @@ import {
   permissionScopeVisible,
   permissionWorkspaceCatalog,
 } from './permission-workspace.js';
-import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+} from 'react';
 import {
   useLocation,
   useNavigate,
@@ -42,39 +48,45 @@ import { RouteChildPage } from '#components/route-child-page';
 import { BackButton } from '#components/back-button';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
-import { PermissionEditor } from '#components/permission-editor';
-import { PageFieldPermissionEditor } from '#components/field-permission-editor';
-import { PageFieldVisibilityEditor } from './page-field-visibility-editor.js';
+import {
+  PermissionEditor,
+  type PermissionEditorNavigationNode,
+} from '#components/permission-editor';
 import {
   pageFieldVisibilityBaseKey,
-  pageFieldVisibilityExtraFields,
-  pageFieldVisibilityFields,
   pageFieldVisibilityRequiredFields as PAGE_REQUIRED_FIELDS,
 } from './page-field-visibility-pages.js';
-import { pageFieldVisibilityInheritedFrom } from './page-field-visibility-fallback.js';
 import {
-  buildFieldPolicies,
+  collectPageDisplays,
+  pageFieldResourcesForTarget,
+  type PageDisplayTarget,
+} from './page-settings.js';
+import {
   fieldPolicyKey,
-  type FieldAccess,
   type FieldPermissionResource,
   type FieldPolicy,
 } from '#components/field-permission-policies';
+import { PageFieldStateEditor } from './page-field-state-editor.js';
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '#components/ui/sheet';
+  valueOfState,
+  type PageFieldState,
+  type PageFieldStateValue,
+} from './page-field-state.js';
 import {
-  fieldResourcesForPage,
   pageIdFromPermissionRow,
-  pagesForFieldResource,
 } from './field-permission-pages.js';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { Label } from '#components/ui/label';
 import { Badge } from '#components/ui/badge';
+import {
+  Popover,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from '#components/ui/popover';
+import { CheckIcon, CopyIcon, MousePointerClickIcon } from 'lucide-react';
 import { ConfirmAction, SettingsError, SettingsLoading } from './shared.js';
 import { configurePermissionScopes } from './permission-filters.js';
 import {
@@ -84,20 +96,32 @@ import {
   setScope,
 } from './permissions-model.js';
 
-interface FieldPermissionPageTarget {
-  readonly id: string;
-  readonly label: string;
-  readonly path?: string | undefined;
-  readonly resources: readonly string[];
+/** One page's staged field settings; keys are `resource.field`. */
+interface PageFieldDraft {
+  readonly fields: Readonly<Record<string, PageFieldStateValue>>;
 }
 
-interface PageFieldTarget {
-  readonly pageKey: string;
-  readonly fallbackPageKey?: string | undefined;
-  readonly resourceId: string;
-  readonly label: string;
-  readonly path?: string | undefined;
-  readonly resources: readonly string[];
+const DEFAULT_STATE: Readonly<PageFieldStateValue> = {
+  visible: true,
+  writable: true,
+};
+
+const HIDDEN_STATE: Readonly<PageFieldStateValue> = {
+  visible: false,
+  writable: false,
+};
+
+/** Every pageKey below a navigation node (the node itself plus its leaves). */
+function pageKeysOfFamily(node: PermissionEditorNavigationNode): string[] {
+  const keys = node.pageKey ? [node.pageKey] : [];
+  const walk = (children: readonly PermissionEditorNavigationNode[]): void => {
+    for (const child of children) {
+      if (child.hint && child.pageKey) keys.push(child.pageKey);
+      walk(child.children ?? []);
+    }
+  };
+  walk(node.children ?? []);
+  return keys;
 }
 
 function RoleEditor(): ReactElement {
@@ -128,28 +152,15 @@ function RoleEditor(): ReactElement {
       parent.reload();
     }
   }, [request.error, parent]);
-  const options = useSettingsData<{ data: AuthorizationOptionsResponse }>(
-    'authorization/permissionSets/options',
-  );
+  const options = useAuthorizationOptions();
   const fieldCatalog = useQuery({
     retry: false,
     queryKey: ['field-policy-catalog'],
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
     queryFn: ({ signal }) =>
       api.request<{ data: { resources: FieldPermissionResource[] } }>({
         path: 'field-policies/catalog',
-        signal,
-      }),
-  });
-  const fieldPolicies = useQuery({
-    retry: false,
-    enabled: Boolean(key),
-    queryKey: ['field-policies', key],
-    queryFn: ({ signal }) =>
-      api.request<{
-        data: { policies: FieldPolicy[]; legacyDefault: boolean };
-      }>({
-        path: 'field-policies',
-        query: { permissionSetKey: key },
         signal,
       }),
   });
@@ -159,119 +170,30 @@ function RoleEditor(): ReactElement {
   const [keyDraft, setKeyDraft] = useState<string>();
   const [grantsDraft, setGrantsDraft] = useState<readonly PermissionGrant[]>();
   const [dirty, setDirty] = useState(false);
-  const [fieldDraft, setFieldDraft] = useState<Record<string, FieldAccess>>({});
   const [editingScope, setEditingScope] = useState<string>();
-  const [fieldPage, setFieldPage] = useState<FieldPermissionPageTarget>();
-  const [pageField, setPageField] = useState<PageFieldTarget>();
-  const [pageFieldDraft, setPageFieldDraft] = useState<Record<string, boolean>>(
+  const [selectedPageKey, setSelectedPageKey] = useState<string>();
+  const [pageDrafts, setPageDrafts] = useState<Record<string, PageFieldDraft>>(
     {},
   );
-  const [pageFieldBusy, setPageFieldBusy] = useState(false);
-  const [pageFieldError, setPageFieldError] = useState<unknown>();
-  const [pageFieldModeDraft, setPageFieldModeDraft] = useState<
-    'inherit' | 'override'
-  >();
-  const pageFieldVisibility = useQuery({
-    retry: false,
-    queryKey: [
-      'page-field-visibility',
-      key,
-      pageField?.pageKey,
-      pageField?.fallbackPageKey,
-    ],
-    enabled: Boolean(key && pageField),
-    queryFn: ({ signal }) =>
-      api.request<{
-        data: {
-          mode: 'independent' | 'inherit' | 'override';
-          configured: boolean;
-          inheritedFrom?: string;
-          fields: { resource: string; field: string; visible: boolean }[];
-        };
-      }>({
-        path: 'page-field-visibility',
-        query: {
-          permissionSetKey: key ?? '',
-          pageKey: pageField?.pageKey ?? '',
-          ...(pageField?.fallbackPageKey
-            ? { fallbackPageKey: pageField.fallbackPageKey }
-            : {}),
-        },
-        signal,
-      }),
-  });
-  const pageFieldMode: 'inherit' | 'override' =
-    pageFieldModeDraft ??
-    (pageFieldVisibility.data?.data.mode === 'inherit'
-      ? 'inherit'
-      : 'override');
-  const savedPageFieldVisibility = useMemo(
-    () =>
-      Object.fromEntries(
-        (pageFieldVisibility.data?.data.fields ?? []).map((row) => [
-          fieldPolicyKey(row.resource, row.field),
-          row.visible,
-        ]),
-      ),
-    [pageFieldVisibility.data],
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyBusy, setCopyBusy] = useState(false);
+  const [copySelection, setCopySelection] = useState<ReadonlySet<string>>(
+    () => new Set(),
   );
-  const pageFieldVisible = (resource: string, field: string): boolean =>
-    pageFieldDraft[fieldPolicyKey(resource, field)] ??
-    savedPageFieldVisibility[fieldPolicyKey(resource, field)] ??
-    true;
-  const pageFieldBaseKey = pageFieldVisibilityBaseKey(pageField?.pageKey);
-  const pageFieldConfigKey = pageFieldBaseKey ?? pageField?.pageKey;
-  const declaredPageFields = pageFieldConfigKey
-    ? pageFieldVisibilityFields[pageFieldConfigKey]
-    : undefined;
-  const autoPageFields = !declaredPageFields?.length;
-  const allowedPageFields = new Set(declaredPageFields ?? []);
-  const pageFieldResources = (() => {
-    if (!pageField) return [];
-    const catalog = fieldCatalog.data?.data.resources ?? [];
-    const extras = pageFieldConfigKey
-      ? (pageFieldVisibilityExtraFields[pageFieldConfigKey] ?? [])
-      : [];
-    return pageField.resources.flatMap((resourceId) => {
-      const base = catalog.find((item) => item.resource === resourceId);
-      const fields = [
-        ...(base?.fields ?? []).filter(
-          (field) =>
-            autoPageFields ||
-            allowedPageFields.has(fieldPolicyKey(resourceId, field.field)),
-        ),
-        ...extras
-          .filter((extra) => extra.resource === resourceId)
-          .map((extra) => ({
-            field: extra.field,
-            titleKey: extra.titleKey,
-            label: extra.titleKey,
-          })),
-      ].filter(
-        (field, index, all) =>
-          all.findIndex((candidate) => candidate.field === field.field) ===
-          index,
-      );
-      return fields.length === 0
-        ? []
-        : [
-            {
-              resource: resourceId,
-              titleKey: base?.titleKey ?? resourceId,
-              descriptionKey: base?.descriptionKey ?? '',
-              fields,
-            },
-          ];
-    });
-  })();
+  const queryClient = useQueryClient();
   const { session } = useAuthentication();
   const submission = useSubmission({
     scope: `${session?.user.id}:settings:role:${key}`,
   });
   const [requestBusy, setRequestBusy] = useState(false);
   const busy = requestBusy || submission.submitting;
-  const fieldDirty = Object.keys(fieldDraft).length > 0;
-  const hasChanges = dirty || fieldDirty;
+  const pageDirtyKeys = new Set(Object.keys(pageDrafts));
+  const pageFieldDirty = pageDirtyKeys.size > 0;
+  const stagedCount = Object.values(pageDrafts).reduce(
+    (sum, draft) => sum + Object.keys(draft.fields).length,
+    0,
+  );
+  const hasChanges = dirty || pageFieldDirty;
   const leave = useSettingsLeave(hasChanges, busy);
   const [error, setError] = useState<unknown>();
 
@@ -289,88 +211,6 @@ function RoleEditor(): ReactElement {
   const name = nameDraft ?? (initial ? text(initial.title ?? initial.key) : '');
   const roleKey = keyDraft ?? initial?.key ?? '';
   const grants = grantsDraft ?? initial?.grants ?? [];
-  /**
-   * The grant ladder stores only explicit grants (visible/write);
-   * `hidden` exists client-side as a marker for "explicitly cleared" so the
-   * draft can override a legacy set whose default is write. The sentinel row
-   * ($default.legacy) marks sets from before the ladder and is never a field.
-   */
-  const legacyDefault = fieldPolicies.data?.data.legacyDefault ?? false;
-  const resolveLevel = (
-    access: FieldAccess | undefined,
-  ): FieldAccess | undefined => {
-    if (access === 'hidden') return undefined;
-    // Rows written by the old three-rung editor meant the same as visible;
-    // the migration rewrites them, this just guards against stale reads.
-    if ((access as unknown as string) === 'readonly') return 'visible';
-    return access;
-  };
-  const fieldBaseline = useMemo(() => {
-    const levels: Record<string, FieldAccess> = {};
-    for (const policy of fieldPolicies.data?.data.policies ?? []) {
-      levels[fieldPolicyKey(policy.resource, policy.field)] = policy.access;
-    }
-    return levels;
-  }, [fieldPolicies.data]);
-  const fieldLevel = (
-    resource: string,
-    field: string,
-  ): FieldAccess | undefined => {
-    const levelKey = fieldPolicyKey(resource, field);
-    const draft = fieldDraft[levelKey];
-    if (draft !== undefined) return resolveLevel(draft);
-    const baseline = fieldBaseline[levelKey];
-    if (baseline !== undefined) return resolveLevel(baseline);
-    return legacyDefault ? 'write' : undefined;
-  };
-  const setFieldLevel = (
-    resource: string,
-    field: string,
-    access: FieldAccess | undefined,
-  ) => {
-    const levelKey = fieldPolicyKey(resource, field);
-    const fallback: FieldAccess | undefined =
-      fieldBaseline[levelKey] !== undefined
-        ? resolveLevel(fieldBaseline[levelKey])
-        : legacyDefault
-          ? 'write'
-          : undefined;
-    const target = resolveLevel(access);
-    setFieldDraft((current) => {
-      const next = { ...current };
-      if (target === undefined) {
-        // Clearing a field needs an explicit marker whenever it would
-        // otherwise still show from its fallback (the legacy default or a
-        // stored grant); otherwise dropping the draft key is enough.
-        if (fallback !== undefined) next[levelKey] = 'hidden';
-        else delete next[levelKey];
-      } else if (target === fallback) {
-        delete next[levelKey];
-      } else {
-        next[levelKey] = target;
-      }
-      return next;
-    });
-  };
-  const configuredPages = useMemo(() => {
-    const resources = new Set<string>();
-    for (const policy of fieldPolicies.data?.data.policies ?? []) {
-      if (policy.access !== 'write') resources.add(policy.resource);
-    }
-    const resourceIds = (fieldCatalog.data?.data.resources ?? [])
-      .map((resource) => resource.resource)
-      .sort((left, right) => right.length - left.length);
-    for (const [levelKey, access] of Object.entries(fieldDraft)) {
-      if (access !== 'visible') continue;
-      const resource = resourceIds.find((id) => levelKey.startsWith(`${id}.`));
-      if (resource) resources.add(resource);
-    }
-    const pages = new Set<string>();
-    for (const resource of resources) {
-      for (const pageId of pagesForFieldResource(resource)) pages.add(pageId);
-    }
-    return pages;
-  }, [fieldPolicies.data, fieldDraft, fieldCatalog.data]);
   const catalog = useMemo(() => {
     if (!options.data) return undefined;
     const pages = pagePermissionResources(
@@ -395,6 +235,358 @@ function RoleEditor(): ReactElement {
   };
   const originalRevisionRef = useRef<string | undefined>(undefined);
   const createdKeyRef = useRef<string | undefined>(undefined);
+  const sections = catalog
+    ? configurePermissionScopes(
+        permissionNavigationSections(
+          permissionSections(catalog, grants, text, permissionScopeVisible),
+          app.runtime.routes,
+          pagePermissionTitles,
+          (path) => t('settings.unnamedPage', { path }),
+          text,
+        ),
+        catalog,
+        grants,
+        (key, fallback) => t(key, { defaultValue: fallback ?? key }),
+        editingScope,
+        setEditingScope,
+        (id, value) => {
+          setGrantsDraft((current) => setScope(current ?? grants, id, value));
+          setDirty(true);
+        },
+        !allowed || busy,
+      ).map((section) => {
+        if (section.id === 'pages') {
+          return {
+            ...section,
+            title: t('permissionGuide.pages'),
+            description: t('permissionGuide.pageHint'),
+          };
+        }
+        if (section.id === 'configuration') {
+          return {
+            ...section,
+            title: t('permissionGuide.admin'),
+            description: t('permissionGuide.adminHint'),
+          };
+        }
+        return section;
+      })
+    : [];
+
+  /** Every page (top-level and inherited routes) addressable by pageKey. */
+  const allTargets = new Map<string, PageDisplayTarget>();
+  for (const section of sections) {
+    for (const node of section.navigation ?? []) {
+      for (const target of collectPageDisplays(node, {
+        list: t('permissionGuide.listPage'),
+        page: t('pageFieldVisibility.pageTab'),
+        new: t('permissionGuide.newPage'),
+        edit: t('permissionGuide.editPage'),
+        detail: t('permissionGuide.detailPage'),
+      })) {
+        allTargets.set(target.pageKey, target);
+      }
+    }
+  }
+  const selectedTarget = selectedPageKey
+    ? allTargets.get(selectedPageKey)
+    : undefined;
+  /** Which pages of this role already have saved field settings. */
+  const pageConfigs = useQuery({
+    retry: false,
+    enabled: Boolean(key),
+    queryKey: ['page-field-visibility-pages', key],
+    queryFn: ({ signal }) =>
+      api.request<{
+        data: { pages: { pageKey: string; configured: boolean }[] };
+      }>({
+        path: 'page-field-visibility/pages',
+        query: { permissionSetKey: key ?? '' },
+        signal,
+      }),
+  });
+  const configuredPageKeys = new Set(
+    (pageConfigs.data?.data.pages ?? [])
+      .filter((page) => page.configured)
+      .map((page) => page.pageKey),
+  );
+  /**
+   * Legacy resource-level field policies (the old 字段权限 editor). Until a
+   * page has its own saved rows, the panel mirrors them so what the editor
+   * shows matches what the server enforces for that page; saving a page
+   * materializes its rows and the server rebuilds the resource-level union.
+   */
+  const fieldPolicies = useQuery({
+    retry: false,
+    enabled: Boolean(key),
+    queryKey: ['field-policies', key],
+    queryFn: ({ signal }) =>
+      api.request<{
+        data: { policies: FieldPolicy[]; legacyDefault: boolean };
+      }>({
+        path: 'field-policies',
+        query: { permissionSetKey: key ?? '' },
+        signal,
+      }),
+  });
+  const legacyStates = Object.fromEntries(
+    (fieldPolicies.data?.data.policies ?? []).map((policy) => [
+      fieldPolicyKey(policy.resource, policy.field),
+      {
+        visible: policy.access !== 'hidden',
+        writable: policy.access === 'write',
+      } satisfies PageFieldStateValue,
+    ]),
+  );
+  const legacyDefault = fieldPolicies.data?.data.legacyDefault ?? true;
+  const pageFieldVisibility = useQuery({
+    retry: false,
+    queryKey: [
+      'page-field-visibility',
+      key,
+      selectedTarget?.pageKey,
+      selectedTarget?.fallbackPageKey,
+    ],
+    enabled: Boolean(key && selectedTarget),
+    queryFn: ({ signal }) =>
+      api.request<{
+        data: {
+          mode: 'independent' | 'inherit' | 'override';
+          configured: boolean;
+          inheritedFrom?: string;
+          fields: {
+            resource: string;
+            field: string;
+            visible: boolean;
+            writable: boolean;
+          }[];
+        };
+      }>({
+        path: 'page-field-visibility',
+        query: {
+          permissionSetKey: key ?? '',
+          pageKey: selectedTarget?.pageKey ?? '',
+          ...(selectedTarget?.fallbackPageKey
+            ? { fallbackPageKey: selectedTarget.fallbackPageKey }
+            : {}),
+        },
+        signal,
+      }),
+  });
+  /** Saved rows of the selected page (already resolved against its fallback). */
+  const savedStates = Object.fromEntries(
+    (pageFieldVisibility.data?.data.fields ?? []).map((row) => [
+      fieldPolicyKey(row.resource, row.field),
+      {
+        visible: row.visible,
+        writable: row.writable ?? row.visible,
+      } satisfies PageFieldStateValue,
+    ]),
+  );
+  const activeDraft = selectedPageKey
+    ? pageDrafts[selectedPageKey]
+    : undefined;
+  const catalogResources = fieldCatalog.data?.data.resources ?? [];
+  const pageFieldResources = selectedTarget
+    ? pageFieldResourcesForTarget(selectedTarget, catalogResources)
+    : [];
+  const pageFieldBaseKey = pageFieldVisibilityBaseKey(
+    selectedTarget?.pageKey,
+  );
+  const lockedFields = new Set(
+    PAGE_REQUIRED_FIELDS[pageFieldBaseKey ?? ''] ?? [],
+  );
+  const createPage = selectedTarget?.pageKey.endsWith('-new') ?? false;
+  const readonlyForbiddenFields = createPage ? lockedFields : undefined;
+  const neverWritableFields = new Set(
+    pageFieldResources.flatMap((resource) =>
+      resource.fields
+        .filter((field) => field.writable === false)
+        .map((field) => fieldPolicyKey(resource.resource, field.field)),
+    ),
+  );
+  const baselineOf = (fieldKey: string): PageFieldStateValue => {
+    const value =
+      savedStates[fieldKey] ??
+      legacyStates[fieldKey] ??
+      (legacyDefault ? DEFAULT_STATE : HIDDEN_STATE);
+    // Fields the catalogue marks as never writable (computed overview
+    // numbers…) can only be visible or hidden, so show them as read-only
+    // instead of offering an "editable" state the server will reject.
+    return value.visible && neverWritableFields.has(fieldKey)
+      ? { ...value, writable: false }
+      : value;
+  };
+  const stateOf = (resource: string, field: string): PageFieldStateValue =>
+    activeDraft?.fields[fieldPolicyKey(resource, field)] ??
+    baselineOf(fieldPolicyKey(resource, field));
+  const modifiedOf = (resource: string, field: string): boolean => {
+    const fieldKey = fieldPolicyKey(resource, field);
+    const draft = activeDraft?.fields[fieldKey];
+    if (!draft) return false;
+    const baseline = baselineOf(fieldKey);
+    return (
+      draft.visible !== baseline.visible || draft.writable !== baseline.writable
+    );
+  };
+  const copyCandidates = [...allTargets.values()].filter(
+    (target) =>
+      target.pageKey !== selectedTarget?.pageKey &&
+      target.resources.some((resource) =>
+        selectedTarget?.resources.includes(resource),
+      ),
+  );
+
+  const selectPage = (node: PermissionEditorNavigationNode) => {
+    const pageKey =
+      node.pageKey ?? pageIdFromPermissionRow(node.rowId) ?? undefined;
+    setSelectedPageKey(pageKey);
+  };
+
+  const changePageState = (
+    resource: string,
+    field: string,
+    state: PageFieldState,
+  ) => {
+    if (!selectedTarget || !selectedPageKey) return;
+    const fieldKey = fieldPolicyKey(resource, field);
+    setPageDrafts((current) => {
+      const existing = current[selectedPageKey]?.fields ?? Object.fromEntries(
+        pageFieldResources.flatMap((item) =>
+          item.fields.map((entry) => {
+            const entryKey = fieldPolicyKey(item.resource, entry.field);
+            return [
+              entryKey,
+              baselineOf(entryKey),
+            ] as const;
+          }),
+        ),
+      );
+      const next: Record<string, PageFieldStateValue> = {
+        ...existing,
+        [fieldKey]: valueOfState(state),
+      };
+      const pruned = Object.fromEntries(
+        Object.entries(next).filter(([entryKey, value]) => {
+          const baseline = baselineOf(entryKey);
+          return (
+            value.visible !== baseline.visible ||
+            value.writable !== baseline.writable
+          );
+        }),
+      );
+      const rest = { ...current };
+      if (Object.keys(pruned).length === 0) delete rest[selectedPageKey];
+      else rest[selectedPageKey] = { fields: pruned };
+      return rest;
+    });
+  };
+
+  const applyCopy = async () => {
+    if (!selectedTarget) return;
+    setCopyBusy(true);
+    try {
+      const sourceStates: Record<string, PageFieldStateValue> = {};
+      for (const resource of pageFieldResources) {
+        for (const field of resource.fields) {
+          sourceStates[fieldPolicyKey(resource.resource, field.field)] =
+            stateOf(resource.resource, field.field);
+        }
+      }
+      const targets = copyCandidates.filter((target) =>
+        copySelection.has(target.pageKey),
+      );
+      const fetched = key
+        ? await Promise.all(
+            targets.map((target) =>
+              api.request<{
+                data: {
+                  configured: boolean;
+                  fields: {
+                    resource: string;
+                    field: string;
+                    visible: boolean;
+                    writable: boolean;
+                  }[];
+                };
+              }>({
+                path: 'page-field-visibility',
+                query: {
+                  permissionSetKey: key,
+                  pageKey: target.pageKey,
+                  ...(target.fallbackPageKey
+                    ? { fallbackPageKey: target.fallbackPageKey }
+                    : {}),
+                },
+              }),
+            ),
+          )
+        : [];
+      setPageDrafts((current) => {
+        const next = { ...current };
+        targets.forEach((target, index) => {
+          const targetSaved = Object.fromEntries(
+            (fetched[index]?.data.fields ?? []).map((row) => [
+              fieldPolicyKey(row.resource, row.field),
+              {
+                visible: row.visible,
+                writable: row.writable ?? row.visible,
+              } satisfies PageFieldStateValue,
+            ]),
+          );
+          const resources = pageFieldResourcesForTarget(
+            target,
+            catalogResources,
+          );
+          const fields: Record<string, PageFieldStateValue> = {};
+          for (const resource of resources) {
+            for (const field of resource.fields) {
+              const fieldKey = fieldPolicyKey(resource.resource, field.field);
+              fields[fieldKey] =
+                sourceStates[fieldKey] ?? targetSaved[fieldKey] ?? DEFAULT_STATE;
+            }
+          }
+          const pruned = Object.fromEntries(
+            Object.entries(fields).filter(([fieldKey, value]) => {
+              const baseline =
+                targetSaved[fieldKey] ??
+                legacyStates[fieldKey] ??
+                (legacyDefault ? DEFAULT_STATE : HIDDEN_STATE);
+              return (
+                value.visible !== baseline.visible ||
+                value.writable !== baseline.writable
+              );
+            }),
+          );
+          if (Object.keys(pruned).length > 0) {
+            next[target.pageKey] = { fields: pruned };
+          }
+        });
+        return next;
+      });
+      toaster.show({
+        type: 'success',
+        title: t('pageFieldPermission.copied', { count: targets.length }),
+      });
+    } catch (next) {
+      setError(next);
+    } finally {
+      setCopyBusy(false);
+      setCopyOpen(false);
+      setCopySelection(new Set());
+    }
+  };
+
+  const navigationFamilyDirty = (node: PermissionEditorNavigationNode) =>
+    pageKeysOfFamily(node).some((pageKey) => pageDirtyKeys.has(pageKey));
+  const navigationFamilyConfigured = (node: PermissionEditorNavigationNode) =>
+    pageKeysOfFamily(node).some((pageKey) => configuredPageKeys.has(pageKey));
+  const advancedPageKeys = new Set(
+    [...allTargets.values()]
+      .filter((target) => target.advanced)
+      .map((target) => target.pageKey),
+  );
+
   const save = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -446,29 +638,8 @@ function RoleEditor(): ReactElement {
         );
         if (!saved) return;
         if (isCreate) createdKeyRef.current = roleKey;
-        // A newly created role has no field policies at all, which the server
-        // still treats as "allow everything". Save explicitly (possibly with
-        // an empty list) so the role enters the ladder model where nothing
-        // checked really means nothing granted.
-        if (fieldDirty || isCreate) {
-          const fieldSaved = await submission.run(
-            { key: targetKey, creating: isCreate, fieldPolicies: true },
-            (idempotencyKey) =>
-              api.request({
-                path: 'field-policies',
-                method: 'PUT',
-                json: {
-                  permissionSetKey: roleKey,
-                  requestKey: idempotencyKey,
-                  policies: buildFieldPolicies(
-                    fieldCatalog.data?.data.resources ?? [],
-                    fieldLevel,
-                  ),
-                },
-              }),
-          );
-          if (!fieldSaved) return;
-          setFieldDraft({});
+        if (pageFieldDirty) {
+          await savePageDrafts(roleKey);
         }
         setDirty(false);
         parent.reload();
@@ -490,150 +661,202 @@ function RoleEditor(): ReactElement {
       }
     })();
   };
-  const sections = catalog
-    ? configurePermissionScopes(
-        permissionNavigationSections(
-          permissionSections(catalog, grants, text, permissionScopeVisible),
-          app.runtime.routes,
-          pagePermissionTitles,
-          (path) => t('settings.unnamedPage', { path }),
-          text,
-        ),
-        catalog,
-        grants,
-        (key, fallback) => t(key, { defaultValue: fallback ?? key }),
-        editingScope,
-        setEditingScope,
-        (id, value) => {
-          setGrantsDraft((current) => setScope(current ?? grants, id, value));
-          setDirty(true);
-        },
-        !allowed || busy,
-      ).map((section) => {
-        if (section.id === 'pages') {
-          return {
-            ...section,
-            title: t('permissionGuide.pages'),
-            description: t('permissionGuide.pageHint'),
-          };
-        }
-        if (section.id === 'configuration') {
-          return {
-            ...section,
-            title: t('permissionGuide.admin'),
-            description: t('permissionGuide.adminHint'),
-          };
-        }
-        return section;
-      })
-    : [];
 
-  /** Labels exactly as the page tree renders them, used for shared-resource notes. */
-  const pageLabels = useMemo(() => {
-    const labels = new Map<string, string>();
-    const pages = pagePermissionResources(
-      app.runtime.routes,
-      pagePermissionTitles,
-      (path) => t('settings.unnamedPage', { path }),
-    );
-    for (const page of pages) {
-      labels.set(
-        page.id,
-        typeof page.title === 'string'
-          ? page.title
-          : t(page.title.key, {
-              ns: page.title.ns,
-              defaultValue: page.title.defaultValue ?? page.title.key,
-            }),
-      );
-    }
-    return labels;
-  }, [app, t]);
-
-  const sharedPages = useMemo(() => {
-    if (!fieldPage) return {};
-    return Object.fromEntries(
-      fieldPage.resources.map((resource) => [
-        resource,
-        pagesForFieldResource(resource)
-          .filter((pageId) => pageId !== fieldPage.id)
-          .map((pageId) => pageLabels.get(pageId) ?? pageId),
-      ]),
-    );
-  }, [fieldPage, pageLabels]);
-
-  const changeFieldLevel = (
-    resource: string,
-    field: string,
-    access: FieldAccess | undefined,
-  ) => {
-    setFieldLevel(resource, field, access);
-  };
-
-  const openPageField = (node: {
-    pageKey?: string | undefined;
-    resourceId?: string | undefined;
-    dataResources?: readonly string[] | undefined;
-    label: string;
-    path?: string | undefined;
-  }) => {
-    if (!node.pageKey || !node.resourceId) return;
-    setPageField({
-      pageKey: node.pageKey,
-      fallbackPageKey: pageFieldVisibilityInheritedFrom(node.pageKey),
-      resourceId: node.resourceId,
-      label: node.label,
-      path: node.path,
-      resources:
-        node.dataResources && node.dataResources.length > 0
-          ? node.dataResources
-          : fieldResourcesForPage(node.resourceId),
-    });
-    setPageFieldDraft({});
-    setPageFieldModeDraft(undefined);
-    setPageFieldError(undefined);
-  };
-
-  const savePageFields = async () => {
-    if (!pageField || !key) return;
-    setPageFieldBusy(true);
-    setPageFieldError(undefined);
-    try {
-      const baseKey = pageFieldConfigKey ?? pageField.pageKey;
+  const savePageDrafts = async (permissionSetKey: string) => {
+    for (const [pageKey, draft] of Object.entries(pageDrafts)) {
+      const target = allTargets.get(pageKey);
+      if (!target) continue;
+      const resources = pageFieldResourcesForTarget(target, catalogResources);
+      const baseKey = pageFieldVisibilityBaseKey(pageKey) ?? pageKey;
       const required = new Set(PAGE_REQUIRED_FIELDS[baseKey] ?? []);
-      const fields = pageFieldResources.flatMap((resource) =>
-        resource.fields.map((field) => ({
-          resource: resource.resource,
-          field: field.field,
-          visible: required.has(fieldPolicyKey(resource.resource, field.field))
-            ? true
-            : pageFieldVisible(resource.resource, field.field),
-        })),
+      const targetCreate = pageKey.endsWith('-new');
+      const fields = resources.flatMap((resource) =>
+        resource.fields.map((field) => {
+          const fieldKey = fieldPolicyKey(resource.resource, field.field);
+          const value = draft.fields[fieldKey] ?? DEFAULT_STATE;
+          return {
+            resource: resource.resource,
+            field: field.field,
+            visible: required.has(fieldKey) ? true : value.visible,
+            writable:
+              field.writable === false
+                ? false
+                : required.has(fieldKey) && targetCreate
+                  ? true
+                  : value.writable,
+          };
+        }),
       );
       await api.request({
         path: 'page-field-visibility',
         method: 'PUT',
         json: {
-          permissionSetKey: key,
-          pageKey: pageField.pageKey,
-          ...(pageField.fallbackPageKey
-            ? { fallbackPageKey: pageField.fallbackPageKey }
+          permissionSetKey,
+          pageKey,
+          ...(target.fallbackPageKey
+            ? { fallbackPageKey: target.fallbackPageKey }
             : {}),
-          mode: pageFieldMode,
-          fields: pageFieldMode === 'inherit' ? [] : fields,
+          mode: 'override',
+          fields,
         },
       });
-      toaster.show({
-        type: 'success',
-        title: t('pageFieldVisibility.saved'),
-      });
-      setPageField(undefined);
-    } catch (next) {
-      setPageFieldError(next);
-    } finally {
-      setPageFieldBusy(false);
     }
+    await queryClient.invalidateQueries({
+      queryKey: ['page-field-visibility', permissionSetKey],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ['page-field-visibility-pages', permissionSetKey],
+    });
+    setPageDrafts({});
   };
+
+  const pagePanelHeader = selectedTarget ? (
+    <div className='min-w-0'>
+      <h2 className='text-sm font-medium'>{selectedTarget.label}</h2>
+      {selectedTarget.path && (
+        <code className='block text-xs text-muted-foreground [overflow-wrap:anywhere]'>
+          {selectedTarget.path}
+        </code>
+      )}
+    </div>
+  ) : null;
+
+  const pagePanel = (
+    <div
+      data-slot='page-field-panel'
+      className='flex min-h-[min(62dvh,46rem)] flex-col rounded-lg border bg-card p-4'
+    >
+      {!selectedTarget ? (
+        <div className='flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center'>
+          <MousePointerClickIcon
+            aria-hidden
+            className='size-5 text-muted-foreground/70'
+          />
+          <p className='max-w-64 text-sm text-muted-foreground'>
+            {t('pageFieldPermission.selectPageHint')}
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className='flex flex-wrap items-start justify-between gap-3'>
+            {pagePanelHeader}
+            {allowed && copyCandidates.length > 0 && (
+              <Popover open={copyOpen} onOpenChange={setCopyOpen}>
+                <PopoverTrigger
+                  render={
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='sm'
+                      className='shrink-0 gap-1'
+                      disabled={copyBusy}
+                    />
+                  }
+                >
+                  <CopyIcon className='size-3.5' />
+                  {t('pageFieldPermission.copyToPages')}
+                </PopoverTrigger>
+                <PopoverContent align='end' className='max-h-80 w-72'>
+                  <PopoverHeader>
+                    <PopoverTitle>
+                      {t('pageFieldPermission.copyToPages')}
+                    </PopoverTitle>
+                    <p className='text-xs text-muted-foreground'>
+                      {t('pageFieldPermission.copyHint')}
+                    </p>
+                  </PopoverHeader>
+                  <div className='grid gap-0.5 overflow-y-auto'>
+                    {copyCandidates.map((target) => {
+                      const checked = copySelection.has(target.pageKey);
+                      return (
+                        <button
+                          key={target.pageKey}
+                          type='button'
+                          role='checkbox'
+                          aria-checked={checked}
+                          className='flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted'
+                          onClick={() =>
+                            setCopySelection((current) => {
+                              const next = new Set(current);
+                              if (checked) next.delete(target.pageKey);
+                              else next.add(target.pageKey);
+                              return next;
+                            })
+                          }
+                        >
+                          <span
+                            aria-hidden
+                            className='flex size-4 shrink-0 items-center justify-center rounded-[min(var(--radius-md),10px)] border'
+                          >
+                            {checked && <CheckIcon className='size-3' />}
+                          </span>
+                          <span className='min-w-0 truncate'>
+                            {target.tabLabel}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className='flex justify-end'>
+                    <Button
+                      type='button'
+                      size='sm'
+                      disabled={copyBusy || copySelection.size === 0}
+                      onClick={() => void applyCopy()}
+                    >
+                      {t('pageFieldPermission.copyConfirm')}
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
+          <p className='mb-3 mt-1 text-xs leading-5 text-muted-foreground'>
+            {t('pageFieldPermission.description')}
+          </p>
+          {fieldCatalog.isError ||
+          pageFieldVisibility.isError ||
+          fieldPolicies.isError ? (
+            <SettingsError
+              error={
+                fieldCatalog.error ??
+                pageFieldVisibility.error ??
+                fieldPolicies.error
+              }
+              retry={() => {
+                void fieldCatalog.refetch();
+                void pageFieldVisibility.refetch();
+                void fieldPolicies.refetch();
+              }}
+              inline
+            />
+          ) : fieldCatalog.isPending ||
+            (Boolean(key && selectedTarget) && pageFieldVisibility.isPending) ||
+            (Boolean(key) && fieldPolicies.isPending) ? (
+            <SettingsLoading />
+          ) : pageFieldResources.length === 0 ? (
+            <p className='text-sm text-muted-foreground'>
+              {t('pageFieldPermission.empty')}
+            </p>
+          ) : (
+            <PageFieldStateEditor
+              resources={pageFieldResources}
+              stateOf={stateOf}
+              onChange={changePageState}
+              lockedFields={lockedFields}
+              readonlyForbiddenFields={readonlyForbiddenFields}
+              neverWritableFields={neverWritableFields}
+              modifiedOf={modifiedOf}
+              readOnly={!allowed || busy}
+            />
+          )}
+          <p className='mt-3 text-xs text-muted-foreground'>
+            {t('pageFieldPermission.footnote')}
+          </p>
+        </>
+      )}
+    </div>
+  );
 
   return (
     <RouteChildPage>
@@ -649,7 +872,7 @@ function RoleEditor(): ReactElement {
           }
         />
         <SettingsError error={request.error} retry={request.reload} />
-        <SettingsError error={options.error} retry={options.reload} />
+        <SettingsError error={options.error} retry={() => void options.refetch()} />
         {error instanceof Error &&
           'status' in error &&
           error.status === 409 && (
@@ -657,7 +880,7 @@ function RoleEditor(): ReactElement {
               {t('settings.reload')}
             </Button>
           )}
-        {(request.loading && !creating) || options.loading ? (
+        {(request.loading && !creating) || options.isPending ? (
           <SettingsLoading />
         ) : (
           !request.error &&
@@ -749,21 +972,17 @@ function RoleEditor(): ReactElement {
                 <PermissionEditor
                   sections={sections}
                   readOnly={!allowed || busy}
-                  onPageOpen={openPageField}
-                  onNavigationOpen={(node) => {
-                    const pageId = pageIdFromPermissionRow(node.rowId);
-                    if (!pageId) return;
-                    setFieldPage({
-                      id: pageId,
-                      label: node.label,
-                      path: node.path,
-                      resources: fieldResourcesForPage(pageId),
-                    });
-                  }}
-                  navigationConfigured={(node) => {
-                    const pageId = pageIdFromPermissionRow(node.rowId);
-                    return pageId ? configuredPages.has(pageId) : false;
-                  }}
+                  onPageSelect={selectPage}
+                  selectedPageKey={selectedPageKey}
+                  navigationConfigured={navigationFamilyConfigured}
+                  navigationDirty={navigationFamilyDirty}
+                  pageDirtyKeys={pageDirtyKeys}
+                  pageConfiguredKeys={configuredPageKeys}
+                  advancedPageKeys={advancedPageKeys}
+                  pagePanel={pagePanel}
+                  pageLabel={(node) =>
+                    allTargets.get(node.pageKey ?? '')?.tabLabel ?? node.label
+                  }
                   labels={{
                     dataRanges: (count) => t('settings.dataRanges', { count }),
                     scopeExplanation: t('settings.scopeExplanation'),
@@ -794,13 +1013,13 @@ function RoleEditor(): ReactElement {
                       t('settings.collapsePermissionGroup', { name }),
                     openPage: (name) =>
                       t('fieldPermission.openFor', { page: name }),
-                    openPageFields: (name) =>
-                      t('pageFieldVisibility.open', { page: name }),
-                    expandRoutes: (count) =>
-                      t('pageFieldVisibility.expandRoutes', { count }),
-                    collapseRoutes: t('pageFieldVisibility.collapseRoutes'),
+                    configure: t('permissionGuide.configure'),
                     fieldsConfigured: t('fieldPermission.configured'),
                     accessGranted: t('fieldPermission.accessible'),
+                    pageUnsaved: t('pageFieldVisibility.pageUnsaved'),
+                    morePages: (count) =>
+                      t('permissionGuide.morePages', { count }),
+                    listPage: t('permissionGuide.listPage'),
                   }}
                   onEnabledChange={(id, enabled) => {
                     if (!catalog) return;
@@ -822,211 +1041,36 @@ function RoleEditor(): ReactElement {
                     setDirty(true);
                   }}
                 />
-                <div className='sticky bottom-0 flex justify-end gap-2 border-t bg-background py-4 pr-16'>
-                  <Button
-                    variant='outline'
-                    disabled={busy}
-                    onClick={() => void navigate(closeTo)}
-                  >
-                    {t('settings.cancel')}
-                  </Button>
-                  {allowed && (
-                    <Button type='submit' disabled={busy || !hasChanges}>
-                      {t(busy ? 'settings.saving' : 'settings.save')}
+                <div className='sticky bottom-0 flex flex-wrap items-center justify-between gap-2 border-t bg-background py-4 pr-16'>
+                  <span className='flex items-center gap-2 text-xs text-muted-foreground'>
+                    {pageFieldDirty && (
+                      <span
+                        aria-hidden
+                        className='size-2 shrink-0 rounded-full bg-primary'
+                      />
+                    )}
+                    {pageFieldDirty
+                      ? t('pageFieldVisibility.unsavedHint', {
+                          count: stagedCount,
+                        })
+                      : t('permissionGuide.saveHint')}
+                  </span>
+                  <div className='flex justify-end gap-2'>
+                    <Button
+                      variant='outline'
+                      disabled={busy}
+                      onClick={() => setReloadConfirm(true)}
+                    >
+                      {t('settings.discard')}
                     </Button>
-                  )}
+                    {allowed && (
+                      <Button type='submit' disabled={busy || !hasChanges}>
+                        {t(busy ? 'settings.saving' : 'settings.save')}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </FeedbackForm>
-              {pageField && (
-                <Sheet
-                  open
-                  onOpenChange={(open) => {
-                    if (!open) setPageField(undefined);
-                  }}
-                >
-                  <SheetContent className='data-[side=right]:sm:max-w-4xl gap-0 flex flex-col'>
-                    <SheetHeader className='border-b pr-12'>
-                      <SheetTitle>
-                        {t('pageFieldVisibility.title', {
-                          page: pageField.label,
-                        })}
-                      </SheetTitle>
-                      <SheetDescription className='space-y-1'>
-                        {pageField.path && (
-                          <code className='block text-xs [overflow-wrap:anywhere]'>
-                            {pageField.path}
-                          </code>
-                        )}
-                        <span className='block'>
-                          {t('pageFieldVisibility.description')}
-                        </span>
-                      </SheetDescription>
-                    </SheetHeader>
-                    <div className='min-h-0 flex-1 overflow-y-auto p-4'>
-                      {pageField.fallbackPageKey && (
-                        <div className='mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/30 p-3'>
-                          <div className='space-y-1'>
-                            <p className='text-sm font-medium'>
-                              {t(
-                                pageFieldMode === 'inherit'
-                                  ? 'pageFieldVisibility.inheritTitle'
-                                  : 'pageFieldVisibility.overrideTitle',
-                              )}
-                            </p>
-                            <p className='text-xs text-muted-foreground'>
-                              {t(
-                                pageFieldMode === 'inherit'
-                                  ? 'pageFieldVisibility.inheritHint'
-                                  : 'pageFieldVisibility.overrideHint',
-                              )}
-                            </p>
-                          </div>
-                          {allowed && !creating && (
-                            <Button
-                              type='button'
-                              variant='outline'
-                              onClick={() => {
-                                setPageFieldModeDraft(
-                                  pageFieldMode === 'inherit'
-                                    ? 'override'
-                                    : 'inherit',
-                                );
-                                setPageFieldDraft({});
-                              }}
-                            >
-                              {t(
-                                pageFieldMode === 'inherit'
-                                  ? 'pageFieldVisibility.overrideAction'
-                                  : 'pageFieldVisibility.restoreAction',
-                              )}
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                      <PageFieldVisibilityEditor
-                        resources={pageFieldResources}
-                        visibleOf={pageFieldVisible}
-                        lockedFields={
-                          new Set(
-                            PAGE_REQUIRED_FIELDS[
-                              pageFieldBaseKey ?? pageField.pageKey
-                            ] ?? [],
-                          )
-                        }
-                        onChange={(resource, field, visible) =>
-                          setPageFieldDraft((current) => ({
-                            ...current,
-                            [fieldPolicyKey(resource, field)]: visible,
-                          }))
-                        }
-                        readOnly={
-                          !allowed || creating || pageFieldMode === 'inherit'
-                        }
-                        loading={
-                          fieldCatalog.isPending ||
-                          (Boolean(key) && pageFieldVisibility.isPending)
-                        }
-                        failed={
-                          fieldCatalog.isError || pageFieldVisibility.isError
-                        }
-                      />
-                      {creating && (
-                        <p className='mt-4 text-xs text-muted-foreground'>
-                          {t('pageFieldVisibility.saveRoleFirst')}
-                        </p>
-                      )}
-                      {Boolean(pageFieldError) && (
-                        <div className='mt-4'>
-                          <SettingsError error={pageFieldError} />
-                        </div>
-                      )}
-                    </div>
-                    <div className='flex flex-wrap items-center justify-between gap-3 border-t p-4'>
-                      <span className='text-xs text-muted-foreground'>
-                        {t('pageFieldVisibility.stagedHint')}
-                      </span>
-                      <div className='flex gap-2'>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          onClick={() => setPageField(undefined)}
-                        >
-                          {t('settings.cancel')}
-                        </Button>
-                        <Button
-                          type='button'
-                          disabled={creating || pageFieldBusy || !allowed}
-                          onClick={() => void savePageFields()}
-                        >
-                          {t(
-                            pageFieldBusy
-                              ? 'settings.saving'
-                              : 'pageFieldVisibility.save',
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  </SheetContent>
-                </Sheet>
-              )}
-              {fieldPage && (
-                <Sheet
-                  open
-                  onOpenChange={(open) => {
-                    if (!open) setFieldPage(undefined);
-                  }}
-                >
-                  <SheetContent className='data-[side=right]:sm:max-w-4xl gap-0 flex flex-col'>
-                    <SheetHeader className='border-b pr-12'>
-                      <SheetTitle>
-                        {t('fieldPermission.title', {
-                          page: fieldPage.label,
-                        })}
-                      </SheetTitle>
-                      <SheetDescription className='space-y-1'>
-                        {fieldPage.path && (
-                          <code className='block text-xs [overflow-wrap:anywhere]'>
-                            {fieldPage.path}
-                          </code>
-                        )}
-                        <span className='block'>
-                          {t('fieldPermission.description')}
-                        </span>
-                      </SheetDescription>
-                    </SheetHeader>
-                    <div className='min-h-0 flex-1 overflow-y-auto p-4'>
-                      <PageFieldPermissionEditor
-                        resources={(
-                          fieldCatalog.data?.data.resources ?? []
-                        ).filter((resource) =>
-                          fieldPage.resources.includes(resource.resource),
-                        )}
-                        levelOf={fieldLevel}
-                        onChange={changeFieldLevel}
-                        sharedPages={sharedPages}
-                        readOnly={!allowed || busy}
-                        loading={
-                          fieldCatalog.isPending ||
-                          (Boolean(key) && fieldPolicies.isPending)
-                        }
-                        failed={fieldCatalog.isError || fieldPolicies.isError}
-                      />
-                    </div>
-                    <div className='flex flex-wrap items-center justify-between gap-3 border-t p-4'>
-                      <span className='text-xs text-muted-foreground'>
-                        {t('fieldPermission.stagedHint')}
-                      </span>
-                      <Button
-                        type='button'
-                        variant='outline'
-                        onClick={() => setFieldPage(undefined)}
-                      >
-                        {t('fieldPermission.done')}
-                      </Button>
-                    </div>
-                  </SheetContent>
-                </Sheet>
-              )}
             </>
           )
         )}
@@ -1041,7 +1085,8 @@ function RoleEditor(): ReactElement {
             setNameDraft(undefined);
             setKeyDraft(undefined);
             setGrantsDraft(undefined);
-            setFieldDraft({});
+            setPageDrafts({});
+            setSelectedPageKey(undefined);
             setDirty(false);
             setError(undefined);
             setReloadConfirm(false);

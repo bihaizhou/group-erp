@@ -76,12 +76,15 @@ import {
 } from '../providers/issue-request-model.js';
 import {
   assertFieldsWritable,
-  fieldPoliciesFor,
   redactRecord,
   redactRows,
   type FieldPolicyView,
 } from '../providers/field-access.js';
 import { resourceFieldNames } from '../providers/field-catalog.js';
+import {
+  pageFieldPoliciesFor,
+  pageKeyForRequest,
+} from '../providers/page-field-visibility.js';
 
 type Env = AuthEnv &
   AuthorizationEnv & { Variables: { issueAccess: IssueAccess } };
@@ -500,7 +503,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
       ),
       apiValidator('query', issueQuery),
       async (c) => {
-        const policies = await fieldPoliciesFor(db, principal(c));
+        const policies = await pageFieldPoliciesFor(db, principal(c), 'requisitions-requests');
         const result = await service.list(
           c.req.valid('query'),
           actor(c),
@@ -528,7 +531,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
       ),
       apiValidator('json', issueCreate),
       async (c) => {
-        const policies = await fieldPoliciesFor(db, principal(c));
+        const policies = await pageFieldPoliciesFor(db, principal(c), 'requisitions-requests-new');
         const input = c.req.valid('json');
         if (policies.length)
           await assertContentWritable(
@@ -557,7 +560,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
       ),
       apiValidator('param', issueParams),
       async (c) => {
-        const policies = await fieldPoliciesFor(db, principal(c));
+        const policies = await pageFieldPoliciesFor(db, principal(c), 'requisitions-requests-detail');
         const data = await service.detail(
           c.req.valid('param').id,
           access(c).policies,
@@ -601,7 +604,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
       apiValidator('param', issueParams),
       apiValidator('json', issueUpdate),
       async (c) => {
-        const policies = await fieldPoliciesFor(db, principal(c));
+        const policies = await pageFieldPoliciesFor(db, principal(c), pageKeyForRequest(c, 'requisitions-requests-list-edit', 'requisitions-requests-edit'));
         const input = c.req.valid('json');
         if (policies.length) {
           const current = await service.detail(
@@ -641,7 +644,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
       apiValidator('param', issueParams),
       apiValidator('json', issueUpdate),
       async (c) => {
-        const policies = await fieldPoliciesFor(db, principal(c));
+        const policies = await pageFieldPoliciesFor(db, principal(c), 'requisitions-requests-new');
         const input = c.req.valid('json');
         if (policies.length)
           await assertContentWritable(
@@ -677,7 +680,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
       apiValidator('param', issueParams),
       apiValidator('json', issueReceive),
       async (c) => {
-        const policies = await fieldPoliciesFor(db, principal(c));
+        const policies = await pageFieldPoliciesFor(db, principal(c), 'requisitions-requests-action');
         const data = await service.receive(
           c.req.valid('param').id,
           c.req.valid('json'),
@@ -718,7 +721,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
         apiValidator('param', issueParams),
         apiValidator('json', issueAction.omit({ transition: true })),
         async (c) => {
-          const policies = await fieldPoliciesFor(db, principal(c));
+          const policies = await pageFieldPoliciesFor(db, principal(c), 'requisitions-requests-action');
           const data = await service.fire(
             c.req.valid('param').id,
             { ...c.req.valid('json'), transition },
@@ -861,7 +864,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
       ),
       apiValidator('query', issuePurposeQuery),
       async (c) => {
-        const policies = await fieldPoliciesFor(db, principal(c));
+        const policies = await pageFieldPoliciesFor(db, principal(c), 'requisitions-purposes');
         const result = await purposeService.list(
           c.req.valid('query'),
           access(c).policies,
@@ -888,7 +891,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
       ),
       apiValidator('json', issuePurposeCreate),
       async (c) => {
-        const policies = await fieldPoliciesFor(db, principal(c));
+        const policies = await pageFieldPoliciesFor(db, principal(c), 'requisitions-purposes-new');
         const input = c.req.valid('json');
         if (policies.length)
           await assertPurposeFields(
@@ -923,7 +926,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
       ),
       apiValidator('param', issueParams),
       async (c) => {
-        const policies = await fieldPoliciesFor(db, principal(c));
+        const policies = await pageFieldPoliciesFor(db, principal(c), 'requisitions-purposes-detail');
         const data = await purposeService.detail(
           c.req.valid('param').id,
           access(c).policies,
@@ -949,7 +952,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
       apiValidator('param', issueParams),
       apiValidator('json', issuePurposeUpdate),
       async (c) => {
-        const policies = await fieldPoliciesFor(db, principal(c));
+        const policies = await pageFieldPoliciesFor(db, principal(c), pageKeyForRequest(c, 'requisitions-purposes-edit', 'requisitions-purposes-detail'));
         const input = c.req.valid('json');
         if (policies.length)
           await assertPurposeFields(
@@ -984,7 +987,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
         apiValidator('param', issueParams),
         apiValidator('json', issuePurposeMutation),
         async (c) => {
-          const policies = await fieldPoliciesFor(db, principal(c));
+          const policies = await pageFieldPoliciesFor(db, principal(c), 'requisitions-purposes-action');
           const data = await purposeService.save(
             c.req.valid('param').id,
             { ...c.req.valid('json'), transition },

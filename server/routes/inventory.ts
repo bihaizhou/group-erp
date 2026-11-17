@@ -12,7 +12,8 @@ import {
 } from '@nocobase/app-plugin-authorization/server';
 import type { Application } from '@nocobase/app-server/application';
 import { databaseManagerToken } from '@nocobase/db';
-import { fieldPoliciesFor, redactRows } from '../providers/field-access.js';
+import { redactRows } from '../providers/field-access.js';
+import { pageFieldPoliciesFor } from '../providers/page-field-visibility.js';
 import {
   defineApiRoutes,
   apiValidator,
@@ -180,10 +181,10 @@ export const inventoryRoutes: AppApiRouteContribution<Application> =
       apiValidator('query', inventoryQuery),
       async (c) => {
         const result = await service.list(c.req.valid('query'), p(c));
-        const policies = await fieldPoliciesFor(db, {
+        const policies = await pageFieldPoliciesFor(db, {
           type: 'user',
           id: actor(c).id,
-        });
+        }, 'warehouse-inventory');
         return c.json({
           ...result,
           data: redactRows(

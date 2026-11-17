@@ -8,7 +8,6 @@ import type {
 } from '#components/permission-editor';
 import type { RouteNavigationItem } from '../../routing/route-navigation.js';
 import { pageDataResourcesFor } from '../../routing/page-data-resources.js';
-import { fieldResourcesForPage } from './field-permission-pages.js';
 
 /** Application route names are stable within their owner; labels never change stored grants. */
 export type PagePermissionTitles = Readonly<Record<string, string>>;
@@ -89,13 +88,13 @@ export function configurationResources(
 }
 
 /** The business page tree excludes system settings, whose original grants are configured in their own category. */
-function pageKeyFor(
-  routeName: string,
-  resourceId: string | undefined,
-): string | undefined {
-  const declared = pageDataResourcesFor(routeName);
-  const resources = declared ?? fieldResourcesForPage(resourceId);
-  return resources.length > 0 ? routeName : undefined;
+function pageKeyFor(route: AppClientRegisteredRoute): string | undefined {
+  // Every real page keeps its own page key, even when it has no catalogue
+  // fields yet: the permission editor still lists it (and its sub-pages) so
+  // access can be granted, and the field panel explains that there is
+  // nothing to configure. Field resources are resolved by the editor when it
+  // builds the page targets.
+  return route.componentLoader ? route.name : undefined;
 }
 
 export function pagePermissionNavigation(
@@ -149,8 +148,9 @@ export function pagePermissionNavigation(
           ? permissionRowId(resource, 'access')
           : undefined;
       if (rowId && resource) seen.add(resource.id);
-      // 子页面（新建/编辑/详情）不单独授权，随上级页面开放；仍要出现在树里，
-      // 否则权限编辑器的页面清单与真实路由不一致。只读行没有 rowId。
+      // 子页面（新建/编辑/详情）不单独授权，随上级页面开放；它们作为页面行
+      // 节点的子项保留，供配置抽屉生成页面页签，但不在权限树中单独成行。
+      // 只读行没有 rowId。
       const inherited =
         !rowId &&
         Boolean(route.componentLoader) &&
@@ -182,7 +182,7 @@ export function pagePermissionNavigation(
           id: `menu:${route.packageName}:${route.id}:${route.path}`,
           label,
           rowId,
-          pageKey: pageKeyFor(route.name, resource?.id),
+          pageKey: pageKeyFor(route),
           resourceId: resource?.id,
           dataResources: pageDataResourcesFor(route.name),
           ...(inherited

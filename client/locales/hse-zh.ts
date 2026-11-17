@@ -1,4 +1,5 @@
 export const hse = {
+  settings: '安全环保设置',
   title: '安环',
   overview: '安环总览',
   overviewDescription: '按数据范围汇总事件、隐患和证照到期情况。',

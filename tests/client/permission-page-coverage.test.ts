@@ -94,7 +94,7 @@ describe('permission editor covers every page', () => {
     ).toEqual([]);
   });
 
-  it('only opens the field editor when the page owns field resources', () => {
+  it('opens the field panel for every page, even when it has no field resources yet', () => {
     const navigation = pagePermissionNavigation(
       application.routes,
       pagePermissionTitles,
@@ -115,7 +115,7 @@ describe('permission editor covers every page', () => {
       }
       return undefined;
     };
-    expect(find(navigation)?.pageKey).toBeUndefined();
+    expect(find(navigation)?.pageKey).toBe('finance-overview');
     expect(find(navigation)?.path).toBe('/functions/finance');
   });
 

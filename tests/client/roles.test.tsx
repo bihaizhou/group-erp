@@ -58,12 +58,16 @@ it('keeps the standard role table sorted, searchable and linked to the current q
     name: 'Roles and permissions',
   });
   const table = within(region).getByRole('table');
-  expect(within(table).getAllByRole('columnheader')).toHaveLength(3);
-  expect(
+  expect(within(table).getAllByRole('columnheader')).toHaveLength(4);
+  const titleLinks = () =>
     within(table)
       .getAllByRole('link')
-      .map((link) => link.textContent),
-  ).toEqual(['Customer', 'Member', 'NocoBase team']);
+      .filter((link) => !link.getAttribute('aria-label'));
+  expect(titleLinks().map((link) => link.textContent)).toEqual([
+    'Customer',
+    'Member',
+    'NocoBase team',
+  ]);
   expect(
     screen.queryByRole('heading', { name: 'Customer' }),
   ).not.toBeInTheDocument();
@@ -76,7 +80,7 @@ it('keeps the standard role table sorted, searchable and linked to the current q
   );
   await waitFor(() => {
     expect(within(table).getAllByRole('row')).toHaveLength(2);
-    expect(within(table).getAllByRole('link')).toHaveLength(1);
+    expect(titleLinks()).toHaveLength(1);
   });
   expect(screen.getByTitle('Customer').closest('a')).toHaveAttribute(
     'href',

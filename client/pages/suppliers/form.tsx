@@ -30,7 +30,6 @@ import {
 import { randomUuid } from '#lib/random-id';
 import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { useDiscardConfirm } from '../people/use-discard-confirm.js';
-import { useFieldAccess } from '../../hooks/use-field-access.js';
 import {
   useAvailability,
   useIdentity,
@@ -231,12 +230,11 @@ function SupplierFormBody({
     refresh = useSupplierRefresh(),
     message = useSupplierError(),
     discard = useDiscardConfirm(),
-    fieldAccess = useFieldAccess(),
-    registrationLocked =
-      fieldAccess.access(
-        'procurement.supplier.identity',
-        'registrationCode',
-      ) !== 'write';
+    pageFields = usePageFieldVisibility(pageKey ?? ''),
+    registrationLocked = !pageFields.writable(
+      'procurement.supplier.identity',
+      'registrationCode',
+    );
   const [draft, setDraft] = useState(() => initial(mode, row)),
     [baseline, setBaseline] = useState(() =>
       JSON.stringify(initial(mode, row)),
@@ -467,7 +465,6 @@ function SupplierFormBody({
     mode === 'scope' &&
       Boolean(draft.regionIds.length || draft.subjectIds.length),
   );
-  const pageFields = usePageFieldVisibility(pageKey ?? '');
   const pageResource =
     pageKey === 'sales-customers-new'
       ? 'sales.customer'

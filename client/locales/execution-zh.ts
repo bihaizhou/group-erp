@@ -100,6 +100,7 @@ export const execution = {
     cancelled: '已结束',
   },
   company: '公司',
+  sales: '销售',
   warehouse: '仓库',
   destinationWarehouse: '目标仓库',
   supplier: '供应商',

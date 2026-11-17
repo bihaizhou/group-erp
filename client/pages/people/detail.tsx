@@ -150,7 +150,7 @@ export default function PeopleDetailPage({
     ) : (
       <div className='flex flex-col gap-6'>
         {kind === 'profiles' ? (
-          <TalentCard profile={row} />
+          <TalentCard profile={row} pageKey={`people-${kind}-detail`} />
         ) : (
           <>
             <div className='flex items-center gap-2'>

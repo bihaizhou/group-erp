@@ -180,7 +180,14 @@ function FormBody({
   initial?: IssueRequest;
   pageKey?: string;
 }) {
-  const pageFields = usePageFieldVisibility(pageKey ?? '');
+  const effectivePageKey =
+    pageKey ??
+    (mode === 'new' || mode === 'copy'
+      ? 'requisitions-requests-new'
+      : path.endsWith('/edit')
+        ? 'requisitions-requests-edit'
+        : 'requisitions-requests-list-edit');
+  const pageFields = usePageFieldVisibility(effectivePageKey);
   const { t } = useTranslation(),
     api = useApiClient(),
     toaster = useToaster(),
@@ -317,6 +324,7 @@ function FormBody({
               : `requisitions/requests/${row!.id}`,
         method: mode === 'edit' ? 'PATCH' : 'POST',
         json: { ...body, requestKey: key.for(body) },
+        headers: { 'x-page-key': effectivePageKey },
       });
       guard.complete();
       void refresh(result.data, mode === 'new' || mode === 'copy');
@@ -390,6 +398,7 @@ function FormBody({
     try {
       const response = await api.request<{ data: IssueRequest }>({
         path: `requisitions/requests/${row.id}`,
+        headers: { 'x-page-key': effectivePageKey },
       });
       setLatest(response.data);
       setChoices({});

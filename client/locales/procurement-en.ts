@@ -1,6 +1,16 @@
 import { requestUi } from './purchase-request-en.js';
 export const procurement = {
   requestUi,
+  actions: {
+    read: 'View',
+    create: 'Create',
+    update: 'Update',
+    updateRelationship: 'Manage relationships',
+    updateIdentity: 'Update identity',
+    linkIdentity: 'Link identity',
+    configureApplicability: 'Configure applicability',
+    addRole: 'Add role',
+  },
   purchase: {
     requestGovernance: 'Request material identification',
     confirmMaterial: 'Confirm identified material',
@@ -21,6 +31,7 @@ export const procurement = {
     readAll: "View all companies' purchase requests",
     merge: 'Read the group purchase merge list',
     reassign: 'Recover purchase review assignment',
+    delegate: 'Delegate',
     ownRequests: 'My purchase requests',
     ownCompany: 'My company',
     selectedCompanies: 'Selected companies',

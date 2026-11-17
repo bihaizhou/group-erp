@@ -1871,6 +1871,31 @@ const isSystemField = (name: string): boolean =>
  * column. Kept out of the permission catalogue so a new table's internal
  * JSON/snapshot/version columns do not flood the field editor.
  */
+/**
+ * Business modules whose locale file already carries a shared `fields` block.
+ * Collection columns without a curated title reuse those translations instead
+ * of falling back to the English column name.
+ */
+const SHARED_FIELD_NAMESPACES: ReadonlyArray<readonly [string, string]> = [
+  ['people.', 'people'],
+  ['materials.', 'materials'],
+  ['org.', 'org'],
+  ['hse.', 'hse'],
+  ['assets.', 'assets'],
+];
+
+const sharedFieldKey = (
+  resource: string,
+  field: string,
+): string | undefined => {
+  const match = SHARED_FIELD_NAMESPACES.find(([prefix]) =>
+    resource.startsWith(prefix),
+  );
+  // Fall back to the shared label block so a column without a curated title
+  // still reads in the current language.
+  return match ? `${match[1]}.fields.${field}` : `fieldLabel.${field}`;
+};
+
 const humanizeFieldName = (name: string): string =>
   name
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
@@ -1972,7 +1997,8 @@ export async function fieldCatalog(
         ...field,
         titleKey:
           resource.labels?.[field.field] ??
-          (field as { titleKey?: string }).titleKey,
+          (field as { titleKey?: string }).titleKey ??
+          sharedFieldKey(resource.resource, field.field),
       }));
       for (const computed of resource.computed ?? []) {
         if (!fields.some((field) => field.field === computed.field)) {

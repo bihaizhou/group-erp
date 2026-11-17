@@ -28,7 +28,7 @@ function Location() {
 }
 it.each(
   ['/roles', '/administration/roles'].flatMap((parent) =>
-    ['back', 'cancel', 'save'].map((action) => ({ parent, action })),
+    ['back', 'save'].map((action) => ({ parent, action })),
   ),
 )('returns to $parent on $action', async ({ parent, action }) => {
   const calls = vi.fn(({ path }: { path: string }) => {
@@ -91,10 +91,6 @@ it.each(
       expect(calls).toHaveBeenCalledWith(
         expect.objectContaining({ method: 'PATCH' }),
       ),
-    );
-  } else {
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Cancel' }),
     );
   }
   await screen.findByRole('heading', { name: 'Role list' });

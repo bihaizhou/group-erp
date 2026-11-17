@@ -6,6 +6,7 @@ import {
   ProductionService,
   productionServiceToken,
 } from './production-service.js';
+import { settingsActions } from './settings-actions.js';
 
 export default class ProductionProvider extends ServiceProvider<Application> {
   public readonly name = 'group-erp/production';
@@ -53,12 +54,7 @@ export default class ProductionProvider extends ServiceProvider<Application> {
     authz.settings.add({
       id: 'production',
       title: { key: 'production.settings', ns: 'group-erp' },
-      actions: [
-        { name: 'read' },
-        { name: 'manage' },
-        { name: 'approve' },
-        { name: 'readAll' },
-      ],
+      actions: settingsActions(['read', 'manage', 'approve', 'readAll']),
     });
     authz.ui.place(
       { type: 'settings', id: 'production' },

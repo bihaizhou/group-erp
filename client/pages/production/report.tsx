@@ -4,7 +4,6 @@ import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Save, Trash2 } from 'lucide-react';
 import { ReadOnlyNotice } from '#components/read-only-notice';
-import { useFieldAccess } from '#hooks/use-field-access';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { usePageFieldVisibility } from '#components/page-field-visibility';
@@ -197,7 +196,6 @@ export default function ProductionReportPage() {
       }),
   });
   const data = report.data?.data;
-  const fieldAccess = useFieldAccess();
   const pageFields = usePageFieldVisibility('production-report');
   const showMaterialField = (field: string) =>
     pageFields.visible('production.report.material', field);
@@ -211,19 +209,24 @@ export default function ProductionReportPage() {
     pageFields.visible('production.report.maintenance', field);
   const showOvertimeField = (field: string) =>
     pageFields.visible('production.report.overtime', field);
-  const seeQuantity =
-    fieldAccess.access('production.report.material', 'quantity') !== 'hidden';
+  const seeQuantity = pageFields.visible(
+    'production.report.material',
+    'quantity',
+  );
   const seeStock =
-    fieldAccess.access('production.report.material', 'stockQuantity') !==
-      'hidden' && showMaterialField('stockQuantity');
+    pageFields.visible('production.report.material', 'stockQuantity') &&
+    showMaterialField('stockQuantity');
   const seeBook =
-    fieldAccess.access('production.report.material', 'bookQuantity') !==
-      'hidden' && showMaterialField('bookQuantity');
-  const writeQuantity =
-    fieldAccess.access('production.report.material', 'quantity') === 'write';
-  const writeStock =
-    fieldAccess.access('production.report.material', 'stockQuantity') ===
-    'write';
+    pageFields.visible('production.report.material', 'bookQuantity') &&
+    showMaterialField('bookQuantity');
+  const writeQuantity = pageFields.writable(
+    'production.report.material',
+    'quantity',
+  );
+  const writeStock = pageFields.writable(
+    'production.report.material',
+    'stockQuantity',
+  );
 
   const [form, setForm] = useState<ReportForm>(() => emptyForm(null));
   const [materialDrafts, setMaterialDrafts] = useState<

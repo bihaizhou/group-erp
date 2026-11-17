@@ -15,6 +15,7 @@ import { StatusBadge } from '#components/status-badge';
 import { formatStockQuantity } from '#lib/stock-quantity';
 import { useUrlSearch } from '#hooks/use-url-search';
 import { useExecutionCan, useExecutionQuery, ui } from './hooks.js';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import {
   EmptyState,
   ErrorNotice,
@@ -24,7 +25,6 @@ import {
   RefreshButton,
   StaticSelect,
 } from './controls.js';
-import { useFieldAccess } from '../../hooks/use-field-access.js';
 import type { Choice, Page } from './model.js';
 export interface InventoryRow {
   id: string;
@@ -74,9 +74,9 @@ export default function InventoryPage() {
     reserve = useExecutionCan('warehouse.inventory', 'reserve'),
     release = useExecutionCan('warehouse.inventory', 'release'),
     reconcile = useExecutionCan('warehouse.inventory', 'reconcile'),
-    fieldAccess = useFieldAccess(),
+    pageFields = usePageFieldVisibility('warehouse-inventory'),
     balanceVisible = (field: string) =>
-      fieldAccess.access('warehouse.inventory.balance', field) !== 'hidden',
+      pageFields.visible('warehouse.inventory.balance', field),
     view =
       ['balances', 'movements', 'reservations', 'reconcile'].find(
         (value) => value === params.get('view'),

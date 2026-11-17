@@ -1,20 +1,31 @@
+import { randomUUID } from 'node:crypto';
 import type { DatabaseManager } from '@nocobase/db';
 
+import {
+  fieldPoliciesFor,
+  type FieldAccess,
+  type FieldPolicyView,
+} from './field-access.js';
+
 /**
- * Page-level field visibility only decides whether a form renders a field.
- * It deliberately does not touch `appFieldPolicies`: hiding an input must
- * never be used as a substitute for server-side field redaction.
+ * Per-page field permissions. One row = one field on one page of one
+ * permission set; three states live on it:
+ *   visible=false            -> hidden on the page (and redacted server-side)
+ *   visible=true, writable=false -> readonly (writes rejected server-side)
+ *   visible=true, writable=true  -> editable
  */
 export interface PageFieldVisibility {
   resource: string;
   field: string;
   visible: boolean;
+  writable: boolean;
 }
 
 export interface PageFieldVisibilityRow {
   resource: string;
   field: string;
   visible: boolean;
+  writable: boolean;
 }
 
 export type PageFieldVisibilityMode = 'independent' | 'inherit' | 'override';
@@ -37,6 +48,7 @@ const toRows = (
       resource: asText(row.resource),
       field: asText(row.field),
       visible: row.visible !== false,
+      writable: row.writable !== false,
     }))
     .filter((row) => row.resource && row.field);
 
@@ -108,8 +120,9 @@ export async function pageFieldVisibilityConfig(
 
 /**
  * Merge the rows of every set the account holds. A field stays visible when
- * any set shows it; visibility is a presentation union, not an intersection.
- * Each set resolves its own inherit/override chain before the union.
+ * any set shows it and writable when any set allows writing; visibility is a
+ * presentation union, not an intersection. Each set resolves its own
+ * inherit/override chain before the union.
  */
 export function mergePageFieldVisibility(
   rows: readonly PageFieldVisibilityRow[],
@@ -117,6 +130,7 @@ export function mergePageFieldVisibility(
 ): {
   configured: boolean;
   visible: string[];
+  writable: string[];
   fields: PageFieldVisibilityRow[];
 } {
   const merged = new Map<string, PageFieldVisibilityRow>();
@@ -126,7 +140,11 @@ export function mergePageFieldVisibility(
     merged.set(
       key,
       current
-        ? { ...current, visible: current.visible || row.visible }
+        ? {
+            ...current,
+            visible: current.visible || row.visible,
+            writable: current.writable || row.writable,
+          }
         : { ...row },
     );
   }
@@ -135,6 +153,9 @@ export function mergePageFieldVisibility(
     configured,
     visible: fields
       .filter((row) => row.visible)
+      .map((row) => `${row.resource}.${row.field}`),
+    writable: fields
+      .filter((row) => row.visible && row.writable)
       .map((row) => `${row.resource}.${row.field}`),
     fields,
   };
@@ -153,11 +174,12 @@ export async function effectivePageFieldVisibility(
 ): Promise<{
   configured: boolean;
   visible: string[];
+  writable: string[];
   fields: PageFieldVisibilityRow[];
 }> {
   const userId = principal.type === 'user' ? principal.id : undefined;
   if (!userId) {
-    return { configured: false, visible: [], fields: [] };
+    return { configured: false, visible: [], writable: [], fields: [] };
   }
   const assignments = await database
     .repository('authorizationPermissionSetAssignments')
@@ -174,7 +196,7 @@ export async function effectivePageFieldVisibility(
   );
   sets.delete('');
   if (!sets.size || sets.has('root'))
-    return { configured: false, visible: [], fields: [] };
+    return { configured: false, visible: [], writable: [], fields: [] };
 
   const rows: PageFieldVisibilityRow[] = [];
   for (const permissionSetKey of sets) {
@@ -190,4 +212,212 @@ export async function effectivePageFieldVisibility(
     }
   }
   return mergePageFieldVisibility(rows);
+}
+
+/**
+ * The page a first-appearing page copies its initial settings from: edit,
+ * detail and material-line pages start from the create page's settings, and
+ * pages created under the create page follow it as well. Mirrors
+ * `pageFieldVisibilityInheritedFrom` in
+ * client/pages/settings/page-field-visibility-fallback.ts — keep in sync.
+ */
+export function pageFieldVisibilityFallbackFor(
+  pageKey: string,
+): string | undefined {
+  let current = pageKey;
+  const steps = [
+    (key: string) => key.replace(/-detail-edit$/u, '-new'),
+    (key: string) => key.replace(/-list-edit$/u, '-new'),
+    (key: string) => key.replace(/-edit$/u, '-new'),
+    (key: string) => key.replace(/-detail$/u, '-new'),
+    (key: string) => key.replace(/-materials$/u, ''),
+    (key: string) =>
+      key.includes('-new-') ? key.replace(/-new-.+$/u, '-new') : key,
+  ];
+  // A suffix can hide behind another one ('-list-edit-materials' strips to
+  // '-list-edit' first), so repeat the steps until nothing changes.
+  for (let pass = 0; pass < 4; pass++) {
+    let changed = false;
+    for (const step of steps) {
+      const next = step(current);
+      if (next !== current) {
+        current = next;
+        changed = true;
+        if (current.endsWith('-new')) return current;
+      }
+    }
+    if (!changed) break;
+  }
+  return current === pageKey ? undefined : current;
+}
+
+/**
+ * Field policies a request made from one page must respect. A configured page
+ * overlays its own rows onto the account's resource-level policies: hidden
+ * stays hidden, readonly stays readonly, editable stays editable. Fields the
+ * page does not list keep the resource-level value, and an unconfigured page
+ * is exactly the resource-level policy (the legacy behavior). Pages without
+ * their own rows start from their create page's rows so enforcement matches
+ * what the editor shows as their initial values.
+ *
+ * Unrestricted principals (no user id, root set) return [] — no restrictions —
+ * exactly like `fieldPoliciesFor`.
+ */
+export async function pageFieldPoliciesFor(
+  database: DatabaseManager,
+  principal: { type?: string; id?: string },
+  pageKey: string,
+  fallbackPageKey?: string,
+): Promise<FieldPolicyView[]> {
+  if (principal.type !== 'user' || !principal.id) return [];
+  const base = await fieldPoliciesFor(database, principal);
+  const effective = await effectivePageFieldVisibility(
+    database,
+    principal,
+    pageKey,
+    fallbackPageKey ?? pageFieldVisibilityFallbackFor(pageKey),
+  );
+  if (!effective.configured) return base;
+  const merged = new Map<string, FieldPolicyView>();
+  for (const policy of base) {
+    merged.set(`${policy.resource}.${policy.field}`, policy);
+  }
+  for (const row of effective.fields) {
+    const access: FieldAccess = !row.visible
+      ? 'hidden'
+      : row.writable
+        ? 'write'
+        : 'visible';
+    merged.set(`${row.resource}.${row.field}`, {
+      resource: row.resource,
+      field: row.field,
+      access,
+    });
+  }
+  return [...merged.values()];
+}
+
+/**
+ * The pageKey a request is enforced under. Some endpoints serve more than one
+ * page variant (a PATCH can come from the list edit form and the detail edit
+ * form, each with its own page permissions). The client sends the page it is
+ * on in the `x-page-key` header; the value is only honored when it names one
+ * of the pages this endpoint serves, so a caller cannot claim an arbitrary
+ * page to lift a restriction.
+ */
+export function pageKeyForRequest(
+  c: { req: { header: (name: string) => string | undefined } },
+  fallback: string,
+  ...alternatives: string[]
+): string {
+  const claimed = c.req.header('x-page-key');
+  if (claimed && [fallback, ...alternatives].includes(claimed)) {
+    return claimed;
+  }
+  return fallback;
+}
+
+/**
+ * Re-derive the resource-level field policies of one permission set as the
+ * union of its page rows, keeping the legacy `appFieldPolicies` layer
+ * coherent for consumers that still read it (the `/field-policies/effective`
+ * endpoint and legacy clients):
+ *   writable on any page  -> write
+ *   visible on any page   -> visible
+ *   hidden on every page  -> no policy
+ * The set's model is preserved: a ladder set keeps `$default.model` (absent
+ * policy means hidden), while a legacy set keeps its `$default.legacy` marker
+ * (absent policy keeps the field available), so saving one page does not
+ * silently hide fields on every page that has no rows yet.
+ */
+export async function rebuildFieldPoliciesFromPages(
+  database: DatabaseManager,
+  permissionSetKey: string,
+  userId: string,
+): Promise<void> {
+  const rows = await database.repository('appPageFieldVisibilities').findMany({
+    filter: (filter) =>
+      filter.string('permissionSetKey').eq(permissionSetKey),
+    limit: 5000,
+  });
+  const merged = new Map<
+    string,
+    { resource: string; field: string; access: FieldAccess }
+  >();
+  for (const row of rows) {
+    const resource = asText(row.resource);
+    const field = asText(row.field);
+    if (!resource || !field) continue;
+    const visible = row.visible !== false;
+    if (!visible) continue;
+    const writable = row.writable !== false;
+    const key = `${resource}.${field}`;
+    const current = merged.get(key);
+    const access: FieldAccess = writable ? 'write' : 'visible';
+    if (!current || access === 'write') {
+      merged.set(key, { resource, field, access });
+    }
+  }
+  const policies = [...merged.values()];
+  const existing = await database.repository('appFieldPolicies').findMany({
+    filter: (filter) =>
+      filter.string('permissionSetKey').eq(permissionSetKey),
+    limit: 5000,
+  });
+  const ladderModel = existing.some(
+    (row) =>
+      asText(row.resource) === '$default' && asText(row.field) === 'model',
+  );
+  const items = [
+    ...policies,
+    ladderModel
+      ? ({ resource: '$default', field: 'model', access: 'visible' } as const)
+      : ({ resource: '$default', field: 'legacy', access: 'visible' } as const),
+  ];
+  const nextKeys = new Set(
+    items.map((item) => `${item.resource}.${item.field}`),
+  );
+  for (const row of existing) {
+    const key = `${asText(row.resource)}.${asText(row.field)}`;
+    if (!nextKeys.has(key)) {
+      await database
+        .repository('appFieldPolicies')
+        .deleteOne({ filter: { id: asText(row.id) } });
+    }
+  }
+  for (const item of items) {
+    const current = existing.find(
+      (row) =>
+        asText(row.resource) === item.resource &&
+        asText(row.field) === item.field,
+    );
+    if (current && current.access === item.access) continue;
+    if (current) {
+      await database.repository('appFieldPolicies').updateOne({
+        filter: { id: asText(current.id) },
+        values: {
+          access: item.access,
+          version: Number(current.version ?? 1) + 1,
+          updatedBy: userId,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      await database.repository('appFieldPolicies').createOne({
+        values: {
+          id: randomUUID(),
+          permissionSetKey,
+          settingsId: null,
+          resource: item.resource,
+          field: item.field,
+          access: item.access,
+          version: 1,
+          createdBy: userId,
+          updatedBy: userId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+    }
+  }
 }
