@@ -35,6 +35,8 @@ export const pageFieldVisibilityPageKeys: ReadonlySet<string> = new Set([
   'procurement-requests',
   'procurement-requests-detail',
   'procurement-requests-new',
+  'sales-price-lists',
+  'sales-receivables',
   ...peopleKinds.flatMap((kind) => [
     `people-${kind}`,
     ...(kind === 'profiles' ? [] : [`people-${kind}-detail`]),
@@ -121,6 +123,25 @@ const executionDocumentFields: Record<string, readonly string[]> = {
 export const pageFieldVisibilityFields: Readonly<
   Record<string, readonly string[]>
 > = {
+  'sales-price-lists': [
+    'sales.priceList.customerId',
+    'sales.priceList.skuId',
+    'sales.priceList.unitPrice',
+    'sales.priceList.currency',
+    'sales.priceList.effectiveFrom',
+    'sales.priceList.effectiveTo',
+    'sales.priceList.status',
+    'sales.priceList.note',
+  ],
+  'sales-receivables': [
+    'sales.receivable.documentId',
+    'sales.receivable.customerId',
+    'sales.receivable.amount',
+    'sales.receivable.currency',
+    'sales.receivable.paid',
+    'sales.receivable.outstanding',
+    'sales.receivable.status',
+  ],
   'procurement-requests': [
     'purchase.request.code',
     'purchase.request.company',
@@ -464,6 +485,33 @@ export const pageFieldVisibilityExtraFields: Readonly<
         })),
     ]),
   ),
+  'sales-price-lists': [
+    ['customerId', 'customer'],
+    ['skuId', 'material'],
+    ['unitPrice', 'unitPrice'],
+    ['currency', 'currency'],
+    ['effectiveFrom', 'effectiveFrom'],
+    ['effectiveTo', 'effectiveTo'],
+    ['status', 'status'],
+    ['note', 'note'],
+  ].map(([field, key]) => ({
+    resource: 'sales.priceList',
+    field,
+    titleKey: `execution.priceLists.${key}`,
+  })),
+  'sales-receivables': [
+    ['documentId', 'document'],
+    ['customerId', 'customer'],
+    ['amount', 'amount'],
+    ['currency', 'currency'],
+    ['paid', 'paid'],
+    ['outstanding', 'outstanding'],
+    ['status', 'status'],
+  ].map(([field, key]) => ({
+    resource: 'sales.receivable',
+    field,
+    titleKey: `execution.receivables.${key}`,
+  })),
   'procurement-requests': [
     ['code', 'code'],
     ['company', 'company'],
@@ -645,6 +693,12 @@ export const pageFieldVisibilityRequiredFields: Readonly<
   'warehouse-material-requests-new-sku': materialFields.skus
     .filter((field) => field.required)
     .map((field) => `materials.sku.${field.key}`),
+  'sales-price-lists': [
+    'sales.priceList.customerId',
+    'sales.priceList.skuId',
+    'sales.priceList.unitPrice',
+    'sales.priceList.effectiveFrom',
+  ],
   'sales-orders-new': ['execution.document.currency'],
   'procurement-orders-new': ['execution.document.currency'],
   'warehouse-inbounds-new': ['execution.document.reason'],

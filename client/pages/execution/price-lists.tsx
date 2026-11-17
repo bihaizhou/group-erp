@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
-import { useApiClient, useToaster } from '@nocobase/app-client';
+import { createUuid, useApiClient, useToaster } from '@nocobase/app-client';
 import { Plus } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
@@ -26,6 +26,7 @@ import {
 } from '#components/ui/table';
 import { Textarea } from '#components/ui/textarea';
 import { StatusBadge } from '#components/status-badge';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import {
   EmptyState,
   ErrorNotice,
@@ -97,7 +98,9 @@ export default function PriceListsPage() {
     toast = useToaster(),
     errorText = useExecutionError(),
     refresh = useExecutionRefresh(),
-    canWrite = useExecutionCan('sales.orders', 'update');
+    canWrite = useExecutionCan('sales.orders', 'update'),
+    pageFields = usePageFieldVisibility('sales-price-lists'),
+    showField = (field: string) => pageFields.visible('sales.priceList', field);
   const query = useExecutionQuery<PricePage>(
     'sales/price-lists',
     {
@@ -156,7 +159,7 @@ export default function PriceListsPage() {
         effectiveFrom: draft.effectiveFrom,
         effectiveTo: draft.effectiveTo || null,
         note: draft.note.trim() || null,
-        requestKey: crypto.randomUUID(),
+        requestKey: createUuid(),
       };
       await api.request({
         path: editing ? `sales/price-lists/${editing.id}` : 'sales/price-lists',
@@ -164,7 +167,7 @@ export default function PriceListsPage() {
         json: body,
       });
       setOpen(false);
-      refresh();
+      void refresh();
       toast.show({ type: 'success', title: t(ui('priceLists.saved')) });
     } catch (error) {
       setFormError(error);
@@ -178,9 +181,9 @@ export default function PriceListsPage() {
       await api.request({
         path: `sales/price-lists/${row.id}/disable`,
         method: 'POST',
-        json: { version: row.version, requestKey: crypto.randomUUID() },
+        json: { version: row.version, requestKey: createUuid() },
       });
-      refresh();
+      void refresh();
       toast.show({ type: 'success', title: t(ui('priceLists.disabled')) });
     } catch (error) {
       toast.show({ type: 'error', title: errorText(error) });
@@ -228,39 +231,61 @@ export default function PriceListsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t(ui('priceLists.customer'))}</TableHead>
-                <TableHead>{t(ui('priceLists.material'))}</TableHead>
-                <TableHead>{t(ui('priceLists.unitPrice'))}</TableHead>
-                <TableHead>{t(ui('priceLists.effectiveFrom'))}</TableHead>
-                <TableHead>{t(ui('priceLists.status'))}</TableHead>
+                {showField('customerId') && (
+                  <TableHead>{t(ui('priceLists.customer'))}</TableHead>
+                )}
+                {showField('skuId') && (
+                  <TableHead>{t(ui('priceLists.material'))}</TableHead>
+                )}
+                {showField('unitPrice') && (
+                  <TableHead>{t(ui('priceLists.unitPrice'))}</TableHead>
+                )}
+                {showField('effectiveFrom') && (
+                  <TableHead>{t(ui('priceLists.effectiveFrom'))}</TableHead>
+                )}
+                {showField('status') && (
+                  <TableHead>{t(ui('priceLists.status'))}</TableHead>
+                )}
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
               {query.data.data.map((row) => (
                 <TableRow key={row.id}>
-                  <TableCell>
-                    {row.customer
-                      ? `${row.customer.code} · ${row.customer.name}`
-                      : row.customerId}
-                  </TableCell>
-                  <TableCell>
-                    {row.sku ? `${row.sku.code} · ${row.sku.name}` : row.skuId}
-                  </TableCell>
-                  <TableCell>
-                    {row.unitPrice ?? '—'} {row.currency}
-                  </TableCell>
-                  <TableCell>
-                    {row.effectiveFrom}
-                    {row.effectiveTo ? ` – ${row.effectiveTo}` : ''}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge
-                      tone={row.status === 'active' ? 'success' : 'neutral'}
-                    >
-                      {t(ui(`priceListStatus.${row.status}`))}
-                    </StatusBadge>
-                  </TableCell>
+                  {showField('customerId') && (
+                    <TableCell>
+                      {row.customer
+                        ? `${row.customer.code} · ${row.customer.name}`
+                        : row.customerId}
+                    </TableCell>
+                  )}
+                  {showField('skuId') && (
+                    <TableCell>
+                      {row.sku
+                        ? `${row.sku.code} · ${row.sku.name}`
+                        : row.skuId}
+                    </TableCell>
+                  )}
+                  {showField('unitPrice') && (
+                    <TableCell>
+                      {row.unitPrice ?? '—'} {row.currency}
+                    </TableCell>
+                  )}
+                  {showField('effectiveFrom') && (
+                    <TableCell>
+                      {row.effectiveFrom}
+                      {row.effectiveTo ? ` – ${row.effectiveTo}` : ''}
+                    </TableCell>
+                  )}
+                  {showField('status') && (
+                    <TableCell>
+                      <StatusBadge
+                        tone={row.status === 'active' ? 'success' : 'neutral'}
+                      >
+                        {t(ui(`priceListStatus.${row.status}`))}
+                      </StatusBadge>
+                    </TableCell>
+                  )}
                   <TableCell className='text-right'>
                     {canWrite ? (
                       <div className='flex justify-end gap-2'>
@@ -358,22 +383,24 @@ export default function PriceListsPage() {
                   }
                 />
               </div>
-              <div className='flex flex-col gap-2'>
-                <Label htmlFor='price-currency'>
-                  {t(ui('priceLists.currency'))}
-                </Label>
-                <Input
-                  id='price-currency'
-                  maxLength={3}
-                  value={draft.currency}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      currency: event.target.value.toUpperCase(),
-                    }))
-                  }
-                />
-              </div>
+              {showField('currency') && (
+                <div className='flex flex-col gap-2'>
+                  <Label htmlFor='price-currency'>
+                    {t(ui('priceLists.currency'))}
+                  </Label>
+                  <Input
+                    id='price-currency'
+                    maxLength={3}
+                    value={draft.currency}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        currency: event.target.value.toUpperCase(),
+                      }))
+                    }
+                  />
+                </div>
+              )}
               <div className='flex flex-col gap-2'>
                 <Label htmlFor='price-from'>
                   {t(ui('priceLists.effectiveFrom'))}
@@ -390,39 +417,43 @@ export default function PriceListsPage() {
                   }
                 />
               </div>
+              {showField('effectiveTo') && (
+                <div className='flex flex-col gap-2'>
+                  <Label htmlFor='price-to'>
+                    {t(ui('priceLists.effectiveTo'))}
+                  </Label>
+                  <Input
+                    id='price-to'
+                    type='date'
+                    min={draft.effectiveFrom || undefined}
+                    value={draft.effectiveTo}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        effectiveTo: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              )}
+            </div>
+            {showField('note') && (
               <div className='flex flex-col gap-2'>
-                <Label htmlFor='price-to'>
-                  {t(ui('priceLists.effectiveTo'))}
-                </Label>
-                <Input
-                  id='price-to'
-                  type='date'
-                  min={draft.effectiveFrom || undefined}
-                  value={draft.effectiveTo}
+                <Label htmlFor='price-note'>{t(ui('priceLists.note'))}</Label>
+                <Textarea
+                  id='price-note'
+                  rows={2}
+                  maxLength={2000}
+                  value={draft.note}
                   onChange={(event) =>
                     setDraft((current) => ({
                       ...current,
-                      effectiveTo: event.target.value,
+                      note: event.target.value,
                     }))
                   }
                 />
               </div>
-            </div>
-            <div className='flex flex-col gap-2'>
-              <Label htmlFor='price-note'>{t(ui('priceLists.note'))}</Label>
-              <Textarea
-                id='price-note'
-                rows={2}
-                maxLength={2000}
-                value={draft.note}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    note: event.target.value,
-                  }))
-                }
-              />
-            </div>
+            )}
             {formError ? <ErrorNotice error={formError} committed /> : null}
           </div>
           <DialogFooter>

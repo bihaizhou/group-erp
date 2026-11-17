@@ -79,6 +79,35 @@ describe('page field visibility registry', () => {
     ]);
   });
 
+  it('supports price list and receivable list pages', () => {
+    for (const pageKey of ['sales-price-lists', 'sales-receivables']) {
+      expect(supportsPageFieldVisibility(pageKey)).toBe(true);
+    }
+    expect(pageFieldVisibilityFields['sales-price-lists']).toEqual(
+      expect.arrayContaining([
+        'sales.priceList.customerId',
+        'sales.priceList.skuId',
+        'sales.priceList.unitPrice',
+        'sales.priceList.effectiveFrom',
+        'sales.priceList.note',
+      ]),
+    );
+    expect(pageFieldVisibilityFields['sales-receivables']).toEqual(
+      expect.arrayContaining([
+        'sales.receivable.documentId',
+        'sales.receivable.customerId',
+        'sales.receivable.amount',
+        'sales.receivable.outstanding',
+      ]),
+    );
+    expect(pageFieldVisibilityRequiredFields['sales-price-lists']).toEqual([
+      'sales.priceList.customerId',
+      'sales.priceList.skuId',
+      'sales.priceList.unitPrice',
+      'sales.priceList.effectiveFrom',
+    ]);
+  });
+
   it('supports warehouse and sales list and detail pages', () => {
     for (const pageKey of [
       'warehouse-inbounds',

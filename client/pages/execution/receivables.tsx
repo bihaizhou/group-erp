@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
-import { useApiClient, useToaster } from '@nocobase/app-client';
+import { createUuid, useApiClient, useToaster } from '@nocobase/app-client';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { StatusBadge } from '#components/status-badge';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { Button } from '#components/ui/button';
 import {
   Dialog,
@@ -137,11 +138,11 @@ export default function ReceivablesPage() {
           method,
           reference: reference.trim() || null,
           note: note.trim() || null,
-          requestKey: crypto.randomUUID(),
+          requestKey: createUuid(),
         },
       });
       setPaymentOpen(false);
-      refresh();
+      void refresh();
       toast.show({ type: 'success', title: t(ui('receivables.saved')) });
     } catch (error) {
       setFormError(error);
@@ -149,6 +150,9 @@ export default function ReceivablesPage() {
       setPending(false);
     }
   };
+  const pageFields = usePageFieldVisibility('sales-receivables');
+  const showField = (field: string) =>
+    pageFields.visible('sales.receivable', field);
   return (
     <PageContainer>
       <PageHeader
@@ -204,44 +208,70 @@ export default function ReceivablesPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t(ui('receivables.document'))}</TableHead>
-                <TableHead>{t(ui('receivables.customer'))}</TableHead>
-                <TableHead className='text-right'>
-                  {t(ui('receivables.amount'))}
-                </TableHead>
-                <TableHead className='text-right'>
-                  {t(ui('receivables.paid'))}
-                </TableHead>
-                <TableHead className='text-right'>
-                  {t(ui('receivables.outstanding'))}
-                </TableHead>
-                <TableHead>{t(ui('receivables.status'))}</TableHead>
+                {showField('documentId') && (
+                  <TableHead>{t(ui('receivables.document'))}</TableHead>
+                )}
+                {showField('customerId') && (
+                  <TableHead>{t(ui('receivables.customer'))}</TableHead>
+                )}
+                {showField('amount') && (
+                  <TableHead className='text-right'>
+                    {t(ui('receivables.amount'))}
+                  </TableHead>
+                )}
+                {showField('paid') && (
+                  <TableHead className='text-right'>
+                    {t(ui('receivables.paid'))}
+                  </TableHead>
+                )}
+                {showField('outstanding') && (
+                  <TableHead className='text-right'>
+                    {t(ui('receivables.outstanding'))}
+                  </TableHead>
+                )}
+                {showField('status') && (
+                  <TableHead>{t(ui('receivables.status'))}</TableHead>
+                )}
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
               {list.data.data.map((row) => (
                 <TableRow key={row.id}>
-                  <TableCell>
-                    {row.document?.code ?? row.order?.code ?? row.id}
-                  </TableCell>
-                  <TableCell>
-                    {row.customer
-                      ? `${row.customer.code} · ${row.customer.name}`
-                      : row.customerId}
-                  </TableCell>
-                  <TableCell className='text-right'>
-                    {row.amount} {row.currency}
-                  </TableCell>
-                  <TableCell className='text-right'>{row.paidAmount}</TableCell>
-                  <TableCell className='text-right'>
-                    {row.outstanding}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge tone={tone(row.status)}>
-                      {t(ui(`receivableStatus.${row.status}`))}
-                    </StatusBadge>
-                  </TableCell>
+                  {showField('documentId') && (
+                    <TableCell>
+                      {row.document?.code ?? row.order?.code ?? row.id}
+                    </TableCell>
+                  )}
+                  {showField('customerId') && (
+                    <TableCell>
+                      {row.customer
+                        ? `${row.customer.code} · ${row.customer.name}`
+                        : row.customerId}
+                    </TableCell>
+                  )}
+                  {showField('amount') && (
+                    <TableCell className='text-right'>
+                      {row.amount} {row.currency}
+                    </TableCell>
+                  )}
+                  {showField('paid') && (
+                    <TableCell className='text-right'>
+                      {row.paidAmount}
+                    </TableCell>
+                  )}
+                  {showField('outstanding') && (
+                    <TableCell className='text-right'>
+                      {row.outstanding}
+                    </TableCell>
+                  )}
+                  {showField('status') && (
+                    <TableCell>
+                      <StatusBadge tone={tone(row.status)}>
+                        {t(ui(`receivableStatus.${row.status}`))}
+                      </StatusBadge>
+                    </TableCell>
+                  )}
                   <TableCell className='text-right'>
                     <Button
                       size='sm'
