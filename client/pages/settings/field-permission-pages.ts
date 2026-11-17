@@ -130,10 +130,15 @@ export function fieldResourcesForPage(
   // in the same flow (`procurement-requests-archive` -> `procurement-requests`).
   // This keeps newly added subpages configurable without a permission registry
   // entry; a brand-new module still declares its resources on its first page.
-  const inherited = Object.keys(pageFieldResources)
-    .filter((known) => pageId.startsWith(`${known}-`))
-    .sort((left, right) => right.length - left.length)[0];
-  return inherited ? pageFieldResources[inherited] : [];
+  const prefixes = Object.keys(pageFieldResources).filter((known) =>
+    pageId.startsWith(`${known}-`),
+  );
+  if (prefixes.length === 0) return [];
+  const longest = Math.max(...prefixes.map((known) => known.length));
+  const matches = prefixes.filter((known) => known.length === longest);
+  // Nested prefixes should collapse to one longest match. If a future naming
+  // scheme produces two equally specific pages, refuse to guess.
+  return matches.length === 1 ? pageFieldResources[matches[0]] : [];
 }
 
 /** Every page that renders one field resource, in page-flow order. */

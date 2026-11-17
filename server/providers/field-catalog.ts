@@ -7,7 +7,7 @@ import type { DatabaseManager } from '@nocobase/db';
  * come from. The field list is derived from the collection metadata at read
  * time, so a new column shows up in the permission editor without another
  * build. `labels` only adds localized titles to fields we already translate;
- * unknown fields fall back to their database name.
+ * unknown fields fall back to a readable name derived from the column.
  */
 export interface FieldCatalogResource {
   readonly resource: string;
@@ -18,21 +18,13 @@ export interface FieldCatalogResource {
   readonly exclude?: readonly string[];
   /**
    * Curated fields, offered first in this order. Other collection fields
-   * that have a UI title (new content fields added later) are appended
-   * automatically, so the permission editor stays in sync with the page.
+   * are appended automatically, so the permission editor stays in sync with
+   * the page; internal bookkeeping columns are filtered out explicitly.
    */
   readonly only?: readonly string[];
-  /**
-   * Append every other non-system, non-relation field even without a UI
-   * title. Use this for collections whose columns are generated from the
-   * database and therefore carry no title metadata; `exclude` must name the
-   * structural foreign keys and governance columns that should stay hidden.
-   * New columns then appear in the permission editor without a code change.
-   */
-  readonly complete?: boolean;
   /** Fields for pages without a backing collection (dashboards, settings). */
   readonly manual?: readonly { field: string; titleKey: string }[];
-  /** Localized titles for known fields; other fields keep their column name. */
+  /** Localized titles for known fields; other fields get a readable name. */
   readonly labels?: Readonly<Record<string, string>>;
   /** Values computed by the API rather than stored in the collection. */
   readonly computed?: readonly { field: string; titleKey: string }[];
@@ -698,7 +690,6 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'hse.inspection',
     exclude: ['subjectId'],
-    complete: true,
     collection: 'hseInspections',
     readonlyFields: ['status'],
     titleKey: 'hse.inspections',
@@ -727,7 +718,6 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'hse.workPermit',
     exclude: ['subjectId'],
-    complete: true,
     collection: 'hseWorkPermits',
     readonlyFields: ['status', 'permitNo'],
     titleKey: 'hse.workPermits',
@@ -770,7 +760,6 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'hse.trainingRecord',
     exclude: ['subjectId'],
-    complete: true,
     collection: 'hseTrainingRecords',
     readonlyFields: ['status'],
     titleKey: 'hse.trainingRecords',
@@ -797,7 +786,6 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'hse.action',
     exclude: ['subjectId'],
-    complete: true,
     collection: 'hseActions',
     readonlyFields: ['status', 'verifiedBy', 'verifiedAt'],
     titleKey: 'hse.actions',
@@ -1408,7 +1396,6 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'sales.priceList',
     collection: 'salesPriceLists',
-    complete: true,
     exclude: ['subjectId'],
     titleKey: 'execution.priceLists.title',
     descriptionKey: 'fieldPermission.description',
@@ -1436,7 +1423,6 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'sales.receivable',
     collection: 'salesReceivables',
-    complete: true,
     exclude: ['subjectId', 'orderLineId'],
     readonlyFields: ['amount', 'status'],
     titleKey: 'execution.receivables.title',
@@ -1668,7 +1654,6 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'organization.subject',
     collection: 'orgSubjects',
-    complete: true,
     titleKey: 'org.subjects',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -1703,7 +1688,6 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'organization.unit',
     collection: 'orgUnits',
-    complete: true,
     titleKey: 'org.units',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -1734,7 +1718,6 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'organization.position',
     collection: 'orgPositions',
-    complete: true,
     titleKey: 'org.positions',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -1765,7 +1748,6 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'organization.sector',
     collection: 'orgSectors',
-    complete: true,
     titleKey: 'org.sectors',
     descriptionKey: 'fieldPermission.description',
     only: ['name', 'code', 'parentId', 'status', 'sortOrder', 'notes'],
@@ -1781,7 +1763,6 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'organization.region',
     collection: 'orgRegions',
-    complete: true,
     titleKey: 'org.regions',
     descriptionKey: 'fieldPermission.description',
     only: ['name', 'code', 'parentId', 'status', 'sortOrder', 'notes'],
@@ -1797,7 +1778,6 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'organization.relation',
     collection: 'orgRelations',
-    complete: true,
     titleKey: 'org.relations',
     descriptionKey: 'fieldPermission.description',
     only: [
@@ -1832,7 +1812,6 @@ export const FIELD_CATALOG_RESOURCES: readonly FieldCatalogResource[] = [
   {
     resource: 'organization.audit',
     collection: 'orgAudit',
-    complete: true,
     readOnly: true,
     exclude: ['recordId', 'actorId'],
     titleKey: 'org.history',
@@ -1887,6 +1866,37 @@ const isSystemField = (name: string): boolean =>
   /^(id|createdBy|updatedBy|createdAt|updatedAt|version|revision|deletedAt)$/.test(
     name,
   );
+/**
+ * Workflow and persistence bookkeeping that is never a user-facing business
+ * column. Kept out of the permission catalogue so a new table's internal
+ * JSON/snapshot/version columns do not flood the field editor.
+ */
+const humanizeFieldName = (name: string): string =>
+  name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/^./, (letter) => letter.toUpperCase());
+
+export const INTERNAL_FIELD_NAMES: ReadonlySet<string> = new Set([
+  'approvedVersionId',
+  'commercialSnapshot',
+  'contentVersion',
+  'data',
+  'governanceAttempt',
+  'governanceEpoch',
+  'history',
+  'lifecycleVersion',
+  'managementModeSnapshot',
+  'nonce',
+  'parameterContract',
+  'searchText',
+  'searchVector',
+  'snapshot',
+  'statusChangedAt',
+  'submittedVersionId',
+  'supersedesId',
+  'supplierSnapshot',
+]);
 
 const collectionFields = async (
   database: DatabaseManager,
@@ -1898,7 +1908,11 @@ const collectionFields = async (
   const excluded = new Set(resource.exclude ?? []);
   const available = (collection?.fields ?? []).filter((field) => {
     const name = String(field.name);
-    return !excluded.has(name) && !isSystemField(name);
+    return (
+      !excluded.has(name) &&
+      !isSystemField(name) &&
+      !INTERNAL_FIELD_NAMES.has(name)
+    );
   });
   const picked = resource.only
     ? (resource.only
@@ -1929,7 +1943,10 @@ const collectionFields = async (
     const title = (field as { title?: unknown }).title;
     return {
       field: String(field.name),
-      label: typeof title === 'string' && title ? title : String(field.name),
+      label:
+        typeof title === 'string' && title
+          ? title
+          : humanizeFieldName(String(field.name)),
     };
   });
 };

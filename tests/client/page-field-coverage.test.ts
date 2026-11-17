@@ -11,6 +11,7 @@ import { pagePermissionTitles } from '../../client/pages/settings/page-permissio
 import { pageDataResourcesFor } from '../../client/routing/page-data-resources.js';
 import {
   FIELD_CATALOG_RESOURCES,
+  INTERNAL_FIELD_NAMES,
   fieldCatalog,
 } from '../../server/providers/field-catalog.js';
 
@@ -122,6 +123,7 @@ describe('every page and every field is reachable from permission management', (
               field.name,
             ) &&
             !excluded.has(field.name) &&
+            !INTERNAL_FIELD_NAMES.has(field.name) &&
             !names.has(field.name)
           ) {
             missing.push(`${resource.resource}.${field.name}`);
@@ -144,6 +146,16 @@ describe('every page and every field is reachable from permission management', (
       supplier?.fields.some(({ field }) => field === 'registrationCode'),
       '未登记的新列也必须自动出现在字段目录里。',
     ).toBe(true);
+  });
+
+  it('keeps internal governance columns out of the catalogue', async () => {
+    const catalog = await fieldCatalog(database);
+    const leaked = catalog.flatMap((entry) =>
+      entry.fields
+        .filter(({ field }) => INTERNAL_FIELD_NAMES.has(field))
+        .map(({ field }) => `${entry.resource}.${field}`),
+    );
+    expect(leaked).toEqual([]);
   });
 
   it('keeps every curated field pointing at a real collection column', () => {
