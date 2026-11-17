@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, RefreshCw, Wrench } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { Button } from '#components/ui/button';
 import {
   Card,
@@ -46,6 +47,11 @@ export default function ProductionEquipmentPage() {
   const api = useApiClient();
   const queryClient = useQueryClient();
   const access = useProductionAccess();
+  const pageFields = usePageFieldVisibility('production-equipment');
+  const showField = (field: string) =>
+    pageFields.visible('production.equipment', field);
+  const equipmentColumnCount =
+    1 + ['name', 'criticality', 'status'].filter(showField).length;
   const [unitId, setUnitId] = useState('');
   const [notice, setNotice] = useState('');
   const [code, setCode] = useState('');
@@ -261,31 +267,37 @@ export default function ProductionEquipmentPage() {
                   onChange={(event) => setName(event.target.value)}
                 />
               </label>
-              <label className='space-y-1 text-sm'>
-                <span>{t('production.category')}</span>
-                <Input
-                  value={category}
-                  onChange={(event) => setCategory(event.target.value)}
-                />
-              </label>
-              <label className='space-y-1 text-sm'>
-                <span>{t('production.criticality')}</span>
-                <select
-                  className={nativeSelectClass}
-                  value={criticality}
-                  onChange={(event) =>
-                    setCriticality(event.target.value as typeof criticality)
-                  }
-                >
-                  <option value='high'>
-                    {t('production.criticalityHigh')}
-                  </option>
-                  <option value='normal'>
-                    {t('production.criticalityNormal')}
-                  </option>
-                  <option value='low'>{t('production.criticalityLow')}</option>
-                </select>
-              </label>
+              {showField('category') ? (
+                <label className='space-y-1 text-sm'>
+                  <span>{t('production.category')}</span>
+                  <Input
+                    value={category}
+                    onChange={(event) => setCategory(event.target.value)}
+                  />
+                </label>
+              ) : null}
+              {showField('criticality') ? (
+                <label className='space-y-1 text-sm'>
+                  <span>{t('production.criticality')}</span>
+                  <select
+                    className={nativeSelectClass}
+                    value={criticality}
+                    onChange={(event) =>
+                      setCriticality(event.target.value as typeof criticality)
+                    }
+                  >
+                    <option value='high'>
+                      {t('production.criticalityHigh')}
+                    </option>
+                    <option value='normal'>
+                      {t('production.criticalityNormal')}
+                    </option>
+                    <option value='low'>
+                      {t('production.criticalityLow')}
+                    </option>
+                  </select>
+                </label>
+              ) : null}
             </div>
             <Button
               size='sm'
@@ -305,9 +317,15 @@ export default function ProductionEquipmentPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('production.equipmentCode')}</TableHead>
-                  <TableHead>{t('production.equipmentName')}</TableHead>
-                  <TableHead>{t('production.criticality')}</TableHead>
-                  <TableHead>{t('production.equipmentStatus')}</TableHead>
+                  {showField('name') ? (
+                    <TableHead>{t('production.equipmentName')}</TableHead>
+                  ) : null}
+                  {showField('criticality') ? (
+                    <TableHead>{t('production.criticality')}</TableHead>
+                  ) : null}
+                  {showField('status') ? (
+                    <TableHead>{t('production.equipmentStatus')}</TableHead>
+                  ) : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -316,18 +334,27 @@ export default function ProductionEquipmentPage() {
                     <TableCell className='font-mono text-xs'>
                       {row.code}
                     </TableCell>
-                    <TableCell>{row.name}</TableCell>
-                    <TableCell>
-                      {t(`production.criticality_${row.criticality}`)}
-                    </TableCell>
-                    <TableCell>
-                      {t(`production.equipmentStatus_${row.status}`)}
-                    </TableCell>
+                    {showField('name') ? (
+                      <TableCell>{row.name}</TableCell>
+                    ) : null}
+                    {showField('criticality') ? (
+                      <TableCell>
+                        {t(`production.criticality_${row.criticality}`)}
+                      </TableCell>
+                    ) : null}
+                    {showField('status') ? (
+                      <TableCell>
+                        {t(`production.equipmentStatus_${row.status}`)}
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
                 {equipmentRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className='text-muted-foreground'>
+                    <TableCell
+                      colSpan={equipmentColumnCount}
+                      className='text-muted-foreground'
+                    >
                       {t('production.equipmentEmpty')}
                     </TableCell>
                   </TableRow>

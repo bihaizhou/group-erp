@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileCheck2, Plus } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
@@ -80,6 +81,9 @@ export default function HseWorkPermitsPage() {
   const [note, setNote] = useState('');
   const [params] = useSearchParams(),
     subjectId = params.get('subjectId') ?? '';
+  const pageFields = usePageFieldVisibility('hse-work-permits');
+  const showField = (field: string) =>
+    pageFields.visible('hse.workPermit', field);
   const options = useQuery({
     retry: false,
     queryKey: ['hse-options'],
@@ -295,14 +299,28 @@ export default function HseWorkPermitsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('hse.fields.permitNo')}</TableHead>
-                <TableHead>{t('hse.fields.type')}</TableHead>
+                {showField('permitNo') ? (
+                  <TableHead>{t('hse.fields.permitNo')}</TableHead>
+                ) : null}
+                {showField('type') ? (
+                  <TableHead>{t('hse.fields.type')}</TableHead>
+                ) : null}
                 <TableHead>{t('hse.fields.subject')}</TableHead>
-                <TableHead>{t('hse.fields.location')}</TableHead>
-                <TableHead>{t('hse.fields.validFrom')}</TableHead>
-                <TableHead>{t('hse.fields.validTo')}</TableHead>
-                <TableHead>{t('hse.fields.approver')}</TableHead>
-                <TableHead>{t('hse.fields.status')}</TableHead>
+                {showField('location') ? (
+                  <TableHead>{t('hse.fields.location')}</TableHead>
+                ) : null}
+                {showField('validFrom') ? (
+                  <TableHead>{t('hse.fields.validFrom')}</TableHead>
+                ) : null}
+                {showField('validTo') ? (
+                  <TableHead>{t('hse.fields.validTo')}</TableHead>
+                ) : null}
+                {showField('approverId') ? (
+                  <TableHead>{t('hse.fields.approver')}</TableHead>
+                ) : null}
+                {showField('status') ? (
+                  <TableHead>{t('hse.fields.status')}</TableHead>
+                ) : null}
                 <TableHead className='text-right'>
                   {t('hse.fields.actions')}
                 </TableHead>
@@ -311,24 +329,38 @@ export default function HseWorkPermitsPage() {
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.id}>
-                  <TableCell>{row.permitNo}</TableCell>
-                  <TableCell>{t(`hse.workPermitType.${row.type}`)}</TableCell>
+                  {showField('permitNo') ? (
+                    <TableCell>{row.permitNo}</TableCell>
+                  ) : null}
+                  {showField('type') ? (
+                    <TableCell>{t(`hse.workPermitType.${row.type}`)}</TableCell>
+                  ) : null}
                   <TableCell>{row.subjectName || '—'}</TableCell>
-                  <TableCell className='max-w-48 truncate'>
-                    {row.location}
-                  </TableCell>
-                  <TableCell>{stamp(row.validFrom)}</TableCell>
-                  <TableCell>{stamp(row.validTo)}</TableCell>
-                  <TableCell>
-                    {row.approverId
-                      ? (options.data?.data.employees.find(
-                          (employee) => employee.id === row.approverId,
-                        )?.name ?? row.approverId)
-                      : '—'}
-                  </TableCell>
-                  <TableCell>
-                    <HseStatus status={row.status} />
-                  </TableCell>
+                  {showField('location') ? (
+                    <TableCell className='max-w-48 truncate'>
+                      {row.location}
+                    </TableCell>
+                  ) : null}
+                  {showField('validFrom') ? (
+                    <TableCell>{stamp(row.validFrom)}</TableCell>
+                  ) : null}
+                  {showField('validTo') ? (
+                    <TableCell>{stamp(row.validTo)}</TableCell>
+                  ) : null}
+                  {showField('approverId') ? (
+                    <TableCell>
+                      {row.approverId
+                        ? (options.data?.data.employees.find(
+                            (employee) => employee.id === row.approverId,
+                          )?.name ?? row.approverId)
+                        : '—'}
+                    </TableCell>
+                  ) : null}
+                  {showField('status') ? (
+                    <TableCell>
+                      <HseStatus status={row.status} />
+                    </TableCell>
+                  ) : null}
                   <TableCell className='text-right'>
                     {row.status === 'draft' || row.status === 'rejected' ? (
                       canManage ? (
@@ -465,15 +497,17 @@ export default function HseWorkPermitsPage() {
                   onChange={(event) => set('location', event.target.value)}
                 />
               </label>
-              <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.unit')}</span>
-                <HseSelect
-                  value={form.unitId}
-                  onChange={(value) => set('unitId', value)}
-                  options={units}
-                  placeholder={t('hse.optional')}
-                />
-              </label>
+              {showField('unitId') ? (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.unit')}</span>
+                  <HseSelect
+                    value={form.unitId}
+                    onChange={(value) => set('unitId', value)}
+                    options={units}
+                    placeholder={t('hse.optional')}
+                  />
+                </label>
+              ) : null}
               <label className='grid gap-1.5 text-sm'>
                 <span>{t('hse.fields.validFrom')}</span>
                 <Input

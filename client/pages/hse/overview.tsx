@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { Label } from '#components/ui/label';
 import {
   Select,
@@ -41,6 +42,9 @@ export default function HseOverviewPage() {
   const [params, setParams] = useSearchParams();
   const subjectId = params.get('subjectId') ?? '';
   const horizonDays = Number(params.get('horizonDays') ?? 90);
+  const pageFields = usePageFieldVisibility('hse-overview');
+  const showField = (field: string) =>
+    pageFields.visible('hse.overview', field);
   const query = useQuery({
     retry: false,
     queryKey: ['hse-overview', subjectId, horizonDays],
@@ -65,7 +69,7 @@ export default function HseOverviewPage() {
         ['hazardsOpen', result.counts.hazardsOpen],
         ['hazardsOverdue', result.counts.hazardsOverdue],
         ['certificatesExpiring90', result.counts.certificatesExpiring90],
-      ]
+      ].filter(([key]) => showField(String(key)))
     : [];
   return (
     <PageContainer>

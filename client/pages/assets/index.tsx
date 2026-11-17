@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, RefreshCw } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
@@ -50,7 +51,12 @@ type Asset = {
 };
 type Options = {
   subjects: { id: string; name: string }[];
-  employees: { id: string; code: string; name: string; subjectId: string | null }[];
+  employees: {
+    id: string;
+    code: string;
+    name: string;
+    subjectId: string | null;
+  }[];
   categories: string[];
   permissions: { manage: boolean; readAll: boolean; approve: boolean };
 };
@@ -96,6 +102,9 @@ export default function AssetsPage() {
   const { t } = useTranslation();
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const pageFields = usePageFieldVisibility('assets-list');
+  const showField = (field: string) =>
+    pageFields.visible('people.assets', field);
   const [search] = useSearchParams();
   const subjectId = search.get('subjectId') ?? '';
   const [page, setPage] = useState(1);
@@ -301,7 +310,10 @@ export default function AssetsPage() {
       setBulkLocation('');
       setBulkNote('');
       setBulkMessage(
-        t('assets.bulkResult', { updated: String(updated), failed: String(failed) }),
+        t('assets.bulkResult', {
+          updated: String(updated),
+          failed: String(failed),
+        }),
       );
       await refresh();
     },
@@ -316,11 +328,16 @@ export default function AssetsPage() {
     setLocation(row.location ?? '');
     setNote('');
   };
+  // Clearing selection when filters change is intentional; it avoids acting on
+  // rows that are no longer in the visible list.
+  /* eslint-disable react-hooks/set-state-in-effect, @eslint-react/set-state-in-effect */
   useEffect(() => {
     setSelected([]);
     setBulkMessage('');
   }, [subjectId, page, status, custodian, q]);
-  const error = list.error ?? options.error ?? save.error ?? act.error ?? bulkAct.error;
+  /* eslint-enable react-hooks/set-state-in-effect, @eslint-react/set-state-in-effect */
+  const error =
+    list.error ?? options.error ?? save.error ?? act.error ?? bulkAct.error;
   return (
     <PageContainer>
       <PageHeader
@@ -430,11 +447,7 @@ export default function AssetsPage() {
           >
             {t('assets.bulkReturn')}
           </Button>
-          <Button
-            size='sm'
-            variant='ghost'
-            onClick={() => setSelected([])}
-          >
+          <Button size='sm' variant='ghost' onClick={() => setSelected([])}>
             {t('assets.clearSelection')}
           </Button>
         </div>
@@ -457,7 +470,9 @@ export default function AssetsPage() {
                     <input
                       type='checkbox'
                       aria-label={t('assets.selectAll')}
-                      checked={rows.length > 0 && selected.length === rows.length}
+                      checked={
+                        rows.length > 0 && selected.length === rows.length
+                      }
                       onChange={(event) =>
                         setSelected(
                           event.target.checked ? rows.map((row) => row.id) : [],
@@ -468,11 +483,21 @@ export default function AssetsPage() {
                 ) : null}
                 <TableHead>{t('assets.fields.code')}</TableHead>
                 <TableHead>{t('assets.fields.name')}</TableHead>
-                <TableHead>{t('assets.fields.category')}</TableHead>
-                <TableHead>{t('assets.fields.status')}</TableHead>
-                <TableHead>{t('assets.fields.custodian')}</TableHead>
-                <TableHead>{t('assets.fields.location')}</TableHead>
-                <TableHead>{t('assets.fields.originalCost')}</TableHead>
+                {showField('category') ? (
+                  <TableHead>{t('assets.fields.category')}</TableHead>
+                ) : null}
+                {showField('status') ? (
+                  <TableHead>{t('assets.fields.status')}</TableHead>
+                ) : null}
+                {showField('custodianEmployeeId') ? (
+                  <TableHead>{t('assets.fields.custodian')}</TableHead>
+                ) : null}
+                {showField('location') ? (
+                  <TableHead>{t('assets.fields.location')}</TableHead>
+                ) : null}
+                {showField('originalCost') ? (
+                  <TableHead>{t('assets.fields.originalCost')}</TableHead>
+                ) : null}
                 <TableHead className='text-right'>
                   {t('assets.fields.actions')}
                 </TableHead>
@@ -501,24 +526,34 @@ export default function AssetsPage() {
                     {row.code}
                   </TableCell>
                   <TableCell>{row.name}</TableCell>
-                  <TableCell>
-                    {row.category ? categoryLabel(row.category) : '—'}
-                  </TableCell>
-                  <TableCell>
-                    {t(`assets.status.${row.status}`)}
-                    {row.scrapPending ? (
-                      <span className='ml-2 text-xs text-muted-foreground'>
-                        {t('assets.pendingScrap')}
-                      </span>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>{row.custodian?.name ?? '—'}</TableCell>
-                  <TableCell>{row.location ?? '—'}</TableCell>
-                  <TableCell>
-                    {row.originalCost
-                      ? `${row.originalCost} ${row.currency ?? ''}`
-                      : '—'}
-                  </TableCell>
+                  {showField('category') ? (
+                    <TableCell>
+                      {row.category ? categoryLabel(row.category) : '—'}
+                    </TableCell>
+                  ) : null}
+                  {showField('status') ? (
+                    <TableCell>
+                      {t(`assets.status.${row.status}`)}
+                      {row.scrapPending ? (
+                        <span className='ml-2 text-xs text-muted-foreground'>
+                          {t('assets.pendingScrap')}
+                        </span>
+                      ) : null}
+                    </TableCell>
+                  ) : null}
+                  {showField('custodianEmployeeId') ? (
+                    <TableCell>{row.custodian?.name ?? '—'}</TableCell>
+                  ) : null}
+                  {showField('location') ? (
+                    <TableCell>{row.location ?? '—'}</TableCell>
+                  ) : null}
+                  {showField('originalCost') ? (
+                    <TableCell>
+                      {row.originalCost
+                        ? `${row.originalCost} ${row.currency ?? ''}`
+                        : '—'}
+                    </TableCell>
+                  ) : null}
                   <TableCell className='text-right'>
                     <Button
                       size='sm'
@@ -652,27 +687,29 @@ export default function AssetsPage() {
                 }
               />
             </label>
-            <label className='grid gap-1 text-sm'>
-              <span>{t('assets.fields.category')}</span>
-              <select
-                className={nativeSelectClass}
-                value={form.category}
-                onChange={(event) =>
-                  setForm({ ...form, category: event.target.value })
-                }
-              >
-                <option value=''>{t('assets.fields.category')}</option>
-                {legacyCategory ? (
-                  <option value={legacyCategory}>{legacyCategory}</option>
-                ) : null}
-                {categories.map((category) => (
-                  <option key={category} value={category}>
-                    {categoryLabel(category)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {editing ? null : (
+            {showField('category') ? (
+              <label className='grid gap-1 text-sm'>
+                <span>{t('assets.fields.category')}</span>
+                <select
+                  className={nativeSelectClass}
+                  value={form.category}
+                  onChange={(event) =>
+                    setForm({ ...form, category: event.target.value })
+                  }
+                >
+                  <option value=''>{t('assets.fields.category')}</option>
+                  {legacyCategory ? (
+                    <option value={legacyCategory}>{legacyCategory}</option>
+                  ) : null}
+                  {categories.map((category) => (
+                    <option key={category} value={category}>
+                      {categoryLabel(category)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {editing || !showField('custodianEmployeeId') ? null : (
               <label className='grid gap-1 text-sm'>
                 <span>{t('assets.fields.custodian')}</span>
                 <select
@@ -694,43 +731,51 @@ export default function AssetsPage() {
                 </select>
               </label>
             )}
-            <label className='grid gap-1 text-sm'>
-              <span>{t('assets.fields.location')}</span>
-              <Input
-                value={form.location}
-                onChange={(event) =>
-                  setForm({ ...form, location: event.target.value })
-                }
-              />
-            </label>
-            <label className='grid gap-1 text-sm'>
-              <span>{t('assets.fields.acquiredOn')}</span>
-              <Input
-                type='date'
-                value={form.acquiredOn}
-                onChange={(event) =>
-                  setForm({ ...form, acquiredOn: event.target.value })
-                }
-              />
-            </label>
-            <label className='grid gap-1 text-sm'>
-              <span>{t('assets.fields.originalCost')}</span>
-              <Input
-                value={form.originalCost}
-                onChange={(event) =>
-                  setForm({ ...form, originalCost: event.target.value })
-                }
-              />
-            </label>
-            <label className='grid gap-1 text-sm sm:col-span-2'>
-              <span>{t('assets.fields.notes')}</span>
-              <Textarea
-                value={form.notes}
-                onChange={(event) =>
-                  setForm({ ...form, notes: event.target.value })
-                }
-              />
-            </label>
+            {showField('location') ? (
+              <label className='grid gap-1 text-sm'>
+                <span>{t('assets.fields.location')}</span>
+                <Input
+                  value={form.location}
+                  onChange={(event) =>
+                    setForm({ ...form, location: event.target.value })
+                  }
+                />
+              </label>
+            ) : null}
+            {showField('acquiredOn') ? (
+              <label className='grid gap-1 text-sm'>
+                <span>{t('assets.fields.acquiredOn')}</span>
+                <Input
+                  type='date'
+                  value={form.acquiredOn}
+                  onChange={(event) =>
+                    setForm({ ...form, acquiredOn: event.target.value })
+                  }
+                />
+              </label>
+            ) : null}
+            {showField('originalCost') ? (
+              <label className='grid gap-1 text-sm'>
+                <span>{t('assets.fields.originalCost')}</span>
+                <Input
+                  value={form.originalCost}
+                  onChange={(event) =>
+                    setForm({ ...form, originalCost: event.target.value })
+                  }
+                />
+              </label>
+            ) : null}
+            {showField('notes') ? (
+              <label className='grid gap-1 text-sm sm:col-span-2'>
+                <span>{t('assets.fields.notes')}</span>
+                <Textarea
+                  value={form.notes}
+                  onChange={(event) =>
+                    setForm({ ...form, notes: event.target.value })
+                  }
+                />
+              </label>
+            ) : null}
           </div>
           <DialogFooter>
             <Button variant='outline' onClick={() => setOpen(false)}>
@@ -854,9 +899,7 @@ export default function AssetsPage() {
                 <Input
                   placeholder={t('assets.employeeSearch')}
                   value={bulkEmployeeQuery}
-                  onChange={(event) =>
-                    setBulkEmployeeQuery(event.target.value)
-                  }
+                  onChange={(event) => setBulkEmployeeQuery(event.target.value)}
                 />
                 <select
                   className={nativeSelectClass}
@@ -901,8 +944,7 @@ export default function AssetsPage() {
             </Button>
             <Button
               disabled={
-                bulkAct.isPending ||
-                (bulk === 'assign' && !bulkEmployeeId)
+                bulkAct.isPending || (bulk === 'assign' && !bulkEmployeeId)
               }
               onClick={() => bulkAct.mutate()}
             >
@@ -920,7 +962,9 @@ export default function AssetsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('assets.detailTitle')}</DialogTitle>
-            <DialogDescription>{detail.data?.data.code ?? ''}</DialogDescription>
+            <DialogDescription>
+              {detail.data?.data.code ?? ''}
+            </DialogDescription>
           </DialogHeader>
           {detail.data?.data ? (
             <>

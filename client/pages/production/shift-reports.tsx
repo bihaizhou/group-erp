@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { Button } from '#components/ui/button';
 import {
   Card,
@@ -73,6 +74,11 @@ export default function ProductionShiftReportsPage() {
   const api = useApiClient();
   const queryClient = useQueryClient();
   const access = useProductionAccess();
+  const pageFields = usePageFieldVisibility('production-shift-reports');
+  const showField = (field: string) =>
+    pageFields.visible('production.shiftReport', field);
+  const columnCount =
+    2 + ['reportDate', 'shift', 'status'].filter(showField).length;
   const [unitId, setUnitId] = useState('');
   const [reportDate, setReportDate] = useState(today);
   const [notice, setNotice] = useState('');
@@ -274,10 +280,16 @@ export default function ProductionShiftReportsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('production.reportDate')}</TableHead>
-                <TableHead>{t('production.shift')}</TableHead>
+                {showField('reportDate') ? (
+                  <TableHead>{t('production.reportDate')}</TableHead>
+                ) : null}
+                {showField('shift') ? (
+                  <TableHead>{t('production.shift')}</TableHead>
+                ) : null}
                 <TableHead>{t('production.shiftReportMaterials')}</TableHead>
-                <TableHead>{t('production.statusLabel')}</TableHead>
+                {showField('status') ? (
+                  <TableHead>{t('production.statusLabel')}</TableHead>
+                ) : null}
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -304,34 +316,40 @@ export default function ProductionShiftReportsPage() {
                 );
                 return (
                   <TableRow key={row.id}>
-                    <TableCell>{row.reportDate}</TableCell>
-                    <TableCell>
-                      {row.shift === 'day'
-                        ? t('production.shiftDay')
-                        : t('production.shiftNight')}
-                    </TableCell>
+                    {showField('reportDate') ? (
+                      <TableCell>{row.reportDate}</TableCell>
+                    ) : null}
+                    {showField('shift') ? (
+                      <TableCell>
+                        {row.shift === 'day'
+                          ? t('production.shiftDay')
+                          : t('production.shiftNight')}
+                      </TableCell>
+                    ) : null}
                     <TableCell className='max-w-72 align-top'>
                       <span className='line-clamp-2 text-sm'>
                         {materialSummary(row)}
                       </span>
                     </TableCell>
-                    <TableCell>
-                      <div>
-                        {t(`production.shiftReportStatus.${row.status}`)}
-                      </div>
-                      {row.status === 'void' && row.voidReason ? (
-                        <p className='text-xs text-muted-foreground'>
-                          {t('production.voidReasonDisplay', {
-                            reason: row.voidReason,
-                          })}
-                        </p>
-                      ) : null}
-                      {row.status === 'draft' && row.reopenedAt ? (
-                        <p className='text-xs text-muted-foreground'>
-                          {t('production.shiftReportReopenedHint')}
-                        </p>
-                      ) : null}
-                    </TableCell>
+                    {showField('status') ? (
+                      <TableCell>
+                        <div>
+                          {t(`production.shiftReportStatus.${row.status}`)}
+                        </div>
+                        {row.status === 'void' && row.voidReason ? (
+                          <p className='text-xs text-muted-foreground'>
+                            {t('production.voidReasonDisplay', {
+                              reason: row.voidReason,
+                            })}
+                          </p>
+                        ) : null}
+                        {row.status === 'draft' && row.reopenedAt ? (
+                          <p className='text-xs text-muted-foreground'>
+                            {t('production.shiftReportReopenedHint')}
+                          </p>
+                        ) : null}
+                      </TableCell>
+                    ) : null}
                     <TableCell>
                       <div className='flex flex-wrap items-center gap-2'>
                         {row.status === 'draft' ? (
@@ -407,7 +425,10 @@ export default function ProductionShiftReportsPage() {
               })}
               {!rows.length ? (
                 <TableRow>
-                  <TableCell colSpan={5} className='text-muted-foreground'>
+                  <TableCell
+                    colSpan={columnCount}
+                    className='text-muted-foreground'
+                  >
                     {t('production.shiftReportEmpty')}
                   </TableCell>
                 </TableRow>

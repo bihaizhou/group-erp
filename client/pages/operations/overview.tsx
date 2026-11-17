@@ -29,6 +29,7 @@ import { cn } from 'cn';
 import { PageContainer } from '#components/page-container';
 import { businessDate } from '#hooks/business-date';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import {
   DashboardMetric,
   DashboardMetricGrid,
@@ -67,10 +68,7 @@ import {
   TableHeader,
   TableRow,
 } from '#components/ui/table';
-import type {
-  OperationsCompanyOverview,
-  OperationsOverview,
-} from './model.js';
+import type { OperationsCompanyOverview, OperationsOverview } from './model.js';
 
 const displayNumber = (
   value: string | number | null | undefined,
@@ -97,6 +95,8 @@ const displayRate = (
  */
 const withSubject = (to: string, subjectId: string | null): string =>
   subjectId ? `${to}?subjectId=${encodeURIComponent(subjectId)}` : to;
+
+type ShowField = (field: string) => boolean;
 
 function ErrorNotice({ onRetry }: { onRetry: () => void }) {
   const { t } = useTranslation();
@@ -407,7 +407,13 @@ function RiskCard({ data }: { data: OperationsOverview }) {
   );
 }
 
-function UnitOutputCard({ data }: { data: OperationsOverview }) {
+function UnitOutputCard({
+  data,
+  showField,
+}: {
+  data: OperationsOverview;
+  showField: ShowField;
+}) {
   const { t, i18n } = useTranslation();
   const units = data.units
     .filter((unit) => unit.reports > 0)
@@ -434,18 +440,26 @@ function UnitOutputCard({ data }: { data: OperationsOverview }) {
                 <TableHead scope='col' className='sticky left-0 z-10 bg-muted'>
                   {t('operations.unit')}
                 </TableHead>
-                <TableHead scope='col' className='text-right'>
-                  {t('operations.processed')}
-                </TableHead>
-                <TableHead scope='col' className='text-right'>
-                  {t('operations.metal')}
-                </TableHead>
-                <TableHead scope='col' className='text-right'>
-                  {t('operations.sand')}
-                </TableHead>
-                <TableHead scope='col' className='text-right'>
-                  {t('operations.metalRate')}
-                </TableHead>
+                {showField('processed') ? (
+                  <TableHead scope='col' className='text-right'>
+                    {t('operations.processed')}
+                  </TableHead>
+                ) : null}
+                {showField('metal') ? (
+                  <TableHead scope='col' className='text-right'>
+                    {t('operations.metal')}
+                  </TableHead>
+                ) : null}
+                {showField('sand') ? (
+                  <TableHead scope='col' className='text-right'>
+                    {t('operations.sand')}
+                  </TableHead>
+                ) : null}
+                {showField('metalRate') ? (
+                  <TableHead scope='col' className='text-right'>
+                    {t('operations.metalRate')}
+                  </TableHead>
+                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -459,29 +473,37 @@ function UnitOutputCard({ data }: { data: OperationsOverview }) {
                     <TableCell className='sticky left-0 z-10 max-w-56 truncate bg-card font-medium'>
                       {unit.unitName}
                     </TableCell>
-                    <TableCell className='text-right tabular-nums'>
-                      <span className='inline-flex items-center justify-end gap-2 whitespace-nowrap'>
-                        <span
-                          aria-hidden
-                          className='h-1.5 w-16 overflow-hidden rounded-full bg-muted'
-                        >
+                    {showField('processed') ? (
+                      <TableCell className='text-right tabular-nums'>
+                        <span className='inline-flex items-center justify-end gap-2 whitespace-nowrap'>
                           <span
-                            className='block h-full rounded-full bg-primary'
-                            style={{ width: `${width}%` }}
-                          />
+                            aria-hidden
+                            className='h-1.5 w-16 overflow-hidden rounded-full bg-muted'
+                          >
+                            <span
+                              className='block h-full rounded-full bg-primary'
+                              style={{ width: `${width}%` }}
+                            />
+                          </span>
+                          {displayNumber(unit.processed, i18n.language)}
                         </span>
-                        {displayNumber(unit.processed, i18n.language)}
-                      </span>
-                    </TableCell>
-                    <TableCell className='text-right tabular-nums'>
-                      {displayNumber(unit.metal, i18n.language)}
-                    </TableCell>
-                    <TableCell className='text-right tabular-nums'>
-                      {displayNumber(unit.sand, i18n.language)}
-                    </TableCell>
-                    <TableCell className='text-right tabular-nums'>
-                      {displayRate(unit.metalRate, i18n.language)}
-                    </TableCell>
+                      </TableCell>
+                    ) : null}
+                    {showField('metal') ? (
+                      <TableCell className='text-right tabular-nums'>
+                        {displayNumber(unit.metal, i18n.language)}
+                      </TableCell>
+                    ) : null}
+                    {showField('sand') ? (
+                      <TableCell className='text-right tabular-nums'>
+                        {displayNumber(unit.sand, i18n.language)}
+                      </TableCell>
+                    ) : null}
+                    {showField('metalRate') ? (
+                      <TableCell className='text-right tabular-nums'>
+                        {displayRate(unit.metalRate, i18n.language)}
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 );
               })}
@@ -490,7 +512,9 @@ function UnitOutputCard({ data }: { data: OperationsOverview }) {
         ) : (
           <EmptyPanel
             icon={masked ? EyeOff : ClipboardList}
-            title={masked ? t('operations.maskedTitle') : t('operations.emptyUnits')}
+            title={
+              masked ? t('operations.maskedTitle') : t('operations.emptyUnits')
+            }
             description={
               masked
                 ? t('operations.maskedDescription')
@@ -564,7 +588,13 @@ function GroupCard({
   );
 }
 
-function SummaryView({ data }: { data: OperationsOverview }) {
+function SummaryView({
+  data,
+  showField,
+}: {
+  data: OperationsOverview;
+  showField: ShowField;
+}) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const rate = data.production?.metalRate ?? null;
@@ -590,14 +620,18 @@ function SummaryView({ data }: { data: OperationsOverview }) {
         <DashboardMetric
           label={t('operations.metal')}
           value={
-            data.production ? displayNumber(data.production.metal, language) : '—'
+            data.production
+              ? displayNumber(data.production.metal, language)
+              : '—'
           }
           icon={Gem}
         />
         <DashboardMetric
           label={t('operations.sand')}
           value={
-            data.production ? displayNumber(data.production.sand, language) : '—'
+            data.production
+              ? displayNumber(data.production.sand, language)
+              : '—'
           }
           icon={Mountain}
         />
@@ -612,7 +646,7 @@ function SummaryView({ data }: { data: OperationsOverview }) {
       </DashboardMetricGrid>
 
       <div className='grid gap-4 lg:grid-cols-3'>
-        <UnitOutputCard data={data} />
+        <UnitOutputCard data={data} showField={showField} />
         <RiskCard data={data} />
       </div>
 
@@ -747,9 +781,8 @@ function SummaryView({ data }: { data: OperationsOverview }) {
               hint:
                 data.downtime !== null
                   ? t('operations.downtimeMinutes', {
-                      minutes: data.downtime.minutesToday.toLocaleString(
-                        language,
-                      ),
+                      minutes:
+                        data.downtime.minutesToday.toLocaleString(language),
                     })
                   : undefined,
             },
@@ -774,24 +807,26 @@ function CompanyComparison({
   data,
   loading,
   onSelect,
+  showField,
 }: {
   data: OperationsCompanyOverview | undefined;
   loading: boolean;
   onSelect: (subjectId: string) => void;
+  showField: ShowField;
 }) {
   const { t, i18n } = useTranslation();
   const language = i18n.language;
   const columns = [
-    t('operations.company'),
-    t('operations.processed'),
-    t('operations.metalRate'),
-    t('operations.stockMetal'),
-    t('operations.stockSand'),
-    t('operations.salesOpen'),
-    t('operations.procurementOpen'),
-    t('operations.peopleActive'),
-    t('operations.issueOpen'),
-  ];
+    { field: 'company', label: t('operations.company') },
+    { field: 'processed', label: t('operations.processed') },
+    { field: 'metalRate', label: t('operations.metalRate') },
+    { field: 'stockMetal', label: t('operations.stockMetal') },
+    { field: 'stockSand', label: t('operations.stockSand') },
+    { field: 'salesOpen', label: t('operations.salesOpen') },
+    { field: 'procurementOpen', label: t('operations.procurementOpen') },
+    { field: 'peopleActive', label: t('operations.peopleActive') },
+    { field: 'issueOpen', label: t('operations.issueOpen') },
+  ].filter((column) => column.field === 'company' || showField(column.field));
   // A source is partially masked when some company blocks are visible and
   // others are null; summing only the visible blocks would understate the group
   // total, so the total row carries an explicit caveat. A source masked for
@@ -814,14 +849,14 @@ function CompanyComparison({
       <TableRow>
         {columns.map((column, index) => (
           <TableHead
-            key={column}
+            key={column.field}
             scope='col'
             className={cn(
               index === 0 && 'sticky left-0 z-10 bg-muted',
               index > 0 && 'text-right',
             )}
           >
-            {column}
+            {column.label}
           </TableHead>
         ))}
       </TableRow>
@@ -844,7 +879,7 @@ function CompanyComparison({
                 <TableRow key={row}>
                   {columns.map((column, index) => (
                     <TableCell
-                      key={column}
+                      key={column.field}
                       className={cn(
                         index === 0 && 'sticky left-0 z-10 bg-card',
                       )}
@@ -881,44 +916,60 @@ function CompanyComparison({
                       />
                     </button>
                   </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {item.production !== null
-                      ? displayNumber(item.production.processed, language)
-                      : '—'}
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {item.production !== null
-                      ? displayRate(item.production.metalRate, language)
-                      : '—'}
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {item.warehouse !== null && item.warehouse.stockConfigured
-                      ? displayNumber(item.warehouse.stockMetal, language)
-                      : '—'}
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {item.warehouse !== null && item.warehouse.stockConfigured
-                      ? displayNumber(item.warehouse.stockSand, language)
-                      : '—'}
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {item.sales !== null
-                      ? displayNumber(item.sales.openOrders, language)
-                      : '—'}
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {item.procurement !== null
-                      ? displayNumber(item.procurement.openOrders, language)
-                      : '—'}
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {item.people !== null
-                      ? displayNumber(item.people.active, language)
-                      : '—'}
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {displayNumber(item.issues.open, language)}
-                  </TableCell>
+                  {showField('processed') ? (
+                    <TableCell className='text-right tabular-nums'>
+                      {item.production !== null
+                        ? displayNumber(item.production.processed, language)
+                        : '—'}
+                    </TableCell>
+                  ) : null}
+                  {showField('metalRate') ? (
+                    <TableCell className='text-right tabular-nums'>
+                      {item.production !== null
+                        ? displayRate(item.production.metalRate, language)
+                        : '—'}
+                    </TableCell>
+                  ) : null}
+                  {showField('stockMetal') ? (
+                    <TableCell className='text-right tabular-nums'>
+                      {item.warehouse !== null && item.warehouse.stockConfigured
+                        ? displayNumber(item.warehouse.stockMetal, language)
+                        : '—'}
+                    </TableCell>
+                  ) : null}
+                  {showField('stockSand') ? (
+                    <TableCell className='text-right tabular-nums'>
+                      {item.warehouse !== null && item.warehouse.stockConfigured
+                        ? displayNumber(item.warehouse.stockSand, language)
+                        : '—'}
+                    </TableCell>
+                  ) : null}
+                  {showField('salesOpen') ? (
+                    <TableCell className='text-right tabular-nums'>
+                      {item.sales !== null
+                        ? displayNumber(item.sales.openOrders, language)
+                        : '—'}
+                    </TableCell>
+                  ) : null}
+                  {showField('procurementOpen') ? (
+                    <TableCell className='text-right tabular-nums'>
+                      {item.procurement !== null
+                        ? displayNumber(item.procurement.openOrders, language)
+                        : '—'}
+                    </TableCell>
+                  ) : null}
+                  {showField('peopleActive') ? (
+                    <TableCell className='text-right tabular-nums'>
+                      {item.people !== null
+                        ? displayNumber(item.people.active, language)
+                        : '—'}
+                    </TableCell>
+                  ) : null}
+                  {showField('issueOpen') ? (
+                    <TableCell className='text-right tabular-nums'>
+                      {displayNumber(item.issues.open, language)}
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))}
               {data.items.length > 1 ? (
@@ -926,116 +977,131 @@ function CompanyComparison({
                   <TableCell className='sticky left-0 z-10 bg-card'>
                     {t('operations.companiesTotal')}
                   </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {data.items.every((item) => item.production === null)
-                      ? '—'
-                      : displayNumber(
-                          data.items.reduce(
-                            (total, item) =>
-                              total +
-                              Number(item.production?.processed ?? 0),
-                            0,
-                          ),
-                          language,
-                        )}
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {(() => {
-                      const metal = data.items.reduce(
-                        (total, item) =>
-                          total + Number(item.production?.metal ?? 0),
-                        0,
-                      );
-                      const processed = data.items.reduce(
-                        (total, item) =>
-                          total + Number(item.production?.processed ?? 0),
-                        0,
-                      );
-                      return processed > 0
-                        ? `${displayNumber(
-                            ((metal / processed) * 100).toFixed(1),
+                  {showField('processed') ? (
+                    <TableCell className='text-right tabular-nums'>
+                      {data.items.every((item) => item.production === null)
+                        ? '—'
+                        : displayNumber(
+                            data.items.reduce(
+                              (total, item) =>
+                                total + Number(item.production?.processed ?? 0),
+                              0,
+                            ),
                             language,
-                          )}%`
-                        : '—';
-                    })()}
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {data.items.every(
-                      (item) =>
-                        item.warehouse === null ||
-                        !item.warehouse.stockConfigured,
-                    )
-                      ? '—'
-                      : displayNumber(
-                          data.items.reduce(
-                            (total, item) =>
-                              total + Number(item.warehouse?.stockMetal ?? 0),
-                            0,
-                          ),
-                          language,
-                        )}
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {data.items.every(
-                      (item) =>
-                        item.warehouse === null ||
-                        !item.warehouse.stockConfigured,
-                    )
-                      ? '—'
-                      : displayNumber(
-                          data.items.reduce(
-                            (total, item) =>
-                              total + Number(item.warehouse?.stockSand ?? 0),
-                            0,
-                          ),
-                          language,
-                        )}
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {data.items.every((item) => item.sales === null)
-                      ? '—'
-                      : displayNumber(
-                          data.items.reduce(
-                            (total, item) =>
-                              total + (item.sales?.openOrders ?? 0),
-                            0,
-                          ),
-                          language,
-                        )}
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {data.items.every((item) => item.procurement === null)
-                      ? '—'
-                      : displayNumber(
-                          data.items.reduce(
-                            (total, item) =>
-                              total + (item.procurement?.openOrders ?? 0),
-                            0,
-                          ),
-                          language,
-                        )}
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {data.items.every((item) => item.people === null)
-                      ? '—'
-                      : displayNumber(
-                          data.items.reduce(
-                            (total, item) =>
-                              total + (item.people?.active ?? 0),
-                            0,
-                          ),
-                          language,
-                        )}
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {displayNumber(
-                      data.items.reduce(
-                        (total, item) => total + item.issues.open,
-                        0,
-                      ),
-                      language,
-                    )}
-                  </TableCell>
+                          )}
+                    </TableCell>
+                  ) : null}
+                  {showField('metalRate') ? (
+                    <TableCell className='text-right tabular-nums'>
+                      {(() => {
+                        const metal = data.items.reduce(
+                          (total, item) =>
+                            total + Number(item.production?.metal ?? 0),
+                          0,
+                        );
+                        const processed = data.items.reduce(
+                          (total, item) =>
+                            total + Number(item.production?.processed ?? 0),
+                          0,
+                        );
+                        return processed > 0
+                          ? `${displayNumber(
+                              ((metal / processed) * 100).toFixed(1),
+                              language,
+                            )}%`
+                          : '—';
+                      })()}
+                    </TableCell>
+                  ) : null}
+                  {showField('stockMetal') ? (
+                    <TableCell className='text-right tabular-nums'>
+                      {data.items.every(
+                        (item) =>
+                          item.warehouse === null ||
+                          !item.warehouse.stockConfigured,
+                      )
+                        ? '—'
+                        : displayNumber(
+                            data.items.reduce(
+                              (total, item) =>
+                                total + Number(item.warehouse?.stockMetal ?? 0),
+                              0,
+                            ),
+                            language,
+                          )}
+                    </TableCell>
+                  ) : null}
+                  {showField('stockSand') ? (
+                    <TableCell className='text-right tabular-nums'>
+                      {data.items.every(
+                        (item) =>
+                          item.warehouse === null ||
+                          !item.warehouse.stockConfigured,
+                      )
+                        ? '—'
+                        : displayNumber(
+                            data.items.reduce(
+                              (total, item) =>
+                                total + Number(item.warehouse?.stockSand ?? 0),
+                              0,
+                            ),
+                            language,
+                          )}
+                    </TableCell>
+                  ) : null}
+                  {showField('salesOpen') ? (
+                    <TableCell className='text-right tabular-nums'>
+                      {data.items.every((item) => item.sales === null)
+                        ? '—'
+                        : displayNumber(
+                            data.items.reduce(
+                              (total, item) =>
+                                total + (item.sales?.openOrders ?? 0),
+                              0,
+                            ),
+                            language,
+                          )}
+                    </TableCell>
+                  ) : null}
+                  {showField('procurementOpen') ? (
+                    <TableCell className='text-right tabular-nums'>
+                      {data.items.every((item) => item.procurement === null)
+                        ? '—'
+                        : displayNumber(
+                            data.items.reduce(
+                              (total, item) =>
+                                total + (item.procurement?.openOrders ?? 0),
+                              0,
+                            ),
+                            language,
+                          )}
+                    </TableCell>
+                  ) : null}
+                  {showField('peopleActive') ? (
+                    <TableCell className='text-right tabular-nums'>
+                      {data.items.every((item) => item.people === null)
+                        ? '—'
+                        : displayNumber(
+                            data.items.reduce(
+                              (total, item) =>
+                                total + (item.people?.active ?? 0),
+                              0,
+                            ),
+                            language,
+                          )}
+                    </TableCell>
+                  ) : null}
+                  {showField('issueOpen') ? (
+                    <TableCell className='text-right tabular-nums'>
+                      {displayNumber(
+                        data.items.reduce(
+                          (total, item) => total + item.issues.open,
+                          0,
+                        ),
+                        language,
+                      )}
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ) : null}
               {data.items.length > 1 && totalsPartiallyMasked ? (
@@ -1083,6 +1149,9 @@ function DataNote({ truncated }: { truncated: boolean }) {
 export default function OperationsOverviewPage() {
   const { t } = useTranslation();
   const api = useApiClient();
+  const pageFields = usePageFieldVisibility('operations-overview');
+  const showField = (field: string) =>
+    pageFields.visible('operations.overview', field);
   const [params, setParams] = useSearchParams();
   const subjectId = params.get('subjectId') ?? '';
   const [view, setView] = useState<'summary' | 'companies'>('summary');
@@ -1117,8 +1186,8 @@ export default function OperationsOverviewPage() {
   const truncated =
     view === 'summary'
       ? Boolean(overview.data?.data.notes.truncated?.length)
-      : (companies.data?.data.items ?? []).some(
-          (item) => Boolean(item.notes.truncated?.length),
+      : (companies.data?.data.items ?? []).some((item) =>
+          Boolean(item.notes.truncated?.length),
         );
   const refresh = () => {
     void overview.refetch();
@@ -1195,7 +1264,7 @@ export default function OperationsOverviewPage() {
           {overview.isPending ? (
             <SummarySkeleton />
           ) : overview.data ? (
-            <SummaryView data={overview.data.data} />
+            <SummaryView data={overview.data.data} showField={showField} />
           ) : null}
         </TabsContent>
 
@@ -1207,6 +1276,7 @@ export default function OperationsOverviewPage() {
               data={companies.data?.data}
               loading={companies.isPending}
               onSelect={selectCompany}
+              showField={showField}
             />
           )}
         </TabsContent>

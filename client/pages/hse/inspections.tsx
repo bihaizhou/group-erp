@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClipboardCheck, Plus } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
@@ -62,6 +63,9 @@ export default function HseInspectionsPage() {
   const { t } = useTranslation();
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const pageFields = usePageFieldVisibility('hse-inspections');
+  const showField = (field: string) =>
+    pageFields.visible('hse.inspection', field);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -280,14 +284,28 @@ export default function HseInspectionsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('hse.fields.type')}</TableHead>
-                <TableHead>{t('hse.fields.plannedAt')}</TableHead>
+                {showField('type') && (
+                  <TableHead>{t('hse.fields.type')}</TableHead>
+                )}
+                {showField('plannedAt') && (
+                  <TableHead>{t('hse.fields.plannedAt')}</TableHead>
+                )}
                 <TableHead>{t('hse.fields.subject')}</TableHead>
-                <TableHead>{t('hse.fields.unit')}</TableHead>
-                <TableHead>{t('hse.fields.inspector')}</TableHead>
-                <TableHead>{t('hse.fields.findingsCount')}</TableHead>
-                <TableHead>{t('hse.fields.completedAt')}</TableHead>
-                <TableHead>{t('hse.fields.status')}</TableHead>
+                {showField('unitId') && (
+                  <TableHead>{t('hse.fields.unit')}</TableHead>
+                )}
+                {showField('inspectorId') && (
+                  <TableHead>{t('hse.fields.inspector')}</TableHead>
+                )}
+                {showField('findingsCount') && (
+                  <TableHead>{t('hse.fields.findingsCount')}</TableHead>
+                )}
+                {showField('completedAt') && (
+                  <TableHead>{t('hse.fields.completedAt')}</TableHead>
+                )}
+                {showField('status') && (
+                  <TableHead>{t('hse.fields.status')}</TableHead>
+                )}
                 <TableHead className='text-right'>
                   {t('hse.fields.actions')}
                 </TableHead>
@@ -296,32 +314,47 @@ export default function HseInspectionsPage() {
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.id}>
-                  <TableCell>{t(`hse.inspectionType.${row.type}`)}</TableCell>
-                  <TableCell
-                    className={
-                      row.status === 'planned' && row.plannedAt < businessDate()
-                        ? 'text-destructive'
-                        : undefined
-                    }
-                  >
-                    {row.plannedAt}
-                  </TableCell>
+                  {showField('type') && (
+                    <TableCell>{t(`hse.inspectionType.${row.type}`)}</TableCell>
+                  )}
+                  {showField('plannedAt') && (
+                    <TableCell
+                      className={
+                        row.status === 'planned' &&
+                        row.plannedAt < businessDate()
+                          ? 'text-destructive'
+                          : undefined
+                      }
+                    >
+                      {row.plannedAt}
+                    </TableCell>
+                  )}
                   <TableCell>{row.subjectName || '—'}</TableCell>
-                  <TableCell>
-                    {row.unitId
-                      ? (options.data?.data.units.find(
-                          (unit) => unit.id === row.unitId,
-                        )?.name ?? '—')
-                      : '—'}
-                  </TableCell>
-                  <TableCell>{row.inspectorName || '—'}</TableCell>
-                  <TableCell>{row.findingsCount}</TableCell>
-                  <TableCell>
-                    {row.completedAt ? row.completedAt.slice(0, 10) : '—'}
-                  </TableCell>
-                  <TableCell>
-                    <HseStatus status={row.status} />
-                  </TableCell>
+                  {showField('unitId') && (
+                    <TableCell>
+                      {row.unitId
+                        ? (options.data?.data.units.find(
+                            (unit) => unit.id === row.unitId,
+                          )?.name ?? '—')
+                        : '—'}
+                    </TableCell>
+                  )}
+                  {showField('inspectorId') && (
+                    <TableCell>{row.inspectorName || '—'}</TableCell>
+                  )}
+                  {showField('findingsCount') && (
+                    <TableCell>{row.findingsCount}</TableCell>
+                  )}
+                  {showField('completedAt') && (
+                    <TableCell>
+                      {row.completedAt ? row.completedAt.slice(0, 10) : '—'}
+                    </TableCell>
+                  )}
+                  {showField('status') && (
+                    <TableCell>
+                      <HseStatus status={row.status} />
+                    </TableCell>
+                  )}
                   <TableCell className='text-right'>
                     {row.status === 'planned' && canManage ? (
                       <div className='flex justify-end gap-2'>
@@ -403,15 +436,17 @@ export default function HseInspectionsPage() {
           </DialogHeader>
           <div className='grid gap-4'>
             <div className='grid gap-2 sm:grid-cols-2'>
-              <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.unit')}</span>
-                <HseSelect
-                  value={form.unitId}
-                  onChange={(value) => set('unitId', value)}
-                  options={units}
-                  placeholder={t('hse.optional')}
-                />
-              </label>
+              {showField('unitId') && (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.unit')}</span>
+                  <HseSelect
+                    value={form.unitId}
+                    onChange={(value) => set('unitId', value)}
+                    options={units}
+                    placeholder={t('hse.optional')}
+                  />
+                </label>
+              )}
               <label className='grid gap-1.5 text-sm'>
                 <span>{t('hse.fields.type')}</span>
                 <HseSelect
@@ -431,15 +466,17 @@ export default function HseInspectionsPage() {
                   onChange={(event) => set('plannedAt', event.target.value)}
                 />
               </label>
-              <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.inspector')}</span>
-                <HseSelect
-                  value={form.inspectorId}
-                  onChange={(value) => set('inspectorId', value)}
-                  options={employees}
-                  placeholder={t('hse.selectInspector')}
-                />
-              </label>
+              {showField('inspectorId') && (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.inspector')}</span>
+                  <HseSelect
+                    value={form.inspectorId}
+                    onChange={(value) => set('inspectorId', value)}
+                    options={employees}
+                    placeholder={t('hse.selectInspector')}
+                  />
+                </label>
+              )}
             </div>
             <label className='grid gap-1.5 text-sm'>
               <span>{t('hse.fields.checklist')}</span>

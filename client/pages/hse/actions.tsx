@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ListChecks, Plus } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
@@ -71,6 +72,8 @@ export default function HseActionsPage() {
   const [note, setNote] = useState('');
   const [params] = useSearchParams(),
     subjectId = params.get('subjectId') ?? '';
+  const pageFields = usePageFieldVisibility('hse-actions');
+  const showField = (field: string) => pageFields.visible('hse.action', field);
   const options = useQuery({
     retry: false,
     queryKey: ['hse-options'],
@@ -293,13 +296,25 @@ export default function HseActionsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('hse.fields.sourceType')}</TableHead>
-                <TableHead>{t('hse.fields.description')}</TableHead>
+                {showField('sourceType') ? (
+                  <TableHead>{t('hse.fields.sourceType')}</TableHead>
+                ) : null}
+                {showField('description') ? (
+                  <TableHead>{t('hse.fields.description')}</TableHead>
+                ) : null}
                 <TableHead>{t('hse.fields.subject')}</TableHead>
-                <TableHead>{t('hse.fields.ownerName')}</TableHead>
-                <TableHead>{t('hse.fields.dueAt')}</TableHead>
-                <TableHead>{t('hse.fields.status')}</TableHead>
-                <TableHead>{t('hse.fields.verifiedBy')}</TableHead>
+                {showField('ownerName') ? (
+                  <TableHead>{t('hse.fields.ownerName')}</TableHead>
+                ) : null}
+                {showField('dueAt') ? (
+                  <TableHead>{t('hse.fields.dueAt')}</TableHead>
+                ) : null}
+                {showField('status') ? (
+                  <TableHead>{t('hse.fields.status')}</TableHead>
+                ) : null}
+                {showField('verifiedBy') ? (
+                  <TableHead>{t('hse.fields.verifiedBy')}</TableHead>
+                ) : null}
                 <TableHead className='text-right'>
                   {t('hse.fields.actions')}
                 </TableHead>
@@ -308,31 +323,43 @@ export default function HseActionsPage() {
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.id}>
-                  <TableCell>
-                    {t(`hse.actionSource.${row.sourceType}`)}
-                  </TableCell>
-                  <TableCell className='max-w-64 truncate'>
-                    {row.description}
-                  </TableCell>
+                  {showField('sourceType') ? (
+                    <TableCell>
+                      {t(`hse.actionSource.${row.sourceType}`)}
+                    </TableCell>
+                  ) : null}
+                  {showField('description') ? (
+                    <TableCell className='max-w-64 truncate'>
+                      {row.description}
+                    </TableCell>
+                  ) : null}
                   <TableCell>{row.subjectName || '—'}</TableCell>
-                  <TableCell>{row.ownerName || '—'}</TableCell>
-                  <TableCell
-                    className={
-                      row.status === 'open' &&
-                      row.dueAt &&
-                      row.dueAt < businessDate()
-                        ? 'text-destructive'
-                        : undefined
-                    }
-                  >
-                    {row.dueAt || '—'}
-                  </TableCell>
-                  <TableCell>
-                    <HseStatus status={row.status} />
-                  </TableCell>
-                  <TableCell className='text-xs text-muted-foreground'>
-                    {row.verifiedBy || '—'}
-                  </TableCell>
+                  {showField('ownerName') ? (
+                    <TableCell>{row.ownerName || '—'}</TableCell>
+                  ) : null}
+                  {showField('dueAt') ? (
+                    <TableCell
+                      className={
+                        row.status === 'open' &&
+                        row.dueAt &&
+                        row.dueAt < businessDate()
+                          ? 'text-destructive'
+                          : undefined
+                      }
+                    >
+                      {row.dueAt || '—'}
+                    </TableCell>
+                  ) : null}
+                  {showField('status') ? (
+                    <TableCell>
+                      <HseStatus status={row.status} />
+                    </TableCell>
+                  ) : null}
+                  {showField('verifiedBy') ? (
+                    <TableCell className='text-xs text-muted-foreground'>
+                      {row.verifiedBy || '—'}
+                    </TableCell>
+                  ) : null}
                   <TableCell className='text-right'>
                     {row.status === 'open' && canManage ? (
                       <div className='flex justify-end gap-2'>
@@ -449,23 +476,27 @@ export default function HseActionsPage() {
                   placeholder={t('hse.selectOwner')}
                 />
               </label>
-              <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.dueAt')}</span>
-                <Input
-                  type='date'
-                  value={form.dueAt}
-                  onChange={(event) => set('dueAt', event.target.value)}
-                />
-              </label>
-              <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.unit')}</span>
-                <HseSelect
-                  value={form.unitId}
-                  onChange={(value) => set('unitId', value)}
-                  options={units}
-                  placeholder={t('hse.optional')}
-                />
-              </label>
+              {showField('dueAt') ? (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.dueAt')}</span>
+                  <Input
+                    type='date'
+                    value={form.dueAt}
+                    onChange={(event) => set('dueAt', event.target.value)}
+                  />
+                </label>
+              ) : null}
+              {showField('unitId') ? (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.unit')}</span>
+                  <HseSelect
+                    value={form.unitId}
+                    onChange={(value) => set('unitId', value)}
+                    options={units}
+                    placeholder={t('hse.optional')}
+                  />
+                </label>
+              ) : null}
             </div>
             <label className='grid gap-1.5 text-sm'>
               <span>{t('hse.fields.description')}</span>

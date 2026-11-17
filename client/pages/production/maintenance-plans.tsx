@@ -6,6 +6,7 @@ import { Link } from 'react-router';
 import { CalendarClock, Plus, RefreshCw } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { Button } from '#components/ui/button';
 import {
   Card,
@@ -37,6 +38,9 @@ export default function ProductionMaintenancePlansPage() {
   const api = useApiClient();
   const queryClient = useQueryClient();
   const access = useProductionAccess();
+  const pageFields = usePageFieldVisibility('production-maintenance-plans');
+  const showField = (field: string) =>
+    pageFields.visible('production.plan', field);
   const [unitId, setUnitId] = useState('');
   const [notice, setNotice] = useState('');
   const [equipmentId, setEquipmentId] = useState('');
@@ -279,20 +283,24 @@ export default function ProductionMaintenancePlansPage() {
                 onChange={(event) => setNextDueOn(event.target.value)}
               />
             </label>
-            <label className='space-y-1 text-sm'>
-              <span>{t('production.planAssignee')}</span>
-              <Input
-                value={assigneeName}
-                onChange={(event) => setAssigneeName(event.target.value)}
-              />
-            </label>
-            <label className='space-y-1 text-sm sm:col-span-2 xl:col-span-3'>
-              <span>{t('production.planChecklist')}</span>
-              <Input
-                value={checklist}
-                onChange={(event) => setChecklist(event.target.value)}
-              />
-            </label>
+            {showField('assigneeName') ? (
+              <label className='space-y-1 text-sm'>
+                <span>{t('production.planAssignee')}</span>
+                <Input
+                  value={assigneeName}
+                  onChange={(event) => setAssigneeName(event.target.value)}
+                />
+              </label>
+            ) : null}
+            {showField('checklist') ? (
+              <label className='space-y-1 text-sm sm:col-span-2 xl:col-span-3'>
+                <span>{t('production.planChecklist')}</span>
+                <Input
+                  value={checklist}
+                  onChange={(event) => setChecklist(event.target.value)}
+                />
+              </label>
+            ) : null}
           </div>
           <Button
             size='sm'
@@ -347,14 +355,16 @@ export default function ProductionMaintenancePlansPage() {
                 <span>
                   {t('production.planNextDue')}: {plan.nextDueOn}
                 </span>
-                <span>{t(`production.planStatus_${plan.status}`)}</span>
+                {showField('status') ? (
+                  <span>{t(`production.planStatus_${plan.status}`)}</span>
+                ) : null}
                 {plan.lastCompletedOn ? (
                   <span>
                     {t('production.planLastCompleted')}: {plan.lastCompletedOn}
                   </span>
                 ) : null}
               </div>
-              {plan.checklist ? (
+              {showField('checklist') && plan.checklist ? (
                 <p className='mt-1 text-muted-foreground'>{plan.checklist}</p>
               ) : null}
               <div className='mt-2 flex flex-wrap items-center gap-2'>

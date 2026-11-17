@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Clock, RefreshCw } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { Button } from '#components/ui/button';
 import {
   Card,
@@ -41,6 +42,18 @@ export default function ProductionDowntimePage() {
   const api = useApiClient();
   const queryClient = useQueryClient();
   const access = useProductionAccess();
+  const pageFields = usePageFieldVisibility('production-downtime');
+  const showField = (field: string) =>
+    pageFields.visible('production.downtime', field);
+  const columnCount =
+    2 +
+    [
+      'startedAt',
+      'category',
+      'description',
+      'status',
+      'durationMinutes',
+    ].filter(showField).length;
   const [unitId, setUnitId] = useState('');
   const [date, setDate] = useState(() => today());
   const [status, setStatus] = useState<DowntimeStatus | ''>('');
@@ -250,18 +263,32 @@ export default function ProductionDowntimePage() {
           <table className='w-full text-sm'>
             <thead>
               <tr className='border-b text-left'>
-                <th className='py-2 pr-3'>
-                  {t('production.downtimeStartedAt')}
-                </th>
+                {showField('startedAt') ? (
+                  <th className='py-2 pr-3'>
+                    {t('production.downtimeStartedAt')}
+                  </th>
+                ) : null}
                 <th className='py-2 pr-3'>{t('production.equipmentName')}</th>
-                <th className='py-2 pr-3'>
-                  {t('production.downtimeCategory')}
-                </th>
-                <th className='py-2 pr-3'>
-                  {t('production.downtimeDescription')}
-                </th>
-                <th className='py-2 pr-3'>{t('production.downtimeStatus')}</th>
-                <th className='py-2 pr-3'>{t('production.downtimeMinutes')}</th>
+                {showField('category') ? (
+                  <th className='py-2 pr-3'>
+                    {t('production.downtimeCategory')}
+                  </th>
+                ) : null}
+                {showField('description') ? (
+                  <th className='py-2 pr-3'>
+                    {t('production.downtimeDescription')}
+                  </th>
+                ) : null}
+                {showField('status') ? (
+                  <th className='py-2 pr-3'>
+                    {t('production.downtimeStatus')}
+                  </th>
+                ) : null}
+                {showField('durationMinutes') ? (
+                  <th className='py-2 pr-3'>
+                    {t('production.downtimeMinutes')}
+                  </th>
+                ) : null}
                 <th className='py-2' />
               </tr>
             </thead>
@@ -270,7 +297,7 @@ export default function ProductionDowntimePage() {
                 <tr>
                   <td
                     className='py-8 text-center text-sm text-muted-foreground'
-                    colSpan={7}
+                    colSpan={columnCount}
                   >
                     {t('production.downtimeEmpty')}
                   </td>
@@ -278,18 +305,28 @@ export default function ProductionDowntimePage() {
               ) : (
                 rows.map((row) => (
                   <tr key={row.id} className='border-b align-top'>
-                    <td className='py-2 pr-3'>
-                      {businessDateTime(row.startedAt)}
-                    </td>
+                    {showField('startedAt') ? (
+                      <td className='py-2 pr-3'>
+                        {businessDateTime(row.startedAt)}
+                      </td>
+                    ) : null}
                     <td className='py-2 pr-3'>{row.equipmentName || '—'}</td>
-                    <td className='py-2 pr-3'>
-                      {t(`production.downtimeCategory_${row.category}`)}
-                    </td>
-                    <td className='max-w-72 py-2 pr-3'>{row.description}</td>
-                    <td className='py-2 pr-3'>
-                      {t(`production.downtimeStatus_${row.status}`)}
-                    </td>
-                    <td className='py-2 pr-3'>{row.durationMinutes}</td>
+                    {showField('category') ? (
+                      <td className='py-2 pr-3'>
+                        {t(`production.downtimeCategory_${row.category}`)}
+                      </td>
+                    ) : null}
+                    {showField('description') ? (
+                      <td className='max-w-72 py-2 pr-3'>{row.description}</td>
+                    ) : null}
+                    {showField('status') ? (
+                      <td className='py-2 pr-3'>
+                        {t(`production.downtimeStatus_${row.status}`)}
+                      </td>
+                    ) : null}
+                    {showField('durationMinutes') ? (
+                      <td className='py-2 pr-3'>{row.durationMinutes}</td>
+                    ) : null}
                     <td className='py-2'>
                       {row.status === 'open' ? (
                         <div className='flex flex-wrap gap-2'>

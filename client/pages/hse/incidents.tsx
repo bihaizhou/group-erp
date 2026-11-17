@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Plus, ShieldAlert } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
@@ -64,6 +65,9 @@ export default function HseIncidentsPage() {
   const { t, i18n } = useTranslation();
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const pageFields = usePageFieldVisibility('hse-incidents');
+  const showField = (field: string) =>
+    pageFields.visible('hse.incident', field);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -157,12 +161,14 @@ export default function HseIncidentsPage() {
   const canManage = options.data?.data.permissions.manage ?? false;
   const canApprove = options.data?.data.permissions.approve ?? false;
   const canReport = options.data?.data.permissions.report ?? false;
+  const transitionSubjectId = transition?.row.subjectId;
+  const employeeOptions = options.data?.data.employees;
   const employees = useMemo(
     () =>
-      (options.data?.data.employees ?? []).filter(
-        (employee) => employee.subjectId === transition?.row.subjectId,
+      (employeeOptions ?? []).filter(
+        (employee) => employee.subjectId === transitionSubjectId,
       ),
-    [options.data?.data.employees, transition?.row.subjectId],
+    [employeeOptions, transitionSubjectId],
   );
   const units = useMemo(
     () =>
@@ -355,14 +361,26 @@ export default function HseIncidentsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('hse.fields.incidentNo')}</TableHead>
-                <TableHead>{t('hse.fields.occurredAt')}</TableHead>
+                {showField('incidentNo') && (
+                  <TableHead>{t('hse.fields.incidentNo')}</TableHead>
+                )}
+                {showField('occurredAt') && (
+                  <TableHead>{t('hse.fields.occurredAt')}</TableHead>
+                )}
                 <TableHead>{t('hse.fields.subject')}</TableHead>
-                <TableHead>{t('hse.fields.type')}</TableHead>
-                <TableHead>{t('hse.fields.severity')}</TableHead>
+                {showField('type') && (
+                  <TableHead>{t('hse.fields.type')}</TableHead>
+                )}
+                {showField('severity') && (
+                  <TableHead>{t('hse.fields.severity')}</TableHead>
+                )}
                 <TableHead>{t('hse.fields.dueAt')}</TableHead>
-                <TableHead>{t('hse.fields.location')}</TableHead>
-                <TableHead>{t('hse.fields.status')}</TableHead>
+                {showField('location') && (
+                  <TableHead>{t('hse.fields.location')}</TableHead>
+                )}
+                {showField('status') && (
+                  <TableHead>{t('hse.fields.status')}</TableHead>
+                )}
                 <TableHead>{t('hse.fields.lastAction')}</TableHead>
                 <TableHead className='text-right'>
                   {t('hse.fields.actions')}
@@ -372,16 +390,24 @@ export default function HseIncidentsPage() {
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.id}>
-                  <TableCell>{row.incidentNo}</TableCell>
-                  <TableCell>
-                    {new Date(row.occurredAt).toLocaleString(i18n.language, {
-                      dateStyle: 'short',
-                      timeStyle: 'short',
-                    })}
-                  </TableCell>
+                  {showField('incidentNo') && (
+                    <TableCell>{row.incidentNo}</TableCell>
+                  )}
+                  {showField('occurredAt') && (
+                    <TableCell>
+                      {new Date(row.occurredAt).toLocaleString(i18n.language, {
+                        dateStyle: 'short',
+                        timeStyle: 'short',
+                      })}
+                    </TableCell>
+                  )}
                   <TableCell>{row.subjectName || '—'}</TableCell>
-                  <TableCell>{t(`hse.incidentType.${row.type}`)}</TableCell>
-                  <TableCell>{t(`hse.severity.${row.severity}`)}</TableCell>
+                  {showField('type') && (
+                    <TableCell>{t(`hse.incidentType.${row.type}`)}</TableCell>
+                  )}
+                  {showField('severity') && (
+                    <TableCell>{t(`hse.severity.${row.severity}`)}</TableCell>
+                  )}
                   <TableCell>
                     {row.dueAt ? (
                       <span
@@ -397,12 +423,16 @@ export default function HseIncidentsPage() {
                       '—'
                     )}
                   </TableCell>
-                  <TableCell className='max-w-48 truncate'>
-                    {row.location}
-                  </TableCell>
-                  <TableCell>
-                    <HseStatus status={row.status} />
-                  </TableCell>
+                  {showField('location') && (
+                    <TableCell className='max-w-48 truncate'>
+                      {row.location}
+                    </TableCell>
+                  )}
+                  {showField('status') && (
+                    <TableCell>
+                      <HseStatus status={row.status} />
+                    </TableCell>
+                  )}
                   <TableCell className='text-xs text-muted-foreground'>
                     {lastAction(row)}
                   </TableCell>
@@ -575,24 +605,28 @@ export default function HseIncidentsPage() {
                   }))}
                 />
               </label>
-              <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.injuryCount')}</span>
-                <Input
-                  type='number'
-                  min={0}
-                  value={form.injuryCount}
-                  onChange={(event) => set('injuryCount', event.target.value)}
-                />
-              </label>
-              <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.lostDays')}</span>
-                <Input
-                  type='number'
-                  min={0}
-                  value={form.lostDays}
-                  onChange={(event) => set('lostDays', event.target.value)}
-                />
-              </label>
+              {showField('injuryCount') && (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.injuryCount')}</span>
+                  <Input
+                    type='number'
+                    min={0}
+                    value={form.injuryCount}
+                    onChange={(event) => set('injuryCount', event.target.value)}
+                  />
+                </label>
+              )}
+              {showField('lostDays') && (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.lostDays')}</span>
+                  <Input
+                    type='number'
+                    min={0}
+                    value={form.lostDays}
+                    onChange={(event) => set('lostDays', event.target.value)}
+                  />
+                </label>
+              )}
             </div>
             <label className='grid gap-1.5 text-sm'>
               <span>{t('hse.fields.description')}</span>
@@ -602,16 +636,18 @@ export default function HseIncidentsPage() {
                 onChange={(event) => set('description', event.target.value)}
               />
             </label>
-            <label className='flex items-center gap-2 text-sm'>
-              <input
-                type='checkbox'
-                checked={form.environmentalRelease}
-                onChange={(event) =>
-                  set('environmentalRelease', event.target.checked)
-                }
-              />
-              {t('hse.fields.environmentalRelease')}
-            </label>
+            {showField('environmentalRelease') && (
+              <label className='flex items-center gap-2 text-sm'>
+                <input
+                  type='checkbox'
+                  checked={form.environmentalRelease}
+                  onChange={(event) =>
+                    set('environmentalRelease', event.target.checked)
+                  }
+                />
+                {t('hse.fields.environmentalRelease')}
+              </label>
+            )}
             {create.isError ? (
               <p className='text-sm text-destructive'>
                 {errorText(create.error)}
@@ -689,17 +725,18 @@ export default function HseIncidentsPage() {
                 </label>
               </div>
             ) : null}
-            {transition?.action === 'rectify' ||
-            transition?.action === 'submit' ? (
-              <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.correctiveActions')}</span>
-                <Textarea
-                  rows={3}
-                  value={corrective}
-                  onChange={(event) => setCorrective(event.target.value)}
-                />
-              </label>
-            ) : null}
+            {(transition?.action === 'rectify' ||
+              transition?.action === 'submit') &&
+              showField('actions') && (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.correctiveActions')}</span>
+                  <Textarea
+                    rows={3}
+                    value={corrective}
+                    onChange={(event) => setCorrective(event.target.value)}
+                  />
+                </label>
+              )}
             <label className='grid gap-1.5 text-sm'>
               <span>{t('hse.fields.note')}</span>
               <Textarea

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Plus, ShieldAlert } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
@@ -66,6 +67,8 @@ export default function HseHazardsPage() {
   const { t, i18n } = useTranslation();
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const pageFields = usePageFieldVisibility('hse-hazards');
+  const showField = (field: string) => pageFields.visible('hse.hazard', field);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [levelFilter, setLevelFilter] = useState('');
@@ -150,19 +153,19 @@ export default function HseHazardsPage() {
   const employees = useMemo(
     () =>
       (options.data?.data.employees ?? []).filter(
-        (employee) =>
-          !form.subjectId || employee.subjectId === form.subjectId,
+        (employee) => !form.subjectId || employee.subjectId === form.subjectId,
       ),
     [options.data?.data.employees, form.subjectId],
   );
+  const transitionSubjectId = transition?.row.subjectId;
+  const employeeOptions = options.data?.data.employees;
   const transitionEmployees = useMemo(
     () =>
-      (options.data?.data.employees ?? []).filter(
+      (employeeOptions ?? []).filter(
         (employee) =>
-          !transition?.row.subjectId ||
-          employee.subjectId === transition.row.subjectId,
+          !transitionSubjectId || employee.subjectId === transitionSubjectId,
       ),
-    [options.data?.data.employees, transition?.row.subjectId],
+    [employeeOptions, transitionSubjectId],
   );
   const units = useMemo(
     () =>
@@ -191,8 +194,8 @@ export default function HseHazardsPage() {
           discoveredAt: form.discoveredAt,
           ownerId: form.ownerId || null,
           ownerName:
-            employees.find((employee) => employee.id === form.ownerId)
-              ?.name ?? '',
+            employees.find((employee) => employee.id === form.ownerId)?.name ??
+            '',
           dueAt: form.dueAt || null,
           rectification: form.rectification,
           sourceRef: form.sourceRef.trim() || null,
@@ -359,12 +362,24 @@ export default function HseHazardsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('hse.fields.level')}</TableHead>
-                <TableHead>{t('hse.fields.description')}</TableHead>
-                <TableHead>{t('hse.fields.location')}</TableHead>
-                <TableHead>{t('hse.fields.ownerName')}</TableHead>
-                <TableHead>{t('hse.fields.dueAt')}</TableHead>
-                <TableHead>{t('hse.fields.status')}</TableHead>
+                {showField('level') && (
+                  <TableHead>{t('hse.fields.level')}</TableHead>
+                )}
+                {showField('description') && (
+                  <TableHead>{t('hse.fields.description')}</TableHead>
+                )}
+                {showField('location') && (
+                  <TableHead>{t('hse.fields.location')}</TableHead>
+                )}
+                {showField('ownerName') && (
+                  <TableHead>{t('hse.fields.ownerName')}</TableHead>
+                )}
+                {showField('dueAt') && (
+                  <TableHead>{t('hse.fields.dueAt')}</TableHead>
+                )}
+                {showField('status') && (
+                  <TableHead>{t('hse.fields.status')}</TableHead>
+                )}
                 <TableHead>{t('hse.fields.lastAction')}</TableHead>
                 <TableHead className='text-right'>
                   {t('hse.fields.actions')}
@@ -374,33 +389,45 @@ export default function HseHazardsPage() {
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.id}>
-                  <TableCell>{t(`hse.hazardLevel.${row.level}`)}</TableCell>
-                  <TableCell className='max-w-72 truncate'>
-                    {row.description}
-                  </TableCell>
-                  <TableCell>{row.location}</TableCell>
-                  <TableCell>{row.ownerName}</TableCell>
-                  <TableCell>
-                    {row.dueAt
-                      ? (
-                          <span
-                            className={
-                              row.status !== 'closed' &&
-                              row.dueAt < businessDate()
-                                ? 'text-destructive'
-                                : undefined
-                            }
-                          >
-                            {new Date(
-                              `${row.dueAt}T00:00:00`,
-                            ).toLocaleDateString(i18n.language)}
-                          </span>
-                        )
-                      : '—'}
-                  </TableCell>
-                  <TableCell>
-                    <HseStatus status={row.status} />
-                  </TableCell>
+                  {showField('level') && (
+                    <TableCell>{t(`hse.hazardLevel.${row.level}`)}</TableCell>
+                  )}
+                  {showField('description') && (
+                    <TableCell className='max-w-72 truncate'>
+                      {row.description}
+                    </TableCell>
+                  )}
+                  {showField('location') && (
+                    <TableCell>{row.location}</TableCell>
+                  )}
+                  {showField('ownerName') && (
+                    <TableCell>{row.ownerName}</TableCell>
+                  )}
+                  {showField('dueAt') && (
+                    <TableCell>
+                      {row.dueAt ? (
+                        <span
+                          className={
+                            row.status !== 'closed' &&
+                            row.dueAt < businessDate()
+                              ? 'text-destructive'
+                              : undefined
+                          }
+                        >
+                          {new Date(`${row.dueAt}T00:00:00`).toLocaleDateString(
+                            i18n.language,
+                          )}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </TableCell>
+                  )}
+                  {showField('status') && (
+                    <TableCell>
+                      <HseStatus status={row.status} />
+                    </TableCell>
+                  )}
                   <TableCell className='text-xs text-muted-foreground'>
                     {lastAction(row)}
                   </TableCell>
@@ -579,14 +606,16 @@ export default function HseHazardsPage() {
                   placeholder={t('hse.selectOwner')}
                 />
               </label>
-              <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.dueAt')}</span>
-                <Input
-                  type='date'
-                  value={form.dueAt}
-                  onChange={(event) => set('dueAt', event.target.value)}
-                />
-              </label>
+              {showField('dueAt') && (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.dueAt')}</span>
+                  <Input
+                    type='date'
+                    value={form.dueAt}
+                    onChange={(event) => set('dueAt', event.target.value)}
+                  />
+                </label>
+              )}
               <label className='grid gap-1.5 text-sm'>
                 <span>{t('hse.fields.inspector')}</span>
                 <HseSelect
@@ -626,14 +655,16 @@ export default function HseHazardsPage() {
                 </label>
               </>
             ) : null}
-            <label className='grid gap-1.5 text-sm'>
-              <span>{t('hse.fields.rectification')}</span>
-              <Textarea
-                rows={3}
-                value={form.rectification}
-                onChange={(event) => set('rectification', event.target.value)}
-              />
-            </label>
+            {showField('rectification') && (
+              <label className='grid gap-1.5 text-sm'>
+                <span>{t('hse.fields.rectification')}</span>
+                <Textarea
+                  rows={3}
+                  value={form.rectification}
+                  onChange={(event) => set('rectification', event.target.value)}
+                />
+              </label>
+            )}
             {create.isError ? (
               <p className='text-sm text-destructive'>
                 {errorText(create.error)}

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarDays, RefreshCw, Save, Send } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { Button } from '#components/ui/button';
 import { Checkbox } from '#components/ui/checkbox';
 import {
@@ -41,6 +42,9 @@ export default function ProductionSchedulesPage() {
   const api = useApiClient();
   const queryClient = useQueryClient();
   const access = useProductionAccess();
+  const pageFields = usePageFieldVisibility('production-schedules');
+  const showField = (field: string) =>
+    pageFields.visible('production.schedule', field);
   const [unitId, setUnitId] = useState('');
   const [scheduleDate, setScheduleDate] = useState(today);
   const [shift, setShift] = useState<'day' | 'night'>('day');
@@ -241,11 +245,13 @@ export default function ProductionSchedulesPage() {
               </CardDescription>
             </div>
             <div className='flex flex-wrap items-center gap-2'>
-              <span className='rounded-full border px-2 py-1 text-xs'>
-                {status === 'published'
-                  ? t('production.schedulePublished')
-                  : t('production.scheduleDraft')}
-              </span>
+              {showField('status') ? (
+                <span className='rounded-full border px-2 py-1 text-xs'>
+                  {status === 'published'
+                    ? t('production.schedulePublished')
+                    : t('production.scheduleDraft')}
+                </span>
+              ) : null}
               <Button
                 type='button'
                 variant='outline'
@@ -304,15 +310,17 @@ export default function ProductionSchedulesPage() {
             </Table>
           </div>
           <div className='flex flex-wrap items-end gap-2 border-t p-4'>
-            <label className='grid flex-1 gap-1 text-sm sm:max-w-md'>
-              <span>{t('production.notes')}</span>
-              <Input
-                value={notes}
-                disabled={!access.canManage}
-                placeholder={data?.schedule?.notes ?? ''}
-                onChange={(event) => setNotes(event.target.value)}
-              />
-            </label>
+            {showField('notes') ? (
+              <label className='grid flex-1 gap-1 text-sm sm:max-w-md'>
+                <span>{t('production.notes')}</span>
+                <Input
+                  value={notes}
+                  disabled={!access.canManage}
+                  placeholder={data?.schedule?.notes ?? ''}
+                  onChange={(event) => setNotes(event.target.value)}
+                />
+              </label>
+            ) : null}
             <Button
               type='button'
               className='sm:ml-auto'

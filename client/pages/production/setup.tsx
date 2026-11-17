@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { Button } from '#components/ui/button';
 import {
   Card,
@@ -68,6 +69,14 @@ function UnitEditor({
   const { t } = useTranslation();
   const api = useApiClient();
   const access = useProductionAccess();
+  const pageFields = usePageFieldVisibility('production-setup');
+  const showProfileField = (field: string) =>
+    pageFields.visible('production.setupUnit', field);
+  const showMaterialField = (field: string) =>
+    pageFields.visible('production.setupMaterial', field);
+  const materialColumnCount =
+    3 +
+    ['role', 'defaultWarehouseId', 'notes'].filter(showMaterialField).length;
   const [lineCode, setLineCode] = useState(profile?.lineCode ?? '');
   const [processType, setProcessType] = useState(profile?.processType ?? '');
   const [designCapacityTpd, setDesignCapacityTpd] = useState(
@@ -179,46 +188,56 @@ function UnitEditor({
       </CardHeader>
       <CardContent className='flex flex-col gap-4'>
         <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
-          <label className='grid gap-1 text-sm'>
-            <span>{t('production.setupFields.lineCode')}</span>
-            <Input
-              value={lineCode}
-              onChange={(event) => setLineCode(event.target.value)}
-              placeholder={t('production.setupFields.lineCodePlaceholder')}
-            />
-          </label>
-          <label className='grid gap-1 text-sm'>
-            <span>{t('production.setupFields.processType')}</span>
-            <Input
-              value={processType}
-              onChange={(event) => setProcessType(event.target.value)}
-              placeholder={t('production.setupFields.processTypePlaceholder')}
-            />
-          </label>
-          <label className='grid gap-1 text-sm'>
-            <span>{t('production.setupFields.designCapacityTpd')}</span>
-            <Input
-              type='number'
-              min='0'
-              value={designCapacityTpd}
-              onChange={(event) => setDesignCapacityTpd(event.target.value)}
-            />
-          </label>
-          <label className='grid gap-1 text-sm'>
-            <span>{t('production.setupFields.commissionDate')}</span>
-            <Input
-              type='date'
-              value={commissionDate}
-              onChange={(event) => setCommissionDate(event.target.value)}
-            />
-          </label>
-          <label className='grid gap-1 text-sm'>
-            <span>{t('production.setupFields.region')}</span>
-            <Input
-              value={region}
-              onChange={(event) => setRegion(event.target.value)}
-            />
-          </label>
+          {showProfileField('lineCode') ? (
+            <label className='grid gap-1 text-sm'>
+              <span>{t('production.setupFields.lineCode')}</span>
+              <Input
+                value={lineCode}
+                onChange={(event) => setLineCode(event.target.value)}
+                placeholder={t('production.setupFields.lineCodePlaceholder')}
+              />
+            </label>
+          ) : null}
+          {showProfileField('processType') ? (
+            <label className='grid gap-1 text-sm'>
+              <span>{t('production.setupFields.processType')}</span>
+              <Input
+                value={processType}
+                onChange={(event) => setProcessType(event.target.value)}
+                placeholder={t('production.setupFields.processTypePlaceholder')}
+              />
+            </label>
+          ) : null}
+          {showProfileField('designCapacityTpd') ? (
+            <label className='grid gap-1 text-sm'>
+              <span>{t('production.setupFields.designCapacityTpd')}</span>
+              <Input
+                type='number'
+                min='0'
+                value={designCapacityTpd}
+                onChange={(event) => setDesignCapacityTpd(event.target.value)}
+              />
+            </label>
+          ) : null}
+          {showProfileField('commissionDate') ? (
+            <label className='grid gap-1 text-sm'>
+              <span>{t('production.setupFields.commissionDate')}</span>
+              <Input
+                type='date'
+                value={commissionDate}
+                onChange={(event) => setCommissionDate(event.target.value)}
+              />
+            </label>
+          ) : null}
+          {showProfileField('region') ? (
+            <label className='grid gap-1 text-sm'>
+              <span>{t('production.setupFields.region')}</span>
+              <Input
+                value={region}
+                onChange={(event) => setRegion(event.target.value)}
+              />
+            </label>
+          ) : null}
           <label className='grid gap-1 text-sm'>
             <span>{t('production.setupFields.gatewayKey')}</span>
             <Input
@@ -233,23 +252,25 @@ function UnitEditor({
               onChange={(event) => setFuxaPageKey(event.target.value)}
             />
           </label>
-          <label className='grid gap-1 text-sm'>
-            <span>{t('production.setupFields.status')}</span>
-            <select
-              className={nativeSelectClass}
-              value={status}
-              onChange={(event) =>
-                setStatus(event.target.value as 'active' | 'inactive')
-              }
-            >
-              <option value='active'>
-                {t('production.setupFields.active')}
-              </option>
-              <option value='inactive'>
-                {t('production.setupFields.inactive')}
-              </option>
-            </select>
-          </label>
+          {showProfileField('status') ? (
+            <label className='grid gap-1 text-sm'>
+              <span>{t('production.setupFields.status')}</span>
+              <select
+                className={nativeSelectClass}
+                value={status}
+                onChange={(event) =>
+                  setStatus(event.target.value as 'active' | 'inactive')
+                }
+              >
+                <option value='active'>
+                  {t('production.setupFields.active')}
+                </option>
+                <option value='inactive'>
+                  {t('production.setupFields.inactive')}
+                </option>
+              </select>
+            </label>
+          ) : null}
         </div>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div>
@@ -274,18 +295,24 @@ function UnitEditor({
             <thead className='bg-muted/50 text-left'>
               <tr>
                 <th className='px-3 py-2'>{t('production.setupFields.sku')}</th>
-                <th className='px-3 py-2'>
-                  {t('production.setupFields.role')}
-                </th>
+                {showMaterialField('role') ? (
+                  <th className='px-3 py-2'>
+                    {t('production.setupFields.role')}
+                  </th>
+                ) : null}
                 <th className='px-3 py-2'>
                   {t('production.setupFields.outputType')}
                 </th>
-                <th className='px-3 py-2'>
-                  {t('production.setupFields.defaultWarehouse')}
-                </th>
-                <th className='px-3 py-2'>
-                  {t('production.setupFields.notes')}
-                </th>
+                {showMaterialField('defaultWarehouseId') ? (
+                  <th className='px-3 py-2'>
+                    {t('production.setupFields.defaultWarehouse')}
+                  </th>
+                ) : null}
+                {showMaterialField('notes') ? (
+                  <th className='px-3 py-2'>
+                    {t('production.setupFields.notes')}
+                  </th>
+                ) : null}
                 <th className='px-3 py-2' />
               </tr>
             </thead>
@@ -294,7 +321,7 @@ function UnitEditor({
                 <tr>
                   <td
                     className='px-3 py-4 text-sm text-muted-foreground'
-                    colSpan={6}
+                    colSpan={materialColumnCount}
                   >
                     {t('production.materialEmpty')}
                   </td>
@@ -321,30 +348,33 @@ function UnitEditor({
                       ))}
                     </select>
                   </td>
-                  <td className='px-3 py-2'>
-                    <select
-                      className='h-8 rounded-lg border border-input bg-transparent px-2 text-sm'
-                      value={row.role}
-                      onChange={(event) => {
-                        const role = event.target.value as ProductionMaterialRole;
-                        updateRow(index, {
-                          role,
-                          outputType:
-                            role === 'product'
-                              ? 'metal'
-                              : role === 'byproduct'
-                                ? 'sand'
-                                : null,
-                        });
-                      }}
-                    >
-                      {materialRoles.map((role) => (
-                        <option key={role} value={role}>
-                          {t(`production.materialRoles.${role}`)}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
+                  {showMaterialField('role') ? (
+                    <td className='px-3 py-2'>
+                      <select
+                        className='h-8 rounded-lg border border-input bg-transparent px-2 text-sm'
+                        value={row.role}
+                        onChange={(event) => {
+                          const role = event.target
+                            .value as ProductionMaterialRole;
+                          updateRow(index, {
+                            role,
+                            outputType:
+                              role === 'product'
+                                ? 'metal'
+                                : role === 'byproduct'
+                                  ? 'sand'
+                                  : null,
+                          });
+                        }}
+                      >
+                        {materialRoles.map((role) => (
+                          <option key={role} value={role}>
+                            {t(`production.materialRoles.${role}`)}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  ) : null}
                   <td className='px-3 py-2'>
                     {row.role === 'product' || row.role === 'byproduct' ? (
                       <select
@@ -367,34 +397,38 @@ function UnitEditor({
                       <span className='text-xs text-muted-foreground'>—</span>
                     )}
                   </td>
-                  <td className='px-3 py-2'>
-                    <select
-                      className='h-8 min-w-44 rounded-lg border border-input bg-transparent px-2 text-sm'
-                      value={row.defaultWarehouseId}
-                      onChange={(event) =>
-                        updateRow(index, {
-                          defaultWarehouseId: event.target.value,
-                        })
-                      }
-                    >
-                      <option value=''>
-                        {t('production.setupFields.noWarehouse')}
-                      </option>
-                      {warehouses.map((warehouse) => (
-                        <option key={warehouse.id} value={warehouse.id}>
-                          {warehouse.name}
+                  {showMaterialField('defaultWarehouseId') ? (
+                    <td className='px-3 py-2'>
+                      <select
+                        className='h-8 min-w-44 rounded-lg border border-input bg-transparent px-2 text-sm'
+                        value={row.defaultWarehouseId}
+                        onChange={(event) =>
+                          updateRow(index, {
+                            defaultWarehouseId: event.target.value,
+                          })
+                        }
+                      >
+                        <option value=''>
+                          {t('production.setupFields.noWarehouse')}
                         </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className='px-3 py-2'>
-                    <Input
-                      value={row.notes}
-                      onChange={(event) =>
-                        updateRow(index, { notes: event.target.value })
-                      }
-                    />
-                  </td>
+                        {warehouses.map((warehouse) => (
+                          <option key={warehouse.id} value={warehouse.id}>
+                            {warehouse.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  ) : null}
+                  {showMaterialField('notes') ? (
+                    <td className='px-3 py-2'>
+                      <Input
+                        value={row.notes}
+                        onChange={(event) =>
+                          updateRow(index, { notes: event.target.value })
+                        }
+                      />
+                    </td>
+                  ) : null}
                   <td className='px-3 py-2'>
                     <Button
                       variant='ghost'

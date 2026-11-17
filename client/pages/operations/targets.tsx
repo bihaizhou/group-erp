@@ -5,6 +5,7 @@ import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { useSettingsAccess } from '#hooks/use-settings-access';
 import { businessMonth } from '#hooks/business-date';
@@ -29,6 +30,19 @@ export default function OperationsTargetsPage() {
   const { t } = useTranslation();
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const pageFields = usePageFieldVisibility('operations-targets');
+  const showField = (field: string) =>
+    pageFields.visible('operations.target', field);
+  const optionalColumns = [
+    'actualValue',
+    'achievementPct',
+    'progressPct',
+    'varianceValue',
+    'status',
+    'updatedAt',
+  ] as const;
+  const columnCount =
+    8 - optionalColumns.filter((field) => !showField(field)).length;
   const [params] = useSearchParams(),
     subjectId = params.get('subjectId') ?? '';
   const [period, setPeriod] = useState(currentPeriod);
@@ -141,12 +155,24 @@ export default function OperationsTargetsPage() {
           <TableRow>
             <TableHead>{t('operations.metric')}</TableHead>
             <TableHead>{t('operations.targetValue')}</TableHead>
-            <TableHead>{t('operations.actualValue')}</TableHead>
-            <TableHead>{t('operations.achievement')}</TableHead>
-            <TableHead>{t('operations.progress')}</TableHead>
-            <TableHead>{t('operations.variance')}</TableHead>
-            <TableHead>{t('operations.status')}</TableHead>
-            <TableHead>{t('operations.updatedAt')}</TableHead>
+            {showField('actualValue') ? (
+              <TableHead>{t('operations.actualValue')}</TableHead>
+            ) : null}
+            {showField('achievementPct') ? (
+              <TableHead>{t('operations.achievement')}</TableHead>
+            ) : null}
+            {showField('progressPct') ? (
+              <TableHead>{t('operations.progress')}</TableHead>
+            ) : null}
+            {showField('varianceValue') ? (
+              <TableHead>{t('operations.variance')}</TableHead>
+            ) : null}
+            {showField('status') ? (
+              <TableHead>{t('operations.status')}</TableHead>
+            ) : null}
+            {showField('updatedAt') ? (
+              <TableHead>{t('operations.updatedAt')}</TableHead>
+            ) : null}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -154,24 +180,36 @@ export default function OperationsTargetsPage() {
             <TableRow key={target.id}>
               <TableCell>{t(`operations.metric_${target.metric}`)}</TableCell>
               <TableCell>{target.targetValue}</TableCell>
-              <TableCell>{target.actualValue ?? '—'}</TableCell>
-              <TableCell>
-                {target.achievementPct === null
-                  ? '—'
-                  : `${target.achievementPct}%`}
-              </TableCell>
-              <TableCell>{`${target.progressPct}%`}</TableCell>
-              <TableCell>{target.varianceValue ?? '—'}</TableCell>
-              <TableCell>
-                {t(`operations.targetStatus_${target.status}`)}
-              </TableCell>
-              <TableCell>{target.updatedAt.slice(0, 19)}</TableCell>
+              {showField('actualValue') ? (
+                <TableCell>{target.actualValue ?? '—'}</TableCell>
+              ) : null}
+              {showField('achievementPct') ? (
+                <TableCell>
+                  {target.achievementPct === null
+                    ? '—'
+                    : `${target.achievementPct}%`}
+                </TableCell>
+              ) : null}
+              {showField('progressPct') ? (
+                <TableCell>{`${target.progressPct}%`}</TableCell>
+              ) : null}
+              {showField('varianceValue') ? (
+                <TableCell>{target.varianceValue ?? '—'}</TableCell>
+              ) : null}
+              {showField('status') ? (
+                <TableCell>
+                  {t(`operations.targetStatus_${target.status}`)}
+                </TableCell>
+              ) : null}
+              {showField('updatedAt') ? (
+                <TableCell>{target.updatedAt.slice(0, 19)}</TableCell>
+              ) : null}
             </TableRow>
           ))}
           {targets.data?.data.items.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={8}
+                colSpan={columnCount}
                 className='py-8 text-center text-sm text-muted-foreground'
               >
                 {t('operations.noTargets')}

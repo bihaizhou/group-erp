@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { GraduationCap, Plus } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
@@ -64,6 +65,9 @@ export default function HseTrainingRecordsPage() {
   const [form, setForm] = useState(emptyForm);
   const [params] = useSearchParams(),
     subjectId = params.get('subjectId') ?? '';
+  const pageFields = usePageFieldVisibility('hse-training-records');
+  const showField = (field: string) =>
+    pageFields.visible('hse.trainingRecord', field);
   const options = useQuery({
     retry: false,
     queryKey: ['hse-options'],
@@ -252,13 +256,27 @@ export default function HseTrainingRecordsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('hse.fields.person')}</TableHead>
-                <TableHead>{t('hse.fields.courseName')}</TableHead>
-                <TableHead>{t('hse.fields.courseType')}</TableHead>
-                <TableHead>{t('hse.fields.completedAt')}</TableHead>
-                <TableHead>{t('hse.fields.score')}</TableHead>
-                <TableHead>{t('hse.fields.certificateId')}</TableHead>
-                <TableHead>{t('hse.fields.status')}</TableHead>
+                {showField('personId') ? (
+                  <TableHead>{t('hse.fields.person')}</TableHead>
+                ) : null}
+                {showField('courseName') ? (
+                  <TableHead>{t('hse.fields.courseName')}</TableHead>
+                ) : null}
+                {showField('courseType') ? (
+                  <TableHead>{t('hse.fields.courseType')}</TableHead>
+                ) : null}
+                {showField('completedAt') ? (
+                  <TableHead>{t('hse.fields.completedAt')}</TableHead>
+                ) : null}
+                {showField('score') ? (
+                  <TableHead>{t('hse.fields.score')}</TableHead>
+                ) : null}
+                {showField('certificateId') ? (
+                  <TableHead>{t('hse.fields.certificateId')}</TableHead>
+                ) : null}
+                {showField('status') ? (
+                  <TableHead>{t('hse.fields.status')}</TableHead>
+                ) : null}
                 <TableHead className='text-right'>
                   {t('hse.fields.actions')}
                 </TableHead>
@@ -267,21 +285,35 @@ export default function HseTrainingRecordsPage() {
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.id}>
-                  <TableCell>{row.personName || '—'}</TableCell>
-                  <TableCell className='max-w-56 truncate'>
-                    {row.courseName}
-                  </TableCell>
-                  <TableCell>
-                    {t(`hse.trainingCourseType.${row.courseType}`)}
-                  </TableCell>
-                  <TableCell>{row.completedAt}</TableCell>
-                  <TableCell>{row.score ?? '—'}</TableCell>
-                  <TableCell className='max-w-40 truncate text-xs text-muted-foreground'>
-                    {row.certificateId || '—'}
-                  </TableCell>
-                  <TableCell>
-                    <HseStatus status={row.status} />
-                  </TableCell>
+                  {showField('personId') ? (
+                    <TableCell>{row.personName || '—'}</TableCell>
+                  ) : null}
+                  {showField('courseName') ? (
+                    <TableCell className='max-w-56 truncate'>
+                      {row.courseName}
+                    </TableCell>
+                  ) : null}
+                  {showField('courseType') ? (
+                    <TableCell>
+                      {t(`hse.trainingCourseType.${row.courseType}`)}
+                    </TableCell>
+                  ) : null}
+                  {showField('completedAt') ? (
+                    <TableCell>{row.completedAt}</TableCell>
+                  ) : null}
+                  {showField('score') ? (
+                    <TableCell>{row.score ?? '—'}</TableCell>
+                  ) : null}
+                  {showField('certificateId') ? (
+                    <TableCell className='max-w-40 truncate text-xs text-muted-foreground'>
+                      {row.certificateId || '—'}
+                    </TableCell>
+                  ) : null}
+                  {showField('status') ? (
+                    <TableCell>
+                      <HseStatus status={row.status} />
+                    </TableCell>
+                  ) : null}
                   <TableCell className='text-right'>
                     {canManage ? (
                       <Button
@@ -382,23 +414,29 @@ export default function HseTrainingRecordsPage() {
                   onChange={(event) => set('completedAt', event.target.value)}
                 />
               </label>
-              <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.score')}</span>
-                <Input
-                  type='number'
-                  min={0}
-                  max={1000}
-                  value={form.score}
-                  onChange={(event) => set('score', event.target.value)}
-                />
-              </label>
-              <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.certificateId')}</span>
-                <Input
-                  value={form.certificateId}
-                  onChange={(event) => set('certificateId', event.target.value)}
-                />
-              </label>
+              {showField('score') ? (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.score')}</span>
+                  <Input
+                    type='number'
+                    min={0}
+                    max={1000}
+                    value={form.score}
+                    onChange={(event) => set('score', event.target.value)}
+                  />
+                </label>
+              ) : null}
+              {showField('certificateId') ? (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.certificateId')}</span>
+                  <Input
+                    value={form.certificateId}
+                    onChange={(event) =>
+                      set('certificateId', event.target.value)
+                    }
+                  />
+                </label>
+              ) : null}
             </div>
             <label className='grid gap-1.5 text-sm'>
               <span>{t('hse.fields.courseName')}</span>

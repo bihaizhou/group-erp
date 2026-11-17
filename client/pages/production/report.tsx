@@ -7,6 +7,7 @@ import { ReadOnlyNotice } from '#components/read-only-notice';
 import { useFieldAccess } from '#hooks/use-field-access';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { Alert, AlertDescription } from '#components/ui/alert';
 import { Button } from '#components/ui/button';
 import {
@@ -197,14 +198,27 @@ export default function ProductionReportPage() {
   });
   const data = report.data?.data;
   const fieldAccess = useFieldAccess();
+  const pageFields = usePageFieldVisibility('production-report');
+  const showMaterialField = (field: string) =>
+    pageFields.visible('production.report.material', field);
+  const showShiftField = (field: string) =>
+    pageFields.visible('production.report.shift', field);
+  const showAttendanceField = (field: string) =>
+    pageFields.visible('production.report.attendance', field);
+  const showDowntimeField = (field: string) =>
+    pageFields.visible('production.report.downtime', field);
+  const showMaintenanceField = (field: string) =>
+    pageFields.visible('production.report.maintenance', field);
+  const showOvertimeField = (field: string) =>
+    pageFields.visible('production.report.overtime', field);
   const seeQuantity =
     fieldAccess.access('production.report.material', 'quantity') !== 'hidden';
   const seeStock =
     fieldAccess.access('production.report.material', 'stockQuantity') !==
-    'hidden';
+      'hidden' && showMaterialField('stockQuantity');
   const seeBook =
     fieldAccess.access('production.report.material', 'bookQuantity') !==
-    'hidden';
+      'hidden' && showMaterialField('bookQuantity');
   const writeQuantity =
     fieldAccess.access('production.report.material', 'quantity') === 'write';
   const writeStock =
@@ -701,41 +715,47 @@ export default function ProductionReportPage() {
                 </div>
               ))}
               <div className='grid max-w-2xl gap-3 sm:grid-cols-2'>
-                <label className='space-y-1 text-sm'>
-                  <span>{t('production.runtimeMinutes')}</span>
-                  <Input
-                    type='number'
-                    min='0'
-                    max='1440'
-                    disabled={locked}
-                    value={form.runtimeMinutes}
-                    onChange={(event) =>
-                      update({ runtimeMinutes: event.target.value })
-                    }
-                  />
-                </label>
-                <label className='space-y-1 text-sm'>
-                  <span>{t('production.downtimeMinutes')}</span>
-                  <Input
-                    type='number'
-                    min='0'
-                    max='1440'
-                    disabled={locked}
-                    value={form.downtimeMinutes}
-                    onChange={(event) =>
-                      update({ downtimeMinutes: event.target.value })
-                    }
-                  />
-                </label>
+                {showShiftField('runtimeMinutes') ? (
+                  <label className='space-y-1 text-sm'>
+                    <span>{t('production.runtimeMinutes')}</span>
+                    <Input
+                      type='number'
+                      min='0'
+                      max='1440'
+                      disabled={locked}
+                      value={form.runtimeMinutes}
+                      onChange={(event) =>
+                        update({ runtimeMinutes: event.target.value })
+                      }
+                    />
+                  </label>
+                ) : null}
+                {showShiftField('downtimeMinutes') ? (
+                  <label className='space-y-1 text-sm'>
+                    <span>{t('production.downtimeMinutes')}</span>
+                    <Input
+                      type='number'
+                      min='0'
+                      max='1440'
+                      disabled={locked}
+                      value={form.downtimeMinutes}
+                      onChange={(event) =>
+                        update({ downtimeMinutes: event.target.value })
+                      }
+                    />
+                  </label>
+                ) : null}
               </div>
-              <label className='space-y-1 text-sm'>
-                <span>{t('production.notes')}</span>
-                <Textarea
-                  disabled={locked}
-                  value={form.notes}
-                  onChange={(event) => update({ notes: event.target.value })}
-                />
-              </label>
+              {showShiftField('notes') ? (
+                <label className='space-y-1 text-sm'>
+                  <span>{t('production.notes')}</span>
+                  <Textarea
+                    disabled={locked}
+                    value={form.notes}
+                    onChange={(event) => update({ notes: event.target.value })}
+                  />
+                </label>
+              ) : null}
             </CardContent>
           </Card>
 
@@ -754,9 +774,15 @@ export default function ProductionReportPage() {
                       <TableHead>{t('production.person')}</TableHead>
                       <TableHead>{t('production.position')}</TableHead>
                       <TableHead>{t('production.statusLabel')}</TableHead>
-                      <TableHead>{t('production.absenceReason')}</TableHead>
-                      <TableHead>{t('production.overtimeHours')}</TableHead>
-                      <TableHead>{t('production.overtimeContent')}</TableHead>
+                      {showAttendanceField('absenceReason') ? (
+                        <TableHead>{t('production.absenceReason')}</TableHead>
+                      ) : null}
+                      {showAttendanceField('overtimeMinutes') ? (
+                        <TableHead>{t('production.overtimeHours')}</TableHead>
+                      ) : null}
+                      {showAttendanceField('overtimeContent') ? (
+                        <TableHead>{t('production.overtimeContent')}</TableHead>
+                      ) : null}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -793,49 +819,55 @@ export default function ProductionReportPage() {
                             ))}
                           </select>
                         </TableCell>
-                        <TableCell>
-                          <Input
-                            disabled={locked}
-                            value={row.absenceReason}
-                            placeholder={t(
-                              'production.absenceReasonPlaceholder',
-                            )}
-                            onChange={(event) =>
-                              updateRow(row.personId, {
-                                absenceReason: event.target.value,
-                              })
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type='number'
-                            min='0'
-                            max='24'
-                            step='0.5'
-                            disabled={locked}
-                            value={row.overtimeHours}
-                            onChange={(event) =>
-                              updateRow(row.personId, {
-                                overtimeHours: event.target.value,
-                              })
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            disabled={locked}
-                            value={row.overtimeContent}
-                            placeholder={t(
-                              'production.overtimeContentPlaceholder',
-                            )}
-                            onChange={(event) =>
-                              updateRow(row.personId, {
-                                overtimeContent: event.target.value,
-                              })
-                            }
-                          />
-                        </TableCell>
+                        {showAttendanceField('absenceReason') ? (
+                          <TableCell>
+                            <Input
+                              disabled={locked}
+                              value={row.absenceReason}
+                              placeholder={t(
+                                'production.absenceReasonPlaceholder',
+                              )}
+                              onChange={(event) =>
+                                updateRow(row.personId, {
+                                  absenceReason: event.target.value,
+                                })
+                              }
+                            />
+                          </TableCell>
+                        ) : null}
+                        {showAttendanceField('overtimeMinutes') ? (
+                          <TableCell>
+                            <Input
+                              type='number'
+                              min='0'
+                              max='24'
+                              step='0.5'
+                              disabled={locked}
+                              value={row.overtimeHours}
+                              onChange={(event) =>
+                                updateRow(row.personId, {
+                                  overtimeHours: event.target.value,
+                                })
+                              }
+                            />
+                          </TableCell>
+                        ) : null}
+                        {showAttendanceField('overtimeContent') ? (
+                          <TableCell>
+                            <Input
+                              disabled={locked}
+                              value={row.overtimeContent}
+                              placeholder={t(
+                                'production.overtimeContentPlaceholder',
+                              )}
+                              onChange={(event) =>
+                                updateRow(row.personId, {
+                                  overtimeContent: event.target.value,
+                                })
+                              }
+                            />
+                          </TableCell>
+                        ) : null}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -864,7 +896,12 @@ export default function ProductionReportPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className='space-y-3'>
-              {readOnly ? null : <DowntimeComposer onAdd={addDowntime} />}
+              {readOnly ? null : (
+                <DowntimeComposer
+                  onAdd={addDowntime}
+                  visible={showDowntimeField}
+                />
+              )}
               {downtime.length ? (
                 <ul className='space-y-1 text-sm'>
                   {downtime.map((row) => (
@@ -874,8 +911,9 @@ export default function ProductionReportPage() {
                     >
                       <span>
                         {row.time} ·{' '}
-                        {t(`production.downtimeCategory_${row.category}`)}
-                        {' · '}
+                        {showDowntimeField('category')
+                          ? `${t(`production.downtimeCategory_${row.category}`)} · `
+                          : ''}
                         {row.description}
                       </span>
                       <Button
@@ -930,6 +968,7 @@ export default function ProductionReportPage() {
                 <MaintenanceComposer
                   equipment={equipment}
                   onAdd={addMaintenance}
+                  visible={showMaintenanceField}
                 />
               )}
               {!equipment.length ? (
@@ -949,12 +988,14 @@ export default function ProductionReportPage() {
                         className='flex items-center justify-between gap-2 rounded-md border px-3 py-2'
                       >
                         <span>
-                          {device?.name ?? row.equipmentId} ·{' '}
-                          {t(
-                            row.kind === 'maintenance'
-                              ? 'production.reportMaintenanceKind_maintenance'
-                              : 'production.reportMaintenanceKind_repair',
-                          )}
+                          {device?.name ?? row.equipmentId}
+                          {showMaintenanceField('type')
+                            ? ` · ${t(
+                                row.kind === 'maintenance'
+                                  ? 'production.reportMaintenanceKind_maintenance'
+                                  : 'production.reportMaintenanceKind_repair',
+                              )}`
+                            : ''}
                           {' · '}
                           {row.description}
                         </span>
@@ -986,10 +1027,14 @@ export default function ProductionReportPage() {
                       className='flex items-center justify-between gap-2 border-t py-1.5 text-sm'
                     >
                       <span className='truncate'>
-                        {row.equipmentName} ·{' '}
-                        {row.type === 'preventive'
-                          ? t('production.maintenanceType_preventive')
-                          : t('production.maintenanceType_repair')}
+                        {row.equipmentName}
+                        {showMaintenanceField('type')
+                          ? ` · ${
+                              row.type === 'preventive'
+                                ? t('production.maintenanceType_preventive')
+                                : t('production.maintenanceType_repair')
+                            }`
+                          : ''}
                         {' · '}
                         {row.description}
                       </span>
@@ -1018,6 +1063,7 @@ export default function ProductionReportPage() {
                     personName: row.personName,
                   }))}
                   onAdd={addOvertime}
+                  visible={showOvertimeField}
                 />
               )}
               {overtime.length ? (
@@ -1102,8 +1148,10 @@ export default function ProductionReportPage() {
 
 function DowntimeComposer({
   onAdd,
+  visible,
 }: {
   readonly onAdd: (draft: Omit<DowntimeDraft, 'id'>) => void;
+  readonly visible: (field: string) => boolean;
 }) {
   const { t } = useTranslation();
   const [time, setTime] = useState(shanghaiTime);
@@ -1121,38 +1169,42 @@ function DowntimeComposer({
             onChange={(event) => setTime(event.target.value)}
           />
         </label>
-        <label className='space-y-1 text-sm'>
-          <span>{t('production.downtimeCategory')}</span>
-          <select
-            className={nativeSelectClass}
-            value={category}
-            onChange={(event) =>
-              setCategory(event.target.value as DowntimeCategory)
-            }
-          >
-            {downtimeCategories.map((value) => (
-              <option key={value} value={value}>
-                {t(`production.downtimeCategory_${value}`)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className='space-y-1 text-sm'>
-          <span>{t('production.downtimeImpact')}</span>
-          <select
-            className={nativeSelectClass}
-            value={impact}
-            onChange={(event) =>
-              setImpact(event.target.value as DowntimeImpact)
-            }
-          >
-            {downtimeImpacts.map((value) => (
-              <option key={value} value={value}>
-                {t(`production.downtimeImpact_${value}`)}
-              </option>
-            ))}
-          </select>
-        </label>
+        {visible('category') ? (
+          <label className='space-y-1 text-sm'>
+            <span>{t('production.downtimeCategory')}</span>
+            <select
+              className={nativeSelectClass}
+              value={category}
+              onChange={(event) =>
+                setCategory(event.target.value as DowntimeCategory)
+              }
+            >
+              {downtimeCategories.map((value) => (
+                <option key={value} value={value}>
+                  {t(`production.downtimeCategory_${value}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {visible('impact') ? (
+          <label className='space-y-1 text-sm'>
+            <span>{t('production.downtimeImpact')}</span>
+            <select
+              className={nativeSelectClass}
+              value={impact}
+              onChange={(event) =>
+                setImpact(event.target.value as DowntimeImpact)
+              }
+            >
+              {downtimeImpacts.map((value) => (
+                <option key={value} value={value}>
+                  {t(`production.downtimeImpact_${value}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <label className='space-y-1 text-sm sm:col-span-3'>
           <span>{t('production.downtimeDescription')}</span>
           <Input
@@ -1182,9 +1234,11 @@ function DowntimeComposer({
 function OvertimeComposer({
   people,
   onAdd,
+  visible,
 }: {
   readonly people: { personId: string; personName: string }[];
   readonly onAdd: (draft: Omit<OvertimeDraft, 'id'>) => void;
+  readonly visible: (field: string) => boolean;
 }) {
   const { t } = useTranslation();
   const [personId, setPersonId] = useState('');
@@ -1222,20 +1276,22 @@ function OvertimeComposer({
             onChange={(event) => setHours(event.target.value)}
           />
         </label>
-        <label className='min-w-0 space-y-1 text-sm'>
-          <span>{t('production.overtimeType')}</span>
-          <select
-            className={nativeSelectClass}
-            value={type}
-            onChange={(event) => setType(event.target.value as OvertimeType)}
-          >
-            {overtimeTypes.map((value) => (
-              <option key={value} value={value}>
-                {t(`production.overtimeType_${value}`)}
-              </option>
-            ))}
-          </select>
-        </label>
+        {visible('type') ? (
+          <label className='min-w-0 space-y-1 text-sm'>
+            <span>{t('production.overtimeType')}</span>
+            <select
+              className={nativeSelectClass}
+              value={type}
+              onChange={(event) => setType(event.target.value as OvertimeType)}
+            >
+              {overtimeTypes.map((value) => (
+                <option key={value} value={value}>
+                  {t(`production.overtimeType_${value}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <label className='space-y-1 text-sm'>
           <span>{t('production.overtimeReason')}</span>
           <Input
@@ -1264,9 +1320,11 @@ function OvertimeComposer({
 function MaintenanceComposer({
   equipment,
   onAdd,
+  visible,
 }: {
   readonly equipment: { id: string; code: string; name: string }[];
   readonly onAdd: (draft: Omit<MaintenanceDraft, 'id'>) => void;
+  readonly visible: (field: string) => boolean;
 }) {
   const { t } = useTranslation();
   const [equipmentId, setEquipmentId] = useState('');
@@ -1293,31 +1351,35 @@ function MaintenanceComposer({
             ))}
           </select>
         </label>
-        <label className='min-w-0 space-y-1 text-sm'>
-          <span>{t('production.maintenanceType')}</span>
-          <select
-            className={nativeSelectClass}
-            value={kind}
-            onChange={(event) =>
-              setKind(event.target.value as 'repair' | 'maintenance')
-            }
-          >
-            <option value='repair'>
-              {t('production.maintenanceType_repair')}
-            </option>
-            <option value='maintenance'>
-              {t('production.maintenanceType_preventive')}
-            </option>
-          </select>
-        </label>
-        <label className='min-w-0 space-y-1 text-sm'>
-          <span>{t('production.assignee')}</span>
-          <Input
-            value={assigneeName}
-            onChange={(event) => setAssigneeName(event.target.value)}
-            maxLength={100}
-          />
-        </label>
+        {visible('type') ? (
+          <label className='min-w-0 space-y-1 text-sm'>
+            <span>{t('production.maintenanceType')}</span>
+            <select
+              className={nativeSelectClass}
+              value={kind}
+              onChange={(event) =>
+                setKind(event.target.value as 'repair' | 'maintenance')
+              }
+            >
+              <option value='repair'>
+                {t('production.maintenanceType_repair')}
+              </option>
+              <option value='maintenance'>
+                {t('production.maintenanceType_preventive')}
+              </option>
+            </select>
+          </label>
+        ) : null}
+        {visible('assigneeName') ? (
+          <label className='min-w-0 space-y-1 text-sm'>
+            <span>{t('production.assignee')}</span>
+            <Input
+              value={assigneeName}
+              onChange={(event) => setAssigneeName(event.target.value)}
+              maxLength={100}
+            />
+          </label>
+        ) : null}
         <label className='space-y-1 text-sm sm:col-span-4'>
           <span>{t('production.faultDescription')}</span>
           <Input

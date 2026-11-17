@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BadgeCheck as CertificateIcon, Plus } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
@@ -59,6 +60,9 @@ export default function HseCertificatesPage() {
   const { t, i18n } = useTranslation();
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const pageFields = usePageFieldVisibility('hse-certificates');
+  const showField = (field: string) =>
+    pageFields.visible('hse.certificate', field);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -99,8 +103,7 @@ export default function HseCertificatesPage() {
   const employees = useMemo(
     () =>
       (options.data?.data.employees ?? []).filter(
-        (employee) =>
-          !form.subjectId || employee.subjectId === form.subjectId,
+        (employee) => !form.subjectId || employee.subjectId === form.subjectId,
       ),
     [options.data?.data.employees, form.subjectId],
   );
@@ -286,12 +289,24 @@ export default function HseCertificatesPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('hse.fields.holderName')}</TableHead>
-                <TableHead>{t('hse.fields.certType')}</TableHead>
-                <TableHead>{t('hse.fields.certNo')}</TableHead>
-                <TableHead>{t('hse.fields.expiresAt')}</TableHead>
-                <TableHead>{t('hse.fields.authority')}</TableHead>
-                <TableHead>{t('hse.fields.status')}</TableHead>
+                {showField('holderName') && (
+                  <TableHead>{t('hse.fields.holderName')}</TableHead>
+                )}
+                {showField('certType') && (
+                  <TableHead>{t('hse.fields.certType')}</TableHead>
+                )}
+                {showField('certNo') && (
+                  <TableHead>{t('hse.fields.certNo')}</TableHead>
+                )}
+                {showField('expiresAt') && (
+                  <TableHead>{t('hse.fields.expiresAt')}</TableHead>
+                )}
+                {showField('authority') && (
+                  <TableHead>{t('hse.fields.authority')}</TableHead>
+                )}
+                {showField('status') && (
+                  <TableHead>{t('hse.fields.status')}</TableHead>
+                )}
                 <TableHead>{t('hse.fields.lastAction')}</TableHead>
                 <TableHead className='text-right'>
                   {t('hse.fields.actions')}
@@ -301,20 +316,30 @@ export default function HseCertificatesPage() {
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.id}>
-                  <TableCell>{row.holderName}</TableCell>
-                  <TableCell>
-                    {t(`hse.certificateType.${row.certType}`)}
-                  </TableCell>
-                  <TableCell>{row.certNo}</TableCell>
-                  <TableCell>
-                    {new Date(`${row.expiresAt}T00:00:00`).toLocaleDateString(
-                      i18n.language,
-                    )}
-                  </TableCell>
-                  <TableCell>{row.authority || '—'}</TableCell>
-                  <TableCell>
-                    <HseStatus status={row.status} />
-                  </TableCell>
+                  {showField('holderName') && (
+                    <TableCell>{row.holderName}</TableCell>
+                  )}
+                  {showField('certType') && (
+                    <TableCell>
+                      {t(`hse.certificateType.${row.certType}`)}
+                    </TableCell>
+                  )}
+                  {showField('certNo') && <TableCell>{row.certNo}</TableCell>}
+                  {showField('expiresAt') && (
+                    <TableCell>
+                      {new Date(`${row.expiresAt}T00:00:00`).toLocaleDateString(
+                        i18n.language,
+                      )}
+                    </TableCell>
+                  )}
+                  {showField('authority') && (
+                    <TableCell>{row.authority || '—'}</TableCell>
+                  )}
+                  {showField('status') && (
+                    <TableCell>
+                      <HseStatus status={row.status} />
+                    </TableCell>
+                  )}
                   <TableCell className='text-xs text-muted-foreground'>
                     {lastAction(row)}
                   </TableCell>
@@ -418,17 +443,19 @@ export default function HseCertificatesPage() {
           </DialogHeader>
           <div className='grid gap-4'>
             <div className='grid gap-2 sm:grid-cols-2'>
-              <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.holderType')}</span>
-                <HseSelect
-                  value={form.holderType}
-                  onChange={(value) => set('holderType', value)}
-                  options={[
-                    { id: 'company', name: t('hse.holderType.company') },
-                    { id: 'person', name: t('hse.holderType.person') },
-                  ]}
-                />
-              </label>
+              {showField('holderType') && (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.holderType')}</span>
+                  <HseSelect
+                    value={form.holderType}
+                    onChange={(value) => set('holderType', value)}
+                    options={[
+                      { id: 'company', name: t('hse.holderType.company') },
+                      { id: 'person', name: t('hse.holderType.person') },
+                    ]}
+                  />
+                </label>
+              )}
               {form.holderType === 'person' ? (
                 <label className='grid gap-1.5 text-sm'>
                   <span>{t('hse.fields.holder')}</span>
@@ -463,21 +490,25 @@ export default function HseCertificatesPage() {
                   onChange={(event) => set('certNo', event.target.value)}
                 />
               </label>
-              <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.authority')}</span>
-                <Input
-                  value={form.authority}
-                  onChange={(event) => set('authority', event.target.value)}
-                />
-              </label>
-              <label className='grid gap-1.5 text-sm'>
-                <span>{t('hse.fields.issuedAt')}</span>
-                <Input
-                  type='date'
-                  value={form.issuedAt}
-                  onChange={(event) => set('issuedAt', event.target.value)}
-                />
-              </label>
+              {showField('authority') && (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.authority')}</span>
+                  <Input
+                    value={form.authority}
+                    onChange={(event) => set('authority', event.target.value)}
+                  />
+                </label>
+              )}
+              {showField('issuedAt') && (
+                <label className='grid gap-1.5 text-sm'>
+                  <span>{t('hse.fields.issuedAt')}</span>
+                  <Input
+                    type='date'
+                    value={form.issuedAt}
+                    onChange={(event) => set('issuedAt', event.target.value)}
+                  />
+                </label>
+              )}
               <label className='grid gap-1.5 text-sm'>
                 <span>{t('hse.fields.expiresAt')}</span>
                 <Input

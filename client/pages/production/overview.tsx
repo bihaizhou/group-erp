@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import {
   DashboardMetric,
   DashboardMetricGrid,
@@ -63,6 +64,9 @@ const round = (value: number) => Math.round(value * 100) / 100;
 export default function ProductionOverviewPage() {
   const { t, i18n } = useTranslation();
   const api = useApiClient();
+  const pageFields = usePageFieldVisibility('production-overview');
+  const showField = (field: string) =>
+    pageFields.visible('production.overview', field);
   const [params] = useSearchParams();
   const subjectId = params.get('subjectId') ?? '';
   const { refresh, busy } = useDashboardRefresh();
@@ -167,30 +171,38 @@ export default function ProductionOverviewPage() {
       ) : (
         <>
           <DashboardMetricGrid>
-            <DashboardMetric
-              label={t('dashboard.production.metrics.processed')}
-              value={totals.processed}
-              isLoading={todayReports.isPending}
-              icon={ClipboardCheck}
-            />
-            <DashboardMetric
-              label={t('dashboard.production.metrics.reports')}
-              value={totals.reports}
-              isLoading={todayReports.isPending}
-              icon={FileText}
-            />
-            <DashboardMetric
-              label={t('dashboard.production.metrics.confirmed')}
-              value={totals.confirmed}
-              isLoading={todayReports.isPending}
-              icon={ClipboardCheck}
-            />
-            <DashboardMetric
-              label={t('dashboard.production.metrics.runtime')}
-              value={totals.runtime}
-              isLoading={todayReports.isPending}
-              icon={CalendarDays}
-            />
+            {showField('processed') ? (
+              <DashboardMetric
+                label={t('dashboard.production.metrics.processed')}
+                value={totals.processed}
+                isLoading={todayReports.isPending}
+                icon={ClipboardCheck}
+              />
+            ) : null}
+            {showField('reports') ? (
+              <DashboardMetric
+                label={t('dashboard.production.metrics.reports')}
+                value={totals.reports}
+                isLoading={todayReports.isPending}
+                icon={FileText}
+              />
+            ) : null}
+            {showField('confirmed') ? (
+              <DashboardMetric
+                label={t('dashboard.production.metrics.confirmed')}
+                value={totals.confirmed}
+                isLoading={todayReports.isPending}
+                icon={ClipboardCheck}
+              />
+            ) : null}
+            {showField('runtime') ? (
+              <DashboardMetric
+                label={t('dashboard.production.metrics.runtime')}
+                value={totals.runtime}
+                isLoading={todayReports.isPending}
+                icon={CalendarDays}
+              />
+            ) : null}
           </DashboardMetricGrid>
           <DashboardTableCard
             title={t('dashboard.production.recentReports')}
@@ -202,7 +214,9 @@ export default function ProductionOverviewPage() {
             columns={[
               t('dashboard.common.date'),
               t('dashboard.common.shift'),
-              t('dashboard.common.processed'),
+              ...(showField('processed')
+                ? [t('dashboard.common.processed')]
+                : []),
               t('dashboard.common.status'),
             ]}
             isLoading={recentReports.isPending}
@@ -221,9 +235,11 @@ export default function ProductionOverviewPage() {
                   {formatDashboardDate(row.reportDate, i18n.language)}
                 </TableCell>
                 <TableCell>{t(`production.shifts.${row.shift}`)}</TableCell>
-                <TableCell className='tabular-nums'>
-                  {processed(row).toLocaleString(i18n.language)}
-                </TableCell>
+                {showField('processed') ? (
+                  <TableCell className='tabular-nums'>
+                    {processed(row).toLocaleString(i18n.language)}
+                  </TableCell>
+                ) : null}
                 <TableCell>
                   <DashboardStatus status={row.status} />
                 </TableCell>

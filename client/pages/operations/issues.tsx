@@ -3,9 +3,10 @@ import { useSearchParams } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient } from '@nocobase/app-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Paperclip, Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { useSettingsAccess } from '#hooks/use-settings-access';
 import { businessDate } from '#hooks/business-date';
@@ -53,6 +54,19 @@ export default function OperationsIssuesPage() {
   const { t } = useTranslation();
   const api = useApiClient();
   const queryClient = useQueryClient();
+  const pageFields = usePageFieldVisibility('operations-issues');
+  const showField = (field: string) =>
+    pageFields.visible('operations.issue', field);
+  const optionalColumns = [
+    'businessDate',
+    'sourceType',
+    'severity',
+    'ownerName',
+    'dueAt',
+    'status',
+  ] as const;
+  const columnCount =
+    9 - optionalColumns.filter((field) => !showField(field)).length;
   const [params] = useSearchParams(),
     subjectId = params.get('subjectId') ?? '';
   const [status, setStatus] = useState('');
@@ -221,12 +235,24 @@ export default function OperationsIssuesPage() {
             <TableRow>
               <TableHead>{t('operations.issueCode')}</TableHead>
               <TableHead>{t('operations.issueTitle')}</TableHead>
-              <TableHead>{t('operations.issueBusinessDate')}</TableHead>
-              <TableHead>{t('operations.issueSourceLabel')}</TableHead>
-              <TableHead>{t('operations.issueSeverityLabel')}</TableHead>
-              <TableHead>{t('operations.issueOwner')}</TableHead>
-              <TableHead>{t('operations.issueDue')}</TableHead>
-              <TableHead>{t('operations.issueStatusLabel')}</TableHead>
+              {showField('businessDate') ? (
+                <TableHead>{t('operations.issueBusinessDate')}</TableHead>
+              ) : null}
+              {showField('sourceType') ? (
+                <TableHead>{t('operations.issueSourceLabel')}</TableHead>
+              ) : null}
+              {showField('severity') ? (
+                <TableHead>{t('operations.issueSeverityLabel')}</TableHead>
+              ) : null}
+              {showField('ownerName') ? (
+                <TableHead>{t('operations.issueOwner')}</TableHead>
+              ) : null}
+              {showField('dueAt') ? (
+                <TableHead>{t('operations.issueDue')}</TableHead>
+              ) : null}
+              {showField('status') ? (
+                <TableHead>{t('operations.issueStatusLabel')}</TableHead>
+              ) : null}
               <TableHead>{t('operations.issueAction')}</TableHead>
             </TableRow>
           </TableHeader>
@@ -237,18 +263,30 @@ export default function OperationsIssuesPage() {
                   {issue.code}
                 </TableCell>
                 <TableCell>{issue.title}</TableCell>
-                <TableCell>{issue.businessDate ?? '—'}</TableCell>
-                <TableCell>
-                  {t(`operations.issueSource.${issue.sourceType}`)}
-                </TableCell>
-                <TableCell>
-                  {t(`operations.issueSeverity.${issue.severity}`)}
-                </TableCell>
-                <TableCell>{issue.ownerName}</TableCell>
-                <TableCell>{issue.dueAt}</TableCell>
-                <TableCell>
-                  {t(`operations.issueStatus.${issue.status}`)}
-                </TableCell>
+                {showField('businessDate') ? (
+                  <TableCell>{issue.businessDate ?? '—'}</TableCell>
+                ) : null}
+                {showField('sourceType') ? (
+                  <TableCell>
+                    {t(`operations.issueSource.${issue.sourceType}`)}
+                  </TableCell>
+                ) : null}
+                {showField('severity') ? (
+                  <TableCell>
+                    {t(`operations.issueSeverity.${issue.severity}`)}
+                  </TableCell>
+                ) : null}
+                {showField('ownerName') ? (
+                  <TableCell>{issue.ownerName}</TableCell>
+                ) : null}
+                {showField('dueAt') ? (
+                  <TableCell>{issue.dueAt}</TableCell>
+                ) : null}
+                {showField('status') ? (
+                  <TableCell>
+                    {t(`operations.issueStatus.${issue.status}`)}
+                  </TableCell>
+                ) : null}
                 <TableCell>
                   <div className='flex flex-wrap items-center gap-2'>
                     <OperationsIssueAttachments
@@ -298,7 +336,7 @@ export default function OperationsIssuesPage() {
             {result && result.items.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={9}
+                  colSpan={columnCount}
                   className='py-8 text-center text-muted-foreground'
                 >
                   {t('operations.issuesEmpty')}
@@ -367,48 +405,52 @@ export default function OperationsIssuesPage() {
               />
             </label>
             <div className='grid gap-3 sm:grid-cols-2'>
-              <label className='grid gap-1 text-sm'>
-                <span>{t('operations.issueSourceLabel')}</span>
-                <select
-                  className={nativeSelectClass}
-                  value={form.sourceType}
-                  onChange={(event) =>
-                    setForm({ ...form, sourceType: event.target.value })
-                  }
-                >
-                  {(
-                    [
-                      'production',
-                      'warehouse',
-                      'sales',
-                      'procurement',
-                      'people',
-                      'hse',
-                      'other',
-                    ] as const
-                  ).map((value) => (
-                    <option key={value} value={value}>
-                      {t(`operations.issueSource.${value}`)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className='grid gap-1 text-sm'>
-                <span>{t('operations.issueSeverityLabel')}</span>
-                <select
-                  className={nativeSelectClass}
-                  value={form.severity}
-                  onChange={(event) =>
-                    setForm({ ...form, severity: event.target.value })
-                  }
-                >
-                  {(['low', 'medium', 'high'] as const).map((value) => (
-                    <option key={value} value={value}>
-                      {t(`operations.issueSeverity.${value}`)}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {showField('sourceType') ? (
+                <label className='grid gap-1 text-sm'>
+                  <span>{t('operations.issueSourceLabel')}</span>
+                  <select
+                    className={nativeSelectClass}
+                    value={form.sourceType}
+                    onChange={(event) =>
+                      setForm({ ...form, sourceType: event.target.value })
+                    }
+                  >
+                    {(
+                      [
+                        'production',
+                        'warehouse',
+                        'sales',
+                        'procurement',
+                        'people',
+                        'hse',
+                        'other',
+                      ] as const
+                    ).map((value) => (
+                      <option key={value} value={value}>
+                        {t(`operations.issueSource.${value}`)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {showField('severity') ? (
+                <label className='grid gap-1 text-sm'>
+                  <span>{t('operations.issueSeverityLabel')}</span>
+                  <select
+                    className={nativeSelectClass}
+                    value={form.severity}
+                    onChange={(event) =>
+                      setForm({ ...form, severity: event.target.value })
+                    }
+                  >
+                    {(['low', 'medium', 'high'] as const).map((value) => (
+                      <option key={value} value={value}>
+                        {t(`operations.issueSeverity.${value}`)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               <label className='grid gap-1 text-sm'>
                 <span>{t('operations.issueOwner')}</span>
                 <select
@@ -437,26 +479,30 @@ export default function OperationsIssuesPage() {
                   ))}
                 </select>
               </label>
-              <label className='grid gap-1 text-sm'>
-                <span>{t('operations.issueBusinessDate')}</span>
-                <Input
-                  type='date'
-                  value={form.businessDate}
-                  onChange={(event) =>
-                    setForm({ ...form, businessDate: event.target.value })
-                  }
-                />
-              </label>
-              <label className='grid gap-1 text-sm'>
-                <span>{t('operations.issueDue')}</span>
-                <Input
-                  type='date'
-                  value={form.dueAt}
-                  onChange={(event) =>
-                    setForm({ ...form, dueAt: event.target.value })
-                  }
-                />
-              </label>
+              {showField('businessDate') ? (
+                <label className='grid gap-1 text-sm'>
+                  <span>{t('operations.issueBusinessDate')}</span>
+                  <Input
+                    type='date'
+                    value={form.businessDate}
+                    onChange={(event) =>
+                      setForm({ ...form, businessDate: event.target.value })
+                    }
+                  />
+                </label>
+              ) : null}
+              {showField('dueAt') ? (
+                <label className='grid gap-1 text-sm'>
+                  <span>{t('operations.issueDue')}</span>
+                  <Input
+                    type='date'
+                    value={form.dueAt}
+                    onChange={(event) =>
+                      setForm({ ...form, dueAt: event.target.value })
+                    }
+                  />
+                </label>
+              ) : null}
             </div>
           </div>
           <DialogFooter>
@@ -517,34 +563,43 @@ export default function OperationsIssuesPage() {
                 ))}
               </select>
             </label>
-            <div className='grid gap-3 sm:grid-cols-2'>
-              <label className='grid gap-1 text-sm'>
-                <span>{t('operations.issueSeverityLabel')}</span>
-                <select
-                  className={nativeSelectClass}
-                  value={editForm.severity}
-                  onChange={(event) =>
-                    setEditForm({ ...editForm, severity: event.target.value })
-                  }
-                >
-                  {(['low', 'medium', 'high'] as const).map((value) => (
-                    <option key={value} value={value}>
-                      {t(`operations.issueSeverity.${value}`)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className='grid gap-1 text-sm'>
-                <span>{t('operations.issueDue')}</span>
-                <Input
-                  type='date'
-                  value={editForm.dueAt}
-                  onChange={(event) =>
-                    setEditForm({ ...editForm, dueAt: event.target.value })
-                  }
-                />
-              </label>
-            </div>
+            {showField('severity') || showField('dueAt') ? (
+              <div className='grid gap-3 sm:grid-cols-2'>
+                {showField('severity') ? (
+                  <label className='grid gap-1 text-sm'>
+                    <span>{t('operations.issueSeverityLabel')}</span>
+                    <select
+                      className={nativeSelectClass}
+                      value={editForm.severity}
+                      onChange={(event) =>
+                        setEditForm({
+                          ...editForm,
+                          severity: event.target.value,
+                        })
+                      }
+                    >
+                      {(['low', 'medium', 'high'] as const).map((value) => (
+                        <option key={value} value={value}>
+                          {t(`operations.issueSeverity.${value}`)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                {showField('dueAt') ? (
+                  <label className='grid gap-1 text-sm'>
+                    <span>{t('operations.issueDue')}</span>
+                    <Input
+                      type='date'
+                      value={editForm.dueAt}
+                      onChange={(event) =>
+                        setEditForm({ ...editForm, dueAt: event.target.value })
+                      }
+                    />
+                  </label>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <DialogFooter>
             <Button variant='outline' onClick={() => setEditing(null)}>

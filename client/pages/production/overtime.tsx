@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, Timer } from 'lucide-react';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { Button } from '#components/ui/button';
 import {
   Card,
@@ -39,6 +40,9 @@ export default function ProductionOvertimePage() {
   const api = useApiClient();
   const queryClient = useQueryClient();
   const access = useProductionAccess();
+  const pageFields = usePageFieldVisibility('production-overtime');
+  const showField = (field: string) =>
+    pageFields.visible('production.overtime', field);
   const canApprove = access.canApprove;
   const [unitId, setUnitId] = useState('');
   const [businessDate, setBusinessDate] = useState(() => today());
@@ -237,28 +241,45 @@ export default function ProductionOvertimePage() {
                     {record.positionName} · {record.unitName}
                   </span>
                 </div>
-                <span
-                  className={
-                    record.status === 'rejected'
-                      ? 'text-destructive'
-                      : 'text-muted-foreground'
-                  }
-                >
-                  {t(`production.overtimeStatus_${record.status}`)}
-                </span>
+                {showField('status') ? (
+                  <span
+                    className={
+                      record.status === 'rejected'
+                        ? 'text-destructive'
+                        : 'text-muted-foreground'
+                    }
+                  >
+                    {t(`production.overtimeStatus_${record.status}`)}
+                  </span>
+                ) : null}
               </div>
               <div className='mt-1 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground'>
-                <span>
-                  {record.businessDate} · {record.hours}
-                  {t('production.overtimeHourUnit')}
-                </span>
-                <span>{t(`production.overtimeType_${record.type}`)}</span>
-                <span>
-                  {t(`production.overtimeCompensation_${record.compensation}`)}
-                </span>
-                <span>{record.requestNo}</span>
+                {showField('businessDate') ? (
+                  <span>{record.businessDate}</span>
+                ) : null}
+                {showField('hours') ? (
+                  <span>
+                    {record.hours}
+                    {t('production.overtimeHourUnit')}
+                  </span>
+                ) : null}
+                {showField('type') ? (
+                  <span>{t(`production.overtimeType_${record.type}`)}</span>
+                ) : null}
+                {showField('compensation') ? (
+                  <span>
+                    {t(
+                      `production.overtimeCompensation_${record.compensation}`,
+                    )}
+                  </span>
+                ) : null}
+                {showField('requestNo') ? (
+                  <span>{record.requestNo}</span>
+                ) : null}
               </div>
-              <p className='mt-1'>{record.reason}</p>
+              {showField('reason') ? (
+                <p className='mt-1'>{record.reason}</p>
+              ) : null}
               {record.rejectReason ? (
                 <p className='mt-1 text-destructive'>
                   {t('production.overtimeRejectReason')}: {record.rejectReason}
