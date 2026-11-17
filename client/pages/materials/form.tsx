@@ -87,9 +87,13 @@ export default function MaterialFormPage({
     id = fromRequest
       ? undefined
       : (params.linkedSkuId ?? params.recordId ?? params.sourceRequestId);
-  const pageKey = location.pathname.endsWith('/new')
-    ? `${pageId(kind)}-new`
-    : undefined;
+  const pageKey = location.pathname.endsWith('/newSku')
+    ? 'warehouse-material-requests-new-sku'
+    : location.pathname.endsWith('/newRequest')
+      ? 'warehouse-materials-request-material'
+      : location.pathname.endsWith('/new')
+        ? `${pageId(kind)}-new`
+        : undefined;
   const record = useMaterialRecord(kind, id),
     canWrite = useMaterialCan(kind),
     discard = useDiscardConfirm();

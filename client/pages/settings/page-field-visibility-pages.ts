@@ -40,6 +40,8 @@ export const pageFieldVisibilityPageKeys: ReadonlySet<string> = new Set([
     .filter((kind) => materialFields[kind].length > 0)
     .map((kind) => `${materialPageId(kind)}-new`),
   'warehouse-material-templates-new',
+  'warehouse-materials-request-material',
+  'warehouse-material-requests-new-sku',
   'sales-orders-new',
   'procurement-orders-new',
   'procurement-suppliers-new',
@@ -169,6 +171,12 @@ export const pageFieldVisibilityFields: Readonly<
         ),
       ]),
   ),
+  'warehouse-materials-request-material': materialFields.requests.map(
+    (field) => `materials.request.${field.key}`,
+  ),
+  'warehouse-material-requests-new-sku': materialFields.skus.map(
+    (field) => `materials.sku.${field.key}`,
+  ),
   'warehouse-material-templates-new': [
     'materials.template.key',
     'materials.template.title',
@@ -263,6 +271,18 @@ export const pageFieldVisibilityExtraFields: Readonly<
         })),
       ]),
   ),
+  'warehouse-materials-request-material': materialFields.requests.map(
+    (field) => ({
+      resource: 'materials.request',
+      field: field.key,
+      titleKey: `materials.fields.${field.key}`,
+    }),
+  ),
+  'warehouse-material-requests-new-sku': materialFields.skus.map((field) => ({
+    resource: 'materials.sku',
+    field: field.key,
+    titleKey: `materials.fields.${field.key}`,
+  })),
   'warehouse-material-templates-new': [
     'unit',
     'type',
@@ -363,6 +383,12 @@ export const pageFieldVisibilityRequiredFields: Readonly<
     'materials.template.key',
     'materials.template.title',
   ],
+  'warehouse-materials-request-material': materialFields.requests
+    .filter((field) => field.required)
+    .map((field) => `materials.request.${field.key}`),
+  'warehouse-material-requests-new-sku': materialFields.skus
+    .filter((field) => field.required)
+    .map((field) => `materials.sku.${field.key}`),
   'sales-orders-new': ['execution.document.currency'],
   'procurement-orders-new': ['execution.document.currency'],
   'warehouse-inbounds-new': ['execution.document.reason'],

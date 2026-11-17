@@ -30,7 +30,7 @@ describe('page field visibility registry', () => {
     const createRoutes = flatten(application.routes).filter(
       (route) =>
         Boolean(route.componentLoader) &&
-        route.path?.split('/').filter(Boolean).at(-1) === 'new',
+        (route.path?.split('/').filter(Boolean).at(-1) ?? '').startsWith('new'),
     );
     expect(createRoutes.length).toBeGreaterThan(0);
     const uncovered = createRoutes
