@@ -1082,6 +1082,7 @@ export function pageFieldVisibilityBaseKey(
 export function supportsPageFieldVisibility(
   pageKey: string | undefined,
 ): boolean {
-  const base = pageFieldVisibilityBaseKey(pageKey);
-  return base !== undefined && pageFieldVisibilityPageKeys.has(base);
+  // Any route with a page authz is configurable. The curated set below only
+  // controls the default field list; it must never be a gate for new pages.
+  return pageFieldVisibilityBaseKey(pageKey) !== undefined;
 }

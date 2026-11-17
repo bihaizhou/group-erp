@@ -41,6 +41,10 @@ describe('page field visibility registry', () => {
     expect(uncovered).toEqual([]);
   });
 
+  it('does not require a new page to be added to the registry', () => {
+    expect(supportsPageFieldVisibility('a-page-added-tomorrow-new')).toBe(true);
+  });
+
   it('supports the request list and detail pages', () => {
     for (const pageKey of [
       'procurement-requests',
