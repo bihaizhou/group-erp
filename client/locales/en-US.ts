@@ -11,6 +11,7 @@ import { people } from './people-en.js';
 import { hse } from './hse-en.js';
 import { production } from './production-en.js';
 import { assets } from './assets-en.js';
+import { finance } from './finance-en.js';
 import { reviewSettings } from './review-settings-en.js';
 import { reviewAudit } from './review-audit-en.js';
 import { reviewRules } from './review-rules-en.js';
@@ -162,6 +163,7 @@ const enUS = {
   hse,
   production,
   assets,
+  finance,
   reviewSettings,
   reviewAudit,
   reviewRules,

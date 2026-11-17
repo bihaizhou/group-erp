@@ -573,6 +573,7 @@ function RoleEditor(): ReactElement {
   const openPageField = (node: {
     pageKey?: string | undefined;
     resourceId?: string | undefined;
+    dataResources?: readonly string[] | undefined;
     label: string;
     path?: string | undefined;
   }) => {
@@ -583,7 +584,10 @@ function RoleEditor(): ReactElement {
       resourceId: node.resourceId,
       label: node.label,
       path: node.path,
-      resources: fieldResourcesForPage(node.resourceId),
+      resources:
+        node.dataResources && node.dataResources.length > 0
+          ? node.dataResources
+          : fieldResourcesForPage(node.resourceId),
     });
     setPageFieldDraft({});
     setPageFieldModeDraft(undefined);

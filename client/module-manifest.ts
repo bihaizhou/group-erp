@@ -7,6 +7,7 @@ import { hseRoutes } from './pages/hse/routes.js';
 import { productionRoutes } from './pages/production/routes.js';
 import { operationsRoutes } from './pages/operations/routes.js';
 import { assetsRoutes } from './pages/assets/routes.js';
+import { financeRoutes } from './pages/finance/routes.js';
 
 export interface FunctionModuleManifest {
   readonly id: string;
@@ -27,6 +28,7 @@ export const functionModules: readonly FunctionModuleManifest[] = [
   { id: 'production', routes: productionRoutes },
   { id: 'operations', routes: operationsRoutes },
   { id: 'assets', routes: assetsRoutes },
+  { id: 'finance', routes: financeRoutes },
 ];
 
 export const functionModuleRoutes: AppClientRouteDefinition[] =

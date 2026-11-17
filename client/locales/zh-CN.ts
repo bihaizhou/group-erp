@@ -11,6 +11,7 @@ import { people } from './people-zh.js';
 import { hse } from './hse-zh.js';
 import { production } from './production-zh.js';
 import { assets } from './assets-zh.js';
+import { finance } from './finance-zh.js';
 import { reviewSettings } from './review-settings-zh.js';
 import { reviewAudit } from './review-audit-zh.js';
 import { reviewRules } from './review-rules-zh.js';
@@ -155,6 +156,7 @@ const zhCN: AppResource = {
   hse,
   production,
   assets,
+  finance,
   reviewSettings,
   reviewAudit,
   reviewRules,

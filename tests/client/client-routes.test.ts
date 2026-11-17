@@ -190,6 +190,7 @@ describe('app client routes', () => {
       { name: 'hse-work-permits', authorizedAs: 'hse-work-permits' },
       { name: 'hse-training-records', authorizedAs: 'hse-training-records' },
       { name: 'hse-actions', authorizedAs: 'hse-actions' },
+      { name: 'finance-overview', authorizedAs: 'finance-overview' },
       { name: 'settingsIndex', authorizedAs: null },
       { name: 'settingsUsers', authorizedAs: 'user:*' },
       { name: 'settingsUserCreate', authorizedAs: 'user:*' },

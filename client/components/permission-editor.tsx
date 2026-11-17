@@ -112,6 +112,8 @@ export interface PermissionEditorNavigationNode {
   readonly pageKey?: string | undefined;
   /** Page resource whose field catalogue feeds the page-level editor. */
   readonly resourceId?: string | undefined;
+  /** Data resources declared by the route; avoids a second settings-only registry. */
+  readonly dataResources?: readonly string[] | undefined;
   readonly rowId?: string | undefined;
   readonly children?: readonly PermissionEditorNavigationNode[];
 }

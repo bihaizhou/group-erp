@@ -8,6 +8,7 @@ import {
 } from '../../client/pages/settings/field-permission-pages.js';
 import { pagePermissionResources } from '../../client/pages/settings/page-permissions.js';
 import { pagePermissionTitles } from '../../client/pages/settings/page-permission-titles.js';
+import { pageDataResourcesFor } from '../../client/routing/page-data-resources.js';
 import {
   FIELD_CATALOG_RESOURCES,
   fieldCatalog,
@@ -26,6 +27,11 @@ const pages = pagePermissionResources(
   (path) => path,
 );
 const pageIds = new Set(pages.map((page) => page.id));
+const fieldlessPageIds = new Set(
+  pages
+    .filter((page) => pageDataResourcesFor(page.id)?.length === 0)
+    .map((page) => page.id),
+);
 const collection = (name: string) => {
   const file = `database/main/collections/${name}/collection.json`;
   return JSON.parse(readFileSync(file, 'utf8')).collection.fields as {
@@ -43,7 +49,11 @@ const database = {
 describe('every page and every field is reachable from permission management', () => {
   it('maps every page permission to at least one field resource', () => {
     const unmapped = pages
-      .filter((page) => fieldResourcesForPage(page.id).length === 0)
+      .filter(
+        (page) =>
+          !fieldlessPageIds.has(page.id) &&
+          fieldResourcesForPage(page.id).length === 0,
+      )
       .map((page) => page.id);
     expect(
       unmapped,

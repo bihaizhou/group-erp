@@ -7,6 +7,7 @@ import type {
   PermissionEditorGroup,
 } from '#components/permission-editor';
 import type { RouteNavigationItem } from '../../routing/route-navigation.js';
+import { pageDataResourcesFor } from '../../routing/page-data-resources.js';
 
 /** Application route names are stable within their owner; labels never change stored grants. */
 export type PagePermissionTitles = Readonly<Record<string, string>>;
@@ -171,8 +172,15 @@ export function pagePermissionNavigation(
           id: `menu:${route.packageName}:${route.id}:${route.path}`,
           label,
           rowId,
-          pageKey: resource ? route.name : undefined,
+          pageKey:
+            resource &&
+            (pageDataResourcesFor(route.name) ?? route.dataResources)
+              ?.length !== 0
+              ? route.name
+              : undefined,
           resourceId: resource?.id,
+          dataResources:
+            pageDataResourcesFor(route.name) ?? route.dataResources,
           ...(inherited
             ? {
                 hint: text({
