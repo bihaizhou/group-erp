@@ -35,9 +35,11 @@ export const pageFieldVisibilityPageKeys: ReadonlySet<string> = new Set([
   'procurement-requests',
   'procurement-requests-detail',
   'procurement-requests-new',
-  ...peopleKinds
-    .filter((kind) => peopleFields[kind].length > 0)
-    .map((kind) => `people-${kind}-new`),
+  ...peopleKinds.flatMap((kind) => [
+    `people-${kind}`,
+    ...(kind === 'profiles' ? [] : [`people-${kind}-detail`]),
+    ...(peopleFields[kind].length > 0 ? [`people-${kind}-new`] : []),
+  ]),
   ...organizationKinds.map((kind) => `organization-${kind}-new`),
   ...materialKinds
     .filter((kind) => materialFields[kind].length > 0)
@@ -182,6 +184,24 @@ export const pageFieldVisibilityFields: Readonly<
       ]),
   ),
   ...Object.fromEntries(
+    peopleKinds.map((kind) => [
+      `people-${kind}`,
+      peopleListFields(kind).map(
+        (field) => `people.${peopleResource(kind)}.${field}`,
+      ),
+    ]),
+  ),
+  ...Object.fromEntries(
+    peopleKinds
+      .filter((kind) => kind !== 'profiles')
+      .map((kind) => [
+        `people-${kind}-detail`,
+        peopleFields[kind].map(
+          (field) => `people.${peopleResource(kind)}.${field.key}`,
+        ),
+      ]),
+  ),
+  ...Object.fromEntries(
     organizationKinds.map((kind) => [
       `organization-${kind}-new`,
       organizationFields[kind].map(
@@ -246,6 +266,17 @@ function organizationResource(
   }[kind];
 }
 
+function peopleListFields(kind: (typeof peopleKinds)[number]): string[] {
+  return [
+    'name',
+    'code',
+    'subjectId',
+    ...(kind === 'profiles' ? ['grade'] : ['personId']),
+    'status',
+    'updatedAt',
+  ];
+}
+
 function peopleResource(kind: (typeof peopleKinds)[number]): string {
   return {
     employees: 'employee',
@@ -277,6 +308,7 @@ function materialResource(kind: (typeof materialKinds)[number]): string {
 }
 
 /** Fields rendered by a form but not present as columns in the catalog. */
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 export const pageFieldVisibilityExtraFields: Readonly<
   Record<
     string,
@@ -391,6 +423,33 @@ export const pageFieldVisibilityExtraFields: Readonly<
         })),
       ]),
   ),
+  ...Object.fromEntries(
+    peopleKinds.flatMap((kind) => {
+      const resource = `people.${peopleResource(kind)}`;
+      return [
+        [
+          `people-${kind}`,
+          peopleListFields(kind).map((field) => ({
+            resource,
+            field,
+            titleKey: `people.fields.${field}`,
+          })),
+        ],
+        ...(kind === 'profiles'
+          ? []
+          : [
+              [
+                `people-${kind}-detail`,
+                peopleFields[kind].map((field) => ({
+                  resource,
+                  field: field.key,
+                  titleKey: `people.fields.${field.key}`,
+                })),
+              ],
+            ]),
+      ];
+    }),
+  ),
 };
 
 /** Required form fields stay visible; hiding them would make the page unsendable. */
@@ -399,6 +458,12 @@ export const pageFieldVisibilityRequiredFields: Readonly<
   Record<string, readonly string[]>
 > = {
   'procurement-requests': ['purchase.request.code'],
+  ...Object.fromEntries(
+    peopleKinds.map((kind) => [
+      `people-${kind}`,
+      [`people.${peopleResource(kind)}.name`],
+    ]),
+  ),
   'procurement-suppliers-new': [
     'procurement.supplier.base.code',
     'procurement.supplier.base.name',

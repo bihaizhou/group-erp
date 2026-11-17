@@ -14,6 +14,7 @@ import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { ReadOnlyNotice } from '#components/read-only-notice';
 import { useFieldAccess } from '../../hooks/use-field-access.js';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { StatusBadge } from '#components/status-badge';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
@@ -50,9 +51,26 @@ import {
 } from './controls.js';
 import { readOnly, statuses, workflows, type Kind, type Row } from './model.js';
 
+const peopleResources: Record<string, string> = {
+  employees: 'employee',
+  employments: 'employment',
+  assignments: 'assignment',
+  changes: 'change',
+  dimensions: 'dimension',
+  models: 'model',
+  profiles: 'profile',
+  evaluations: 'evaluation',
+  developmentPlans: 'developmentPlan',
+  workforcePlans: 'workforcePlan',
+};
+
 export default function PeopleList({ kind }: { kind: Kind }) {
-  const fieldAccess = useFieldAccess();
+  const fieldAccess = useFieldAccess(),
+    pageFields = usePageFieldVisibility(`people-${kind}`),
+    resource = `people.${peopleResources[kind]}`,
+    showColumn = (field: string) => pageFields.visible(resource, field);
   const gradeVisible =
+    showColumn('grade') &&
     fieldAccess.access('people.employee.grade', 'grade') !== 'hidden';
   const { t, i18n } = useTranslation(),
     api = useApiClient(),
@@ -241,8 +259,12 @@ export default function PeopleList({ kind }: { kind: Kind }) {
             <TableHeader>
               <TableRow>
                 <TableHead>{t('people.fields.name')}</TableHead>
-                <TableHead>{t('people.fields.code')}</TableHead>
-                <TableHead>{t('people.fields.subjectId')}</TableHead>
+                {showColumn('code') ? (
+                  <TableHead>{t('people.fields.code')}</TableHead>
+                ) : null}
+                {showColumn('subjectId') ? (
+                  <TableHead>{t('people.fields.subjectId')}</TableHead>
+                ) : null}
                 {kind === 'profiles' ? (
                   gradeVisible ? (
                     <TableHead className='text-right'>
@@ -261,27 +283,33 @@ export default function PeopleList({ kind }: { kind: Kind }) {
                       </Button>
                     </TableHead>
                   ) : null
-                ) : (
+                ) : showColumn('personId') ? (
                   <TableHead>{t('people.fields.personId')}</TableHead>
-                )}
-                <TableHead>{t('people.fields.status')}</TableHead>
-                <TableHead>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    onClick={() => sort('updatedAt')}
-                  >
-                    {t('people.fields.updatedAt')}
-                    <ArrowDownUp />
-                    {(params.get('orderBy') ?? '-updatedAt').includes(
-                      'updatedAt',
-                    )
-                      ? (params.get('orderBy') ?? '-updatedAt').startsWith('-')
-                        ? '↓'
-                        : '↑'
-                      : null}
-                  </Button>
-                </TableHead>
+                ) : null}
+                {showColumn('status') ? (
+                  <TableHead>{t('people.fields.status')}</TableHead>
+                ) : null}
+                {showColumn('updatedAt') ? (
+                  <TableHead>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={() => sort('updatedAt')}
+                    >
+                      {t('people.fields.updatedAt')}
+                      <ArrowDownUp />
+                      {(params.get('orderBy') ?? '-updatedAt').includes(
+                        'updatedAt',
+                      )
+                        ? (params.get('orderBy') ?? '-updatedAt').startsWith(
+                            '-',
+                          )
+                          ? '↓'
+                          : '↑'
+                        : null}
+                    </Button>
+                  </TableHead>
+                ) : null}
                 <TableHead>
                   <span className='sr-only'>{t('people.actions')}</span>
                 </TableHead>
@@ -299,15 +327,19 @@ export default function PeopleList({ kind }: { kind: Kind }) {
                       {row.name}
                     </Link>
                   </TableCell>
-                  <TableCell>{row.code}</TableCell>
-                  <TableCell>
-                    <span
-                      className='block max-w-48 truncate'
-                      title={optionName('orgSubjects', row.subjectId)}
-                    >
-                      {optionName('orgSubjects', row.subjectId)}
-                    </span>
-                  </TableCell>
+                  {showColumn('code') ? (
+                    <TableCell>{row.code}</TableCell>
+                  ) : null}
+                  {showColumn('subjectId') ? (
+                    <TableCell>
+                      <span
+                        className='block max-w-48 truncate'
+                        title={optionName('orgSubjects', row.subjectId)}
+                      >
+                        {optionName('orgSubjects', row.subjectId)}
+                      </span>
+                    </TableCell>
+                  ) : null}
                   {kind === 'profiles' ? (
                     gradeVisible ? (
                       <TableCell className='text-right tabular-nums'>
@@ -316,33 +348,37 @@ export default function PeopleList({ kind }: { kind: Kind }) {
                           : t('people.gradeValue', { grade: row.grade })}
                       </TableCell>
                     ) : null
-                  ) : (
+                  ) : showColumn('personId') ? (
                     <TableCell>
                       {optionName('employees', row.personId)}
                     </TableCell>
-                  )}
-                  <TableCell>
-                    <StatusBadge
-                      tone={
-                        [
-                          'active',
-                          'confirmed',
-                          'effective',
-                          'approved',
-                          'completed',
-                        ].includes(row.status)
-                          ? 'success'
-                          : row.status === 'pending'
-                            ? 'warning'
-                            : 'neutral'
-                      }
-                    >
-                      {t(`people.states.${row.status}`)}
-                    </StatusBadge>
-                  </TableCell>
-                  <TableCell className='whitespace-nowrap'>
-                    {new Date(row.updatedAt).toLocaleString(i18n.language)}
-                  </TableCell>
+                  ) : null}
+                  {showColumn('status') ? (
+                    <TableCell>
+                      <StatusBadge
+                        tone={
+                          [
+                            'active',
+                            'confirmed',
+                            'effective',
+                            'approved',
+                            'completed',
+                          ].includes(row.status)
+                            ? 'success'
+                            : row.status === 'pending'
+                              ? 'warning'
+                              : 'neutral'
+                        }
+                      >
+                        {t(`people.states.${row.status}`)}
+                      </StatusBadge>
+                    </TableCell>
+                  ) : null}
+                  {showColumn('updatedAt') ? (
+                    <TableCell className='whitespace-nowrap'>
+                      {new Date(row.updatedAt).toLocaleString(i18n.language)}
+                    </TableCell>
+                  ) : null}
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger

@@ -56,6 +56,29 @@ describe('page field visibility registry', () => {
     );
   });
 
+  it('supports people list and detail pages', () => {
+    for (const pageKey of [
+      'people-employees',
+      'people-employees-detail',
+      'people-profiles',
+      'people-changes-detail',
+    ]) {
+      expect(supportsPageFieldVisibility(pageKey)).toBe(true);
+      expect(pageFieldVisibilityFields[pageKey]?.length ?? 0).toBeGreaterThan(
+        0,
+      );
+    }
+    expect(pageFieldVisibilityFields['people-employees']).toContain(
+      'people.employee.code',
+    );
+    expect(pageFieldVisibilityFields['people-employees-detail']).toContain(
+      'people.employee.subjectId',
+    );
+    expect(pageFieldVisibilityRequiredFields['people-employees']).toEqual([
+      'people.employee.name',
+    ]);
+  });
+
   it('lets edit pages follow the create page field list', () => {
     for (const pageKey of [
       'procurement-requests-edit',

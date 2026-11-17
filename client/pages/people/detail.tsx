@@ -13,6 +13,7 @@ import { LongText } from '#components/long-text';
 import { Button } from '#components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '#components/ui/card';
 import { usePeopleRecord, usePeopleOptions, usePeopleCan } from './hooks.js';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { PeopleErrorNotice, PeopleLoading, PeopleRefresh } from './controls.js';
 import { TalentCard } from './talent-card.js';
 import { CareerTimeline } from './career.js';
@@ -31,6 +32,19 @@ import {
   type Kind,
 } from './model.js';
 
+const peopleResources: Record<string, string> = {
+  employees: 'employee',
+  employments: 'employment',
+  assignments: 'assignment',
+  changes: 'change',
+  dimensions: 'dimension',
+  models: 'model',
+  profiles: 'profile',
+  evaluations: 'evaluation',
+  developmentPlans: 'developmentPlan',
+  workforcePlans: 'workforcePlan',
+};
+
 export default function PeopleDetailPage({
   kind: fixedKind,
   idParam = 'recordId',
@@ -42,7 +56,9 @@ export default function PeopleDetailPage({
     id = params[idParam];
   const record = usePeopleRecord(kind, id),
     options = usePeopleOptions(kind),
-    canWrite = usePeopleCan(kind);
+    canWrite = usePeopleCan(kind),
+    pageFields = usePageFieldVisibility(`people-${kind}-detail`),
+    resource = `people.${peopleResources[kind]}`;
   const row = record.data?.data;
   const cache = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
@@ -142,21 +158,23 @@ export default function PeopleDetailPage({
               <span className='text-sm text-muted-foreground'>{row.code}</span>
             </div>
             <dl className='flex flex-col gap-4'>
-              {fields[kind].map((field) => (
-                <div
-                  key={field.key}
-                  className='grid gap-1 sm:grid-cols-[8rem_1fr] sm:gap-4'
-                >
-                  <dt className='text-sm text-muted-foreground'>
-                    {t(`people.fields.${field.key}`)}
-                  </dt>
-                  <dd className='min-w-0 text-sm break-words'>
-                    <LongText>
-                      {display(field.key, recordValue(row, field.key))}
-                    </LongText>
-                  </dd>
-                </div>
-              ))}
+              {fields[kind]
+                .filter((field) => pageFields.visible(resource, field.key))
+                .map((field) => (
+                  <div
+                    key={field.key}
+                    className='grid gap-1 sm:grid-cols-[8rem_1fr] sm:gap-4'
+                  >
+                    <dt className='text-sm text-muted-foreground'>
+                      {t(`people.fields.${field.key}`)}
+                    </dt>
+                    <dd className='min-w-0 text-sm break-words'>
+                      <LongText>
+                        {display(field.key, recordValue(row, field.key))}
+                      </LongText>
+                    </dd>
+                  </div>
+                ))}
             </dl>
             {kind === 'employees' ? (
               <CareerTimeline personId={row.id} options={options.data?.data} />
