@@ -123,7 +123,17 @@ export const pageFieldResources: Readonly<Record<string, readonly string[]>> = {
 export function fieldResourcesForPage(
   pageId: string | undefined,
 ): readonly string[] {
-  return pageId ? (pageFieldResources[pageId] ?? []) : [];
+  if (!pageId) return [];
+  const direct = pageFieldResources[pageId];
+  if (direct) return direct;
+  // A new child page inherits the data resources of the closest existing page
+  // in the same flow (`procurement-requests-archive` -> `procurement-requests`).
+  // This keeps newly added subpages configurable without a permission registry
+  // entry; a brand-new module still declares its resources on its first page.
+  const inherited = Object.keys(pageFieldResources)
+    .filter((known) => pageId.startsWith(`${known}-`))
+    .sort((left, right) => right.length - left.length)[0];
+  return inherited ? pageFieldResources[inherited] : [];
 }
 
 /** Every page that renders one field resource, in page-flow order. */

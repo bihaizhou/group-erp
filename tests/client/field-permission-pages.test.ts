@@ -46,6 +46,12 @@ describe('field permission page ownership', () => {
     expect(fieldResourcesForPage(undefined)).toEqual([]);
   });
 
+  it('inherits field resources for a new child of an existing page', () => {
+    expect(fieldResourcesForPage('procurement-requests-archive')).toEqual(
+      fieldResourcesForPage('procurement-requests'),
+    );
+  });
+
   it('finds every page sharing one resource in navigation order', () => {
     expect(pagesForFieldResource('execution.document.line')).toEqual([
       'sales-orders',
