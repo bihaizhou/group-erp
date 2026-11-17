@@ -849,62 +849,77 @@ function RecordForm({
                       <Trash2 />
                     </Button>
                   </div>
-                  {(['key', 'title', 'unit'] as const).map((key) => (
-                    <Field
-                      key={key}
-                      data-invalid={Boolean(errorFor(`fields.${index}.${key}`))}
-                    >
-                      <FieldLabel htmlFor={`attribute-${index}-${key}`}>
-                        {t(`materials.attribute.${key}`)}
-                        {key !== 'unit' ? (
-                          <span aria-hidden='true' className='text-destructive'>
-                            {' '}
-                            *
-                          </span>
-                        ) : null}
-                      </FieldLabel>
-                      <Input
-                        id={`attribute-${index}-${key}`}
-                        {...form.register(`fields.${index}.${key}`)}
-                        aria-required={key !== 'unit'}
-                        value={attr[key] ?? ''}
-                        onChange={(e) => change(key, e.target.value)}
-                        aria-invalid={Boolean(
+                  {(['key', 'title', 'unit'] as const)
+                    .filter((key) =>
+                      pageFields.visible('materials.template', key),
+                    )
+                    .map((key) => (
+                      <Field
+                        key={key}
+                        data-invalid={Boolean(
                           errorFor(`fields.${index}.${key}`),
                         )}
-                      />
-                      <FieldError>
-                        {errorFor(`fields.${index}.${key}`)}
-                      </FieldError>
-                    </Field>
-                  ))}
-                  <Field>
-                    <FieldLabel htmlFor={`attribute-${index}-type`}>
-                      {t('materials.attribute.type')}
-                    </FieldLabel>
-                    <MaterialSelect
-                      id={`attribute-${index}-type`}
-                      label={t('materials.attribute.type')}
-                      value={attr.type}
-                      items={['text', 'number', 'option'].map((value) => ({
-                        value,
-                        label: t(`materials.enums.${value}`),
-                      }))}
-                      onChange={(v) => change('type', v)}
-                    />
-                  </Field>
-                  {(['required', 'identity'] as const).map((key) => (
-                    <Field key={key} orientation='horizontal'>
-                      <Checkbox
-                        id={`attribute-${index}-${key}`}
-                        checked={attr[key]}
-                        onCheckedChange={(v) => change(key, v)}
-                      />
-                      <FieldLabel htmlFor={`attribute-${index}-${key}`}>
-                        {t(`materials.attribute.${key}`)}
+                      >
+                        <FieldLabel htmlFor={`attribute-${index}-${key}`}>
+                          {t(`materials.attribute.${key}`)}
+                          {key !== 'unit' ? (
+                            <span
+                              aria-hidden='true'
+                              className='text-destructive'
+                            >
+                              {' '}
+                              *
+                            </span>
+                          ) : null}
+                        </FieldLabel>
+                        <Input
+                          id={`attribute-${index}-${key}`}
+                          {...form.register(`fields.${index}.${key}`)}
+                          aria-required={key !== 'unit'}
+                          value={attr[key] ?? ''}
+                          onChange={(e) => change(key, e.target.value)}
+                          aria-invalid={Boolean(
+                            errorFor(`fields.${index}.${key}`),
+                          )}
+                        />
+                        <FieldError>
+                          {errorFor(`fields.${index}.${key}`)}
+                        </FieldError>
+                      </Field>
+                    ))}
+                  {pageFields.visible('materials.template', 'type') && (
+                    <Field>
+                      <FieldLabel htmlFor={`attribute-${index}-type`}>
+                        {t('materials.attribute.type')}
                       </FieldLabel>
+                      <MaterialSelect
+                        id={`attribute-${index}-type`}
+                        label={t('materials.attribute.type')}
+                        value={attr.type}
+                        items={['text', 'number', 'option'].map((value) => ({
+                          value,
+                          label: t(`materials.enums.${value}`),
+                        }))}
+                        onChange={(v) => change('type', v)}
+                      />
                     </Field>
-                  ))}
+                  )}
+                  {(['required', 'identity'] as const)
+                    .filter((key) =>
+                      pageFields.visible('materials.template', key),
+                    )
+                    .map((key) => (
+                      <Field key={key} orientation='horizontal'>
+                        <Checkbox
+                          id={`attribute-${index}-${key}`}
+                          checked={attr[key]}
+                          onCheckedChange={(v) => change(key, v)}
+                        />
+                        <FieldLabel htmlFor={`attribute-${index}-${key}`}>
+                          {t(`materials.attribute.${key}`)}
+                        </FieldLabel>
+                      </Field>
+                    ))}
                   {attr.type === 'option' ? (
                     <Field>
                       <FieldLabel htmlFor={`attribute-${index}-options`}>

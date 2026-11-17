@@ -30,17 +30,10 @@ describe('page field visibility registry', () => {
     const createRoutes = flatten(application.routes).filter(
       (route) =>
         Boolean(route.componentLoader) &&
-        !route.path?.includes(':') &&
         route.path?.split('/').filter(Boolean).at(-1) === 'new',
     );
     expect(createRoutes.length).toBeGreaterThan(0);
-    // Top-level create pages only. Routes such as `inbounds/:id/receipts/new`
-    // are document actions inside a detail page, not menu create forms.
-    // Material templates are a repeatable attribute editor, not a field form;
-    // there is nothing meaningful to hide at the page level.
-    const uncustomizable = new Set(['warehouse-material-templates-new']);
     const uncovered = createRoutes
-      .filter((route) => !uncustomizable.has(route.name))
       .filter((route) => !supportsPageFieldVisibility(route.name))
       .map((route) => `${route.name} (${route.path})`);
     expect(uncovered).toEqual([]);

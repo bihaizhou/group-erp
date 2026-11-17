@@ -97,7 +97,14 @@ export default function ExecutionForm() {
               : 'outbounds'),
         )!
       : parent,
-    pageKey = mode === 'new' && !nested ? `${config.page}-new` : undefined,
+    pageKey =
+      mode === 'new'
+        ? nested
+          ? documentId
+            ? `${parent.page}-execution-document-${nested}`
+            : `${parent.page}-${nested}-new`
+          : `${parent.page}-new`
+        : undefined,
     capabilities = useExecutionQuery<{ data: Capabilities }>(
       `${parent.api}/${id}/capabilities`,
       {},

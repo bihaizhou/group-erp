@@ -11,6 +11,18 @@ import {
   fields as peopleFields,
   kinds as peopleKinds,
 } from '../people/model.js';
+import { executionPages } from '../execution/model.js';
+
+const executionNestedKinds = [
+  'receipts',
+  'shipments',
+  'dispatch',
+  'receive',
+  'discrepancy',
+  'reversal',
+  'returns',
+] as const;
+const executionDocumentKinds = ['reversal', 'returns'] as const;
 
 /**
  * Pages whose forms already read the page-level field visibility setting.
@@ -27,6 +39,7 @@ export const pageFieldVisibilityPageKeys: ReadonlySet<string> = new Set([
   ...materialKinds
     .filter((kind) => materialFields[kind].length > 0)
     .map((kind) => `${materialPageId(kind)}-new`),
+  'warehouse-material-templates-new',
   'sales-orders-new',
   'procurement-orders-new',
   'procurement-suppliers-new',
@@ -37,6 +50,12 @@ export const pageFieldVisibilityPageKeys: ReadonlySet<string> = new Set([
   'warehouse-outbounds-new',
   'warehouse-transfers-new',
   'warehouse-counts-new',
+  ...executionPages.flatMap(({ page }) => [
+    ...executionNestedKinds.map((kind) => `${page}-${kind}-new`),
+    ...executionDocumentKinds.map(
+      (kind) => `${page}-execution-document-${kind}`,
+    ),
+  ]),
 ]);
 
 const executionDocumentFields: Record<string, readonly string[]> = {
@@ -150,10 +169,30 @@ export const pageFieldVisibilityFields: Readonly<
         ),
       ]),
   ),
+  'warehouse-material-templates-new': [
+    'materials.template.key',
+    'materials.template.title',
+    'materials.template.unit',
+    'materials.template.type',
+    'materials.template.required',
+    'materials.template.identity',
+  ],
   ...Object.fromEntries(
     Object.entries(executionDocumentFields).map(([pageKey, fields]) => [
       pageKey,
       fields.map((field) => `execution.document.${field}`),
+    ]),
+  ),
+  ...Object.fromEntries(
+    executionPages.flatMap(({ page }) => [
+      ...executionNestedKinds.map((kind) => [
+        `${page}-${kind}-new`,
+        ['execution.document.reason', 'execution.document.notes'],
+      ]),
+      ...executionDocumentKinds.map((kind) => [
+        `${page}-execution-document-${kind}`,
+        ['execution.document.reason', 'execution.document.notes'],
+      ]),
     ]),
   ),
 };
@@ -224,6 +263,16 @@ export const pageFieldVisibilityExtraFields: Readonly<
         })),
       ]),
   ),
+  'warehouse-material-templates-new': [
+    'unit',
+    'type',
+    'required',
+    'identity',
+  ].map((field) => ({
+    resource: 'materials.template',
+    field,
+    titleKey: `materials.attribute.${field}`,
+  })),
   ...Object.fromEntries(
     Object.entries(executionDocumentFields).map(([pageKey, fields]) => [
       pageKey,
@@ -310,12 +359,28 @@ export const pageFieldVisibilityRequiredFields: Readonly<
           .map((field) => `materials.${materialResource(kind)}.${field.key}`),
       ]),
   ),
+  'warehouse-material-templates-new': [
+    'materials.template.key',
+    'materials.template.title',
+  ],
   'sales-orders-new': ['execution.document.currency'],
   'procurement-orders-new': ['execution.document.currency'],
   'warehouse-inbounds-new': ['execution.document.reason'],
   'warehouse-outbounds-new': ['execution.document.reason'],
   'warehouse-transfers-new': ['execution.document.reason'],
   'warehouse-counts-new': ['execution.document.reason'],
+  ...Object.fromEntries(
+    executionPages.flatMap(({ page }) => [
+      ...executionNestedKinds.map((kind) => [
+        `${page}-${kind}-new`,
+        ['execution.document.reason'],
+      ]),
+      ...executionDocumentKinds.map((kind) => [
+        `${page}-execution-document-${kind}`,
+        ['execution.document.reason'],
+      ]),
+    ]),
+  ),
 };
 
 export function supportsPageFieldVisibility(
