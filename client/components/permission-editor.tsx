@@ -243,7 +243,9 @@ function visibleNavigation(
   nodes: readonly PermissionEditorNavigationNode[],
   rows: ReadonlyMap<string, PermissionEditorRow>,
   filtering = false,
+  search = '',
 ): readonly PermissionEditorNavigationNode[] {
+  const needle = search.trim().toLocaleLowerCase();
   const used = new Set<string>();
   const visit = (
     items: readonly PermissionEditorNavigationNode[],
@@ -257,7 +259,23 @@ function visibleNavigation(
       const children = visit(node.children ?? []);
       if (filtering) {
         if (rowId) {
-          // A matched page keeps its inherited routes as compact chips.
+          // A matched page keeps its inherited routes as compact chips when
+          // searching; status filtering still hides unrelated branches.
+          return [
+            {
+              ...node,
+              rowId,
+              children: needle ? (node.children ?? []) : children,
+            },
+          ];
+        }
+        const inheritedMatch =
+          Boolean(needle) &&
+          node.hint !== undefined &&
+          `${node.label} ${node.path ?? ''}`
+            .toLocaleLowerCase()
+            .includes(needle);
+        if (inheritedMatch) {
           return [{ ...node, rowId, children: node.children ?? [] }];
         }
         return children.length ? [{ ...node, rowId, children }] : [];
@@ -414,11 +432,13 @@ function PermissionRouteChips({
   parentLabel,
   labels,
   onPageOpen,
+  search = '',
 }: {
   readonly nodes: readonly PermissionEditorNavigationNode[];
   readonly parentLabel: string;
   readonly labels: Required<PermissionEditorLabels>;
   readonly onPageOpen?: (node: PermissionEditorNavigationNode) => void;
+  readonly search?: string;
 }): ReactElement | null {
   const [expanded, setExpanded] = useState(false);
   const ancestors = [parentLabel];
@@ -431,7 +451,7 @@ function PermissionRouteChips({
       : [],
   );
   if (direct.length === 0) return null;
-  const visible = expanded ? [...direct, ...nested] : direct;
+  const visible = expanded || search.trim() ? [...direct, ...nested] : direct;
   const firstSegment = visible[0].label.split(' · ')[0];
   const hasSharedPrefix =
     visible.length > 1 &&
@@ -499,6 +519,7 @@ function PermissionNavigation({
   prefix,
   collapsed,
   filtering,
+  search = '',
   onDisclosure,
   nested = false,
   counts,
@@ -513,6 +534,7 @@ function PermissionNavigation({
   readonly prefix: string;
   readonly collapsed: ReadonlySet<string>;
   readonly filtering: boolean;
+  readonly search?: string;
   readonly onDisclosure: (key: string) => void;
   readonly nested?: boolean;
   readonly counts?:
@@ -614,15 +636,16 @@ function PermissionNavigation({
                 </span>
               )}
             </div>
-            {expanded && inheritedChildren.length > 0 && (
+            {(expanded || search.trim()) && inheritedChildren.length > 0 && (
               <PermissionRouteChips
                 nodes={inheritedChildren}
                 parentLabel={node.label}
                 labels={rowProps.labels}
                 onPageOpen={onPageOpen}
+                search={search}
               />
             )}
-            {expanded && branchChildren.length > 0 && (
+            {(expanded || search.trim()) && branchChildren.length > 0 && (
               <div id={childrenId} className='min-w-0 pl-4 sm:pl-6'>
                 <PermissionNavigation
                   {...rowProps}
@@ -631,6 +654,7 @@ function PermissionNavigation({
                   prefix={prefix}
                   collapsed={collapsed}
                   filtering={filtering}
+                  search={search}
                   onDisclosure={onDisclosure}
                   nested
                   counts={counts}
@@ -683,6 +707,7 @@ function PermissionNavigationSection({
           section.navigation ?? [],
           rows,
           props.filtering,
+          props.search,
         )}
       />
     </div>
@@ -1195,6 +1220,7 @@ export function PermissionEditor({
                       prefix={`${id}-${section.id}`}
                       collapsed={collapsed}
                       filtering={filtering}
+                      search={search}
                       onDisclosure={disclose}
                       counts={navigationCounts(original)}
                     />
