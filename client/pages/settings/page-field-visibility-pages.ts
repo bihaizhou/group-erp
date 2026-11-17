@@ -203,12 +203,17 @@ export const pageFieldVisibilityFields: Readonly<
       ]),
   ),
   ...Object.fromEntries(
-    executionPages.flatMap(({ page, kind, resource }) => [
-      [page, executionListFields(kind).map((field) => `${resource}.${field}`)],
+    executionPages.flatMap(({ page, kind }) => [
+      [
+        page,
+        executionListFields(kind).map((field) => `execution.document.${field}`),
+      ],
       [
         `${page}-detail`,
         [
-          ...executionDetailFields(kind).map((field) => `${resource}.${field}`),
+          ...executionDetailFields(kind).map(
+            (field) => `execution.document.${field}`,
+          ),
           ...executionLineFields(kind).map(
             (field) => `execution.document.line.${field}`,
           ),
@@ -545,12 +550,12 @@ export const pageFieldVisibilityExtraFields: Readonly<
     }),
   ),
   ...Object.fromEntries(
-    executionPages.flatMap(({ page, kind, resource }) => {
+    executionPages.flatMap(({ page, kind }) => {
       const entries = [
         [
           page,
           executionListFields(kind).map((field) => ({
-            resource,
+            resource: 'execution.document',
             field,
             titleKey: executionFieldTitle(field, kind),
           })),
@@ -559,7 +564,7 @@ export const pageFieldVisibilityExtraFields: Readonly<
           `${page}-detail`,
           [
             ...executionDetailFields(kind).map((field) => ({
-              resource,
+              resource: 'execution.document',
               field,
               titleKey: executionFieldTitle(field, kind),
             })),

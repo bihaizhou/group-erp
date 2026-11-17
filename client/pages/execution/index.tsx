@@ -53,7 +53,8 @@ export default function ExecutionList() {
     create = useExecutionCan(config.resource, 'create'),
     edit = useExecutionCan(config.resource, 'update'),
     pageFields = usePageFieldVisibility(config.page),
-    showColumn = (field: string) => pageFields.visible(config.resource, field);
+    showColumn = (field: string) =>
+      pageFields.visible('execution.document', field);
   const {
     searchParams: params,
     search,

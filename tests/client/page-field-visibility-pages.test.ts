@@ -95,10 +95,10 @@ describe('page field visibility registry', () => {
       );
     }
     expect(pageFieldVisibilityFields['sales-orders']).toContain(
-      'sales.orders.partner',
+      'execution.document.partner',
     );
     expect(pageFieldVisibilityFields['warehouse-transfers-detail']).toContain(
-      'warehouse.transfers.destinationWarehouse',
+      'execution.document.destinationWarehouse',
     );
     expect(pageFieldVisibilityFields['sales-orders-detail']).toContain(
       'execution.document.line.unitPrice',

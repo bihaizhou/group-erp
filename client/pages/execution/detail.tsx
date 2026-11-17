@@ -429,7 +429,8 @@ export default function ExecutionDetail() {
                     ]
                       .filter(
                         ([label]) =>
-                          !label || pageFields.visible(config.resource, label),
+                          !label ||
+                          pageFields.visible('execution.document', label),
                       )
                       .map(([label, value]) => (
                         <div
