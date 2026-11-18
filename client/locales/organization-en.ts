@@ -21,6 +21,30 @@ export const org = {
   positionPermissionSyncHint:
     'Saving also updates permission sets for {{count}} assigned accounts.',
   positionPermissionSaved: 'Synced: {{granted}} added, {{revoked}} removed.',
+  positionTemplate: 'Position template',
+  positionTemplateNone: 'No template',
+  positionTemplateHint:
+    'Keys from the template are merged with the keys ticked below.',
+  positionTemplateInherited: 'Template “{{name}}” also grants: {{keys}}',
+  positionTemplateNoKeys: 'no keys yet',
+  positionTemplateLinked: 'Template linked; synced {{members}} accounts.',
+  positionTemplates: 'Position templates',
+  positionTemplatesDescription:
+    'Save a bundle of permission sets as a template. Every holder of a position using it inherits the keys, and editing the template syncs all positions using it.',
+  positionTemplateCreate: 'New template',
+  positionTemplateEdit: 'Edit template',
+  positionTemplateCode: 'Template code (e.g. OPS-MANAGER)',
+  positionTemplateName: 'Template name',
+  positionTemplateEmpty:
+    'No templates yet. Create one and link it to a position.',
+  positionTemplateCount: '{{count}} positions',
+  positionTemplateKeyCount: '{{count}} permission sets',
+  positionTemplateCreated: 'Template created.',
+  positionTemplateDeleted: 'Template deleted.',
+  positionTemplateDelete: 'Delete',
+  positionTemplateDeleteConfirm: 'Confirm delete?',
+  positionTemplateUpdated:
+    'Template updated; synced {{positions}} positions and {{members}} accounts.',
   saving: 'Saving…',
   sectors: 'Business sectors',
   regions: 'Business regions',

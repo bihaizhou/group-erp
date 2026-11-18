@@ -177,6 +177,96 @@ test('maintains organization structure, rejects invalid changes and commits audi
       (row: { id: string }) => row.id === position.id,
     ),
   ).toMatchObject({ permissionSetKeys: ['organization-reader'] });
+  // A position template is a reusable bundle of sets; linking it to a
+  // position makes every holder inherit the template keys as well.
+  const templatePayload = {
+    code: 'TEST-TPL',
+    name: 'Test template',
+    permissionSetKeys: ['organization-reader'],
+  };
+  const templateResponse = await admin.fetch(
+    '/position-permissions/templates',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost',
+      },
+      body: JSON.stringify(templatePayload),
+    },
+  );
+  expect(templateResponse.status).toBe(200);
+  const template = (await templateResponse.json()).data as {
+    id: string;
+    code: string;
+  };
+  expect(template).toMatchObject({ code: 'TEST-TPL' });
+  for (const permissionSetKeys of [['root'], ['does-not-exist']]) {
+    expect(
+      (
+        await admin.fetch('/position-permissions/templates', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            origin: 'http://localhost',
+          },
+          body: JSON.stringify({
+            ...templatePayload,
+            code: `TEST-BAD-${permissionSetKeys[0]}`,
+            permissionSetKeys,
+          }),
+        })
+      ).status,
+    ).toBe(400);
+  }
+  const linkTemplate = await admin.fetch(
+    `/position-permissions/${position.id}/template`,
+    {
+      method: 'PUT',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost',
+      },
+      body: JSON.stringify({ templateId: template.id }),
+    },
+  );
+  expect(linkTemplate.status).toBe(200);
+  const templatePermissions = (
+    await (await admin.fetch('/position-permissions')).json()
+  ).data;
+  expect(
+    templatePermissions.positions.find(
+      (row: { id: string }) => row.id === position.id,
+    ),
+  ).toMatchObject({
+    templateId: template.id,
+    templateKeys: ['organization-reader'],
+  });
+  expect(templatePermissions.templates).toContainEqual(
+    expect.objectContaining({ id: template.id, positionCount: 1 }),
+  );
+  const deleteLinkedTemplate = await admin.fetch(
+    `/position-permissions/templates/${template.id}`,
+    { method: 'DELETE', headers: { origin: 'http://localhost' } },
+  );
+  expect(deleteLinkedTemplate.status).toBe(400);
+  const unlinkTemplate = await admin.fetch(
+    `/position-permissions/${position.id}/template`,
+    {
+      method: 'PUT',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost',
+      },
+      body: JSON.stringify({ templateId: null }),
+    },
+  );
+  expect(unlinkTemplate.status).toBe(200);
+  const deleteTemplate = await admin.fetch(
+    `/position-permissions/templates/${template.id}`,
+    { method: 'DELETE', headers: { origin: 'http://localhost' } },
+  );
+  expect(deleteTemplate.status).toBe(200);
   const updated = await send(
     `units/${unit.id}`,
     {
@@ -348,8 +438,9 @@ test('guards deactivation against residual permission mappings and asset referen
     code: 'GUARD-MGR',
     unitId: unit.id,
   });
-  expect((await putPermissions(position.id, ['organization-reader'])).status)
-    .toBe(200);
+  expect(
+    (await putPermissions(position.id, ['organization-reader'])).status,
+  ).toBe(200);
 
   // A position with a residual mapping cannot be deactivated.
   const deactivateMapped = await send(`positions/${position.id}/setStatus`, {
@@ -442,7 +533,9 @@ test('guards deactivation against residual permission mappings and asset referen
     status: 'inactive',
   });
   expect(deactivateHolding.status).toBe(400);
-  expect((await errorOf(deactivateHolding)).reason).toBe('ORG_ASSET_DEPENDENTS');
+  expect((await errorOf(deactivateHolding)).reason).toBe(
+    'ORG_ASSET_DEPENDENTS',
+  );
 
   // Mapping saves run under the shared organization mutation lock.
   const lockNonce = async () =>

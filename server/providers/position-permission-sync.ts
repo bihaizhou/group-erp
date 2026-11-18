@@ -34,6 +34,60 @@ export interface PositionMappingLike {
   permissionSetKey?: unknown;
 }
 
+export interface PositionLike {
+  id?: unknown;
+  templateId?: unknown;
+}
+
+export interface PositionTemplateLike {
+  id?: unknown;
+  permissionSetKeys?: unknown;
+}
+
+function keyList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(text).filter(Boolean);
+  if (typeof value !== 'string') return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.map(text).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Explicit position mappings plus the keys inherited from each position's
+ * template. Templates never replace the explicit mapping table: both are
+ * unioned, so a position can carry a job-family default and a few extras.
+ */
+export function expandMappings(
+  mappings: readonly PositionMappingLike[],
+  positions: readonly PositionLike[],
+  templates: readonly PositionTemplateLike[],
+): PositionMappingLike[] {
+  const templatesById = new Map(
+    templates.map((template) => [text(template.id), template]),
+  );
+  const expanded = [...mappings];
+  const seen = new Set(
+    mappings.map(
+      (row) => `${text(row.positionId)}\u0000${text(row.permissionSetKey)}`,
+    ),
+  );
+  for (const position of positions) {
+    const template = templatesById.get(text(position.templateId));
+    if (!template) continue;
+    const positionId = text(position.id);
+    for (const key of keyList(template.permissionSetKeys)) {
+      const id = `${positionId}\u0000${key}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      expanded.push({ positionId, permissionSetKey: key });
+    }
+  }
+  return expanded;
+}
+
 /**
  * Keys derived from a person's active assignments.
  *
@@ -96,24 +150,28 @@ export async function syncAccountPositionPermissions(
     .filter(Boolean);
   if (personIds.length === 0) return { granted: 0, revoked: 0 };
 
-  const [assignments, mappings, current] = await Promise.all([
-    db
-      .repository('personnelAssignments')
-      .findMany({ filter: { status: 'active' }, limit: 10000 }),
-    db.repository('orgPositionPermissionSets').findMany({ limit: 10000 }),
-    db.repository('authorizationPermissionSetAssignments').findMany({
-      filter: { subjectType: 'user', subjectId: accountId },
-      limit: 10000,
-    }),
-  ]);
+  const [assignments, mappings, positions, templates, current] =
+    await Promise.all([
+      db
+        .repository('personnelAssignments')
+        .findMany({ filter: { status: 'active' }, limit: 10000 }),
+      db.repository('orgPositionPermissionSets').findMany({ limit: 10000 }),
+      db.repository('orgPositions').findMany({ limit: 10000 }),
+      db.repository('orgPositionTemplates').findMany({ limit: 2000 }),
+      db.repository('authorizationPermissionSetAssignments').findMany({
+        filter: { subjectType: 'user', subjectId: accountId },
+        limit: 10000,
+      }),
+    ]);
+  const effective = expandMappings(mappings, positions, templates);
   const desired = desiredPermissionKeys(
     personIds,
     assignments,
-    mappings,
+    effective,
     businessDate(timeZone),
   );
   const mappedKeys = new Set(
-    mappings.map((row) => text(row.permissionSetKey)).filter(Boolean),
+    effective.map((row) => text(row.permissionSetKey)).filter(Boolean),
   );
   const currentKeys = new Set(
     current.map((row) => text(row.permissionSetKey)).filter(Boolean),

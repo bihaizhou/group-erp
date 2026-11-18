@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { businessDate } from '../../server/providers/business-date.ts';
 import {
   desiredPermissionKeys,
+  expandMappings,
   isCurrentAssignment,
   type PositionAssignmentLike,
   type PositionMappingLike,
@@ -46,9 +47,7 @@ describe('position permission sync', () => {
     expect(businessDate('Asia/Shanghai', aroundBeijingMidnight)).toBe(
       '2026-01-02',
     );
-    expect(
-      aroundBeijingMidnight.toISOString().slice(0, 10),
-    ).toBe('2026-01-01');
+    expect(aroundBeijingMidnight.toISOString().slice(0, 10)).toBe('2026-01-01');
   });
 
   it('counts an assignment starting on the business "today" as current', () => {
@@ -67,7 +66,10 @@ describe('position permission sync', () => {
     // The old UTC-derived date made the same assignment look like it starts
     // tomorrow, silently dropping the mapping for a full day.
     expect(
-      isCurrentAssignment(row, aroundBeijingMidnight.toISOString().slice(0, 10)),
+      isCurrentAssignment(
+        row,
+        aroundBeijingMidnight.toISOString().slice(0, 10),
+      ),
     ).toBe(false);
   });
 
@@ -103,5 +105,69 @@ describe('position permission sync', () => {
         aroundBeijingMidnight.toISOString().slice(0, 10),
       ),
     ]).toEqual([]);
+  });
+});
+
+describe('position template expansion', () => {
+  it('unions template keys with the explicit mappings', () => {
+    const expanded = expandMappings(
+      [{ positionId: 'pos-a', permissionSetKey: 'reader' }],
+      [{ id: 'pos-a', templateId: 'tpl-1' }],
+      [{ id: 'tpl-1', permissionSetKeys: ['warehouse', 'report'] }],
+    );
+    expect(
+      expanded
+        .map(
+          (row) => `${String(row.positionId)}:${String(row.permissionSetKey)}`,
+        )
+        .sort(),
+    ).toEqual(['pos-a:reader', 'pos-a:report', 'pos-a:warehouse']);
+  });
+
+  it('does not duplicate a key that is both explicit and inherited', () => {
+    const expanded = expandMappings(
+      [{ positionId: 'pos-a', permissionSetKey: 'reader' }],
+      [{ id: 'pos-a', templateId: 'tpl-1' }],
+      [{ id: 'tpl-1', permissionSetKeys: ['reader'] }],
+    );
+    expect(expanded).toHaveLength(1);
+  });
+
+  it('ignores positions without a template and unknown template ids', () => {
+    expect(
+      expandMappings(
+        [],
+        [
+          { id: 'pos-a', templateId: null },
+          { id: 'pos-b', templateId: 'tpl-x' },
+        ],
+        [{ id: 'tpl-1', permissionSetKeys: ['reader'] }],
+      ),
+    ).toEqual([]);
+  });
+
+  it('accepts a JSON string for the stored template keys', () => {
+    const expanded = expandMappings(
+      [],
+      [{ id: 'pos-a', templateId: 'tpl-1' }],
+      [{ id: 'tpl-1', permissionSetKeys: '["reader"]' }],
+    );
+    expect(expanded).toEqual([
+      { positionId: 'pos-a', permissionSetKey: 'reader' },
+    ]);
+  });
+
+  it('feeds the desired keys of a holder through the expansion', () => {
+    const expanded = expandMappings(
+      mappings,
+      [
+        { id: 'pos-a', templateId: 'tpl-1' },
+        { id: 'pos-b', templateId: null },
+      ],
+      [{ id: 'tpl-1', permissionSetKeys: ['report'] }],
+    );
+    expect(
+      [...desiredPermissionKeys(['p1'], assignments, expanded)].sort(),
+    ).toEqual(['reader', 'report', 'warehouse']);
   });
 });
