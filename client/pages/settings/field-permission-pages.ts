@@ -62,6 +62,8 @@ export const pageFieldResources: Readonly<Record<string, readonly string[]>> = {
     'people.employee.grade',
   ],
   'people-evaluations': ['people.evaluation'],
+  'people-profiles-evaluation': ['people.evaluation'],
+  'people-profiles-development': ['people.developmentPlan'],
   'people-developmentPlans': ['people.developmentPlan'],
   'people-workforcePlans': ['people.workforcePlan'],
   // 物料
@@ -75,6 +77,8 @@ export const pageFieldResources: Readonly<Record<string, readonly string[]>> = {
   'warehouse-material-tags': ['materials.tag'],
   'warehouse-material-tagLinks': ['materials.tagLink'],
   'warehouse-material-requests': ['materials.request'],
+  'warehouse-materials-request-material': ['materials.request'],
+  'warehouse-material-requests-new-sku': ['materials.sku'],
   'warehouse-material-warehouses': ['materials.warehouse'],
   'warehouse-material-history': ['materials.history'],
   // 销售

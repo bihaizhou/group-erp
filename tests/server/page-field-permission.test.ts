@@ -262,3 +262,106 @@ test('an unconfigured detail page starts from the create page settings', async (
   expect(accessOf('code')).toBe('write');
   expect(accessOf('notes')).toBe('hidden');
 });
+
+test('merges the list and detail edit entries into one page', async ({
+  testApp,
+  database,
+}) => {
+  const f = await purchaseFixture(testApp, database);
+  const key = `pfp-${randomUUID().slice(0, 8)}`;
+  await f.authz.permissionSets.create({ key, grants: [] });
+  await f.authz.permissionSets.assign({
+    permissionSet: key,
+    subject: { type: 'user', id: f.reviewer.user.id },
+  });
+  const save = (pageKey: string, fields: unknown[]) =>
+    send(
+      f.admin,
+      '/page-field-visibility',
+      { permissionSetKey: key, pageKey, mode: 'override', fields },
+      'PUT',
+    );
+  expect(
+    (
+      await save('procurement-requests-list-edit', [
+        {
+          resource: 'purchase.request',
+          field: 'code',
+          visible: true,
+          writable: false,
+        },
+        {
+          resource: 'purchase.request',
+          field: 'usage',
+          visible: true,
+          writable: true,
+        },
+      ])
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await save('procurement-requests-detail-edit', [
+        {
+          resource: 'purchase.request',
+          field: 'code',
+          visible: true,
+          writable: false,
+        },
+        {
+          resource: 'purchase.request',
+          field: 'usage',
+          visible: true,
+          writable: false,
+        },
+        {
+          resource: 'purchase.request',
+          field: 'notes',
+          visible: false,
+          writable: false,
+        },
+      ])
+    ).status,
+  ).toBe(200);
+
+  const canonical = await send(
+    f.admin,
+    `/page-field-visibility?permissionSetKey=${key}&pageKey=procurement-requests-edit`,
+    undefined,
+    'GET',
+  );
+  expect(canonical.status).toBe(200);
+  const config = (await canonical.json()).data;
+  expect(config.configured).toBe(true);
+  expect(config.fields).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ field: 'code', visible: true, writable: false }),
+      expect.objectContaining({ field: 'usage', visible: true, writable: false }),
+      expect.objectContaining({ field: 'notes', visible: false, writable: false }),
+    ]),
+  );
+
+  const perPage = await pageFieldPoliciesFor(
+    database,
+    { type: 'user', id: f.reviewer.user.id },
+    'procurement-requests-edit',
+  );
+  const accessOf = (field: string) =>
+    perPage.find(
+      (policy) =>
+        policy.resource === 'purchase.request' && policy.field === field,
+    )?.access;
+  expect(accessOf('code')).toBe('visible');
+  expect(accessOf('usage')).toBe('visible');
+  expect(accessOf('notes')).toBe('hidden');
+
+  const pages = await send(
+    f.admin,
+    `/page-field-visibility/pages?permissionSetKey=${key}`,
+    undefined,
+    'GET',
+  );
+  expect((await pages.json()).data.pages).toEqual([
+    { pageKey: 'procurement-requests-edit', configured: true },
+  ]);
+});

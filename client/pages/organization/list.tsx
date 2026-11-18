@@ -1,4 +1,5 @@
 import { PurchaseReferenceNotice } from '#components/purchase-reference-notice';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { useOptions, useRecord, useOrgError } from './hooks.js';
 import { businessDate } from '#lib/business-date';
 import { ApiClientError, useApiClient, useToaster } from '@nocobase/app-client';
@@ -63,6 +64,9 @@ import { ErrorNotice, Loading, OrgStatus, OrgSelect } from './shared.js';
 
 export default function OrgListPage({ kind }: { kind: OrgKind }) {
   const { t, i18n } = useTranslation();
+  const pageFields = usePageFieldVisibility(`organization-${kind}`);
+  const show = (field: string) =>
+    pageFields.visible(`organization.${kind.slice(0, -1)}`, field);
   const api = useApiClient();
   const location = useLocation();
   const search = useUrlSearch({ resetParams: ['page'] });
@@ -289,10 +293,18 @@ export default function OrgListPage({ kind }: { kind: OrgKind }) {
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('org.fields.name')}</TableHead>
-                  <TableHead>{t('org.fields.code')}</TableHead>
-                  <TableHead>{t('org.fields.type')}</TableHead>
-                  <TableHead>{t('org.ownership')}</TableHead>
-                  <TableHead>{t('org.fields.status')}</TableHead>
+                  {show('code') ? (
+                    <TableHead>{t('org.fields.code')}</TableHead>
+                  ) : null}
+                  {show('type') ? (
+                    <TableHead>{t('org.fields.type')}</TableHead>
+                  ) : null}
+                  {show('ownership') ? (
+                    <TableHead>{t('org.ownership')}</TableHead>
+                  ) : null}
+                  {show('status') ? (
+                    <TableHead>{t('org.fields.status')}</TableHead>
+                  ) : null}
                   <TableHead>
                     <Button
                       variant='ghost'
@@ -329,24 +341,30 @@ export default function OrgListPage({ kind }: { kind: OrgKind }) {
                         {row.name}
                       </Link>
                     </TableCell>
-                    <TableCell>{row.code}</TableCell>
-                    <TableCell>
-                      {row.type ? (
-                        <StatusBadge size='sm'>
-                          {t(`org.types.${String(row.type)}`)}
-                        </StatusBadge>
-                      ) : (
-                        '—'
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {kind === 'relations'
-                        ? `${options.data?.data[String(row.sourceKind)]?.rows.find((r) => r.id === row.sourceId)?.name ?? '—'} → ${options.data?.data[String(row.targetKind)]?.rows.find((r) => r.id === row.targetId)?.name ?? '—'}`
-                        : label(row)}
-                    </TableCell>
-                    <TableCell>
-                      <OrgStatus status={row.status} />
-                    </TableCell>
+                    {show('code') ? <TableCell>{row.code}</TableCell> : null}
+                    {show('type') ? (
+                      <TableCell>
+                        {row.type ? (
+                          <StatusBadge size='sm'>
+                            {t(`org.types.${String(row.type)}`)}
+                          </StatusBadge>
+                        ) : (
+                          '—'
+                        )}
+                      </TableCell>
+                    ) : null}
+                    {show('ownership') ? (
+                      <TableCell>
+                        {kind === 'relations'
+                          ? `${options.data?.data[String(row.sourceKind)]?.rows.find((r) => r.id === row.sourceId)?.name ?? '—'} → ${options.data?.data[String(row.targetKind)]?.rows.find((r) => r.id === row.targetId)?.name ?? '—'}`
+                          : label(row)}
+                      </TableCell>
+                    ) : null}
+                    {show('status') ? (
+                      <TableCell>
+                        <OrgStatus status={row.status} />
+                      </TableCell>
+                    ) : null}
                     <TableCell className='whitespace-nowrap'>
                       {new Date(row.updatedAt).toLocaleString(i18n.language)}
                     </TableCell>
@@ -601,7 +619,9 @@ function StatusDialog({
               disabled={pending}
               maxLength={1000}
             />
-            <Label htmlFor='status-effective'>{t('org.fields.effectiveFrom')}</Label>
+            <Label htmlFor='status-effective'>
+              {t('org.fields.effectiveFrom')}
+            </Label>
             <Input
               id='status-effective'
               type='date'
@@ -638,5 +658,7 @@ function StatusDialog({
 /** Tomorrow in the business timezone, the first valid schedule date. */
 function nextBusinessDate(): string {
   const [year, month, day] = businessDate().split('-').map(Number);
-  return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+  return new Date(Date.UTC(year, month - 1, day + 1))
+    .toISOString()
+    .slice(0, 10);
 }

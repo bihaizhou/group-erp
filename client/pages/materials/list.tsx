@@ -43,7 +43,10 @@ import {
   canEdit,
   text,
   type Row,
+  pageId,
+  resourceFor,
 } from './model.js';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { useMaterialCan, useMaterialOptions } from './hooks.js';
 import {
   Loading,
@@ -57,6 +60,9 @@ export default function MaterialList() {
     api = useApiClient(),
     location = useLocation(),
     kind = kindFromPath(location.pathname);
+  const pageFields = usePageFieldVisibility(pageId(kind));
+  const show = (field: string) =>
+    pageFields.visible(`materials.${resourceFor(kind)}`, field);
   const read = useMaterialCan(kind, 'read'),
     write = useMaterialCan(kind),
     requestMaterial = useMaterialCan('requests'),
@@ -350,7 +356,9 @@ export default function MaterialList() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t('materials.fields.name')}</TableHead>
-                <TableHead>{t('materials.fields.code')}</TableHead>
+                {show('code') ? (
+                  <TableHead>{t('materials.fields.code')}</TableHead>
+                ) : null}
                 <TableHead>
                   {t(
                     kind === 'skus'
@@ -358,7 +366,9 @@ export default function MaterialList() {
                       : 'materials.related',
                   )}
                 </TableHead>
-                <TableHead>{t('materials.fields.status')}</TableHead>
+                {show('status') ? (
+                  <TableHead>{t('materials.fields.status')}</TableHead>
+                ) : null}
                 <TableHead
                   aria-sort={
                     (params.get('orderBy') ?? '-updatedAt') === 'updatedAt'
@@ -406,9 +416,11 @@ export default function MaterialList() {
                       />
                     </Link>
                   </TableCell>
-                  <TableCell className='whitespace-nowrap'>
-                    {row.code}
-                  </TableCell>
+                  {show('code') ? (
+                    <TableCell className='whitespace-nowrap'>
+                      {row.code}
+                    </TableCell>
+                  ) : null}
                   <TableCell>
                     {enumField && !refField && kind !== 'skus' ? (
                       <StatusBadge tone='info'>{summary(row)}</StatusBadge>
@@ -419,19 +431,21 @@ export default function MaterialList() {
                       />
                     )}
                   </TableCell>
-                  <TableCell>
-                    <StatusBadge
-                      tone={
-                        row.status === 'active' || row.status === 'resolved'
-                          ? 'success'
-                          : row.status === 'pending'
-                            ? 'warning'
-                            : 'neutral'
-                      }
-                    >
-                      {t(`materials.states.${row.status}`)}
-                    </StatusBadge>
-                  </TableCell>
+                  {show('status') ? (
+                    <TableCell>
+                      <StatusBadge
+                        tone={
+                          row.status === 'active' || row.status === 'resolved'
+                            ? 'success'
+                            : row.status === 'pending'
+                              ? 'warning'
+                              : 'neutral'
+                        }
+                      >
+                        {t(`materials.states.${row.status}`)}
+                      </StatusBadge>
+                    </TableCell>
+                  ) : null}
                   <TableCell className='whitespace-nowrap'>
                     {new Date(row.updatedAt).toLocaleString(i18n.language)}
                   </TableCell>

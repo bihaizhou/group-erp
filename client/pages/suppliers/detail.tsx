@@ -6,6 +6,7 @@ import {
   Outlet,
   useLocation,
   useParams,
+  useResolvedPath,
   useSearchParams,
 } from 'react-router';
 import { usePartnerTranslation as useTranslation } from './partner-domain.js';
@@ -40,11 +41,12 @@ export function Values({ values }: { values: [string, ReactNode][] }) {
   );
 }
 export default function SupplierDetail() {
-  const pageFields = usePageFieldVisibility('procurement-suppliers-detail'),
-    registrationVisible = pageFields.visible(
-      'procurement.supplier.identity',
-      'registrationCode',
-    );
+  const pathname = useResolvedPath('.').pathname,
+    sales = pathname.includes('/sales/customers'),
+    pageKey = sales ? 'sales-customers-detail' : 'procurement-suppliers-detail',
+    pageFields = usePageFieldVisibility(pageKey),
+    identityResource = sales ? 'sales.customer' : 'procurement.supplier.identity',
+    showIdentity = (field: string) => pageFields.visible(identityResource, field);
   const { t } = useTranslation(),
     { partnerId } = useParams(),
     [params] = useSearchParams(),
@@ -109,9 +111,11 @@ export default function SupplierDetail() {
                 <CardContent className='flex flex-col gap-5'>
                   <Values
                     values={[
-                      ['code', row.identity.code],
+                      ...(showIdentity('code')
+                        ? [['code', row.identity.code] as [string, string]]
+                        : []),
                       ['name', row.identity.name],
-                      ...(registrationVisible
+                      ...(showIdentity('registrationCode')
                         ? [
                             [
                               'registrationCode',
@@ -119,13 +123,17 @@ export default function SupplierDetail() {
                             ] as [string, string | null],
                           ]
                         : []),
-                      [
-                        'identityStatus',
-                        <SupplierStatus
-                          key='identity-status'
-                          value={row.identity.status}
-                        />,
-                      ],
+                      ...(showIdentity('status')
+                        ? [
+                            [
+                              'identityStatus',
+                              <SupplierStatus
+                                key='identity-status'
+                                value={row.identity.status}
+                              />,
+                            ] as [string, ReactNode],
+                          ]
+                        : []),
                     ]}
                   />
                   {can?.updateIdentity && (

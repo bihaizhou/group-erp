@@ -1,6 +1,7 @@
 import { useParams, useResolvedPath } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import { RouteChildPage } from '#components/route-child-page';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { BackButton } from '#components/back-button';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
@@ -35,7 +36,18 @@ export default function ExecutionReadonly() {
   const { t, i18n } = useTranslation(),
     { id: routeId, documentId, versionId, relatedId } = useParams(),
     id = documentId ?? routeId,
-    config = pageFor(useResolvedPath('.').pathname);
+    path = useResolvedPath('.').pathname,
+    config = pageFor(path),
+    documentScoped = path.includes('/documents/'),
+    pageFields = usePageFieldVisibility(
+      documentScoped
+        ? versionId
+          ? `${config.page}-execution-document-version`
+          : `${config.page}-execution-document-source`
+        : versionId
+          ? `${config.page}-version`
+          : `${config.page}-related`,
+    );
   const version = useExecutionQuery<
     Page<{
       id: string;
@@ -109,7 +121,11 @@ export default function ExecutionReadonly() {
                       ['occurredOn', stored.payload.head?.occurredOn],
                       ['reason', stored.payload.head?.reason],
                       ['notes', stored.payload.head?.notes],
-                    ].map(([key, value]) => (
+                    ]
+                      .filter(([key]) =>
+                        pageFields.visible('execution.document', key!),
+                      )
+                      .map(([key, value]) => (
                       <div key={key}>
                         <dt className='text-sm text-muted-foreground'>
                           {t(ui(key!))}

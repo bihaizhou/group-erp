@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useApiClient } from '@nocobase/app-client';
+import { canonicalPageKey } from '../pages/settings/page-keys.js';
 import { pageFieldVisibilityInheritedFrom } from '../pages/settings/page-field-visibility-fallback.js';
 
 interface EffectiveVisibility {
@@ -41,32 +42,34 @@ export function usePageFieldVisibility(
 ): PageFieldVisibility {
   const api = useApiClient();
   const [state, setState] = useState<PageState>();
+  const key = canonicalPageKey(pageKey);
+  const fallback = fallbackPageKey ? canonicalPageKey(fallbackPageKey) : undefined;
 
   useEffect(() => {
-    if (!pageKey) return;
+    if (!key) return;
     const controller = new AbortController();
     void api
       .request<{ data: EffectiveVisibility }>({
         path: 'page-field-visibility/effective',
         query: {
-          pageKey,
-          ...(fallbackPageKey ? { fallbackPageKey } : {}),
+          pageKey: key,
+          ...(fallback ? { fallbackPageKey: fallback } : {}),
         },
         signal: controller.signal,
       })
       .then((response) => {
         if (controller.signal.aborted) return;
-        setState({ pageKey, visibility: response.data });
+        setState({ pageKey: key, visibility: response.data });
       })
       .catch(() => {
         if (controller.signal.aborted) return;
         // A failed lookup must not blank out a working form.
-        setState({ pageKey, failed: true });
+        setState({ pageKey: key, failed: true });
       });
     return () => controller.abort();
-  }, [api, pageKey, fallbackPageKey]);
+  }, [api, key, fallback]);
 
-  const current = state?.pageKey === pageKey ? state : undefined;
+  const current = state?.pageKey === key ? state : undefined;
   const configured = current?.visibility?.configured === true;
   const rows = new Map(
     (current?.visibility?.fields ?? []).map((row) => [
@@ -75,7 +78,7 @@ export function usePageFieldVisibility(
     ]),
   );
   return {
-    loading: pageKey ? !current : false,
+    loading: key ? !current : false,
     configured,
     visible: (resource, field) =>
       !configured || (rows.get(keyOf(resource, field))?.visible ?? true),

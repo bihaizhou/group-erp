@@ -32,6 +32,14 @@ import {
   type Kind,
 } from './model.js';
 
+function relatedParent(pathname: string): string | undefined {
+  const match =
+    /\/people\/(profiles|employees)\/(?:[^/]+)\/(?:evaluations|developmentPlans)\//u.exec(
+      pathname,
+    );
+  return match?.[1];
+}
+
 const peopleResources: Record<string, string> = {
   employees: 'employee',
   employments: 'employment',
@@ -57,7 +65,11 @@ export default function PeopleDetailPage({
   const record = usePeopleRecord(kind, id),
     options = usePeopleOptions(kind),
     canWrite = usePeopleCan(kind),
-    pageFields = usePageFieldVisibility(`people-${kind}-detail`),
+    pageFields = usePageFieldVisibility(
+      relatedParent(location.pathname) === 'profiles'
+        ? `people-profiles-${kind === 'evaluations' ? 'evaluation' : 'development'}`
+        : `people-${kind}-detail`,
+    ),
     resource = `people.${peopleResources[kind]}`;
   const row = record.data?.data;
   const cache = useQueryClient();

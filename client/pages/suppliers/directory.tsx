@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation } from 'react-router';
 import { usePartnerTranslation as useTranslation } from './partner-domain.js';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { Truck } from 'lucide-react';
 import {
   Empty,
@@ -28,6 +29,11 @@ import { SupplierError, SupplierLoading, Pagination } from './controls.js';
 import { pageNumber, type Identity, type Page } from './model.js';
 export default function SupplierDirectory() {
   const { t } = useTranslation(),
+    location = useLocation(),
+    sales = location.pathname.includes('/sales/customers'),
+    pageFields = usePageFieldVisibility(
+      sales ? 'sales-customers-directory' : 'procurement-suppliers-directory',
+    ),
     search = useUrlSearch({
       param: 'directoryQ',
       resetParams: ['directoryPage'],
@@ -78,7 +84,7 @@ export default function SupplierDirectory() {
             <>
               <div className='grid gap-4 lg:grid-cols-2'>
                 {records.data?.data.map((row) => (
-                  <DirectoryCard key={row.id} row={row} />
+                  <DirectoryCard key={row.id} row={row} pageFields={pageFields} sales={sales} />
                 ))}
               </div>
               {!records.data?.data.length && (
@@ -132,9 +138,18 @@ export default function SupplierDirectory() {
     </>
   );
 }
-function DirectoryCard({ row }: { row: Identity }) {
+function DirectoryCard({
+  row,
+  pageFields,
+  sales,
+}: {
+  row: Identity;
+  pageFields: ReturnType<typeof usePageFieldVisibility>;
+  sales: boolean;
+}) {
   const { t } = useTranslation(),
     location = useLocation(),
+    resource = sales ? 'sales.customer' : 'procurement.supplier.identity',
     capabilities = useCapabilities(row.id),
     can = capabilities.data?.data;
   const link = (path: string) => ({
@@ -146,7 +161,10 @@ function DirectoryCard({ row }: { row: Identity }) {
       <CardHeader>
         <CardTitle className='break-words'>{row.name}</CardTitle>
         <CardDescription className='break-all'>
-          {row.code} · {row.registrationCode || '—'}
+          {row.code}
+          {pageFields.visible(resource, 'registrationCode')
+            ? ` · ${row.registrationCode || '—'}`
+            : ''}
         </CardDescription>
       </CardHeader>
       <CardContent className='flex flex-wrap gap-2'>

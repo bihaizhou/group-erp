@@ -1,6 +1,8 @@
 import type { FieldPermissionResource } from '#components/field-permission-policies';
 import type { PermissionEditorNavigationNode } from '#components/permission-editor';
 import { fieldResourcesForPage } from './field-permission-pages.js';
+import { pageFieldVisibilityPageKeys } from './page-field-visibility-pages.js';
+import { canonicalPageKey } from './page-keys.js';
 import { pageFieldVisibilityInheritedFrom } from './page-field-visibility-fallback.js';
 import {
   pageFieldVisibilityBaseKey,
@@ -28,6 +30,8 @@ export interface PageDisplayTarget {
   readonly kind: 'parent' | 'child';
   /** A deeper route kept out of the tab strip and offered under More pages. */
   readonly advanced: boolean;
+  /** The list and detail entry routes both render this page. */
+  readonly merged?: boolean;
 }
 
 function suffixTabLabel(pageKey: string, labels: PageTabLabels): string {
@@ -48,7 +52,7 @@ function childTabLabel(
   parentLabel: string,
   labels: PageTabLabels,
 ): string {
-  const pageKey = node.pageKey ?? '';
+  const pageKey = canonicalPageKey(node.pageKey ?? '');
   const prefix = `${parentLabel} · `;
   const rest = node.label.startsWith(prefix)
     ? node.label.slice(prefix.length)
@@ -82,15 +86,18 @@ function targetFor(
   parentPageKey: string | undefined,
   labels: PageTabLabels,
   kind: PageDisplayTarget['kind'],
+  merged: boolean,
 ): PageDisplayTarget | undefined {
   if (!node.pageKey) return undefined;
+  const pageKey = canonicalPageKey(node.pageKey);
   // Prefer the page-resource map so field keys line up with legacy
   // resource-level field policies (e.g. people.employee.grade); page data
   // resources (people.profile) are only used when the map has no entry.
+  const byPageKey = fieldResourcesForPage(pageKey);
   const mapped =
-    node.resourceId && node.resourceId.length > 0
+    byPageKey.length === 0 && node.resourceId && node.resourceId.length > 0
       ? fieldResourcesForPage(node.resourceId)
-      : [];
+      : byPageKey;
   const resources =
     mapped.length > 0
       ? mapped
@@ -98,19 +105,22 @@ function targetFor(
         ? node.dataResources
         : [];
   return {
-    pageKey: node.pageKey,
-    fallbackPageKey: pageFieldVisibilityInheritedFrom(node.pageKey),
-    resourceId: node.resourceId ?? node.pageKey,
+    pageKey,
+    fallbackPageKey: pageFieldVisibilityInheritedFrom(pageKey),
+    resourceId: node.resourceId ?? pageKey,
     label: node.label,
     path: node.path,
     resources,
     tabLabel:
       kind === 'parent'
         ? labels.page
-        : childTabLabel(node, parentLabel, labels),
+        : merged && pageKey.endsWith('-edit')
+          ? labels.edit
+          : childTabLabel(node, parentLabel, labels),
     kind,
     advanced:
-      kind === 'child' && !isPrimaryPageSuffix(parentPageKey, node.pageKey ?? ''),
+      kind === 'child' && !isPrimaryPageSuffix(parentPageKey, pageKey),
+    ...(merged ? { merged: true } : {}),
   };
 }
 
@@ -125,6 +135,19 @@ export function collectPageDisplays(
 ): readonly PageDisplayTarget[] {
   const targets: PageDisplayTarget[] = [];
   const seen = new Set<string>();
+  // Routes that feed each page key: a page with both a list entry and a
+  // detail entry (`-list-edit`/`-edit`, `-edit`/`-detail-edit`) is one page.
+  const sources = new Map<string, Set<string>>();
+  const scan = (current: PermissionEditorNavigationNode): void => {
+    if (current.pageKey) {
+      const key = canonicalPageKey(current.pageKey);
+      const names = sources.get(key) ?? new Set<string>();
+      names.add(current.routeName ?? key);
+      sources.set(key, names);
+    }
+    for (const child of current.children ?? []) scan(child);
+  };
+  scan(node);
   const visit = (
     current: PermissionEditorNavigationNode,
     parentLabel: string,
@@ -137,6 +160,7 @@ export function collectPageDisplays(
         parentPageKey,
         labels,
         current.hint ? 'child' : 'parent',
+        (sources.get(canonicalPageKey(current.pageKey))?.size ?? 0) > 1,
       );
       if (target && !seen.has(target.pageKey)) {
         seen.add(target.pageKey);
@@ -176,10 +200,21 @@ export function pageFieldResourcesForTarget(
 ): readonly FieldPermissionResource[] {
   const configKey =
     pageFieldVisibilityBaseKey(target.pageKey) ?? target.pageKey;
-  const declared = pageFieldVisibilityFields[configKey];
-  const auto = !declared?.length;
+  const declared =
+    pageFieldVisibilityFields[target.pageKey] ??
+    pageFieldVisibilityFields[configKey];
+  // Pages registered as wired but without an explicit field list still show
+  // their catalogue fields; unregistered pages stay empty so an admin cannot
+  // save a configuration the page never reads.
+  const auto =
+    declared === undefined &&
+    (pageFieldVisibilityPageKeys.has(target.pageKey) ||
+      pageFieldVisibilityPageKeys.has(configKey));
   const allowed = new Set(declared ?? []);
-  const extras = pageFieldVisibilityExtraFields[configKey] ?? [];
+  const extras =
+    pageFieldVisibilityExtraFields[target.pageKey] ??
+    pageFieldVisibilityExtraFields[configKey] ??
+    [];
   const result = target.resources.flatMap((resourceId) => {
     const base = catalog.find((item) => item.resource === resourceId);
     const fields = [

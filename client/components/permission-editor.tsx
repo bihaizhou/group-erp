@@ -109,6 +109,8 @@ export interface PermissionEditorNavigationNode {
   readonly hint?: string | undefined;
   /** Route name for page-level field visibility (children share the parent's grant). */
   readonly pageKey?: string | undefined;
+  /** Raw route name; pageKey may merge the list/detail entry variants. */
+  readonly routeName?: string | undefined;
   /** Page resource whose field catalogue feeds the page-level editor. */
   readonly resourceId?: string | undefined;
   /** Data resources declared by the route; avoids a second settings-only registry. */
@@ -144,6 +146,8 @@ export interface PermissionEditorLabels {
   readonly fieldsConfigured?: string;
   readonly accessGranted?: string;
   readonly pageUnsaved?: string;
+  /** A page that has no configurable display fields. */
+  readonly pageNoFields?: string;
   readonly morePages?: (count: number) => string;
   /** Label for the synthetic list leaf under each page row. */
   readonly listPage?: string;
@@ -194,6 +198,8 @@ export interface PermissionEditorProps {
   readonly onPageSelect?: (node: PermissionEditorNavigationNode) => void;
   /** Leaf rows with staged unsaved changes; they show a violet dot. */
   readonly pageDirtyKeys?: ReadonlySet<string> | undefined;
+  /** Leaf rows for pages that have no configurable display fields; not selectable. */
+  readonly pageDisabledKeys?: ReadonlySet<string> | undefined;
   /** Leaf rows with saved settings; they show a green dot. */
   readonly pageConfiguredKeys?: ReadonlySet<string> | undefined;
   /** Deeper leaf routes folded into a More group to keep the tree compact. */
@@ -229,6 +235,7 @@ const DEFAULT_LABELS: Required<PermissionEditorLabels> = {
   fieldsConfigured: 'Fields configured',
   accessGranted: 'Access granted',
   pageUnsaved: 'Unsaved changes',
+  pageNoFields: 'No configurable fields',
   morePages: (count) => `More pages (${count})`,
   listPage: 'List',
   selectAll: 'All',
@@ -493,6 +500,7 @@ function PermissionPageLeaf({
   selected,
   configured,
   dirty,
+  disabled,
   labels,
   pageLabel,
   onOpen,
@@ -501,6 +509,7 @@ function PermissionPageLeaf({
   readonly selected: boolean;
   readonly configured: boolean;
   readonly dirty: boolean;
+  readonly disabled?: boolean;
   readonly labels: Required<PermissionEditorLabels>;
   readonly pageLabel?: (
     node: PermissionEditorNavigationNode,
@@ -526,10 +535,18 @@ function PermissionPageLeaf({
           : labels.openPage(node.label)
       }
       aria-current={selected ? 'page' : undefined}
-      onClick={() => onOpen(node)}
+      disabled={disabled}
+      title={disabled ? labels.pageNoFields : undefined}
+      onClick={() => {
+        if (!disabled) onOpen(node);
+      }}
       className={cn(
         'flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-        selected ? 'bg-accent' : 'hover:bg-hover',
+        disabled
+          ? 'cursor-not-allowed text-muted-foreground/60'
+          : selected
+            ? 'bg-accent'
+            : 'hover:bg-hover',
       )}
     >
       <span
@@ -586,6 +603,7 @@ function PermissionNavigation({
   onPageSelect,
   selectedPageKey,
   pageDirtyKeys,
+  pageDisabledKeys,
   pageConfiguredKeys,
   advancedPageKeys,
   pageLabel,
@@ -612,6 +630,7 @@ function PermissionNavigation({
   readonly onPageSelect?: (node: PermissionEditorNavigationNode) => void;
   readonly selectedPageKey?: string | undefined;
   readonly pageDirtyKeys?: ReadonlySet<string> | undefined;
+  readonly pageDisabledKeys?: ReadonlySet<string> | undefined;
   readonly pageConfiguredKeys?: ReadonlySet<string> | undefined;
   readonly advancedPageKeys?: ReadonlySet<string> | undefined;
   readonly pageLabel?: (
@@ -747,6 +766,7 @@ function PermissionNavigation({
                   onPageSelect={onPageSelect}
                   selectedPageKey={selectedPageKey}
                   pageDirtyKeys={pageDirtyKeys}
+                  pageDisabledKeys={pageDisabledKeys}
                   pageConfiguredKeys={pageConfiguredKeys}
                   advancedPageKeys={advancedPageKeys}
                   pageLabel={pageLabel}
@@ -768,6 +788,10 @@ function PermissionNavigation({
                         dirty={
                           pageDirtyKeys?.has(listLeaf.pageKey ?? '') ?? false
                         }
+                        disabled={
+                          pageDisabledKeys?.has(listLeaf.pageKey ?? '') ??
+                          false
+                        }
                         labels={rowProps.labels}
                         pageLabel={pageLabel}
                         onOpen={onPageSelect!}
@@ -784,6 +808,9 @@ function PermissionNavigation({
                         }
                         dirty={
                           pageDirtyKeys?.has(child.pageKey ?? '') ?? false
+                        }
+                        disabled={
+                          pageDisabledKeys?.has(child.pageKey ?? '') ?? false
                         }
                         labels={rowProps.labels}
                         pageLabel={pageLabel}
@@ -838,6 +865,10 @@ function PermissionNavigation({
                                 }
                                 dirty={
                                   pageDirtyKeys?.has(child.pageKey ?? '') ??
+                                  false
+                                }
+                                disabled={
+                                  pageDisabledKeys?.has(child.pageKey ?? '') ??
                                   false
                                 }
                                 labels={rowProps.labels}
@@ -1155,6 +1186,7 @@ export function PermissionEditor({
   selectedPageKey,
   onPageSelect,
   pageDirtyKeys,
+  pageDisabledKeys,
   pageConfiguredKeys,
   advancedPageKeys,
   pageLabel,
@@ -1415,6 +1447,7 @@ export function PermissionEditor({
                           onPageSelect={onPageSelect}
                           selectedPageKey={selectedPageKey}
                           pageDirtyKeys={pageDirtyKeys}
+                          pageDisabledKeys={pageDisabledKeys}
                           pageConfiguredKeys={pageConfiguredKeys}
                           advancedPageKeys={advancedPageKeys}
                           pageLabel={pageLabel}

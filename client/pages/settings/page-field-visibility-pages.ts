@@ -32,9 +32,47 @@ const executionDocumentKinds = ['reversal', 'returns'] as const;
  * administrator save a configuration that has no visible effect.
  */
 export const pageFieldVisibilityPageKeys: ReadonlySet<string> = new Set([
+  'procurement-suppliers-directory',
+  'sales-customers-directory',
   'procurement-requests',
   'procurement-requests-detail',
   'procurement-requests-new',
+  'procurement-requests-version',
+  'procurement-requests-related',
+  'procurement-requests-related-version',
+  'procurement-requests-action',
+  'procurement-requests-source-action',
+  'requisitions-requests',
+  'requisitions-requests-detail',
+  'requisitions-requests-related',
+  'requisitions-requests-version',
+  'requisitions-requests-related-version',
+  'requisitions-requests-action',
+  'requisitions-requests-source-action',
+  'procurement-orders-execution-document-version',
+  'procurement-orders-execution-document-source',
+  'sales-orders-execution-document-version',
+  'sales-orders-execution-document-source',
+  'warehouse-inbounds-execution-document-version',
+  'warehouse-inbounds-execution-document-source',
+  'warehouse-outbounds-execution-document-version',
+  'warehouse-outbounds-execution-document-source',
+  'warehouse-transfers-execution-document-version',
+  'warehouse-transfers-execution-document-source',
+  'warehouse-counts-execution-document-version',
+  'warehouse-counts-execution-document-source',
+  'procurement-orders-version',
+  'procurement-orders-related',
+  'sales-orders-version',
+  'sales-orders-related',
+  'warehouse-inbounds-version',
+  'warehouse-inbounds-related',
+  'warehouse-outbounds-version',
+  'warehouse-outbounds-related',
+  'warehouse-transfers-version',
+  'warehouse-transfers-related',
+  'warehouse-counts-version',
+  'warehouse-counts-related',
   'sales-price-lists',
   'sales-receivables',
   'production-overview',
@@ -58,23 +96,42 @@ export const pageFieldVisibilityPageKeys: ReadonlySet<string> = new Set([
   'operations-issues',
   'operations-targets',
   'assets-list',
+  'warehouse-inventory',
+  ...['evaluations', 'developmentPlans'].map(
+    (kind) =>
+      `people-profiles-${kind === 'evaluations' ? 'evaluation' : 'development'}`,
+  ),
   ...peopleKinds.flatMap((kind) => [
     `people-${kind}`,
     ...(kind === 'profiles' ? [] : [`people-${kind}-detail`]),
     ...(peopleFields[kind].length > 0 ? [`people-${kind}-new`] : []),
   ]),
-  ...organizationKinds.map((kind) => `organization-${kind}-new`),
+  ...organizationKinds.flatMap((kind) => [
+    `organization-${kind}`,
+    `organization-${kind}-new`,
+  ]),
+  ...materialKinds
+    .filter((kind) => materialFields[kind].length > 0)
+    .map((kind) => `${materialPageId(kind)}`),
   ...materialKinds
     .filter((kind) => materialFields[kind].length > 0)
     .map((kind) => `${materialPageId(kind)}-new`),
+  ...materialKinds
+    .filter((kind) => materialFields[kind].length > 0)
+    .map((kind) => `${materialPageId(kind)}-detail`),
   'warehouse-material-templates-new',
   'warehouse-materials-request-material',
   'warehouse-material-requests-new-sku',
   'sales-orders-new',
   'procurement-orders-new',
   'procurement-suppliers-new',
+  'procurement-suppliers-detail',
+  'procurement-suppliers-identity',
+  'sales-customers-identity',
+  'sales-customers-detail',
   'sales-customers-new',
   'requisitions-requests-new',
+  'requisitions-purposes',
   'requisitions-purposes-new',
   'warehouse-inbounds-new',
   'warehouse-outbounds-new',
@@ -136,6 +193,40 @@ const executionDocumentFields: Record<string, readonly string[]> = {
   ],
 };
 
+const executionDocumentFieldsWithEdit: Record<string, readonly string[]> = {
+  ...executionDocumentFields,
+  ...Object.fromEntries(
+    Object.entries(executionDocumentFields).flatMap(([pageKey, fields]) => [
+      [
+        pageKey.replace(/-new$/u, '-execution-document'),
+        // The document detail page only filters its line table; these are the
+        // line fields it actually consults.
+        [
+          'material',
+          'quantity',
+          'baseQuantity',
+          'unitPrice',
+          'amount',
+          'fulfilledQuantity',
+          'returnedQuantity',
+          'netExecuted',
+          'remainingQuantity',
+          'closedQuantity',
+          'dispatchedQuantity',
+          'receivedQuantity',
+          'discrepancyQuantity',
+          'transit',
+          'quality',
+          'baselineQuantity',
+          'countedQuantity',
+          'reason',
+        ],
+      ],
+      [pageKey.replace(/-new$/u, '-execution-document-edit'), fields],
+    ]),
+  ),
+};
+
 /**
  * Fields the page's form actually consults. Keeping this list beside the page
  * key stops the editor from offering a checkbox that would have no effect.
@@ -187,6 +278,260 @@ export const pageFieldVisibilityFields: Readonly<
     'purchase.request.usage',
     'purchase.request.notes',
   ],
+  'procurement-requests-version': [
+    'purchase.request.company',
+    'purchase.request.requester',
+    'purchase.request.unit',
+    'purchase.request.businessDate',
+    'purchase.request.sourceChannel',
+    'purchase.request.sourceRef',
+    'purchase.request.sourceDoc',
+    'purchase.request.period',
+    'purchase.request.neededOn',
+    'purchase.request.usage',
+    'purchase.request.notes',
+  ],
+  'procurement-requests-related': [
+    'purchase.request.company',
+    'purchase.request.requester',
+    'purchase.request.unit',
+    'purchase.request.businessDate',
+    'purchase.request.sourceChannel',
+    'purchase.request.sourceRef',
+    'purchase.request.sourceDoc',
+    'purchase.request.period',
+    'purchase.request.neededOn',
+    'purchase.request.usage',
+    'purchase.request.notes',
+  ],
+  'procurement-requests-related-version': [
+    'purchase.request.company',
+    'purchase.request.requester',
+    'purchase.request.unit',
+    'purchase.request.businessDate',
+    'purchase.request.sourceChannel',
+    'purchase.request.sourceRef',
+    'purchase.request.sourceDoc',
+    'purchase.request.period',
+    'purchase.request.neededOn',
+    'purchase.request.usage',
+    'purchase.request.notes',
+  ],
+  'procurement-requests-action': [
+    'purchase.request.code',
+    'purchase.request.status',
+    'purchase.request.usage',
+  ],
+  'procurement-requests-source-action': [
+    'purchase.request.code',
+    'purchase.request.status',
+    'purchase.request.usage',
+  ],
+  'requisitions-requests': [
+    'issue.request.requesterEmployeeId',
+    'issue.request.recipientEmployeeId',
+    'issue.request.purposeId',
+    'issue.request.requestingUnitId',
+    'issue.request.usage',
+    'issue.request.neededOn',
+    'issue.request.status',
+    'issue.request.fulfillmentStatus',
+    'issue.request.identificationStatus',
+  ],
+  'requisitions-requests-detail': [
+    'issue.request.code',
+    'issue.request.usage',
+    'issue.request.neededOn',
+    'issue.request.notes',
+    'issue.request.status',
+  ],
+  'requisitions-requests-related': [
+    'issue.request.code',
+    'issue.request.usage',
+    'issue.request.neededOn',
+    'issue.request.notes',
+    'issue.request.status',
+  ],
+  'requisitions-requests-version': [
+    'issue.request.code',
+    'issue.request.usage',
+    'issue.request.neededOn',
+    'issue.request.notes',
+    'issue.request.status',
+  ],
+  'requisitions-requests-related-version': [
+    'issue.request.code',
+    'issue.request.usage',
+    'issue.request.neededOn',
+    'issue.request.notes',
+    'issue.request.status',
+  ],
+  'requisitions-requests-action': [
+    'issue.request.code',
+    'issue.request.status',
+    'issue.request.usage',
+  ],
+  'requisitions-requests-source-action': [
+    'issue.request.code',
+    'issue.request.status',
+    'issue.request.usage',
+  ],
+  'procurement-orders-version': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+    'execution.document.status',
+  ],
+  'procurement-orders-related': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+  ],
+  'procurement-orders-execution-document-version': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+    'execution.document.status',
+  ],
+  'procurement-orders-execution-document-source': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+  ],
+  'sales-orders-version': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+    'execution.document.status',
+  ],
+  'sales-orders-related': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+  ],
+  'sales-orders-execution-document-version': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+    'execution.document.status',
+  ],
+  'sales-orders-execution-document-source': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+  ],
+  'warehouse-inbounds-version': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+    'execution.document.status',
+  ],
+  'warehouse-inbounds-related': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+  ],
+  'warehouse-inbounds-execution-document-version': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+    'execution.document.status',
+  ],
+  'warehouse-inbounds-execution-document-source': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+  ],
+  'warehouse-outbounds-version': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+    'execution.document.status',
+  ],
+  'warehouse-outbounds-related': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+  ],
+  'warehouse-outbounds-execution-document-version': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+    'execution.document.status',
+  ],
+  'warehouse-outbounds-execution-document-source': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+  ],
+  'warehouse-transfers-version': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+    'execution.document.status',
+  ],
+  'warehouse-transfers-related': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+  ],
+  'warehouse-transfers-execution-document-version': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+    'execution.document.status',
+  ],
+  'warehouse-transfers-execution-document-source': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+  ],
+  'warehouse-counts-version': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+    'execution.document.status',
+  ],
+  'warehouse-counts-related': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+  ],
+  'warehouse-counts-execution-document-version': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+    'execution.document.status',
+  ],
+  'warehouse-counts-execution-document-source': [
+    'execution.document.code',
+    'execution.document.occurredOn',
+    'execution.document.reason',
+    'execution.document.notes',
+  ],
   'procurement-suppliers-new': [
     'procurement.supplier.base.code',
     'procurement.supplier.base.name',
@@ -199,7 +544,26 @@ export const pageFieldVisibilityFields: Readonly<
     'sales.customer.registrationCode',
     'sales.customer.notes',
   ],
+  'procurement-suppliers-detail': [
+    'procurement.supplier.identity.code',
+    'procurement.supplier.identity.registrationCode',
+    'procurement.supplier.identity.status',
+  ],
+  'procurement-suppliers-identity': [
+    'procurement.supplier.base.registrationCode',
+    'procurement.supplier.base.notes',
+  ],
+  'sales-customers-identity': [
+    'sales.customer.registrationCode',
+    'sales.customer.notes',
+  ],
+  'sales-customers-detail': [
+    'sales.customer.code',
+    'sales.customer.registrationCode',
+    'sales.customer.status',
+  ],
   'requisitions-requests-new': ['issue.request.notes'],
+  'requisitions-purposes': ['issue.purpose.name', 'issue.purpose.status'],
   'requisitions-purposes-new': [
     'issue.purpose.code',
     'issue.purpose.name',
@@ -253,6 +617,32 @@ export const pageFieldVisibilityFields: Readonly<
         ],
       ]),
   ),
+  'procurement-suppliers-directory': [
+    'procurement.supplier.identity.code',
+    'procurement.supplier.identity.registrationCode',
+    'procurement.supplier.identity.notes',
+  ],
+  'sales-customers-directory': [
+    'sales.customer.code',
+    'sales.customer.registrationCode',
+    'sales.customer.notes',
+  ],
+  'warehouse-inventory': [
+    'warehouse.inventory.balance.quantity',
+    'warehouse.inventory.balance.reservedQuantity',
+    'warehouse.inventory.balance.available',
+  ],
+  ...Object.fromEntries(
+    (['evaluations', 'developmentPlans'] as const).map((kind) => [
+      `people-profiles-${kind === 'evaluations' ? 'evaluation' : 'development'}`,
+      [
+        ...peopleFields[kind].map(
+          (field) => `people.${peopleResource(kind)}.${field.key}`,
+        ),
+        ...peoplePolicyFields(kind),
+      ],
+    ]),
+  ),
   ...Object.fromEntries(
     executionPages.flatMap(({ page, kind }) => [
       [
@@ -273,21 +663,37 @@ export const pageFieldVisibilityFields: Readonly<
     ]),
   ),
   ...Object.fromEntries(
-    organizationKinds.map((kind) => [
-      `organization-${kind}-new`,
-      organizationFields[kind].map(
-        (field) => `organization.${organizationResource(kind)}.${field.key}`,
-      ),
+    organizationKinds.flatMap((kind) => [
+      [
+        `organization-${kind}`,
+        ['code', 'type', 'status'].map(
+          (field) => `organization.${organizationResource(kind)}.${field}`,
+        ),
+      ],
+      [
+        `organization-${kind}-new`,
+        organizationFields[kind].map(
+          (field) => `organization.${organizationResource(kind)}.${field.key}`,
+        ),
+      ],
     ]),
   ),
   ...Object.fromEntries(
     materialKinds
       .filter((kind) => materialFields[kind].length > 0)
-      .map((kind) => [
-        `${materialPageId(kind)}-new`,
-        materialFields[kind].map(
-          (field) => `materials.${materialResource(kind)}.${field.key}`,
-        ),
+      .flatMap((kind) => [
+        [
+          `${materialPageId(kind)}`,
+          ['code', 'status'].map(
+            (field) => `materials.${materialResource(kind)}.${field}`,
+          ),
+        ],
+        [
+          `${materialPageId(kind)}-new`,
+          materialFields[kind].map(
+            (field) => `materials.${materialResource(kind)}.${field.key}`,
+          ),
+        ],
       ]),
   ),
   'warehouse-materials-request-material': materialFields.requests.map(
@@ -305,7 +711,20 @@ export const pageFieldVisibilityFields: Readonly<
     'materials.template.identity',
   ],
   ...Object.fromEntries(
-    Object.entries(executionDocumentFields).map(([pageKey, fields]) => [
+    materialKinds
+      .filter((kind) => materialFields[kind].length > 0)
+      .map((kind) => [
+        `${materialPageId(kind)}-detail`,
+        [
+          ...materialFields[kind].map(
+            (field) => `materials.${materialResource(kind)}.${field.key}`,
+          ),
+          `materials.${materialResource(kind)}.notes`,
+        ],
+      ]),
+  ),
+  ...Object.fromEntries(
+    Object.entries(executionDocumentFieldsWithEdit).map(([pageKey, fields]) => [
       pageKey,
       fields.map((field) => `execution.document.${field}`),
     ]),
@@ -733,7 +1152,7 @@ export const pageFieldVisibilityExtraFields: Readonly<
     titleKey: `materials.attribute.${field}`,
   })),
   ...Object.fromEntries(
-    Object.entries(executionDocumentFields).map(([pageKey, fields]) => [
+    Object.entries(executionDocumentFieldsWithEdit).map(([pageKey, fields]) => [
       pageKey,
       fields
         .filter((field) => !['reason', 'notes'].includes(field))

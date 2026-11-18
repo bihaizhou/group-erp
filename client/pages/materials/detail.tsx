@@ -1,4 +1,5 @@
 import { useSourceReason } from '#hooks/use-source-reason';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useIsFetching, useQueryClient } from '@tanstack/react-query';
 import { GovernanceTaskSource } from '#components/demand-governance/task-source';
@@ -15,6 +16,8 @@ import { Card, CardHeader, CardTitle, CardContent } from '#components/ui/card';
 import {
   kindFromPath,
   fields,
+  pageId,
+  resourceFor,
   large,
   referenceIds,
   canEdit,
@@ -96,6 +99,8 @@ export default function MaterialDetail({
       (query.queryKey[0] === 'material-source' && query.queryKey[1] === id) ||
       (query.queryKey[1] === 'attachment-metadata' && query.queryKey[3] === id),
   });
+  const pageFields = usePageFieldVisibility(`${pageId(kind)}-detail`);
+  const fieldResource = `materials.${resourceFor(kind)}`;
   const record = useMaterialRecord(kind, id, catalog),
     row = record.data?.data,
     options = useMaterialOptions(kind, '', referenceIds(row ?? {}), read.can);
@@ -142,7 +147,9 @@ export default function MaterialDetail({
             {['name', 'code', ...fields[kind].map((v) => v.key), 'notes']
               .filter(
                 (key) =>
-                  !catalog || ['name', 'code', 'managementMode'].includes(key),
+                  (!catalog || ['name', 'code', 'managementMode'].includes(key)) &&
+                  (['name', 'code'].includes(key) ||
+                    pageFields.visible(fieldResource, key)),
               )
               .map((key) => (
                 <div

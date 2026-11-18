@@ -105,7 +105,7 @@ export default function ExecutionForm() {
             : `${parent.page}-${nested}-new`
           : `${parent.page}-new`
         : documentId
-          ? undefined
+          ? `${parent.page}-execution-document-edit`
           : `${parent.page}-edit`,
     capabilities = useExecutionQuery<{ data: Capabilities }>(
       `${parent.api}/${id}/capabilities`,

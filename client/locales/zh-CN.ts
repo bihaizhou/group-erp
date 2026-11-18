@@ -69,6 +69,7 @@ const zhCN: AppResource = {
       '勾选页面左侧方框＝允许访问，其下新建/编辑/详情等子页面一起开放；点击页面或子页面名称，在右侧设置该页面的字段权限。绿点表示该页面已有字段配置，紫点表示有未保存的修改。',
     configure: '配置',
     morePages: '更多页面 ({{count}})',
+    pageNoFields: '此页面无需配置字段',
     listPage: '列表',
     admin: '后台管理',
     adminHint: '管理角色、默认范围、用户与账号安全等系统功能。',
@@ -103,7 +104,7 @@ const zhCN: AppResource = {
   pageFieldPermission: {
     description: '每个页面独立一份字段权限：可编辑 / 只读 / 不显示。必填字段不能设为“不显示”。',
     selectPageHint: '从左侧选择一个页面或子页面，设置其字段权限。',
-    empty: '该页面没有可配置的字段。',
+    empty: '此页面暂未接入逐页字段权限。',
     field: '字段',
     permission: '权限',
     required: '必填',
@@ -113,8 +114,13 @@ const zhCN: AppResource = {
     modifiedRecently: '修改于刚才',
     footnote: '只影响此页面；使用同一份数据的其他页面保持各自的设置。',
     copyToPages: '复制到其他页面',
-    copyHint: '把当前页面的字段设置复制到所选页面，覆盖它们原有的设置。',
+    copyNoCandidates:
+      '没有字段完全相同的其他页面',
+    copyHint:
+      '只列出字段完全相同的页面。复制会用当前页面的设置覆盖它们的原有设置。',
     copyConfirm: '复制',
+    sharedEntry:
+      '这两个入口打开的是同一个页面，共用这里的字段权限。',
     copied: '字段设置已复制到 {{count}} 个页面。',
   },
   pageFieldVisibility: {

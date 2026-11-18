@@ -20,8 +20,10 @@ import {
 } from '@nocobase/app-server/router';
 import { Hono, type Context } from 'hono';
 import {
+  canonicalPageKey,
   effectivePageFieldVisibility,
   pageFieldVisibilityConfig,
+  pageKeyVariants,
   rebuildFieldPoliciesFromPages,
 } from '../providers/page-field-visibility.js';
 
@@ -118,7 +120,9 @@ export const pageFieldVisibilityRoutes: AppApiRouteContribution<Application> =
             db,
             { type: 'user', id: user.id },
             pageKey,
-            fallbackPageKey,
+            fallbackPageKey
+              ? canonicalPageKey(fallbackPageKey)
+              : undefined,
           ),
         });
       },
@@ -143,7 +147,9 @@ export const pageFieldVisibilityRoutes: AppApiRouteContribution<Application> =
         return c.json({
           data: {
             pages: [
-              ...new Set(rows.map((row) => row.pageKey as string)),
+              ...new Set(
+                rows.map((row) => canonicalPageKey(row.pageKey as string)),
+              ),
             ].map((pageKey) => ({ pageKey, configured: true })),
           },
         });
@@ -167,8 +173,8 @@ export const pageFieldVisibilityRoutes: AppApiRouteContribution<Application> =
           data: await pageFieldVisibilityConfig(
             db,
             permissionSetKey,
-            pageKey,
-            fallbackPageKey,
+            canonicalPageKey(pageKey),
+            fallbackPageKey ? canonicalPageKey(fallbackPageKey) : undefined,
           ),
         });
       },
@@ -185,16 +191,19 @@ export const pageFieldVisibilityRoutes: AppApiRouteContribution<Application> =
       apiValidator('json', saveBody),
       async (c) => {
         await check(c, 'update');
-        const { permissionSetKey, pageKey, fallbackPageKey, mode, fields } =
+        const { permissionSetKey, pageKey: rawPageKey, fallbackPageKey, mode, fields } =
           c.req.valid('json');
+        const pageKey = canonicalPageKey(rawPageKey);
         const set = await db
           .repository('authorizationPermissionSets')
           .findOne({ filter: { key: permissionSetKey } });
         if (!set) throw denied();
         const userId = c.get('auth')!.user.id;
-        await db.repository('appPageFieldVisibilities').deleteMany({
-          filter: { permissionSetKey, pageKey },
-        });
+        for (const variant of pageKeyVariants(pageKey)) {
+          await db.repository('appPageFieldVisibilities').deleteMany({
+            filter: { permissionSetKey, pageKey: variant },
+          });
+        }
         if (mode !== 'inherit') {
           for (const item of fields) {
             await db.repository('appPageFieldVisibilities').createOne({
@@ -225,7 +234,9 @@ export const pageFieldVisibilityRoutes: AppApiRouteContribution<Application> =
             db,
             permissionSetKey,
             pageKey,
-            fallbackPageKey,
+            fallbackPageKey
+              ? canonicalPageKey(fallbackPageKey)
+              : undefined,
           ),
         });
       },

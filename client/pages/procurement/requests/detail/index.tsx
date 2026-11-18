@@ -75,7 +75,9 @@ export default function RequestDetail() {
     location = useLocation(),
     message = usePurchaseError(),
     refresh = usePurchaseRefresh(),
-    pageFields = usePageFieldVisibility('procurement-requests-detail');
+    pageFields = usePageFieldVisibility(
+      related ? 'procurement-requests-related' : 'procurement-requests-detail',
+    );
   const source = useRequest(requestId),
     linked =
       !related ||

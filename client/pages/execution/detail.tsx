@@ -120,7 +120,11 @@ export default function ExecutionDetail() {
     [historyPage, setHistoryPage] = useState(1),
     [versionPage, setVersionPage] = useState(1),
     createDocument = useExecutionCan('warehouse.documents', 'create'),
-    pageFields = usePageFieldVisibility(`${config.page}-detail`),
+    pageFields = usePageFieldVisibility(
+      documentRoute
+        ? `${config.page}-execution-document`
+        : `${config.page}-detail`,
+    ),
     showLine = (field: string) =>
       pageFields.visible('execution.document.line', field),
     priceVisible =

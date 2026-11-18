@@ -59,6 +59,7 @@ import {
   RefreshButton,
 } from './controls.js';
 import { OverflowText } from '../../materials/controls.js';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { ServerTable } from './server-table.js';
 import type { Choice, Page, IssueRequest } from './model.js';
 
@@ -71,7 +72,8 @@ export default function RequestsPage() {
     edit = useIssueCan('update'),
     api = useApiClient(),
     toaster = useToaster(),
-    key = useRequestKey();
+    key = useRequestKey(),
+    pageFields = usePageFieldVisibility('requisitions-requests');
   const [selection, setSelection] = useState<{
       key: string;
       ids: ReadonlySet<string>;
@@ -248,7 +250,7 @@ export default function RequestsPage() {
         ) : null}
       </Button>
     );
-    return [
+    const list: ColumnDef<IssueRequest>[] = [
       {
         id: 'code',
         header: t(ui('code')),
@@ -385,6 +387,24 @@ export default function RequestsPage() {
         ),
       },
     ];
+    const columnFields: Record<string, string> = {
+      requester: 'requesterEmployeeId',
+      recipient: 'recipientEmployeeId',
+      purpose: 'purposeId',
+      unit: 'requestingUnitId',
+      identification: 'identificationStatus',
+      fulfillment: 'fulfillmentStatus',
+    };
+    return list.filter(
+      (column) =>
+        column.id === 'code' ||
+        column.id === 'actions' ||
+        column.id === 'updatedAt' ||
+        !pageFields.visible(
+          'issue.request',
+          columnFields[String(column.id)] ?? String(column.id),
+        ),
+    );
   })();
   return (
     <>

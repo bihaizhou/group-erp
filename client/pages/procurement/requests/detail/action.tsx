@@ -18,6 +18,7 @@ import {
 } from '#components/ui/field';
 import { Spinner } from '#components/ui/spinner';
 import { LongText } from '#components/long-text';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import {
   Collapsible,
   CollapsibleTrigger,
@@ -105,7 +106,12 @@ function ActionBody({
     toaster = useToaster(),
     refresh = usePurchaseRefresh(),
     key = useRequestKey(),
-    confirm = useConfirm();
+    confirm = useConfirm(),
+    pageFields = usePageFieldVisibility(
+      path.includes('/governance/')
+        ? 'procurement-requests-source-action'
+        : 'procurement-requests-action',
+    );
   const [row, setRow] = useState(initial),
     [reason, setReason] = useState(''),
     [invalid, setInvalid] = useState(false),
@@ -252,7 +258,9 @@ function ActionBody({
           <p className='text-sm'>
             {row.code} · {row.display.requester?.name ?? t(ui('unavailable'))}
           </p>
-          <LongText>{snapshot?.payload.head.usage ?? row.usage}</LongText>
+          {pageFields.visible('purchase.request', 'usage') && (
+            <LongText>{snapshot?.payload.head.usage ?? row.usage}</LongText>
+          )}
           {snapshot && (
             <Collapsible>
               <CollapsibleTrigger

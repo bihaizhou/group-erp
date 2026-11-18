@@ -37,36 +37,98 @@ export interface PageFieldVisibilityConfig {
   fields: PageFieldVisibilityRow[];
 }
 
+
+/**
+ * Some records have two edit entries that render the same form: one opened
+ * from the list (`-list-edit`, or plain `-edit` on older modules) and one
+ * nested under the detail route (`-detail-edit`, or plain `-edit`). They are
+ * the same page to the user, so they share one page key and one set of field
+ * permissions. Mirrors client/pages/settings/page-keys.ts — keep in sync.
+ */
+export function canonicalPageKey(pageKey: string): string {
+  return pageKey
+    .replace(/-list-edit(?=-|$)/u, '-edit')
+    .replace(/-detail-edit(?=-|$)/u, '-edit')
+    .replace(/-copy(?=-|$)/u, '-new');
+}
+
+/** The canonical key plus the legacy entry keys whose rows still apply. */
+export function pageKeyVariants(pageKey: string): readonly string[] {
+  const canonical = canonicalPageKey(pageKey);
+  const aliases: string[] = [canonical];
+  // Rows saved while "copy" had its own entry still apply to the create page.
+  const copyAlias = canonical.replace(/-new(?=-|$)/u, '-copy');
+  if (copyAlias !== canonical) aliases.push(copyAlias);
+  if (!canonical.endsWith('-edit')) return aliases;
+  const base = canonical.slice(0, -'-edit'.length);
+  return [...aliases, `${base}-list-edit`, `${base}-detail-edit`];
+}
+
+/** Merge rows of the entry aliases; the most restrictive row wins. */
+function mergeRowsByField(
+  rows: readonly PageFieldVisibilityRow[],
+): PageFieldVisibilityRow[] {
+  const merged = new Map<string, PageFieldVisibilityRow>();
+  for (const row of rows) {
+    const key = `${row.resource}.${row.field}`;
+    const previous = merged.get(key);
+    if (!previous) {
+      merged.set(key, { ...row });
+      continue;
+    }
+    const visible = previous.visible && row.visible;
+    merged.set(key, {
+      resource: row.resource,
+      field: row.field,
+      visible,
+      writable: visible && previous.writable && row.writable,
+    });
+  }
+  return [...merged.values()].sort(
+    (a, b) =>
+      a.resource.localeCompare(b.resource) || a.field.localeCompare(b.field),
+  );
+}
+
 const asText = (value: unknown): string =>
   typeof value === 'string' ? value : '';
 
-const toRows = (
-  rows: readonly Record<string, unknown>[],
-): PageFieldVisibilityRow[] =>
-  rows
-    .map((row) => ({
-      resource: asText(row.resource),
-      field: asText(row.field),
-      visible: row.visible !== false,
-      writable: row.writable !== false,
-    }))
-    .filter((row) => row.resource && row.field);
+const toRow = (row: Record<string, unknown>): PageFieldVisibilityRow => ({
+  resource: asText(row.resource),
+  field: asText(row.field),
+  visible: row.visible !== false,
+  writable: row.writable !== false,
+});
 
 async function rowsFor(
   database: DatabaseManager,
   permissionSetKey: string,
   pageKey: string,
 ): Promise<PageFieldVisibilityRow[]> {
-  const rows = await database.repository('appPageFieldVisibilities').findMany({
-    filter: (filter) =>
-      filter.and([
-        filter.string('permissionSetKey').eq(permissionSetKey),
-        filter.string('pageKey').eq(pageKey),
-      ]),
-    limit: 500,
-    sort: (sort) => [sort.field('resource').asc(), sort.field('field').asc()],
-  });
-  return toRows(rows);
+  // Read the entry aliases too: rows saved before the list/detail entries
+  // were merged still have to apply to the shared page.
+  const batches = await Promise.all(
+    pageKeyVariants(pageKey).map((variant) =>
+      database.repository('appPageFieldVisibilities').findMany({
+        filter: (filter) =>
+          filter.and([
+            filter.string('permissionSetKey').eq(permissionSetKey),
+            filter.string('pageKey').eq(variant),
+          ]),
+        limit: 500,
+        sort: (sort) => [
+          sort.field('resource').asc(),
+          sort.field('field').asc(),
+        ],
+      }),
+    ),
+  );
+  return mergeRowsByField(
+    batches
+      .flat()
+      .map((row) => toRow(row))
+      .filter((row) => row.resource && row.field),
+  );
 }
 
 export async function pageFieldVisibilitiesFor(
@@ -270,12 +332,15 @@ export async function pageFieldPoliciesFor(
   fallbackPageKey?: string,
 ): Promise<FieldPolicyView[]> {
   if (principal.type !== 'user' || !principal.id) return [];
+  const key = canonicalPageKey(pageKey);
   const base = await fieldPoliciesFor(database, principal);
   const effective = await effectivePageFieldVisibility(
     database,
     principal,
-    pageKey,
-    fallbackPageKey ?? pageFieldVisibilityFallbackFor(pageKey),
+    key,
+    fallbackPageKey
+      ? canonicalPageKey(fallbackPageKey)
+      : pageFieldVisibilityFallbackFor(key),
   );
   if (!effective.configured) return base;
   const merged = new Map<string, FieldPolicyView>();
@@ -311,10 +376,11 @@ export function pageKeyForRequest(
   ...alternatives: string[]
 ): string {
   const claimed = c.req.header('x-page-key');
-  if (claimed && [fallback, ...alternatives].includes(claimed)) {
-    return claimed;
+  const allowed = [fallback, ...alternatives].map(canonicalPageKey);
+  if (claimed && allowed.includes(canonicalPageKey(claimed))) {
+    return canonicalPageKey(claimed);
   }
-  return fallback;
+  return canonicalPageKey(fallback);
 }
 
 /**

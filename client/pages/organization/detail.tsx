@@ -1,3 +1,4 @@
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { displayValue } from './formatting.js';
 import { useOptions, useRecord } from './hooks.js';
 import { useTranslation } from '@nocobase/i18n/client';
@@ -19,6 +20,7 @@ import { OrganizationPendingChanges } from './pending-changes.js';
 export default function OrganizationDetailPage() {
   const { t, i18n } = useTranslation();
   const kind = useOrgKind();
+  const pageFields = usePageFieldVisibility(`organization-${kind}-detail`);
   const { recordId } = useParams();
   const location = useLocation();
   const record = useRecord(kind, recordId);
@@ -53,41 +55,45 @@ export default function OrganizationDetailPage() {
         <span className='text-sm text-muted-foreground'>{data.code}</span>
       </div>
       <dl className='grid gap-x-8 gap-y-2 sm:grid-cols-2'>
-        {fields[kind].map((field, index) => (
-          <div key={field.key} className='contents'>
-            {!isSmall(kind) &&
-            (index === 0 ||
-              sectionForField(field) !==
-                sectionForField(fields[kind][index - 1])) ? (
-              <h2 className='text-base font-semibold sm:col-span-2'>
-                {t(`org.${sectionForField(field)}`)}
-              </h2>
-            ) : null}
-            <div
-              key={field.key}
-              className={`grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-2 ${
-                field.type === 'textarea' ? 'sm:col-span-2' : ''
-              }`}
-            >
-              <dt className='text-sm text-muted-foreground'>
-                {t(`org.fields.${field.key}`)}
-              </dt>
-              <dd className='text-sm break-words'>
-                {field.type === 'textarea' ? (
-                  <LongText>{String(data[field.key] ?? '—')}</LongText>
-                ) : (
-                  displayValue(
-                    field.key,
-                    data[field.key],
-                    options.data?.data,
-                    (key) => t(key),
-                    i18n.language,
-                  )
-                )}
-              </dd>
+        {fields[kind]
+          .filter((field) =>
+            pageFields.visible(`organization.${kind.slice(0, -1)}`, field.key),
+          )
+          .map((field, index, visible) => (
+            <div key={field.key} className='contents'>
+              {!isSmall(kind) &&
+              (index === 0 ||
+                sectionForField(field) !==
+                  sectionForField(visible[index - 1])) ? (
+                <h2 className='text-base font-semibold sm:col-span-2'>
+                  {t(`org.${sectionForField(field)}`)}
+                </h2>
+              ) : null}
+              <div
+                key={field.key}
+                className={`grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-2 ${
+                  field.type === 'textarea' ? 'sm:col-span-2' : ''
+                }`}
+              >
+                <dt className='text-sm text-muted-foreground'>
+                  {t(`org.fields.${field.key}`)}
+                </dt>
+                <dd className='text-sm break-words'>
+                  {field.type === 'textarea' ? (
+                    <LongText>{String(data[field.key] ?? '—')}</LongText>
+                  ) : (
+                    displayValue(
+                      field.key,
+                      data[field.key],
+                      options.data?.data,
+                      (key) => t(key),
+                      i18n.language,
+                    )
+                  )}
+                </dd>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
       </dl>
       <p className='text-xs text-muted-foreground'>
         {t('org.fields.updatedAt')} ·{' '}

@@ -74,6 +74,7 @@ const enUS = {
       'Tick the box to allow access, including the new/edit/detail pages below it; click a page or sub-page name to set its field permissions on the right. A green dot marks pages with saved field settings, a purple dot unsaved changes.',
     configure: 'Configure',
     morePages: 'More pages ({{count}})',
+    pageNoFields: 'No fields to configure',
     listPage: 'List',
     admin: 'Administration',
     adminHint: 'Manage roles, default access, users and account security.',
@@ -110,7 +111,7 @@ const enUS = {
     description:
       'Each page keeps its own field permissions: Editable / Read-only / Hidden. Required fields cannot be hidden.',
     selectPageHint: 'Pick a page or sub-page on the left to set its fields.',
-    empty: 'This page has no configurable fields.',
+    empty: 'This page is not wired for per-page field permissions yet.',
     field: 'Field',
     permission: 'Permission',
     required: 'Required',
@@ -121,8 +122,12 @@ const enUS = {
     footnote:
       'Only this page is affected; other pages using the same data keep their own settings.',
     copyToPages: 'Copy to other pages',
+    copyNoCandidates:
+      'No other page has exactly the same fields',
     copyHint:
-      'Copy this page’s field settings to the selected pages, replacing their existing settings.',
+      'Only pages with exactly the same fields are listed. Copying overwrites their current settings with this page’s settings.',
+    sharedEntry:
+      'Both entries open the same page, so they share these field permissions.',
     copyConfirm: 'Copy',
     copied: 'Field settings copied to {{count}} pages.',
   },

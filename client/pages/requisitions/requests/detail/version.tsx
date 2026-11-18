@@ -1,6 +1,11 @@
 import { DemandGovernance } from '#components/demand-governance/index';
 import { DemandAttachments } from '#components/demand-attachments/index';
-import { useOutletContext, useParams } from 'react-router';
+import {
+  useOutletContext,
+  useParams,
+  useResolvedPath,
+} from 'react-router';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import { useTranslation } from '@nocobase/i18n/client';
 import { RouteChildPage } from '#components/route-child-page';
 import { PageContainer } from '#components/page-container';
@@ -16,6 +21,12 @@ import {
 export default function SubmittedVersion() {
   const { t } = useTranslation(),
     { versionId } = useParams(),
+    related = useResolvedPath('.').pathname.includes('/related/'),
+    pageFields = usePageFieldVisibility(
+      related
+        ? 'requisitions-requests-related-version'
+        : 'requisitions-requests-version',
+    ),
     context = useOutletContext<DetailContext>(),
     result = useRequest(context.recordId),
     row = result.data?.data,
@@ -40,7 +51,13 @@ export default function SubmittedVersion() {
           <p>{t(ui('notFound'))}</p>
         ) : (
           <div className='flex flex-col gap-6'>
-            <RequestInformation row={row} snapshot={version} />
+            <RequestInformation
+              row={row}
+              snapshot={version}
+              visible={(field) =>
+                pageFields.visible('issue.request', field)
+              }
+            />
             <DemandGovernance domain='requisitions' request={row} readonly>
               <DemandLines lines={version.payload.lines} />
             </DemandGovernance>

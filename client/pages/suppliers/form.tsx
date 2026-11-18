@@ -178,15 +178,21 @@ export default function SupplierForm() {
       key={`${mode}-${partnerId ?? subjectId}`}
       mode={mode}
       pageKey={
-        mode === 'new'
-          ? location.pathname.includes('/sales/customers')
+        location.pathname.includes('/sales/customers')
+          ? mode === 'new'
             ? 'sales-customers-new'
-            : 'procurement-suppliers-new'
-          : mode === 'edit'
-            ? location.pathname.includes('/sales/customers')
+            : mode === 'edit'
               ? 'sales-customers-edit'
-              : 'procurement-suppliers-edit'
-            : undefined
+              : mode === 'identity'
+                ? 'sales-customers-identity'
+                : 'sales-customers-scope'
+          : mode === 'new'
+            ? 'procurement-suppliers-new'
+            : mode === 'edit'
+              ? 'procurement-suppliers-edit'
+              : mode === 'identity'
+                ? 'procurement-suppliers-identity'
+                : 'procurement-suppliers-scope'
       }
       row={mode === 'new' ? undefined : row}
       subjectId={subjectId}
@@ -465,10 +471,10 @@ function SupplierFormBody({
     mode === 'scope' &&
       Boolean(draft.regionIds.length || draft.subjectIds.length),
   );
-  const pageResource =
-    pageKey === 'sales-customers-new'
-      ? 'sales.customer'
-      : 'procurement.supplier.base';
+  const salesFamily = pageKey?.startsWith('sales-customers') ?? false;
+  const pageResource = salesFamily
+    ? 'sales.customer'
+    : 'procurement.supplier.base';
   const field = (
     key: 'code' | 'name' | 'registrationCode' | 'notes' | 'reason',
     required = false,

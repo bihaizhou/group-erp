@@ -26,6 +26,7 @@ import {
 } from '#components/ui/empty';
 import { OverflowText } from '../../materials/controls.js';
 import { StatusBadge } from '#components/status-badge';
+import { usePageFieldVisibility } from '#components/page-field-visibility';
 import {
   Loading,
   ErrorNotice,
@@ -39,6 +40,8 @@ import { purposeUi as pui, usePurposeCan, type Purpose } from './model.js';
 
 export default function PurposesPage() {
   const { t, i18n } = useTranslation(),
+    pageFields = usePageFieldVisibility('requisitions-purposes'),
+    show = (field: string) => pageFields.visible('issue.purpose', field),
     location = useLocation(),
     create = usePurposeCan('create'),
     read = usePurposeCan('read');
@@ -226,8 +229,8 @@ export default function PurposesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>{sort('code', 'code')}</TableHead>
-                  <TableHead>{t(pui('name'))}</TableHead>
-                  <TableHead>{t(pui('status'))}</TableHead>
+                  {show('name') && <TableHead>{t(pui('name'))}</TableHead>}
+                  {show('status') && <TableHead>{t(pui('status'))}</TableHead>}
                   <TableHead>{sort('updatedAt', 'updatedAt')}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -242,19 +245,23 @@ export default function PurposesPage() {
                         {row.code}
                       </Link>
                     </TableCell>
-                    <TableCell>
-                      <OverflowText
-                        text={row.name}
-                        className='block max-w-sm truncate'
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge
-                        tone={row.status === 'active' ? 'success' : 'neutral'}
-                      >
-                        {t(pui(row.status))}
-                      </StatusBadge>
-                    </TableCell>
+                    {show('name') && (
+                      <TableCell>
+                        <OverflowText
+                          text={row.name}
+                          className='block max-w-sm truncate'
+                        />
+                      </TableCell>
+                    )}
+                    {show('status') && (
+                      <TableCell>
+                        <StatusBadge
+                          tone={row.status === 'active' ? 'success' : 'neutral'}
+                        >
+                          {t(pui(row.status))}
+                        </StatusBadge>
+                      </TableCell>
+                    )}
                     <TableCell>
                       {new Date(row.updatedAt).toLocaleString(i18n.language)}
                     </TableCell>

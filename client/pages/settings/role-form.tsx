@@ -429,12 +429,23 @@ function RoleEditor(): ReactElement {
       draft.visible !== baseline.visible || draft.writable !== baseline.writable
     );
   };
+  const fieldSignature = (target: PageDisplayTarget) =>
+    pageFieldResourcesForTarget(target, catalogResources)
+      .flatMap((resource) =>
+        resource.fields.map((field) =>
+          fieldPolicyKey(resource.resource, field.field),
+        ),
+      )
+      .sort()
+      .join('|');
+  const selectedSignature = selectedTarget
+    ? fieldSignature(selectedTarget)
+    : '';
   const copyCandidates = [...allTargets.values()].filter(
     (target) =>
       target.pageKey !== selectedTarget?.pageKey &&
-      target.resources.some((resource) =>
-        selectedTarget?.resources.includes(resource),
-      ),
+      selectedSignature.length > 0 &&
+      fieldSignature(target) === selectedSignature,
   );
 
   const selectPage = (node: PermissionEditorNavigationNode) => {
@@ -586,6 +597,17 @@ function RoleEditor(): ReactElement {
       .filter((target) => target.advanced)
       .map((target) => target.pageKey),
   );
+  const disabledPageKeys = fieldCatalog.isSuccess
+    ? new Set(
+        [...allTargets.values()]
+          .filter(
+            (target) =>
+              pageFieldResourcesForTarget(target, catalogResources).length ===
+              0,
+          )
+          .map((target) => target.pageKey),
+      )
+    : new Set<string>();
 
   const save = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -740,7 +762,7 @@ function RoleEditor(): ReactElement {
         <>
           <div className='flex flex-wrap items-start justify-between gap-3'>
             {pagePanelHeader}
-            {allowed && copyCandidates.length > 0 && (
+            {allowed && pageFieldResources.length > 0 && (
               <Popover open={copyOpen} onOpenChange={setCopyOpen}>
                 <PopoverTrigger
                   render={
@@ -749,7 +771,12 @@ function RoleEditor(): ReactElement {
                       variant='outline'
                       size='sm'
                       className='shrink-0 gap-1'
-                      disabled={copyBusy}
+                      disabled={copyBusy || copyCandidates.length === 0}
+                      title={
+                        copyCandidates.length === 0
+                          ? t('pageFieldPermission.copyNoCandidates')
+                          : undefined
+                      }
                     />
                   }
                 >
@@ -811,6 +838,11 @@ function RoleEditor(): ReactElement {
               </Popover>
             )}
           </div>
+          {selectedTarget.merged && (
+            <p className='mb-2 mt-3 rounded-md border bg-muted/40 px-3 py-2 text-xs leading-5 text-muted-foreground'>
+              {t('pageFieldPermission.sharedEntry')}
+            </p>
+          )}
           <p className='mb-3 mt-1 text-xs leading-5 text-muted-foreground'>
             {t('pageFieldPermission.description')}
           </p>
@@ -979,6 +1011,7 @@ function RoleEditor(): ReactElement {
                   pageDirtyKeys={pageDirtyKeys}
                   pageConfiguredKeys={configuredPageKeys}
                   advancedPageKeys={advancedPageKeys}
+                  pageDisabledKeys={disabledPageKeys}
                   pagePanel={pagePanel}
                   pageLabel={(node) =>
                     allTargets.get(node.pageKey ?? '')?.tabLabel ?? node.label
@@ -1017,6 +1050,7 @@ function RoleEditor(): ReactElement {
                     fieldsConfigured: t('fieldPermission.configured'),
                     accessGranted: t('fieldPermission.accessible'),
                     pageUnsaved: t('pageFieldVisibility.pageUnsaved'),
+                    pageNoFields: t('permissionGuide.pageNoFields'),
                     morePages: (count) =>
                       t('permissionGuide.morePages', { count }),
                     listPage: t('permissionGuide.listPage'),

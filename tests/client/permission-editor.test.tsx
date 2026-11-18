@@ -712,7 +712,9 @@ describe('application-owned page navigation', () => {
         pageDirtyKeys={new Set(['books-detail'])}
         pageConfiguredKeys={new Set(['books-new'])}
         advancedPageKeys={new Set(['books-new-materials'])}
-        pageLabel={(node) => node.label.replace('Books · ', '').replace(' · ', ' / ')}
+        pageLabel={(node) =>
+          node.label.replace('Books · ', '').replace(' · ', ' / ')
+        }
         pagePanel={<div>Panel content</div>}
       />,
     );
@@ -753,7 +755,54 @@ describe('application-owned page navigation', () => {
     );
   });
 
-  it('separates keyboard disclosure, individual grants and the host form submit', async () => {    const user = userEvent.setup();
+  it('disables leaf pages that have no configurable fields', async () => {
+    const select = vi.fn();
+    render(
+      <PermissionEditor
+        sections={[
+          {
+            id: 'pages',
+            groups: [
+              {
+                id: 'books',
+                rows: [{ id: 'books', label: 'Books', enabled: true }],
+              },
+            ],
+            navigation: [
+              {
+                id: 'books-node',
+                label: 'Books',
+                rowId: 'books',
+                pageKey: 'books',
+                path: '/books',
+                children: [
+                  {
+                    id: 'new',
+                    label: 'Books · New',
+                    hint: 'Follows Books',
+                    pageKey: 'books-new',
+                    path: '/books/new',
+                  },
+                ],
+              },
+            ],
+          },
+        ]}
+        onEnabledChange={vi.fn()}
+        onLevelChange={vi.fn()}
+        onPageSelect={select}
+        pageDisabledKeys={new Set(['books-new'])}
+      />,
+    );
+    const leaf = screen.getByRole('button', { name: 'Configure Books · New' });
+    expect(leaf).toBeDisabled();
+    expect(leaf).toHaveAttribute('title', 'No configurable fields');
+    await userEvent.setup().click(leaf);
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it('separates keyboard disclosure, individual grants and the host form submit', async () => {
+    const user = userEvent.setup();
     const change = vi.fn();
     const submit = vi.fn((event: React.FormEvent) => event.preventDefault());
     render(
@@ -1109,7 +1158,9 @@ describe('compact permission controls', () => {
     );
     expect(screen.queryAllByRole('switch')).toHaveLength(0);
     expect(screen.getByRole('checkbox', { name: 'Catalog' })).toBeChecked();
-    expect(screen.getByRole('checkbox', { name: 'Review loans' })).toBeVisible();
+    expect(
+      screen.getByRole('checkbox', { name: 'Review loans' }),
+    ).toBeVisible();
     // Rows are plain checkbox rows; the field panel is opened by the host.
     expect(
       screen.queryByRole('button', { name: /Configure/ }),

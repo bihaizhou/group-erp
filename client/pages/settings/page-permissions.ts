@@ -8,6 +8,7 @@ import type {
 } from '#components/permission-editor';
 import type { RouteNavigationItem } from '../../routing/route-navigation.js';
 import { pageDataResourcesFor } from '../../routing/page-data-resources.js';
+import { canonicalPageKey } from './page-keys.js';
 
 /** Application route names are stable within their owner; labels never change stored grants. */
 export type PagePermissionTitles = Readonly<Record<string, string>>;
@@ -94,7 +95,7 @@ function pageKeyFor(route: AppClientRegisteredRoute): string | undefined {
   // access can be granted, and the field panel explains that there is
   // nothing to configure. Field resources are resolved by the editor when it
   // builds the page targets.
-  return route.componentLoader ? route.name : undefined;
+  return route.componentLoader ? canonicalPageKey(route.name) : undefined;
 }
 
 export function pagePermissionNavigation(
@@ -183,6 +184,7 @@ export function pagePermissionNavigation(
           label,
           rowId,
           pageKey: pageKeyFor(route),
+          routeName: route.name,
           resourceId: resource?.id,
           dataResources: pageDataResourcesFor(route.name),
           ...(inherited

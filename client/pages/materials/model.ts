@@ -152,6 +152,19 @@ export const pathFor = (kind: Kind) =>
     : `/functions/warehouse/materials${kind === 'skus' ? '' : `/${kind}`}`;
 export const pageId = (kind: Kind | 'history') =>
   kind === 'skus' ? 'warehouse-materials' : `warehouse-material-${kind}`;
+export const resourceFor = (kind: Kind) =>
+  ({
+    names: 'name',
+    skus: 'sku',
+    templates: 'template',
+    units: 'unit',
+    unitRules: 'unitRule',
+    references: 'reference',
+    tags: 'tag',
+    tagLinks: 'tagLink',
+    requests: 'request',
+    warehouses: 'warehouse',
+  })[kind];
 export const statuses = (kind: Kind) =>
   kind === 'requests'
     ? ['draft', 'pending', 'resolved', 'withdrawn']

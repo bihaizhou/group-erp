@@ -164,14 +164,25 @@ describe('page field visibility', () => {
     const c = (claimed?: string) => ({
       req: { header: () => claimed },
     });
+    const claimed = pageKeyForRequest(
+      c('procurement-requests-list-edit'),
+      'procurement-requests',
+      'procurement-requests-list-edit',
+    );
+    expect(claimed).toBe('procurement-requests-edit');
     expect(
-      pageKeyForRequest(c('procurement-requests-list-edit'), 'procurement-requests', 'procurement-requests-list-edit'),
-    ).toBe('procurement-requests-list-edit');
-    expect(
-      pageKeyForRequest(c('procurement-requests-new'), 'procurement-requests', 'procurement-requests-list-edit'),
+      pageKeyForRequest(
+        c('procurement-requests-new'),
+        'procurement-requests',
+        'procurement-requests-list-edit',
+      ),
     ).toBe('procurement-requests');
     expect(
-      pageKeyForRequest(c(undefined), 'procurement-requests', 'procurement-requests-list-edit'),
+      pageKeyForRequest(
+        c(undefined),
+        'procurement-requests',
+        'procurement-requests-list-edit',
+      ),
     ).toBe('procurement-requests');
   });
 
