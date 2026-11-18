@@ -220,6 +220,10 @@ describe('app client routes', () => {
         name: 'settingsDefaultAccessEdit',
         authorizedAs: 'settings:authorization.default-access',
       },
+      {
+        name: 'settingsIdentityPreview',
+        authorizedAs: 'settings:authorization.permission-sets',
+      },
     ]);
     const materialRoutes = authorizations.filter((route) =>
       route.name.startsWith('warehouse-material'),
