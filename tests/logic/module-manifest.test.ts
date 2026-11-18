@@ -17,6 +17,7 @@ describe('function module manifest', () => {
       'production',
       'operations',
       'assets',
+      'finance',
     ]);
   });
 
