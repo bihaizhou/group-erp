@@ -327,3 +327,20 @@ export function unconfiguredFilter(
     }
   return undefined;
 }
+
+/** Actions that only read data; a set with nothing else is a read-only role. */
+const READ_ONLY_ACTIONS = new Set(['access', 'read', 'readAll', 'report']);
+
+/**
+ * Whether a permission set grants no write capability at all. Used by the page
+ * field editor so a "只读" role starts with read-only fields instead of
+ * pretending every field is editable.
+ */
+export function isReadOnlyGrants(
+  grants: readonly PermissionGrant[],
+): boolean {
+  if (grants.length === 0) return false;
+  return grants.every((grant) =>
+    grant.actions.every((action) => READ_ONLY_ACTIONS.has(action.action)),
+  );
+}

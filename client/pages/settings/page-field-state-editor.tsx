@@ -26,6 +26,8 @@ interface PageFieldStateEditorProps {
   /** Field keys that can never be editable (server computes them). */
   neverWritableFields?: ReadonlySet<string> | undefined;
   modifiedOf?: (resource: string, field: string) => boolean;
+  /** The role only has read grants, so editable would be meaningless. */
+  readOnlyRole?: boolean;
   readOnly?: boolean;
 }
 
@@ -89,6 +91,7 @@ export function PageFieldStateEditor({
   readonlyForbiddenFields,
   neverWritableFields,
   modifiedOf,
+  readOnlyRole = false,
   readOnly = false,
 }: PageFieldStateEditorProps): ReactElement {
   const { t } = useTranslation();
@@ -115,7 +118,7 @@ export function PageFieldStateEditor({
           const hiddenDisabled = readOnly || locked;
           const readonlyDisabled =
             readOnly || (readonlyForbiddenFields?.has(key) ?? false);
-          const editableDisabled = readOnly || neverWritable;
+          const editableDisabled = readOnly || readOnlyRole || neverWritable;
           const label = fieldLabelOf(
             {
               resource: resource.resource,
@@ -154,7 +157,11 @@ export function PageFieldStateEditor({
                     state='editable'
                     current={current}
                     disabled={editableDisabled}
-                    title={label}
+                    title={
+                      editableDisabled && readOnlyRole && !neverWritable
+                        ? t('pageFieldPermission.readOnlyRoleHint')
+                        : label
+                    }
                     onClick={() =>
                       onChange(resource.resource, field.field, 'editable')
                     }

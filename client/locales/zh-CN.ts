@@ -111,6 +111,8 @@ const zhCN: AppResource = {
     editable: '可编辑',
     readonly: '只读',
     hidden: '不显示',
+    readOnlyRoleHint:
+      '该角色只有查看权限，字段默认只读；如需编辑，请先在“后台管理”里授予更新权限。',
     modifiedRecently: '修改于刚才',
     footnote: '只影响此页面；使用同一份数据的其他页面保持各自的设置。',
     copyToPages: '复制到其他页面',

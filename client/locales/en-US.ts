@@ -118,6 +118,8 @@ const enUS = {
     editable: 'Editable',
     readonly: 'Read-only',
     hidden: 'Hidden',
+    readOnlyRoleHint:
+      'This role only reads data, so fields default to read-only. Grant update actions under Backend administration to make them editable.',
     modifiedRecently: 'Modified just now',
     footnote:
       'Only this page is affected; other pages using the same data keep their own settings.',

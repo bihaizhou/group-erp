@@ -92,6 +92,7 @@ import { configurePermissionScopes } from './permission-filters.js';
 import {
   permissionSections,
   unconfiguredFilter,
+  isReadOnlyGrants,
   setPermissions,
   setScope,
 } from './permissions-model.js';
@@ -108,6 +109,11 @@ const DEFAULT_STATE: Readonly<PageFieldStateValue> = {
 
 const HIDDEN_STATE: Readonly<PageFieldStateValue> = {
   visible: false,
+  writable: false,
+};
+
+const READONLY_STATE: Readonly<PageFieldStateValue> = {
+  visible: true,
   writable: false,
 };
 
@@ -211,6 +217,10 @@ function RoleEditor(): ReactElement {
   const name = nameDraft ?? (initial ? text(initial.title ?? initial.key) : '');
   const roleKey = keyDraft ?? initial?.key ?? '';
   const grants = grantsDraft ?? initial?.grants ?? [];
+  // A role whose grants only read data (e.g. 资产集团只读) starts with
+  // read-only fields; otherwise every unconfigured field stays editable.
+  const readOnlyRole = isReadOnlyGrants(grants);
+  const defaultFieldState = readOnlyRole ? READONLY_STATE : DEFAULT_STATE;
   const catalog = useMemo(() => {
     if (!options.data) return undefined;
     const pages = pagePermissionResources(
@@ -409,7 +419,7 @@ function RoleEditor(): ReactElement {
     const value =
       savedStates[fieldKey] ??
       legacyStates[fieldKey] ??
-      (legacyDefault ? DEFAULT_STATE : HIDDEN_STATE);
+      (legacyDefault ? defaultFieldState : HIDDEN_STATE);
     // Fields the catalogue marks as never writable (computed overview
     // numbers…) can only be visible or hidden, so show them as read-only
     // instead of offering an "editable" state the server will reject.
@@ -554,7 +564,9 @@ function RoleEditor(): ReactElement {
             for (const field of resource.fields) {
               const fieldKey = fieldPolicyKey(resource.resource, field.field);
               fields[fieldKey] =
-                sourceStates[fieldKey] ?? targetSaved[fieldKey] ?? DEFAULT_STATE;
+                sourceStates[fieldKey] ??
+                targetSaved[fieldKey] ??
+                defaultFieldState;
             }
           }
           const pruned = Object.fromEntries(
@@ -562,7 +574,7 @@ function RoleEditor(): ReactElement {
               const baseline =
                 targetSaved[fieldKey] ??
                 legacyStates[fieldKey] ??
-                (legacyDefault ? DEFAULT_STATE : HIDDEN_STATE);
+                (legacyDefault ? defaultFieldState : HIDDEN_STATE);
               return (
                 value.visible !== baseline.visible ||
                 value.writable !== baseline.writable
@@ -695,7 +707,7 @@ function RoleEditor(): ReactElement {
       const fields = resources.flatMap((resource) =>
         resource.fields.map((field) => {
           const fieldKey = fieldPolicyKey(resource.resource, field.field);
-          const value = draft.fields[fieldKey] ?? DEFAULT_STATE;
+          const value = draft.fields[fieldKey] ?? defaultFieldState;
           return {
             resource: resource.resource,
             field: field.field,
@@ -846,6 +858,11 @@ function RoleEditor(): ReactElement {
           <p className='mb-3 mt-1 text-xs leading-5 text-muted-foreground'>
             {t('pageFieldPermission.description')}
           </p>
+          {readOnlyRole && (
+            <p className='mb-3 rounded-md border bg-muted/40 px-3 py-2 text-xs leading-5 text-muted-foreground'>
+              {t('pageFieldPermission.readOnlyRoleHint')}
+            </p>
+          )}
           {fieldCatalog.isError ||
           pageFieldVisibility.isError ||
           fieldPolicies.isError ? (
@@ -879,6 +896,7 @@ function RoleEditor(): ReactElement {
               readonlyForbiddenFields={readonlyForbiddenFields}
               neverWritableFields={neverWritableFields}
               modifiedOf={modifiedOf}
+              readOnlyRole={readOnlyRole}
               readOnly={!allowed || busy}
             />
           )}

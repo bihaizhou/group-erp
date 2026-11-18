@@ -4,6 +4,7 @@ import {
   setPermissions,
   permissionSections,
   setScope,
+  isReadOnlyGrants,
   type CatalogResource,
 } from '../../client/pages/settings/permissions-model.js';
 const resource: CatalogResource = {
@@ -366,4 +367,28 @@ it('keeps scope metadata while ungranted without creating a grant or selecting i
     row.scopes?.map((scope) => scope.id),
   );
   expect(enabled.scopes?.[0]?.level).toBe('mine');
+});
+
+
+describe('isReadOnlyGrants', () => {
+  it('treats access/read/report grants as read-only and write actions as editable', () => {
+    expect(
+      isReadOnlyGrants([
+        { resource: { type: 'page', id: 'assets' }, actions: [{ action: 'access' }] },
+        {
+          resource: { type: 'settings', id: 'assets' },
+          actions: [{ action: 'read' }, { action: 'readAll' }],
+        },
+      ]),
+    ).toBe(true);
+    expect(
+      isReadOnlyGrants([
+        {
+          resource: { type: 'composite', id: 'orders' },
+          actions: [{ action: 'read' }, { action: 'update' }],
+        },
+      ]),
+    ).toBe(false);
+    expect(isReadOnlyGrants([])).toBe(false);
+  });
 });

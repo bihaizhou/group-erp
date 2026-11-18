@@ -27,6 +27,8 @@ import { z } from 'zod';
 
 type Env = AuthEnv & AuthorizationEnv;
 const params = z.object({ id: z.string().length(36) });
+/** Built-in sets stored under bare keys; never assign them through positions. */
+const BUILTIN_SET_KEYS = new Set(['root', 'member']);
 const body = z.object({
   permissionSetKeys: z.array(z.string().min(1).max(64)).max(50),
 });
@@ -46,6 +48,9 @@ function titleOf(raw: unknown): string {
 }
 
 function grantCount(raw: unknown): number {
+  // The repository may return JSON columns already parsed, or still as text
+  // (raw SQL). Count either shape instead of reporting 0 grants for every set.
+  if (Array.isArray(raw)) return raw.length;
   if (typeof raw !== 'string') return 0;
   try {
     const parsed: unknown = JSON.parse(raw);
@@ -183,7 +188,9 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
             }),
             permissionSets: sets
               .filter(
-                (set) => !text(set.key).startsWith('permissionSets.builtin.'),
+                (set) =>
+                  !BUILTIN_SET_KEYS.has(text(set.key)) &&
+                  !text(set.key).startsWith('permissionSets.builtin.'),
               )
               .map((set) => ({
                 key: text(set.key),
@@ -253,7 +260,7 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
             sets
               .filter(
                 (set) =>
-                  text(set.key) === 'root' ||
+                  BUILTIN_SET_KEYS.has(text(set.key)) ||
                   text(set.key).startsWith('permissionSets.builtin.'),
               )
               .map((set) => text(set.key)),
