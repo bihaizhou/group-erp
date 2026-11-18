@@ -22,6 +22,7 @@ import {
 } from '@nocobase/app-server/runtime';
 import { spaRootRoutes } from '@nocobase/app-server/spa';
 import { permissionSetPageValidation } from './providers/permission-set-page-validation.js';
+import { permissionSetFieldDefaults } from './providers/permission-set-field-defaults.js';
 
 export function createApp(runtime: AppRuntimeContext): Application {
   const app = createAppFromRuntime(runtime);
@@ -44,6 +45,7 @@ export function createApp(runtime: AppRuntimeContext): Application {
   app.addHttpMiddleware(sessionHttpMiddleware);
   app.addHttpMiddleware(i18nHttpMiddleware);
   app.addHttpMiddleware(permissionSetPageValidation);
+  app.addHttpMiddleware(permissionSetFieldDefaults);
   app.addRoutes(healthCheckApiRoutes);
   app.addRuntimeContributions(runtime);
   app.addRoutes(spaRootRoutes);
