@@ -4,6 +4,7 @@ import type {
   RepositoryRecord,
 } from '@nocobase/db';
 import { businessDate } from './business-date.js';
+import { activeEmployeeForPrincipal } from './active-employee.js';
 import { isSuperAdmin } from './super-admin.js';
 
 type Row = RepositoryRecord;
@@ -87,9 +88,7 @@ export async function resolveProductionIdentity(
   if (principal.type && principal.type !== 'user')
     return empty(today, 'NO_EMPLOYEE');
 
-  const person = await database.repository('personnelEmployees').findOne({
-    filter: { accountId: principal.id, status: 'active' },
-  });
+  const person = await activeEmployeeForPrincipal(database, principal);
   if (!person) {
     if (await isSuperAdmin(database, principal))
       return superAdminIdentity(database, today);

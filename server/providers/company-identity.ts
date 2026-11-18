@@ -1,4 +1,5 @@
 import type { DatabaseManager } from '@nocobase/db';
+import { activeEmployeeForPrincipal } from './active-employee.js';
 import { businessDate } from './business-date.js';
 
 // Identity evidence only: callers still need an explicit business permission.
@@ -8,9 +9,7 @@ export async function currentCompanyForUser(
   principal: { type: string; id: string },
 ): Promise<string | null> {
   if (principal.type !== 'user') return null;
-  const person = await database.repository('personnelEmployees').findOne({
-    filter: { accountId: principal.id, status: 'active' },
-  });
+  const person = await activeEmployeeForPrincipal(database, principal);
   if (!person || typeof person.subjectId !== 'string') return null;
   const today = businessDate(timeZone);
   const employments = await database

@@ -4,6 +4,7 @@ import {
   ShieldCheck,
   KeyRound,
   ListFilter,
+  Eye,
 } from 'lucide-react';
 import {
   defineAppRoutes,
@@ -142,6 +143,23 @@ const systemSettingsRoutes: AppClientRouteContribution = defineAppRoutes([
                 componentLoader: () => import('./default-access-form.js'),
               },
             ],
+          },
+          {
+            name: 'settingsIdentityPreview',
+            path: '/identity-preview',
+            auth: 'required',
+            // The server only lets the super administrator start a preview;
+            // this gate keeps the page out of every other role's navigation.
+            authz: {
+              resource: {
+                type: 'settings',
+                id: 'authorization.permission-sets',
+              },
+              action: 'read',
+            },
+            navigation: { title: 'settings.identityPreview.title', icon: Eye },
+            breadcrumb: { title: 'settings.identityPreview.title' },
+            componentLoader: () => import('./identity-preview.js'),
           },
         ],
       },

@@ -1,6 +1,6 @@
 import { useTranslation } from '@nocobase/i18n/client';
 import { Link } from 'react-router';
-import { ArrowRight, KeyRound, ListFilter, Users } from 'lucide-react';
+import { ArrowRight, Eye, KeyRound, ListFilter, Users } from 'lucide-react';
 import type { AuthorizationRequirement } from '@nocobase/app-plugin-authorization/client';
 import { useCan } from '@nocobase/app-plugin-authorization/client';
 import { PageContainer } from '#components/page-container';
@@ -46,6 +46,17 @@ const entries = [
       action: 'read',
     } satisfies AuthorizationRequirement,
   },
+  {
+    id: 'identity-preview',
+    path: '/settings/identity-preview',
+    icon: Eye,
+    titleKey: 'settingsHub.identityPreview',
+    hintKey: 'settingsHub.identityPreviewHint',
+    requirement: {
+      resource: { type: 'settings', id: 'authorization.permission-sets' },
+      action: 'read',
+    } satisfies AuthorizationRequirement,
+  },
 ] as const;
 
 /** Landing page for the settings section: /settings itself has no other content once no page is selected. */
@@ -54,7 +65,13 @@ export default function SettingsOverviewPage() {
   const usersAccess = useCan(entries[0].requirement);
   const rolesAccess = useCan(entries[1].requirement);
   const defaultAccessAccess = useCan(entries[2].requirement);
-  const access = [usersAccess, rolesAccess, defaultAccessAccess];
+  const identityPreviewAccess = useCan(entries[3].requirement);
+  const access = [
+    usersAccess,
+    rolesAccess,
+    defaultAccessAccess,
+    identityPreviewAccess,
+  ];
   const visible = entries.filter((_, index) => {
     const { can, isPending } = access[index];
     return !isPending && can;

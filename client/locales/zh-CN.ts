@@ -60,6 +60,26 @@ const zhCN: AppResource = {
     rolesHint: '为每个页面设置字段可编辑、只读或不显示。',
     defaultAccess: '默认范围',
     defaultAccessHint: '补充已有操作权限的用户能访问哪些记录。',
+    identityPreview: '员工身份预览',
+    identityPreviewHint: '以某位在职员工的身份查看业务页面，无需新建员工档案。',
+  },
+  identityPreview: {
+    title: '员工身份预览',
+    description:
+      '业务页面需要账号背后有真实的员工档案。这里可以让超级管理员临时借用一位在职员工的业务身份，用于验证页面与数据；预览两小时后自动结束。',
+    rootOnly: '只有超级管理员可以使用员工身份预览。',
+    current: '正在以“{{name}}”的员工身份预览，结束时间 {{expires}}。',
+    currentHint:
+      '结束预览后立即恢复为管理员账号本身；不结束也会在两小时后自动失效。',
+    banner: '员工身份预览中：{{name}} · 至 {{expires}}',
+    stop: '结束预览',
+    start: '开始预览',
+    started: '已开始以“{{name}}”的身份预览。',
+    stopped: '已结束员工身份预览。',
+    search: '搜索员工姓名、工号、岗位或部门',
+    loading: '正在加载员工列表…',
+    empty: '没有可选的在职员工。',
+    noPosition: '暂无岗位',
   },
   permissionGuide: {
     rolesDescription:
@@ -102,7 +122,8 @@ const zhCN: AppResource = {
     levelWrite: '写入',
   },
   pageFieldPermission: {
-    description: '每个页面独立一份字段权限：可编辑 / 只读 / 不显示。必填字段不能设为“不显示”。',
+    description:
+      '每个页面独立一份字段权限：可编辑 / 只读 / 不显示。必填字段不能设为“不显示”。',
     selectPageHint: '从左侧选择一个页面或子页面，设置其字段权限。',
     empty: '此页面暂未接入逐页字段权限。',
     field: '字段',
@@ -116,13 +137,11 @@ const zhCN: AppResource = {
     modifiedRecently: '修改于刚才',
     footnote: '只影响此页面；使用同一份数据的其他页面保持各自的设置。',
     copyToPages: '复制到其他页面',
-    copyNoCandidates:
-      '没有字段完全相同的其他页面',
+    copyNoCandidates: '没有字段完全相同的其他页面',
     copyHint:
       '只列出字段完全相同的页面。复制会用当前页面的设置覆盖它们的原有设置。',
     copyConfirm: '复制',
-    sharedEntry:
-      '这两个入口打开的是同一个页面，共用这里的字段权限。',
+    sharedEntry: '这两个入口打开的是同一个页面，共用这里的字段权限。',
     copied: '字段设置已复制到 {{count}} 个页面。',
   },
   pageFieldVisibility: {

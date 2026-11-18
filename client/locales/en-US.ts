@@ -65,6 +65,27 @@ const enUS = {
     defaultAccess: 'Default access',
     defaultAccessHint:
       'Supplement which records existing operation grants can reach.',
+    identityPreview: 'Staff identity preview',
+    identityPreviewHint:
+      'View business pages as an active employee without creating an employee card.',
+  },
+  identityPreview: {
+    title: 'Staff identity preview',
+    description:
+      'Business pages need a real employee behind the account. This lets the super administrator temporarily borrow an active employee identity to check pages and data; the preview ends automatically after two hours.',
+    rootOnly: 'Only the super administrator may preview a staff identity.',
+    current: 'Previewing as {{name}} until {{expires}}.',
+    currentHint:
+      'Stopping the preview restores the administrator account immediately; otherwise it expires after two hours.',
+    banner: 'Staff identity preview: {{name}} · until {{expires}}',
+    stop: 'Stop preview',
+    start: 'Start preview',
+    started: 'Now previewing as {{name}}.',
+    stopped: 'Staff identity preview ended.',
+    search: 'Search name, employee code, position or unit',
+    loading: 'Loading employees…',
+    empty: 'No active employees available.',
+    noPosition: 'No position',
   },
   permissionGuide: {
     rolesDescription:
@@ -124,8 +145,7 @@ const enUS = {
     footnote:
       'Only this page is affected; other pages using the same data keep their own settings.',
     copyToPages: 'Copy to other pages',
-    copyNoCandidates:
-      'No other page has exactly the same fields',
+    copyNoCandidates: 'No other page has exactly the same fields',
     copyHint:
       'Only pages with exactly the same fields are listed. Copying overwrites their current settings with this page’s settings.',
     sharedEntry:

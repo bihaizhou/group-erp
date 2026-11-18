@@ -25,6 +25,7 @@ import { NavigationMenu } from './components/navigation-menu.js';
 import { AppBrand } from './components/app-brand.js';
 import { HeaderActions } from './components/header-actions.js';
 import { CompanySwitcher } from './components/company-switcher.js';
+import { IdentityPreviewBanner } from './components/identity-preview-banner.js';
 import { AppSidebarFooter } from './components/sidebar-footer.js';
 import {
   useRouteNavigation,
@@ -79,6 +80,7 @@ export function AppLayout({ routes }: AppLayoutProps): ReactElement {
                 </div>
                 <HeaderActions />
               </LayoutHeader>
+              <IdentityPreviewBanner />
               <main className='app-brand-surface relative isolate min-w-0 flex-1 overflow-hidden'>
                 <BrandWatermark className='-z-10' />
                 {/* main only positions; the page scrolls in here, so a child page layer laid over main is neither

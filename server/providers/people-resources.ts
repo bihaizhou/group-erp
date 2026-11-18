@@ -1,4 +1,5 @@
 import { businessDate } from './business-date.js';
+import { activeEmployeeForPrincipal } from './active-employee.js';
 import {
   defineCompositeResource,
   defineRecordAccess,
@@ -115,9 +116,7 @@ export function ownCompanyAccess(
       )
       .resolver(async ({ principal }) => {
         if (principal.type !== 'user') return false;
-        const person = await database
-          .repository('personnelEmployees')
-          .findOne({ filter: { accountId: principal.id, status: 'active' } });
+        const person = await activeEmployeeForPrincipal(database, principal);
         if (
           !person ||
           typeof person.id !== 'string' ||

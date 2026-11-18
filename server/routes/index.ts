@@ -23,6 +23,7 @@ import { operationsRoutes } from './operations.js';
 import { positionPermissionRoutes } from './position-permissions.js';
 import { fieldPolicyRoutes } from './field-policies.js';
 import { pageFieldVisibilityRoutes } from './page-field-visibility.js';
+import { identityPreviewRoutes } from './identity-preview.js';
 import { assetRoutes } from './assets.js';
 import {
   supplyChainFileApiGuard,
@@ -69,6 +70,7 @@ const routes: readonly AppRouteContribution<Application>[] = [
   positionPermissionRoutes,
   fieldPolicyRoutes,
   pageFieldVisibilityRoutes,
+  identityPreviewRoutes,
   assetRoutes,
   supplyChainFileApiGuard,
   supplyChainFileContentGuard,

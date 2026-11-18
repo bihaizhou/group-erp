@@ -4,6 +4,7 @@ import type {
   DatabaseManager,
   FilterBuilder,
 } from '@nocobase/db';
+import { activeEmployeeForPrincipal } from './active-employee.js';
 import { businessDate } from './business-date.js';
 import { materialIdFilter } from './material-filters.js';
 
@@ -75,9 +76,7 @@ export async function resolvePurchaseIdentity(
   principal: IdentityPrincipal,
 ): Promise<PurchaseIdentity> {
   if (principal.type && principal.type !== 'user') return empty();
-  const person = await c
-    .repository('personnelEmployees')
-    .findOne({ filter: { accountId: principal.id, status: 'active' } });
+  const person = await activeEmployeeForPrincipal(c, principal);
   if (!person) return empty();
   const personId = text(person.id);
   const employee = {
@@ -240,9 +239,7 @@ export async function currentCompaniesForUser(
 ): Promise<string[]> {
   if (principal.type && principal.type !== 'user') return [];
   const c = database.connection(),
-    person = await c
-      .repository('personnelEmployees')
-      .findOne({ filter: { accountId: principal.id, status: 'active' } });
+    person = await activeEmployeeForPrincipal(c, principal);
   if (!person) return [];
   const employments = await c.repository('personnelEmployments').findMany({
     filter: { personId: text(person.id), status: 'active' },
