@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   check:
-    name: 静态检查与单元测试
+    name: 类型检查与单元测试
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # ESLint 扫描整个仓库时默认堆会 OOM，提到 4GB 后与本地一致。
