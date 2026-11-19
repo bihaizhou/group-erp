@@ -132,13 +132,17 @@ export function desiredPermissionKeys(
 
 /**
  * Reconcile an account's permission-set assignments with the positions it
- * currently holds. Only keys that are configured on some position are
- * candidates for removal, so unrelated manual grants survive.
+ * currently holds. Only keys that are configured on some position — or keys
+ * explicitly named as coming from the position being edited — are candidates
+ * for removal, so unrelated manual grants survive. The explicit list matters
+ * when a template is unlinked: its keys are no longer mapped anywhere, and
+ * without it the stale assignments would survive forever.
  */
 export async function syncAccountPositionPermissions(
   db: DatabaseConnection,
   accountId: string,
   timeZone = 'Asia/Shanghai',
+  revokeKeys: Iterable<string> = [],
 ): Promise<{ granted: number; revoked: number }> {
   if (!accountId) return { granted: 0, revoked: 0 };
   const employees = await db
@@ -173,6 +177,8 @@ export async function syncAccountPositionPermissions(
   const mappedKeys = new Set(
     effective.map((row) => text(row.permissionSetKey)).filter(Boolean),
   );
+  const removalCandidates = new Set(mappedKeys);
+  for (const key of revokeKeys) if (key) removalCandidates.add(key);
   const currentKeys = new Set(
     current.map((row) => text(row.permissionSetKey)).filter(Boolean),
   );
@@ -181,7 +187,7 @@ export async function syncAccountPositionPermissions(
   let revoked = 0;
   const now = new Date();
   for (const key of currentKeys) {
-    if (!mappedKeys.has(key) || desired.has(key)) continue;
+    if (!removalCandidates.has(key) || desired.has(key)) continue;
     await db.repository('authorizationPermissionSetAssignments').deleteMany({
       filter: {
         subjectType: 'user',

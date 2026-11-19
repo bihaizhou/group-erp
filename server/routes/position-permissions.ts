@@ -34,6 +34,10 @@ const params = z.object({ id: z.string().length(36) });
 const BUILTIN_SET_KEYS = new Set(['root', 'member']);
 const body = z.object({
   permissionSetKeys: z.array(z.string().min(1).max(64)).max(50),
+  // Saving the template and the explicit sets together keeps one form, one
+  // save and one transaction; separate calls leave a half-applied permission
+  // state when the second request fails.
+  templateId: z.string().length(36).nullable().optional(),
 });
 const templateBody = z.object({
   code: z.string().min(2).max(64),
@@ -73,17 +77,51 @@ function titleOf(raw: unknown): string {
   return raw;
 }
 
-function grantCount(raw: unknown): number {
+function grantSummary(raw: unknown): {
+  pageCount: number;
+  actionCount: number;
+  grantCount: number;
+} {
   // The repository may return JSON columns already parsed, or still as text
-  // (raw SQL). Count either shape instead of reporting 0 grants for every set.
-  if (Array.isArray(raw)) return raw.length;
-  if (typeof raw !== 'string') return 0;
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.length : 0;
-  } catch {
-    return 0;
+  // (raw SQL). Summarize either shape instead of reporting 0 grants for every
+  // set. A set's reach is much easier to judge as "pages + actions" than as a
+  // raw count of resource rows.
+  let grants: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      grants = JSON.parse(raw);
+    } catch {
+      grants = [];
+    }
   }
+  if (!Array.isArray(grants))
+    return { pageCount: 0, actionCount: 0, grantCount: 0 };
+  const pages = new Set<string>();
+  let actionCount = 0;
+  for (const row of grants as unknown[]) {
+    if (!row || typeof row !== 'object') continue;
+    const grant = row as Record<string, unknown>;
+    const resource = grant.resource;
+    const record =
+      resource && typeof resource === 'object'
+        ? (resource as Record<string, unknown>)
+        : undefined;
+    const resourceType = text(record?.type);
+    const resourceId = text(record?.id);
+    if (resourceType === 'page' && resourceId) pages.add(resourceId);
+    const actions = grant.actions;
+    if (!Array.isArray(actions)) continue;
+    for (const item of actions as unknown[]) {
+      if (!item || typeof item !== 'object') continue;
+      const action = item as Record<string, unknown>;
+      // Page access is already reflected by pageCount; counting it again would
+      // make a read-only page set look like it grants many operations.
+      if (resourceType === 'page' && text(action.action) === 'access') continue;
+      actionCount += 1;
+    }
+  }
+  // Keep the raw count for callers built before the page/action summary.
+  return { pageCount: pages.size, actionCount, grantCount: grants.length };
 }
 
 async function accountsAtPosition(
@@ -331,7 +369,7 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
               .map((set) => ({
                 key: text(set.key),
                 title: titleOf(set.title) || text(set.key),
-                grantCount: grantCount(set.grants),
+                ...grantSummary(set.grants),
               }))
               .filter((set) => set.key && set.key !== 'root'),
           },
@@ -343,7 +381,8 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
       '/:id',
       describeRoute({
         tags: ['Authorization'],
-        summary: 'Replace a position permission-set mapping and sync members',
+        summary:
+          'Replace a position permission-set mapping and template, sync members',
         operationId: 'savePositionPermissions',
         responses: {
           '200': dataResponse(z.record(z.string(), z.json())),
@@ -355,7 +394,9 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
       async (c) => {
         await permit(c, 'assign');
         const positionId = c.req.valid('param').id;
-        const keys = [...new Set(c.req.valid('json').permissionSetKeys)];
+        const input = c.req.valid('json');
+        const keys = [...new Set(input.permissionSetKeys)];
+        const requestedTemplateId = input.templateId;
         // Mapping writes run in one transaction and serialize on the shared
         // organization mutation lock, exactly like organization topology
         // changes, so concurrent saves and position deactivations cannot race.
@@ -383,159 +424,59 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
           // assigned through this endpoint (GET never lists them either).
           await validateSetKeys(connection, keys);
 
-          const [
-            previous,
-            allEmployees,
-            allMappings,
-            allPositions,
-            templates,
-            setAssignments,
-            allAssignments,
-          ] = await Promise.all([
+          // Capture what this position granted before the save so a key that
+          // disappears (for example when a template is unlinked) is revoked
+          // from its holders instead of lingering as an orphan assignment.
+          const previousTemplateId = text(position.templateId) || null;
+          const [previousMappings, previousTemplate] = await Promise.all([
             connection
               .repository('orgPositionPermissionSets')
               .findMany({ filter: { positionId }, limit: 200 }),
-            connection
-              .repository('personnelEmployees')
-              .findMany({ filter: { status: 'active' }, limit: 10000 }),
-            connection
-              .repository('orgPositionPermissionSets')
-              .findMany({ limit: 10000 }),
-            connection.repository('orgPositions').findMany({ limit: 10000 }),
-            connection
-              .repository('orgPositionTemplates')
-              .findMany({ limit: 2000 }),
-            connection
-              .repository('authorizationPermissionSetAssignments')
-              .findMany({ limit: 10000 }),
-            connection
-              .repository('personnelAssignments')
-              .findMany({ filter: { status: 'active' }, limit: 10000 }),
+            previousTemplateId
+              ? connection
+                  .repository('orgPositionTemplates')
+                  .findOne({ filter: { id: previousTemplateId } })
+              : Promise.resolve(undefined),
           ]);
-          const before = previous
-            .map((row) => text(row.permissionSetKey))
-            .filter(Boolean);
-          const nextSet = new Set(keys);
-          const removed = before.filter((key) => !nextSet.has(key));
-          const today = businessDate(timeZone);
-          const currentAssignments = allAssignments.filter((assignment) =>
-            isCurrentAssignment(assignment, today),
-          );
-          const positionsByPerson = new Map<string, Set<string>>();
-          for (const assignment of currentAssignments) {
-            const personId = text(assignment.personId);
-            const id = text(assignment.positionId);
-            if (!personId || !id) continue;
-            const positions =
-              positionsByPerson.get(personId) ?? new Set<string>();
-            positions.add(id);
-            positionsByPerson.set(personId, positions);
+          const previousKeys = new Set([
+            ...previousMappings.map((row) => text(row.permissionSetKey)),
+            ...keyList(previousTemplate?.permissionSetKeys),
+          ]);
+
+          // Template and explicit mappings are one editable unit. The UI
+          // stages both and saves them together so a template change and a
+          // checkbox change cannot land in two half-applied requests.
+          let templateId = previousTemplateId;
+          if (
+            requestedTemplateId !== undefined &&
+            requestedTemplateId !== templateId
+          ) {
+            if (requestedTemplateId !== null) {
+              const template = await connection
+                .repository('orgPositionTemplates')
+                .findOne({ filter: { id: requestedTemplateId } });
+              if (!template || text(template.status) !== 'active')
+                throw new ApiError({
+                  status: 'NOT_FOUND',
+                  reason: 'POSITION_TEMPLATE_NOT_FOUND',
+                  domain: 'organization',
+                  message: 'Position template was not found.',
+                });
+            }
+            templateId = requestedTemplateId;
+            // Bumping the revision makes a stale organization form fail
+            // instead of silently overwriting the template link.
+            await connection.repository('orgPositions').updateOne({
+              filter: { id: positionId },
+              values: {
+                templateId,
+                revision: Number(position.revision ?? 1) + 1,
+                updatedAt: new Date(),
+              },
+            });
           }
-          const memberPersonIds = new Set(
-            currentAssignments
-              .filter(
-                (assignment) => text(assignment.positionId) === positionId,
-              )
-              .map((assignment) => text(assignment.personId))
-              .filter(Boolean),
-          );
-          const employees = allEmployees.filter((employee) =>
-            memberPersonIds.has(text(employee.id)),
-          );
-          const positionsByAccount = new Map<string, Set<string>>();
-          for (const employee of allEmployees) {
-            const accountId = text(employee.accountId);
-            if (!accountId) continue;
-            const positions =
-              positionsByAccount.get(accountId) ?? new Set<string>();
-            for (const id of positionsByPerson.get(text(employee.id)) ?? [])
-              positions.add(id);
-            positionsByAccount.set(accountId, positions);
-          }
-          const templateKeysById = new Map(
-            templates.map((template) => [
-              text(template.id),
-              keyList(template.permissionSetKeys),
-            ]),
-          );
-          const keysAtPosition = new Map<string, Set<string>>();
-          for (const mapping of allMappings) {
-            const id = text(mapping.positionId);
-            const keysAt = keysAtPosition.get(id) ?? new Set<string>();
-            keysAt.add(text(mapping.permissionSetKey));
-            keysAtPosition.set(id, keysAt);
-          }
-          // Inherited template keys also belong to the position: they must
-          // survive when an explicit mapping with the same key is removed.
-          for (const row of allPositions) {
-            const id = text(row.id);
-            const templateId = text(row.templateId);
-            if (!templateId) continue;
-            const keysAt = keysAtPosition.get(id) ?? new Set<string>();
-            for (const key of templateKeysById.get(templateId) ?? [])
-              keysAt.add(key);
-            keysAtPosition.set(id, keysAt);
-          }
-          const ownTemplateKeys = new Set(
-            templateKeysById.get(text(position.templateId)) ?? [],
-          );
-          const assigned = new Set(
-            setAssignments.map(
-              (row) =>
-                `${text(row.subjectType)}:${text(row.subjectId)}:${text(row.permissionSetKey)}`,
-            ),
-          );
-          const accounts = [
-            ...new Set(
-              employees
-                .map((employee) => text(employee.accountId))
-                .filter(Boolean),
-            ),
-          ];
+
           const now = new Date();
-          let granted = 0;
-          let revoked = 0;
-          for (const accountId of accounts) {
-            const otherPositions = [
-              ...(positionsByAccount.get(accountId) ?? []),
-            ].filter((id) => id !== positionId);
-            const keptByOther = new Set<string>();
-            for (const other of otherPositions)
-              for (const key of keysAtPosition.get(other) ?? [])
-                if (key !== '') keptByOther.add(key);
-            for (const key of removed) {
-              if (keptByOther.has(key) || ownTemplateKeys.has(key)) continue;
-              if (!assigned.has(`user:${accountId}:${key}`)) continue;
-              await connection
-                .repository('authorizationPermissionSetAssignments')
-                .deleteMany({
-                  filter: {
-                    subjectType: 'user',
-                    subjectId: accountId,
-                    permissionSetKey: key,
-                  },
-                });
-              assigned.delete(`user:${accountId}:${key}`);
-              revoked += 1;
-            }
-            for (const key of keys) {
-              if (assigned.has(`user:${accountId}:${key}`)) continue;
-              await connection
-                .repository('authorizationPermissionSetAssignments')
-                .createOne({
-                  values: {
-                    id: `user:${accountId}:${key}`,
-                    subjectType: 'user',
-                    subjectId: accountId,
-                    permissionSetKey: key,
-                    createdAt: now,
-                    updatedAt: now,
-                  },
-                });
-              assigned.add(`user:${accountId}:${key}`);
-              granted += 1;
-            }
-          }
           const mappingRepo = connection.repository(
             'orgPositionPermissionSets',
           );
@@ -550,9 +491,31 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
                 updatedAt: now,
               },
             });
+
+          // Reconcile each holder from the saved state. The shared sync helper
+          // also knows about the template, other positions and manual grants,
+          // so an explicit key still inherited elsewhere is not revoked.
+          const accounts = await accountsAtPosition(
+            connection,
+            positionId,
+            timeZone,
+          );
+          let granted = 0;
+          let revoked = 0;
+          for (const accountId of accounts) {
+            const synced = await syncAccountPositionPermissions(
+              connection,
+              accountId,
+              timeZone,
+              previousKeys,
+            );
+            granted += synced.granted;
+            revoked += synced.revoked;
+          }
           return {
             positionId,
             permissionSetKeys: keys,
+            templateId,
             members: accounts.length,
             granted,
             revoked,
@@ -610,6 +573,17 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
                 message: 'Position template was not found.',
               });
           }
+          // Keys granted by the old template must be revoked when the link is
+          // removed; otherwise they stay assigned with no position behind them.
+          const previousTemplateId = text(position.templateId);
+          const previousTemplate = previousTemplateId
+            ? await connection
+                .repository('orgPositionTemplates')
+                .findOne({ filter: { id: previousTemplateId } })
+            : undefined;
+          const previousTemplateKeys = keyList(
+            previousTemplate?.permissionSetKeys,
+          );
           // Bumping the revision makes a stale organization form fail instead
           // of silently overwriting the template link.
           await connection.repository('orgPositions').updateOne({
@@ -632,6 +606,7 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
               connection,
               accountId,
               timeZone,
+              previousTemplateKeys,
             );
             granted += synced.granted;
             revoked += synced.revoked;
@@ -734,6 +709,9 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
             ? [...new Set(input.permissionSetKeys)]
             : null;
           if (keys) await validateSetKeys(connection, keys);
+          // A key removed from the template no longer appears in any mapping;
+          // remember it so the sync below can revoke the stale assignment.
+          const previousKeys = keyList(template.permissionSetKeys);
           await connection.repository('orgPositionTemplates').updateOne({
             filter: { id },
             values: {
@@ -762,6 +740,7 @@ export const positionPermissionRoutes: AppApiRouteContribution<Application> =
               connection,
               accountId,
               timeZone,
+              previousKeys,
             );
             granted += synced.granted;
             revoked += synced.revoked;
