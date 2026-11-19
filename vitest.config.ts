@@ -15,8 +15,10 @@ export default defineConfig({
           root,
           name: 'node',
           include: ['tests/{server,database,cli,project}/**/*.test.{ts,tsx}'],
-          // Database fixtures and command output capture run one file at a time.
-          fileParallelism: false,
+          // Each file boots its own in-process app on an ephemeral port, so
+          // files can overlap as long as the worker count stays bounded.
+          fileParallelism: true,
+          maxWorkers: 4,
         },
       }),
       createReactVitestConfig({
