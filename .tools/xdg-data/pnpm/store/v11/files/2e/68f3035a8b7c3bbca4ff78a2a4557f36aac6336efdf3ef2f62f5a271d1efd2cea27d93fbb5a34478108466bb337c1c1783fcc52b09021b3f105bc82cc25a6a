@@ -1,6 +1,0 @@
-export class NoopSchemaAdapter {
-    async execute() { }
-    async compile() {
-        return [];
-    }
-}

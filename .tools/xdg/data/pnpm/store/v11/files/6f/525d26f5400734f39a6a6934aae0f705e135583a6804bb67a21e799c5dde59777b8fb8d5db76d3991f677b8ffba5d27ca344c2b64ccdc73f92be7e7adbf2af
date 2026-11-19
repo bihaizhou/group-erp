@@ -1,3 +1,0 @@
-export { restrictionRulesPlugin, } from './plugin.js';
-export { RestrictionRuleBuilder, defineRestrictionRule } from './builder.js';
-//# sourceMappingURL=index.js.map

@@ -1,4 +1,0 @@
-import type { InAppNotificationResource } from './en-US.js';
-declare const zhCN: InAppNotificationResource;
-export default zhCN;
-//# sourceMappingURL=zh-CN.d.ts.map

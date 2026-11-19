@@ -1,3 +1,0 @@
-import type { Namespace } from '@nocobase/i18n';
-export declare const IN_APP_NOTIFICATION_CLIENT_NAMESPACE: Namespace;
-//# sourceMappingURL=i18n.d.ts.map

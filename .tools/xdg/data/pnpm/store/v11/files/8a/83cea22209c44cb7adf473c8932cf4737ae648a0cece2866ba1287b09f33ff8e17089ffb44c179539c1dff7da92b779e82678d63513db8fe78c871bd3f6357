@@ -1,3 +1,0 @@
-declare const registry: Record<string, unknown>;
-export default registry;
-//# sourceMappingURL=registry.d.ts.map

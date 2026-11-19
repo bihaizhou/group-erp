@@ -1,3 +1,0 @@
-import type { ServiceResolver } from '@nocobase/service-provider';
-/** Standalone database tasks have no application services unless supplied by their owner. */
-export declare const emptyDatabaseTaskContainer: ServiceResolver;

@@ -1,3 +1,0 @@
-import type { SeedDefinition } from './types.js';
-/** Marks and returns a seed definition for discovery by the seed loader. */
-export declare function defineSeed<T extends SeedDefinition>(definition: T): T;

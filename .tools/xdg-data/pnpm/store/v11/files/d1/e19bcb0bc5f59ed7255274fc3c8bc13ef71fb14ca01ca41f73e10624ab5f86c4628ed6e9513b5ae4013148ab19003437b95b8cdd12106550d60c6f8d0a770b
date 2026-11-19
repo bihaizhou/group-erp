@@ -1,3 +1,0 @@
-import { createServiceToken, } from '@nocobase/service-provider';
-export const idGeneratorToken = createServiceToken('@nocobase/snowflake');
-//# sourceMappingURL=token.js.map

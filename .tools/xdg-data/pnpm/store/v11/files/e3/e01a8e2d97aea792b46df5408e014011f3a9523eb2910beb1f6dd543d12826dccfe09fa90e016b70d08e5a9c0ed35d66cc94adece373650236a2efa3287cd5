@@ -1,4 +1,0 @@
-import type { AuthorizationResource } from './en-US.js';
-declare const zhCN: AuthorizationResource;
-export default zhCN;
-//# sourceMappingURL=zh-CN.d.ts.map

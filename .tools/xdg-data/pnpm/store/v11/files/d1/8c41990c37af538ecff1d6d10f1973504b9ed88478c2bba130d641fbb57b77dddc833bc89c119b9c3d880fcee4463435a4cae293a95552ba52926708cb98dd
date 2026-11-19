@@ -1,5 +1,0 @@
-export declare function finalizeStream(stream: ReadableStream<Uint8Array>, finalize: () => Promise<void>): ReadableStream<Uint8Array>;
-export declare function closeAdapter(adapter: {
-    close?(): Promise<void>;
-}): Promise<void>;
-//# sourceMappingURL=provider-lifecycle.d.ts.map

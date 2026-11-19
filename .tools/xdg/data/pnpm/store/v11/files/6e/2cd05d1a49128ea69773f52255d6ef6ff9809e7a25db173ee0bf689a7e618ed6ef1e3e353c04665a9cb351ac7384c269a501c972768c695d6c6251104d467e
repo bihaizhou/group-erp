@@ -1,3 +1,0 @@
-export { createSampleDataService } from './registry.js';
-export { sampleDataRecordName, sampleDataToken, } from './token.js';
-//# sourceMappingURL=index.js.map

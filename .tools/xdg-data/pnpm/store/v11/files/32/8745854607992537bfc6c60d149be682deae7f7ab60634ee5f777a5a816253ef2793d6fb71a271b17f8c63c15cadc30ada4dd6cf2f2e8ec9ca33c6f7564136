@@ -1,3 +1,0 @@
-import type { CacheTtlConfig } from '../types.js';
-export declare function resolveTtlConfig(value: CacheTtlConfig | undefined, name: string): number | undefined;
-//# sourceMappingURL=duration.d.ts.map

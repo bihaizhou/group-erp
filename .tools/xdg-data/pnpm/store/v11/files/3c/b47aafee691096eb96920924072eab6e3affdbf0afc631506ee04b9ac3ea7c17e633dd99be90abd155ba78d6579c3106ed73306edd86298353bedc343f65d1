@@ -1,3 +1,0 @@
-import { createServiceToken, } from '@nocobase/service-provider';
-export const cachingToken = createServiceToken('@nocobase/caching');
-//# sourceMappingURL=token.js.map

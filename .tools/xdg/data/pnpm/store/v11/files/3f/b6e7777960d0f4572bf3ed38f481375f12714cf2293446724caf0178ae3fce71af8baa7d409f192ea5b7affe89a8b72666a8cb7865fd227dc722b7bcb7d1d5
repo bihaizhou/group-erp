@@ -1,3 +1,0 @@
-export * from './dingtalk.js';
-export * from './feishu.js';
-//# sourceMappingURL=index.d.ts.map

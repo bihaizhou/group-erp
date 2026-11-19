@@ -33,3 +33,11 @@ coverage/
 
 # Local UX audit scratch (Playwright probes, screenshots).
 /.ux-audit/
+
+# Local pnpm virtual store / cache (must never be committed).
+/.tools/
+
+# Test output and local scratch files.
+/test-results/
+/.audit-summary.txt
+/smoke-tmp.mjs

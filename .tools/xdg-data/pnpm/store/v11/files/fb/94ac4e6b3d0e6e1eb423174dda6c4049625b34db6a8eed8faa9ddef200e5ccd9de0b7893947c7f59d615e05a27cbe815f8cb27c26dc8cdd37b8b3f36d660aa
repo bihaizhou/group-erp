@@ -1,6 +1,0 @@
-const locales = {
-    'en-US': () => import('./en-US.js'),
-    'zh-CN': () => import('./zh-CN.js'),
-};
-export default locales;
-//# sourceMappingURL=index.js.map

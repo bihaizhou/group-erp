@@ -1,4 +1,0 @@
-import { AuthenticationProvider, } from './authentication.js';
-const serviceProviders = [AuthenticationProvider];
-export default serviceProviders;
-//# sourceMappingURL=index.js.map

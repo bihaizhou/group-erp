@@ -1,3 +1,0 @@
-import { type ServiceToken } from '@nocobase/service-provider';
-export declare const authenticationClientToken: ServiceToken<unknown>;
-//# sourceMappingURL=tokens.d.ts.map

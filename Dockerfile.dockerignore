@@ -23,6 +23,7 @@ ui-library/dist
 
 # Local tooling and test output.
 .git
+**/.tools
 **/.agents
 **/.claude
 **/coverage

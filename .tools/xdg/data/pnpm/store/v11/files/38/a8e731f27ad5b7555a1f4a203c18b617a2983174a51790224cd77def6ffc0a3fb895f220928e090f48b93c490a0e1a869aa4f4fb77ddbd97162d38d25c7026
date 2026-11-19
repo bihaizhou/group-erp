@@ -1,3 +1,0 @@
-import { createServiceToken, } from '@nocobase/service-provider';
-/** The application database manager registered in a service container. */
-export const databaseManagerToken = createServiceToken('@nocobase/db/manager');

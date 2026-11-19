@@ -1,4 +1,0 @@
-import { type AppClientPluginFactory } from '@nocobase/app-client/plugins';
-declare const authentication: AppClientPluginFactory;
-export default authentication;
-//# sourceMappingURL=plugin.d.ts.map

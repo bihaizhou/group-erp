@@ -1,3 +1,0 @@
-import type { AuthenticationActionState, PasswordRegistrationInput } from './types.js';
-export declare function usePasswordRegistration(): AuthenticationActionState<PasswordRegistrationInput>;
-//# sourceMappingURL=use-password-registration.d.ts.map

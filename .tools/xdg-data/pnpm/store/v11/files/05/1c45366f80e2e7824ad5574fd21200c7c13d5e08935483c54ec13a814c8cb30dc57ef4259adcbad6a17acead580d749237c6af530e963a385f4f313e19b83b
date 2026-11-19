@@ -1,2 +1,0 @@
-export declare function snakeCase(value: string): string;
-export declare function truncateIdentifier(identifier: string, maxLength?: number): string;

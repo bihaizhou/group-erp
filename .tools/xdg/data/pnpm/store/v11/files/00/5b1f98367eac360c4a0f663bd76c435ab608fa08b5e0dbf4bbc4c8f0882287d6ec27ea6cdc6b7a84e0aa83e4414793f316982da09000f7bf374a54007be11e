@@ -1,3 +1,0 @@
-export { default } from './plugin.js';
-export { i18nApiRoutes } from './routes.js';
-//# sourceMappingURL=index.d.ts.map

@@ -1,3 +1,0 @@
-import type { MailTransport, ResendProviderConfig } from './types.js';
-export declare function createResendTransport(config: ResendProviderConfig): MailTransport;
-//# sourceMappingURL=resend.d.ts.map

@@ -1,3 +1,0 @@
-export { sharingRulesPlugin, } from './plugin.js';
-export { SharingRuleBuilder, defineSharingRule } from './builder.js';
-//# sourceMappingURL=index.js.map

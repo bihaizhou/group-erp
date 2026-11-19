@@ -1,3 +1,0 @@
-export { DefaultAccessConflictError, defaultAccessPlugin, } from './plugin.js';
-export { DefaultAccessRuleBuilder, defineDefaultAccessRule, } from './builder.js';
-//# sourceMappingURL=index.js.map

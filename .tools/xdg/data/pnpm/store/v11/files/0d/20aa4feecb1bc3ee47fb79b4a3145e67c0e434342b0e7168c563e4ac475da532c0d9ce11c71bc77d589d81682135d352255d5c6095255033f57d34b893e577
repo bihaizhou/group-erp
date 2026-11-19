@@ -1,3 +1,0 @@
-export function defineCollectionMetadata(document) {
-    return document;
-}

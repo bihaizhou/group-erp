@@ -1,3 +1,0 @@
-import type { PasswordResetRequestActionState } from './types.js';
-export declare function usePasswordResetRequest(): PasswordResetRequestActionState;
-//# sourceMappingURL=use-password-reset-request.d.ts.map

@@ -1,4 +1,0 @@
-import type { MailServerResource } from './en-US.js';
-declare const zhCN: MailServerResource;
-export default zhCN;
-//# sourceMappingURL=zh-CN.d.ts.map

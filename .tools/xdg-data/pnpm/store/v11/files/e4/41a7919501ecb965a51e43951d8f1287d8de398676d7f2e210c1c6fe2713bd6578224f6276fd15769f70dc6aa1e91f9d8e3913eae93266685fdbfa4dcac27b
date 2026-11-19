@@ -1,3 +1,0 @@
-import { createServiceToken, } from '@nocobase/service-provider';
-export const sessionManagerToken = createServiceToken('@nocobase/session/manager');
-//# sourceMappingURL=token.js.map

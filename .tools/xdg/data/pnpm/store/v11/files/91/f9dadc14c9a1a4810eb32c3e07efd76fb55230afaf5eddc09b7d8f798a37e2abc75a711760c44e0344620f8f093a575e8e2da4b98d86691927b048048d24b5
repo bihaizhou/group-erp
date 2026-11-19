@@ -1,6 +1,0 @@
-import { InAppNotificationProvider } from './in-app-notification.js';
-const serviceProviders = [
-    InAppNotificationProvider,
-];
-export default serviceProviders;
-//# sourceMappingURL=index.js.map

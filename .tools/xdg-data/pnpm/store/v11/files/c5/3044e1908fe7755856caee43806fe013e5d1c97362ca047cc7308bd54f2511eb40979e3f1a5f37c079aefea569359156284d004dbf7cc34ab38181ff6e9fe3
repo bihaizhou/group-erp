@@ -1,2 +1,0 @@
-import type { Knex } from 'knex';
-export declare function rollbackFailedCommits(client: typeof Knex.Client): void;

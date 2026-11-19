@@ -1,4 +1,0 @@
-export { withChannel } from './consumer.js';
-export { redisQueueIdentity } from './naming.js';
-export { createQueueService } from './service.js';
-//# sourceMappingURL=index.js.map

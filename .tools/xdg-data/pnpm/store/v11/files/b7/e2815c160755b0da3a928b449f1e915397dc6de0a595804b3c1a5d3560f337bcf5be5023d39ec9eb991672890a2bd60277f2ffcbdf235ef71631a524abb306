@@ -1,3 +1,0 @@
-export { PermissionSetBuilder, definePermissionSet } from './builder.js';
-export { PERMISSION_SETS_PROTECTION_OWNER, PermissionSetConflictError, PermissionSetLastAssignmentError, PermissionSetNotFoundError, PermissionSetProtectedError, PermissionSetSubjectNotAllowedError, permissionSetsPlugin, } from './plugin.js';
-//# sourceMappingURL=index.js.map

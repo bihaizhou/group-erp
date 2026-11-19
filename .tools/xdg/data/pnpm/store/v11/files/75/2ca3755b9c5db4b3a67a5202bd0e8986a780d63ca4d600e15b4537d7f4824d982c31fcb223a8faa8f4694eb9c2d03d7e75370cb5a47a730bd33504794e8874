@@ -1,3 +1,0 @@
-import type { AuthorizationClient } from './authorization-client.js';
-export declare function useAuthorizationClient(): AuthorizationClient;
-//# sourceMappingURL=use-authorization-client.d.ts.map

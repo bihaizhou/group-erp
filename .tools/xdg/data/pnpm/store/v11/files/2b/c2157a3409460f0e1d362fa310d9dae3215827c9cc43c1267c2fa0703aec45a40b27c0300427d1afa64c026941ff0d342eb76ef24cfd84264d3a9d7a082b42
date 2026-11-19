@@ -1,2 +1,0 @@
-export type { JobsConfig as AppJobsConfig } from '@nocobase/jobs';
-//# sourceMappingURL=config.d.ts.map

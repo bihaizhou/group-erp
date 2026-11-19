@@ -1,5 +1,0 @@
-import type { CollectionResolutionInput, CollectionResolutionResult } from './types.js';
-export declare class CollectionResolver {
-    resolve(input: CollectionResolutionInput): CollectionResolutionResult;
-}
-export declare function resolveCollection(input: CollectionResolutionInput): CollectionResolutionResult;

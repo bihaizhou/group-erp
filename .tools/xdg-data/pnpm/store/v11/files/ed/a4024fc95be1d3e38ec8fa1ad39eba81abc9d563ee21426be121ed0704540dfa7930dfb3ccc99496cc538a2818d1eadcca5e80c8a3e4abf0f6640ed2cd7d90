@@ -1,2 +1,0 @@
-export declare function validateLogPagination(offset: number, limit: number): void;
-//# sourceMappingURL=log-pagination.d.ts.map

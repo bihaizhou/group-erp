@@ -1,3 +1,0 @@
-import type { ConfigParser } from '../types.js';
-export declare function tomlParser(): ConfigParser;
-//# sourceMappingURL=toml.d.ts.map

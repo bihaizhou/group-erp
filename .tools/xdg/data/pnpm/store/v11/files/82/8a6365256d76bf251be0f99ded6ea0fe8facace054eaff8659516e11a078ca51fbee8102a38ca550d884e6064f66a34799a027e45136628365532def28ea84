@@ -1,4 +1,0 @@
-import { type ServiceToken } from '@nocobase/service-provider';
-import type { ServerFileRepositoryManager } from './repository.js';
-export declare const serverFileRepositoryManagerToken: ServiceToken<ServerFileRepositoryManager>;
-//# sourceMappingURL=token.d.ts.map

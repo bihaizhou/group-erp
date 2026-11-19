@@ -1,3 +1,0 @@
-import type { ReactElement } from 'react';
-export declare function MailLabelManager(): ReactElement;
-//# sourceMappingURL=mail-label-manager.d.ts.map

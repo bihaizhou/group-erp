@@ -1,3 +1,0 @@
-import { createServiceToken, } from '@nocobase/service-provider';
-export const inAppNotificationStoreToken = createServiceToken('@nocobase/app-plugin-notification-in-app/store');
-//# sourceMappingURL=tokens.js.map

@@ -1,3 +1,0 @@
-import type { ServiceResolver } from '@nocobase/service-provider';
-export declare function createTaskServiceResolver(source?: ServiceResolver): ServiceResolver;
-//# sourceMappingURL=task-container.d.ts.map

@@ -1,3 +1,0 @@
-import { createServiceToken, } from '@nocobase/service-provider';
-export const clientFileRepositoryManagerToken = createServiceToken('clientFileRepositoryManager');
-//# sourceMappingURL=token.js.map

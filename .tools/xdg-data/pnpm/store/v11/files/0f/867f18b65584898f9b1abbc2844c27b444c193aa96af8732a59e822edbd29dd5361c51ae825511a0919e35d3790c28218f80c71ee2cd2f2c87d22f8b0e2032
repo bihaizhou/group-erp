@@ -1,2 +1,0 @@
-export type { SnowflakeIdGeneratorConfig } from '@nocobase/snowflake';
-//# sourceMappingURL=config.d.ts.map
