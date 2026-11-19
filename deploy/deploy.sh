@@ -21,6 +21,7 @@ HEALTH=http://192.168.5.189:13010/main/api/healthz
 APP_CONTAINER=group-erp-app-1
 DB_CONTAINER=group-erp-db-1
 KEEP_RELEASES=5
+KEEP_DB_BACKUPS=14
 
 export PATH=/opt/node24/bin:/home/qwkj/.local/bin:/usr/local/bin:/usr/bin:/bin
 
@@ -47,7 +48,9 @@ log "================ deploy ${PREV:-（首次）} -> $SHA ================"
 if [ "$MODE" = "" ]; then
   deadline=$(( $(date +%s) + 1800 ))
   while :; do
-    verdict=$(curl -fsS "https://api.github.com/repos/$OWNER_REPO/actions/runs?head_sha=$SHA&per_page=20" 2>/dev/null |
+    auth=()
+    [ -n "${GITHUB_TOKEN:-}" ] && auth=(-H "Authorization: Bearer $GITHUB_TOKEN")
+    verdict=$(curl -fsS "${auth[@]}" "https://api.github.com/repos/$OWNER_REPO/actions/runs?head_sha=$SHA&per_page=20" 2>/dev/null |
       node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const r=(JSON.parse(s).workflow_runs||[]);if(!r.length)return console.log("none");if(r.some(x=>x.status!=="completed"))return console.log("pending");if(r.some(x=>x.conclusion!=="success"))return console.log("failed");console.log("ok")}catch(e){console.log("none")}})')
     case "$verdict" in
       ok) break ;;
@@ -88,6 +91,9 @@ fi
 mkdir -p "$BACKUPS"
 log "备份数据库…"
 docker exec "$DB_CONTAINER" pg_dump -U group_erp group_erp | gzip >"$BACKUPS/db-$TAG.sql.gz"
+ls -1t "$BACKUPS"/db-*.sql.gz 2>/dev/null | tail -n +"$((KEEP_DB_BACKUPS + 1))" | while read -r old; do
+  rm -f -- "$old"
+done
 cp "$COMPOSE" "$DEPLOY/compose.yml.before-$TAG"
 
 # 5) 切镜像并重启 app
@@ -106,7 +112,9 @@ done
 if [ "$code" != "200" ]; then
   log "健康检查失败（$code），回滚到 $OLD_IMAGE"
   cp "$DEPLOY/compose.yml.before-$TAG" "$COMPOSE"
-  ( cd "$DEPLOY" && docker compose up -d --no-deps app >/dev/null ) || true
+  if ! ( cd "$DEPLOY" && docker compose up -d --no-deps app >/dev/null ); then
+    log "FATAL: 回滚启动失败，线上仍指向坏镜像，请立即人工介入"
+  fi
   die "部署失败，已回滚"
 fi
 
