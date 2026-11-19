@@ -10,7 +10,10 @@ it('groups existing permission pages without changing their URLs or authorizatio
   const { routes } = resolveAppClientContributions([
     { packageName: 'test', source: 'application', routes: [settings] },
   ]);
-  const group = routes[0].children!.find(
+  // Contributions resolve to a flat list; the settings group owns the
+  // permission pages.
+  const settingsRoute = routes.find((route) => route.name === 'settings')!;
+  const group = settingsRoute.children!.find(
     (route) => route.name === 'permissionManagement',
   )!;
   expect(group.componentLoader).toBeUndefined();
@@ -33,8 +36,19 @@ it('groups existing permission pages without changing their URLs or authorizatio
         action: 'read',
       },
     ],
+    [
+      'settingsIdentityPreview',
+      '/settings/identity-preview',
+      {
+        resource: { type: 'settings', id: 'authorization.permission-sets' },
+        action: 'read',
+      },
+    ],
   ]);
-  const visible = buildRouteNavigation(routes, new Set())[0].children.find(
+  const shell = buildRouteNavigation(routes, new Set()).find(
+    ({ route }) => route.name === 'settings',
+  )!;
+  const visible = shell.children.find(
     ({ route }) => route.name === 'permissionManagement',
   )!;
   expect(visible.children).toEqual([]);
@@ -47,7 +61,10 @@ it('groups existing permission pages without changing their URLs or authorizatio
     routeKey(visible.route),
   );
   const denied = new Set([routeKey(group.children![0])]);
-  const onlyDefault = buildRouteNavigation(routes, denied)[0].children.find(
+  const deniedShell = buildRouteNavigation(routes, denied).find(
+    ({ route }) => route.name === 'settings',
+  )!;
+  const onlyDefault = deniedShell.children.find(
     ({ route }) => route.name === 'permissionManagement',
   )!;
   expect(onlyDefault.children).toEqual([]);
@@ -56,9 +73,16 @@ it('groups existing permission pages without changing their URLs or authorizatio
     routeKey(onlyDefault.route),
   );
   denied.add(routeKey(group.children![1]));
+  // The identity preview stays readable for the permission-set reader.
   expect(
-    buildRouteNavigation(routes, denied)[0].children.map(
-      ({ route }) => route.name,
-    ),
+    buildRouteNavigation(routes, denied)
+      .find(({ route }) => route.name === 'settings')!
+      .children.map(({ route }) => route.name),
+  ).toEqual(['settingsUsers', 'permissionManagement']);
+  denied.add(routeKey(group.children![2]));
+  expect(
+    buildRouteNavigation(routes, denied)
+      .find(({ route }) => route.name === 'settings')!
+      .children.map(({ route }) => route.name),
   ).toEqual(['settingsUsers']);
 });

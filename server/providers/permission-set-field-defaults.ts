@@ -39,6 +39,13 @@ export const permissionSetFieldDefaults: AppHttpMiddleware<Application> = {
       const key = body?.data?.key;
       if (typeof key !== 'string' || !key) return;
       const database = app.container.resolve(databaseManagerToken);
+      // Idempotent replays return 201 again, so a second insert would violate
+      // the (permissionSetKey, resource, field) unique index and fail the
+      // request that merely repeated a committed create.
+      const existing = await database.repository('appFieldPolicies').exists({
+        filter: { permissionSetKey: key, resource: '$default', field: 'model' },
+      });
+      if (existing) return;
       const now = new Date();
       await database.repository('appFieldPolicies').createOne({
         values: {

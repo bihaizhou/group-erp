@@ -138,8 +138,11 @@ export function HseDetailDialog({ kind, row, onClose }: Props) {
           <h3 className='mb-2 text-sm font-medium'>{t('hse.history')}</h3>
           {row.history.length ? (
             <ol className='grid gap-2 text-xs'>
-              {row.history.map((entry, index) => (
-                <li key={`${entry.at}-${index}`} className='rounded-md border p-2'>
+              {row.history.map((entry) => (
+                <li
+                  key={`${entry.at}-${entry.action}-${entry.to ?? ''}`}
+                  className='rounded-md border p-2'
+                >
                   <span className='font-medium'>
                     {t(`hse.action.${entry.action}`)}
                   </span>

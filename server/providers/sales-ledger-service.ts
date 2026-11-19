@@ -137,6 +137,7 @@ function ledgerError(reason: string, field?: string): never {
 const day = (value: unknown): string | null => {
   if (!value) return null;
   if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value !== 'string' && typeof value !== 'number') return null;
   return String(value).slice(0, 10);
 };
 const nullable = (value: unknown): string | null => {

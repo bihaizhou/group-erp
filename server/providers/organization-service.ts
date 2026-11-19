@@ -414,7 +414,7 @@ export class OrganizationService {
             kind,
             recordId,
             operation,
-            payload: input.changes as RepositoryRecord,
+            payload: input.changes,
             effectiveFrom: input.effectiveFrom,
             status: options.canApprove ? 'pending' : 'awaiting_approval',
             reason: input.reason,
@@ -639,7 +639,7 @@ export class OrganizationService {
               ...payloadOf(pending.payload),
               version: Number(record.revision),
               reason: scalar(pending.reason),
-            } as OrgInput,
+            },
             actor,
             scalar(pending.recordId),
           );

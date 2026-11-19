@@ -218,7 +218,7 @@ export const operationsFileApiGuard = defineApiRoutes<Application>((app) => {
           .repository('operationsIssueFiles')
           .findMany({ filter: { issueId }, limit: 1000 });
         c.set('operationsFilePrincipal', {
-          ids: rows.map((row) => String(row.id)),
+          ids: rows.map((row) => String(row.id as string)),
           create: false,
         });
       }
@@ -250,11 +250,13 @@ export const operationsFileContentGuard = defineRootRoutes<Application>(
           .repository('operationsIssueFiles')
           .findOne({ filter: { id } });
         if (!file) throw notFound();
+        const issueId = file.issueId;
+        if (typeof issueId !== 'string') throw notFound();
         try {
           const subjectId = await operations.fileSubject(
             { type: 'user', id: c.get('auth')!.user.id },
             await operationsScope(c.get('authz')),
-            String(file.issueId),
+            issueId,
           );
           if (!subjectId) throw denied();
         } catch {

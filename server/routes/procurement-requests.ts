@@ -131,6 +131,12 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
     const asComparable = (field: string, value: unknown): string | null => {
       if (value === '' || value === null || value === undefined) return null;
       if (
+        typeof value !== 'string' &&
+        typeof value !== 'number' &&
+        typeof value !== 'boolean'
+      )
+        return null;
+      if (
         field === 'requestedQuantity' ||
         field === 'baseQuantity' ||
         field === 'requestedUnitText'
@@ -529,7 +535,7 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
         const policies = await pageFieldPoliciesFor(db, principal(c), 'procurement-requests-new');
         await assertContentWritable(
           policies,
-          input.content as unknown as Record<string, unknown>,
+          input.content,
         );
         return c.json(
           {
@@ -623,7 +629,7 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
         ).lines;
         await assertContentWritable(
           policies,
-          input.content as unknown as Record<string, unknown>,
+          input.content,
           Array.isArray(currentLines)
             ? (currentLines as Record<string, unknown>[])
             : undefined,
@@ -655,7 +661,7 @@ export const procurementRequestRoutes: AppApiRouteContribution<Application> =
         const policies = await pageFieldPoliciesFor(db, principal(c), 'procurement-requests-new');
         await assertContentWritable(
           policies,
-          input.content as unknown as Record<string, unknown>,
+          input.content,
         );
         return c.json(
           {

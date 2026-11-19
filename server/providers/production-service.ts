@@ -795,7 +795,9 @@ export class ProductionService {
     );
     if (!subjectId) throw new ProductionError('PRODUCTION_INVALID');
     await this.assertUnit(subjectId, input.unitId);
-    await this.writeAttendance(this.database, principal, subjectId, input);
+    await this.database.transaction(async (connection) => {
+      await this.writeAttendance(connection, principal, subjectId, input);
+    });
     return this.roster(principal, input, scope);
   }
 

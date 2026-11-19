@@ -40,7 +40,7 @@ export function OperationsIssueAttachments({
     queryClient = useQueryClient(),
     [open, setOpen] = useState(false),
     [failed, setFailed] = useState(''),
-    input = useRef<HTMLInputElement>(null);
+    inputRef = useRef<HTMLInputElement>(null);
   const files = useQuery({
     queryKey: ['operations-issue-files', issueId],
     enabled: open,
@@ -131,7 +131,7 @@ export function OperationsIssueAttachments({
             {canWrite ? (
               <>
                 <input
-                  ref={input}
+                  ref={inputRef}
                   type='file'
                   multiple
                   accept='image/png,image/jpeg,image/webp,application/pdf'
@@ -145,7 +145,7 @@ export function OperationsIssueAttachments({
                 <Button
                   variant='outline'
                   disabled={upload.isPending}
-                  onClick={() => input.current?.click()}
+                  onClick={() => inputRef.current?.click()}
                 >
                   {upload.isPending
                     ? t('operations.attachmentsUploading')

@@ -536,7 +536,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
         if (policies.length)
           await assertContentWritable(
             policies,
-            input.content as unknown as Record<string, unknown>,
+            input.content,
           );
         const data = await service.create(input, actor(c), access(c));
         return c.json(
@@ -613,7 +613,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
           );
           await assertContentWritable(
             policies,
-            input.content as unknown as Record<string, unknown>,
+            input.content,
             (current as unknown as { lines?: Record<string, unknown>[] }).lines,
           );
         }
@@ -649,7 +649,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
         if (policies.length)
           await assertContentWritable(
             policies,
-            input.content as unknown as Record<string, unknown>,
+            input.content,
           );
         const data = await service.copy(
           c.req.valid('param').id,
@@ -896,7 +896,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
         if (policies.length)
           await assertPurposeFields(
             policies,
-            input.content as unknown as Record<string, unknown>,
+            input.content,
           );
         const data = await purposeService.save(
           undefined,
@@ -957,7 +957,7 @@ export const requisitionsRequestRoutes: AppApiRouteContribution<Application> =
         if (policies.length)
           await assertPurposeFields(
             policies,
-            input.content as unknown as Record<string, unknown>,
+            input.content,
           );
         const data = await purposeService.save(
           c.req.valid('param').id,

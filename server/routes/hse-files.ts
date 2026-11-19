@@ -210,7 +210,7 @@ export const hseFileApiGuard = defineApiRoutes<Application>((app) => {
             limit: 1000,
           });
         c.set('hseFilePrincipal', {
-          ids: rows.map((row) => String(row.id)),
+          ids: rows.map((row) => String(row.id as string)),
           create: false,
         });
       }
@@ -246,6 +246,8 @@ export const hseFileContentGuard = defineRootRoutes<Application>((app) => {
           message: 'Not found.',
         });
       const scope = await hseScope(c.get('authz'));
+      const scopeId = file.scopeId;
+      if (typeof scopeId !== 'string') throw denied();
       try {
         await hse.fileSubject(
           { type: 'user', id: c.get('auth')!.user.id },
@@ -255,7 +257,7 @@ export const hseFileContentGuard = defineRootRoutes<Application>((app) => {
             : file.scope === 'certificate'
               ? 'certificate'
               : 'incident',
-          String(file.scopeId),
+          scopeId,
         );
       } catch {
         throw denied();

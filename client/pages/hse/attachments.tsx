@@ -44,7 +44,7 @@ export function HseAttachments({
     queryClient = useQueryClient(),
     [open, setOpen] = useState(false),
     [failed, setFailed] = useState(''),
-    input = useRef<HTMLInputElement>(null);
+    inputRef = useRef<HTMLInputElement>(null);
   const files = useQuery({
     queryKey: ['hse-files', scope, scopeId],
     enabled: open,
@@ -130,7 +130,7 @@ export function HseAttachments({
             {canWrite ? (
               <div className='grid gap-1'>
                 <input
-                  ref={input}
+                  ref={inputRef}
                   type='file'
                   multiple
                   accept='image/jpeg,image/png,image/webp,application/pdf'

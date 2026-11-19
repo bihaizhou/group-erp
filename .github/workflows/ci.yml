@@ -9,11 +9,17 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   check:
-    name: 类型检查与单元测试
+    name: 静态检查与单元测试
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    # ESLint 扫描整个仓库时默认堆会 OOM，提到 4GB 后与本地一致。
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
     steps:
       - uses: actions/checkout@v4
 
@@ -27,20 +33,20 @@ jobs:
           cache: pnpm
 
       # --ignore-scripts：跳过 postinstall 里的 `nocobase skills sync`，
-      # 它要读本地技能目录，CI 上没有。类型检查和逻辑测试不需要它。
+      # 它要读本地技能目录，CI 上没有。类型检查和单元测试不需要它。
       - name: 安装依赖
         run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: 代码检查
+        run: pnpm lint
 
       - name: 类型检查（客户端 / 脚本 / 服务端）
         run: pnpm typecheck
 
-      # config / tailwind-sources / client-runtime 三个文件在模板升到 1.0.0-beta.86 后过期，
-      # 本地跑同样是红的（队列 redis 默认值、会话 cookie 命名、Registry 目录扫描、
-      # 以及 client-runtime 需要服务器渲染页面注入的配置）。
-      # 先排除，等单独修好再加回来，避免它们把每个 PR 都卡红。
       - name: 逻辑单元测试
-        run: >-
-          pnpm exec vitest run -c vitest.logic.config.ts
-          --exclude 'tests/logic/config.test.ts'
-          --exclude 'tests/logic/tailwind-sources.test.ts'
-          --exclude 'tests/logic/client-runtime.test.ts'
+        run: pnpm exec vitest run -c vitest.logic.config.ts
+
+      # server / database / cli / project 由 node project 覆盖，client 由 client project 覆盖；
+      # 模板升级后新增的 tests/server/config.test.ts 等也在这里运行。
+      - name: 应用单元测试
+        run: pnpm test

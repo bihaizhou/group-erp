@@ -89,7 +89,7 @@ export default function ReceivablesPage() {
     [detailId, setDetailId] = useState(''),
     [paymentOpen, setPaymentOpen] = useState(false),
     [amount, setAmount] = useState(''),
-    [paidAt, setPaidAt] = useState(new Date().toISOString().slice(0, 10)),
+    [paidAt, setPaidAt] = useState(() => new Date().toISOString().slice(0, 10)),
     [method, setMethod] = useState('bank_transfer'),
     [reference, setReference] = useState(''),
     [note, setNote] = useState(''),

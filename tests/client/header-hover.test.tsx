@@ -11,6 +11,8 @@ beforeEach(() => {
   // jsdom does not implement the media queries used by the real theme provider.
   vi.stubGlobal('matchMedia', () => ({
     matches: false,
+    addEventListener() {},
+    removeEventListener() {},
     addListener() {},
     removeListener() {},
   }));

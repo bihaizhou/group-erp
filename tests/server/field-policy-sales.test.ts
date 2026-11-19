@@ -195,6 +195,21 @@ test('sales order line field policies redact hidden prices and reject hidden wri
       permissionSetKey: key,
       requestKey: randomUUID(),
       policies: [
+        // Explicit saves switch the set to the ladder model, so the
+        // contextual columns the page always sends need their own write
+        // grants; only unitPrice stays hidden.
+        ...[
+          'subjectId',
+          'warehouseId',
+          'partnerId',
+          'currency',
+          'deliveryOn',
+          'deliveryTerms',
+        ].map((field) => ({
+          resource: 'execution.document',
+          field,
+          access: 'write' as const,
+        })),
         { resource: 'execution.document', field: 'code', access: 'write' },
         {
           resource: 'execution.document',

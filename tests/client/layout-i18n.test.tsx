@@ -25,6 +25,11 @@ vi.mock('../../client/theme/index.js', () => ({ ThemeSettings: () => null }));
 vi.mock('../../client/layouts/components/user-menu.js', () => ({
   UserMenu: () => null,
 }));
+// The banner needs the application container's API client; this suite only
+// renders the shell's translations, so keep the focus on i18n.
+vi.mock('../../client/layouts/components/identity-preview-banner.js', () => ({
+  IdentityPreviewBanner: () => null,
+}));
 vi.mock('../../client/routing/route-navigation.js', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('../../client/routing/route-navigation.js')

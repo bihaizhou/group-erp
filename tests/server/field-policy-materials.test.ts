@@ -174,6 +174,21 @@ test('issue requests redact hidden head and line fields and reject hidden writes
       permissionSetKey: key,
       requestKey: randomUUID(),
       policies: [
+        // The first explicit save switches the set to the ladder model:
+        // every field the page sends must be granted, including the
+        // contextual columns the route writes alongside the business ones.
+        ...[
+          'subjectId',
+          'requesterEmployeeId',
+          'recipientEmployeeId',
+          'requestingUnitId',
+          'purposeId',
+          'projectId',
+        ].map((field) => ({
+          resource: 'issue.request',
+          field,
+          access: 'write' as const,
+        })),
         { resource: 'issue.request', field: 'code', access: 'write' },
         { resource: 'issue.request', field: 'usage', access: 'write' },
         { resource: 'issue.request', field: 'neededOn', access: 'write' },

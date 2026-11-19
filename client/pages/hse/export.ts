@@ -5,7 +5,14 @@ export type CsvColumn<T> = {
 };
 
 const cell = (value: unknown) => {
-  const text = value == null ? '' : String(value);
+  const text =
+    value == null
+      ? ''
+      : typeof value === 'string' ||
+          typeof value === 'number' ||
+          typeof value === 'boolean'
+        ? String(value)
+        : (JSON.stringify(value) ?? '');
   return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 };
 

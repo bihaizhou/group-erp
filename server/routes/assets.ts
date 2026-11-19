@@ -59,6 +59,12 @@ const isProvided = (value: unknown): boolean =>
 /** Compare a date by its calendar day; everything else as text. */
 const asComparable = (field: string, value: unknown): string | null => {
   if (value === '' || value === null || value === undefined) return null;
+  if (
+    typeof value !== 'string' &&
+    typeof value !== 'number' &&
+    typeof value !== 'boolean'
+  )
+    return null;
   const text = String(value);
   return field === 'acquiredOn' && text.length >= 10 ? text.slice(0, 10) : text;
 };

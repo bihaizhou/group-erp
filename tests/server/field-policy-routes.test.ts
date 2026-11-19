@@ -252,6 +252,24 @@ test('purchase requests redact hidden head and line fields and reject hidden wri
   });
 
   const policies = [
+    // Explicit saves switch the set to the ladder model, so the contextual
+    // columns the page always sends need their own write grants.
+    ...[
+      'subjectId',
+      'requesterEmployeeId',
+      'requestingUnitId',
+      'projectId',
+      'suggestedSupplierId',
+      'sourceChannel',
+      'businessDate',
+      'sourceRef',
+      'sourceDoc',
+      'period',
+    ].map((field) => ({
+      resource: 'purchase.request',
+      field,
+      access: 'write' as const,
+    })),
     ...['code', 'usage', 'neededOn', 'notes', 'status'].map((field) => ({
       resource: 'purchase.request',
       field,

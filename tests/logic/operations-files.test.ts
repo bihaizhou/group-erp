@@ -23,7 +23,6 @@ const test = createAppTest({
 
 test('attaches evidence files to an operations issue with company scope', async ({
   testApp,
-  request,
 }) => {
   const admin = await signIn(testApp, DEFAULT_ADMIN_CREDENTIALS);
   const authz = testApp.application.container.resolve(authorizationToken),

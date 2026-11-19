@@ -8,7 +8,7 @@ import {
   type AuthEnv,
 } from '@nocobase/app-plugin-authentication';
 import { databaseManagerToken } from '@nocobase/db';
-import { Hono, type Context } from 'hono';
+import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import {
   assertFieldsWritable,
@@ -34,6 +34,12 @@ const isProvided = (value: unknown) =>
 
 const comparable = (field: string, value: unknown): string | null => {
   if (value === undefined || value === null || value === '') return null;
+  if (
+    typeof value !== 'string' &&
+    typeof value !== 'number' &&
+    typeof value !== 'boolean'
+  )
+    return null;
   const string = String(value).trim();
   if (field === 'code' || field === 'registrationCode')
     return string.toUpperCase();
@@ -85,7 +91,7 @@ export const salesCustomerRoutes: AppApiRouteContribution<Application> =
       if (!rules.length) return;
       const input = (await readJson(c)) ?? {},
         fields = await resourceFieldNames(db, CUSTOMER_RESOURCE);
-      await assertFieldsWritable(
+      assertFieldsWritable(
         rules,
         CUSTOMER_RESOURCE,
         fields.filter((field) => field in input && isProvided(input[field])),
@@ -102,7 +108,7 @@ export const salesCustomerRoutes: AppApiRouteContribution<Application> =
               .findOne({ filter: { id } })) as Record<string, unknown> | null)
           : null,
         fields = await resourceFieldNames(db, CUSTOMER_RESOURCE);
-      await assertFieldsWritable(
+      assertFieldsWritable(
         rules,
         CUSTOMER_RESOURCE,
         fields.filter((field) => {
@@ -145,7 +151,7 @@ export const salesCustomerRoutes: AppApiRouteContribution<Application> =
       if (Array.isArray(data)) {
         return {
           ...payload,
-          data: data.map((row) =>
+          data: data.map((row: unknown) =>
             isObject(row) ? redactRelationship(row, rules) : row,
           ),
         };
@@ -187,7 +193,7 @@ export const salesCustomerRoutes: AppApiRouteContribution<Application> =
       '/sales/customers',
       createMiddleware<Env>(async (c, next) => {
         if (c.req.method === 'POST') {
-          await auth.required()(c as unknown as Context<AuthEnv>, async () => {
+          await auth.required()(c as unknown as Parameters<MiddlewareHandler<AuthEnv>>[0], async () => {
             await assertCreateWritable(c);
             await next();
           });
@@ -208,7 +214,7 @@ export const salesCustomerRoutes: AppApiRouteContribution<Application> =
       '/sales/customerIdentities/:id',
       createMiddleware<Env>(async (c, next) => {
         if (c.req.method === 'PATCH') {
-          await auth.required()(c as unknown as Context<AuthEnv>, async () => {
+          await auth.required()(c as unknown as Parameters<MiddlewareHandler<AuthEnv>>[0], async () => {
             await assertIdentityWritable(c);
             await next();
           });

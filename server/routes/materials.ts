@@ -475,7 +475,7 @@ export const materialRoutes: AppApiRouteContribution<Application> =
               policies,
               kind,
               input,
-              previous as unknown as Record<string, unknown>,
+              previous,
             );
           }
           const data = await service.save(

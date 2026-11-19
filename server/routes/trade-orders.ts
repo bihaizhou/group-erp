@@ -123,6 +123,12 @@ export const tradeOrderRoutes: AppApiRouteContribution<Application> =
       value !== undefined && value !== null && value !== '';
     const comparable = (field: string, value: unknown): string | null => {
       if (value === undefined || value === null || value === '') return null;
+      if (
+        typeof value !== 'string' &&
+        typeof value !== 'number' &&
+        typeof value !== 'boolean'
+      )
+        return null;
       if (field === 'occurredOn' || field === 'deliveryOn')
         return String(value).slice(0, 10);
       if (
